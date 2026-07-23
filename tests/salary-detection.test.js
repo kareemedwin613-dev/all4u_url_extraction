@@ -1,0 +1,5 @@
+import test from "node:test";import assert from "node:assert/strict";import {detectSalary} from "../extension/shared/salary-detection.js";
+test("extracts an annual USD salary range",()=>assert.deepEqual(detectSalary("The salary range is $120,000 - $165,000 per year."),{min:120000,max:165000,currency:"USD",period:"YEAR",text:"$120,000 - $165,000 per year"}));
+test("extracts hourly and international salaries",()=>{assert.deepEqual(detectSalary("Compensation: USD 55 to USD 72 hourly."),{min:55,max:72,currency:"USD",period:"HOUR",text:"USD 55 to USD 72 hourly"});assert.equal(detectSalary("Pay is £70,000 annually.").currency,"GBP");});
+test("prefers structured salary data",()=>assert.deepEqual(detectSalary("",{min:90000,max:110000,currency:"CAD",period:"YEAR",text:"CAD 90,000–110,000"}),{min:90000,max:110000,currency:"CAD",period:"YEAR",text:"CAD 90,000–110,000"}));
+test("returns nullable fields when salary is absent",()=>assert.deepEqual(detectSalary("Competitive compensation and benefits."),{min:null,max:null,currency:null,period:null,text:""}));

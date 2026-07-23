@@ -1,0 +1,3 @@
+import test from "node:test";import assert from "node:assert/strict";import {detectIndustryDomain} from "../extension/shared/industry-domain.js";
+test("detects database category slugs for healthcare and fintech",()=>{assert.equal(detectIndustryDomain("Data Engineer","Build clinical patient and pharmacy data products in a HIPAA environment."),"healthcare-life-sciences");assert.equal(detectIndustryDomain("Risk Analyst","Support our payment processing and digital wallet platform."),"fintech-payments");});
+test("leaves an unknown industry nullable",()=>assert.equal(detectIndustryDomain("Data Engineer","Build reliable pipelines with Python and SQL."),null));

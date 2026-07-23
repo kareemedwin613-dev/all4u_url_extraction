@@ -1,0 +1,33 @@
+{
+  "name": "resume-jd-capture",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run build:extension && npm run build:dashboard",
+    "build:extension": "node scripts/build.mjs",
+    "build:dashboard": "vite build --config dashboard/vite.config.js",
+    "dev:dashboard": "vite --config dashboard/vite.config.js",
+    "preview:dashboard": "vite preview --config dashboard/vite.config.js",
+    "build:watch": "node scripts/build.mjs --watch",
+    "test": "node --test",
+    "test:db": "npx supabase test db",
+    "check": "npm run test && npm run build && node scripts/validate-builds.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.52.1",
+    "mammoth": "^1.9.1",
+    "pdfjs-dist": "^5.3.31",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.2.0",
+    "docx": "^9.5.1",
+    "esbuild": "^0.25.6",
+    "linkedom": "^0.18.12",
+    "pdfkit": "^0.17.1",
+    "vite": "^7.1.11"
+  }
+}

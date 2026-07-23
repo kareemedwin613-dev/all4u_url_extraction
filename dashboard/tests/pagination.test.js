@@ -1,0 +1,3 @@
+import test from "node:test";import assert from "node:assert/strict";import {pageRange,paginationMeta} from "../src/shared/pagination.js";
+test("calculates ranges",()=>{assert.deepEqual(pageRange(1,25),{from:0,to:24});assert.deepEqual(pageRange(3,10),{from:20,to:29});});
+test("pagination first middle final and empty",()=>{assert.deepEqual(paginationMeta(0,1,25),{total:0,page:1,pageSize:25,pageCount:0,from:0,to:0,hasPrevious:false,hasNext:false});assert.equal(paginationMeta(55,2,25).hasNext,true);const last=paginationMeta(55,3,25);assert.equal(last.from,51);assert.equal(last.to,55);assert.equal(last.hasNext,false);assert.equal(last.pageCount,3);});

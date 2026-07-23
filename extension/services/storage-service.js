@@ -1,0 +1,5 @@
+import { AppError,safeError } from "../shared/errors.js";
+export async function uploadOriginal(client,path,file){const {error}=await client.storage.from("original-resumes").upload(path,file,{contentType:file.type,upsert:false});if(error)throw safeError(error,"RESUME_UPLOAD_FAILED","The resume could not be uploaded.");return path;}
+export async function deleteOriginal(client,path){const {error}=await client.storage.from("original-resumes").remove([path]);if(error)throw safeError(error,"UPLOAD_CLEANUP_FAILED","The uploaded file could not be cleaned up.");}
+export async function downloadPrivate(client,bucket,path){const {data,error}=await client.storage.from(bucket).download(path);if(error)throw safeError(error,"RESUME_DOWNLOAD_FAILED","The private resume could not be downloaded.");return data;}
+export async function openPrivate(client,bucket,path,filename){const blob=await downloadPrivate(client,bucket,path);const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename||"resume";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}

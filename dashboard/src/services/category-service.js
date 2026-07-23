@@ -1,0 +1,3 @@
+import {normalizeError} from "../shared/errors.js";
+export async function loadCategories(client){const {data,error}=await client.from("categories").select("id,name,parent_id,sort_order,active").eq("active",true).order("sort_order");if(error)throw normalizeError(error,"Unable to load categories.");const rows=data||[],byId=new Map(rows.map(x=>[x.id,x])),primary=rows.filter(x=>!x.parent_id),childrenByParent=new Map();for(const row of rows.filter(x=>x.parent_id)){const list=childrenByParent.get(row.parent_id)||[];list.push(row);childrenByParent.set(row.parent_id,list);}return {byId,primary,childrenByParent};}
+export const categoryName=(cache,id)=>cache?.byId.get(id)?.name||"Unknown category";

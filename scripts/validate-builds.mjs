@@ -1,0 +1,10 @@
+import {readFile,readdir} from "node:fs/promises";import {resolve} from "node:path";
+const root=resolve(import.meta.dirname,".."),dashboard=resolve(root,"dashboard/dist"),extension=resolve(root,"extension/dist");
+const html=await readFile(resolve(dashboard,"index.html"),"utf8"),dashboardFiles=await readdir(resolve(dashboard,"assets")),extensionFiles=await readdir(resolve(extension,"sidepanel"));
+if(/<script[^>]+src=["']https?:/i.test(html)||/https?:\/\/[^"']+\.(?:js|css)/i.test(html))throw new Error("Dashboard loads remote runtime assets.");
+if(!/\/assets\/[^"']+\.js/.test(html))throw new Error("Dashboard HTML does not reference a local bundle.");
+let dashboardText=html;for(const file of dashboardFiles)if(/\.(?:js|css)$/.test(file))dashboardText+=await readFile(resolve(dashboard,"assets",file),"utf8");
+if(/service_role/i.test(dashboardText))throw new Error("Privileged-key marker found in dashboard output.");
+if(/\bchrome\.(?:storage|runtime|tabs|scripting|sidePanel)\b/.test(dashboardText))throw new Error("Chrome extension API found in dashboard output.");
+let extensionText="";for(const file of extensionFiles)if(file.endsWith(".js"))extensionText+=await readFile(resolve(extension,"sidepanel",file),"utf8");if(/dashboard\/src|Resume JD Operations/.test(extensionText))throw new Error("Dashboard source found in extension bundle.");if(/service_role/i.test(extensionText))throw new Error("Privileged-key marker found in extension output.");
+console.log("Validated isolated local production bundles");

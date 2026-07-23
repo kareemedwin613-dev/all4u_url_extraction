@@ -1,0 +1,9 @@
+SAMPLE CANDIDATE
+SUMMARY
+Data engineer with experience building reliable analytics platforms.
+
+SKILLS
+Python, SQL, Databricks, Apache Spark, Snowflake, dbt, Airflow, AWS
+
+EXPERIENCE
+Designed data pipelines and dimensional models for non-sensitive demonstration projects.

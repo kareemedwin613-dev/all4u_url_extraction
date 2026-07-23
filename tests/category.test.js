@@ -1,0 +1,13 @@
+import test from "node:test"; import assert from "node:assert/strict";
+import { suggestCategory, suggestControlledCategory, suggestSubcategory, suggestSeniority } from "../extension/shared/categories.js";
+for(const [title,expected] of [["Senior Data Engineer","Data Engineering"],["Applied AI Engineer","AI / Machine Learning"],["Full Stack Product Engineer","Full Stack Engineering"],["SRE / Platform Engineer","Cloud / DevOps / SRE"]]) test(`category: ${title}`,()=>assert.equal(suggestCategory(title,""),expected));
+test("ambiguous text is uncategorized",()=>assert.equal(suggestCategory("Opportunity","Join our team"),"Uncategorized"));
+test("title outweighs incidental description",()=>assert.equal(suggestCategory("Data Engineer","Some React work and TypeScript"),"Data Engineering"));
+for(const [title,expected] of [["Senior Engineer","Senior"],["Lead Engineer","Lead"],["Staff Engineer","Staff"],["Principal Architect","Principal"],["Engineering Manager","Manager"],["Director of Data","Director"],["VP Engineering","Vice President"],["Software Internship","Intern"],["Software Engineer","Unspecified"]]) test(`seniority: ${title}`,()=>assert.equal(suggestSeniority(title),expected));
+test("seniority honors specified priority",()=>assert.equal(suggestSeniority("Senior Director"),"Director"));
+test("word boundaries avoid false positives",()=>{assert.equal(suggestSeniority("Staffing Engineer"),"Unspecified");assert.equal(suggestSeniority("Leadership Engineer"),"Unspecified")});
+test("suggests risk and compliance domain",()=>assert.equal(suggestSubcategory("Senior Data Engineer, Risk","Build datasets for compliance and financial crime detection.","Data Engineering"),"Risk / Compliance"));
+test("suggests healthcare domain",()=>assert.equal(suggestSubcategory("Data Engineer","Work with pharmacy and medical claims for clinical clients.","Data Engineering"),"Healthcare / Clinical"));
+test("suggests a technology specialization when domain is absent",()=>assert.equal(suggestSubcategory("Data Engineer","Build pipelines using Snowflake, Snowpipe, and dbt.","Data Engineering"),"Snowflake / dbt"));
+test("leaves ambiguous subcategory empty",()=>assert.equal(suggestSubcategory("Software Engineer","Build reliable products.","Software Engineering"),""));
+test("returns controlled category suggestion shape",()=>assert.deepEqual(suggestControlledCategory("Senior Data Engineer","Build on Databricks."),{categorySlug:"data-engineering",subcategorySlug:"databricks",confidence:"high",reasons:["job title indicates Data Engineering","description indicates Azure / Databricks"]}));

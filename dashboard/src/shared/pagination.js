@@ -1,0 +1,2 @@
+export function pageRange(page,pageSize){const safePage=Math.max(1,Number(page)||1),safeSize=Math.max(1,Number(pageSize)||25),from=(safePage-1)*safeSize;return {from,to:from+safeSize-1};}
+export function paginationMeta(total,page,pageSize){const count=Math.max(0,Number(total)||0),pageCount=count?Math.ceil(count/pageSize):0,safePage=pageCount?Math.min(Math.max(1,page),pageCount):1,from=count?(safePage-1)*pageSize+1:0,to=count?Math.min(safePage*pageSize,count):0;return {total:count,page:safePage,pageSize,pageCount,from,to,hasPrevious:safePage>1,hasNext:safePage<pageCount};}

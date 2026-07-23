@@ -1,0 +1,2 @@
+import React from "react";import {createRoot} from "react-dom/client";import "./styles/tokens.css";import "./styles/base.css";import "./styles/layout.css";import "./styles/components.css";import {App,ConfigurationError} from "./App.jsx";import {initializeSupabase} from "./services/supabase-client.js";
+const configured=initializeSupabase();createRoot(document.getElementById("app")).render(<React.StrictMode>{configured.error?<ConfigurationError message={configured.error.message}/>:<App client={configured.client}/>}</React.StrictMode>);

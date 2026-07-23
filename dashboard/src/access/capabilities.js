@@ -1,0 +1,38 @@
+import {KNOWN_ROLE_CODES, ROLE_CODES} from "./role-codes.js";
+
+export const CAPABILITIES = Object.freeze({
+  PROFILE_VIEW_SELF: "PROFILE_VIEW_SELF",
+  BUSINESS_DATA_READ: "BUSINESS_DATA_READ",
+  EXTENSION_BUSINESS_WRITE: "EXTENSION_BUSINESS_WRITE",
+  USER_ADMIN: "USER_ADMIN",
+  ROLE_ASSIGNMENT_ADMIN: "ROLE_ASSIGNMENT_ADMIN",
+});
+
+export const ALL_CAPABILITIES = Object.freeze(Object.values(CAPABILITIES));
+
+const ROLE_CAPABILITIES = Object.freeze({
+  [ROLE_CODES.APPLIER]: [CAPABILITIES.PROFILE_VIEW_SELF, CAPABILITIES.BUSINESS_DATA_READ],
+  [ROLE_CODES.APPLYING_MANAGER]: [CAPABILITIES.PROFILE_VIEW_SELF, CAPABILITIES.BUSINESS_DATA_READ, CAPABILITIES.EXTENSION_BUSINESS_WRITE],
+  [ROLE_CODES.DEVELOPER]: [CAPABILITIES.PROFILE_VIEW_SELF],
+  [ROLE_CODES.DEVELOPMENT_MANAGER]: [CAPABILITIES.PROFILE_VIEW_SELF],
+  [ROLE_CODES.ADMIN]: ALL_CAPABILITIES,
+});
+
+export function normalizeRoleCodes(roles) {
+  if (!Array.isArray(roles)) return [];
+  return [...new Set(roles.map(role => String(role || "").trim().toUpperCase()).filter(Boolean))].sort();
+}
+
+export function capabilitiesForRoles(roles, status = "ACTIVE") {
+  const capabilities = new Set();
+  if (String(status).toUpperCase() !== "ACTIVE") return capabilities;
+  for (const role of normalizeRoleCodes(roles)) {
+    if (!KNOWN_ROLE_CODES.includes(role)) continue;
+    for (const capability of ROLE_CAPABILITIES[role] || []) capabilities.add(capability);
+  }
+  return capabilities;
+}
+
+export function hasCapability(access, capability) {
+  return access?.status === "ACTIVE" && access.capabilities instanceof Set && access.capabilities.has(capability);
+}

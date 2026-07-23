@@ -1,0 +1,10 @@
+project_id = "resume-jd-capture"
+[api]
+enabled = true
+[db]
+major_version = 15
+[auth]
+enabled = true
+enable_signup = false
+[storage]
+enabled = true
