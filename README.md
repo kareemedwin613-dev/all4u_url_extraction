@@ -1,60 +1,43 @@
-# Resume JD Capture and Operations Platform v0.5.0
+# Resume JD Capture and Operations Platform v0.6.0
 
-A Supabase-backed Chrome extension and separate read-only React/Vite dashboard. No OpenAI API or other AI API is used.
+This repository contains a Manifest V3 Chrome extension, a React/Vite operations dashboard, and Supabase migrations. v0.6 adds the individual Application workflow while preserving the extension’s JD extraction, Resume upload, private Storage, authentication, profiles, fixed multi-role RBAC, and Admin user management.
 
-## Milestones
+An Application links exactly one Job Description and one active Resume. Applying Managers and Admins create, assign, reassign, unassign, prioritize, schedule, update, or cancel Applications. Assigned Appliers can see only their Applications and can update progress fields. Work status and employer-facing Application status remain separate, and assignment/status changes are recorded automatically.
 
-- v0.3 — Supabase Chrome extension for reviewed JD capture, structured resume upload, local deterministic matching, and the existing tailoring queue.
-- v0.4 — Read-only JD/resume operations dashboard.
-- v0.5 — Auth-linked profiles, five fixed system roles, multi-role assignments, role-aware routes/navigation, Admin user management, application activation, and database-enforced RBAC.
+Admins can also upload a text-based PDF Resume from the dashboard. The browser extracts the complete text, Summary/Education/Skills sections, technical skills, category/subcategory suggestion, seniority, industry experience, candidate-name suggestion, SHA-256 checksum, and repeatable Professional Experience records. Before saving, an Admin can add or remove positions and edit each company, job title, location, start/end month, current-role state, and one multiline achievements-and-responsibilities field containing all bullets for that experience. New dashboard uploads use structured Resume schema version 2; version 1 records remain readable. The rule-based flow does not use an AI API.
 
-The dashboard already used React before v0.5, so the milestone preserves that actual repository architecture rather than converting frameworks. The extension extraction implementation remains separate and unchanged by the access-control design.
+## Local commands
 
-## Fixed roles
+    npm install
+    npm run lint
+    npm run typecheck
+    npm test
+    npm run build:dashboard
+    npm run build:extension
+    npm run check
 
-`APPLIER`, `APPLYING_MANAGER`, `DEVELOPER`, `DEVELOPMENT_MANAGER`, and `ADMIN` are immutable system role codes. Users may have multiple roles. v0.5 uses one shared internal workspace and does not provide tenant or organization isolation.
+npm run test:db requires a running local Supabase stack. The repository is JavaScript/JSX, not TypeScript; typecheck performs full module-graph and bundler-contract validation for both browser applications.
 
-- Applier reads shared JDs/resumes and private original resume files.
-- Applying Manager has business read plus existing extension write workflows for owned records.
-- Developer and Development Manager see account/profile information only.
-- Admin has all v0.5 dashboard, business, and user-management access.
+## Supabase
 
-RLS and private Storage policies independently enforce these boundaries. The browser uses only the project URL and publishable/anon key; no service-role or secret key is used or exposed.
+Apply migrations in order. The v0.6 Application migration is supabase/migrations/202607220010_v0_6_individual_applications.sql. Structured Resume schema version 2 is enabled by supabase/migrations/202607240011_resume_structured_schema_v2.sql. Assigned-Applier status/URL updates are corrected by supabase/migrations/202607240012_fix_applier_progress_updates.sql.
 
-## Development
+For a linked project, first inspect the pending migration:
 
-```sh
-npm install
-npm test
-npm run dev:dashboard
-npm run build:dashboard
-npm run build:extension
-npm run check
-```
+    npx supabase db push --dry-run --linked
 
-Configure `dashboard/.env.local` as described in [v0.5 setup](docs/V0.5_SETUP.md). Load `extension/dist` through `chrome://extensions` after `npm run build:extension`.
+Then explicitly deploy when ready:
 
-Apply migrations locally with `npx supabase db reset`, or link and push with:
+    npx supabase db push --linked
 
-```sh
-npx supabase link --project-ref YOUR_PROJECT_REF
-npx supabase db push
-```
+See [v0.6 setup](docs/V0.6_SETUP.md), [v0.6 testing](docs/V0.6_TESTING.md), and [v0.6 troubleshooting](docs/V0.6_TROUBLESHOOTING.md). The first Admin bootstrap and Auth-user creation remain documented in [v0.5 setup](docs/V0.5_SETUP.md).
 
-After migration `202607220009`, manually bootstrap the first Admin using the exact idempotent SQL in [v0.5 setup](docs/V0.5_SETUP.md). Later role/status changes are made through the Admin Users dashboard. Users themselves are still created manually in Supabase Auth Dashboard.
+## Security model
 
-See [v0.5 testing](docs/V0.5_TESTING.md) and [v0.5 troubleshooting](docs/V0.5_TROUBLESHOOTING.md). Earlier extension, Supabase, dashboard, security, and manual-testing guides remain in `docs/` where still applicable.
+The five fixed roles remain APPLIER, APPLYING_MANAGER, DEVELOPER, DEVELOPMENT_MANAGER, and ADMIN; multiple roles form a union. All Application tables have RLS. Browser roles receive read-only table grants, while protected writes execute through authenticated PostgreSQL functions that derive the actor from auth.uid(). Resume objects remain private and Application Resume links expire after 90 seconds.
 
-## Repository
+Only the Supabase project URL and publishable/anon key belong in extension or dashboard settings. Never place a service-role key, secret key, or database password in frontend code.
 
-- `extension/`: Manifest V3 side-panel client and deterministic extraction.
-- `dashboard/`: React/Vite read-only operations and Admin access UI.
-- `supabase/migrations/`: additive schema, RLS, RPC, and private Storage migrations.
-- `supabase/tests/`: pgTAP schema, role, RPC, RLS, and Storage tests.
-- `tests/` and `dashboard/tests/`: JavaScript regression and access-control tests.
+## v0.6 boundaries
 
-## Current limitations and exclusions
-
-v0.5 has one shared workspace. Users are manually created in Supabase Auth; the dashboard cannot invite/delete Auth users or administer passwords/emails. Roles are fixed, detailed permission tables do not exist, and role changes require an access-context refresh. There are no organizations, teams, manager/applier relationships, applications, assignments, batches, bulk operations, technical dashboards, Realtime role updates, Google Workspace integration, or AI APIs. Dashboard business pages remain read-only. The extension remains the write interface for Applying Manager/Admin. No automatic tailoring or job application occurs.
-
-Local PDF/DOCX/TXT parsing remains deterministic. Scanned PDFs have no OCR, complex reading order may be imperfect, and users must review extracted categories, skills, salary, location, security/travel requirements, and text before saving.
+There is no bulk creation or assignment, batching, organizations, teams, detailed permissions table, automatic matching/scoring, new tailoring automation, job-site submission automation, Google Workspace integration, OpenAI API, or other AI API. Existing legacy matching/tailoring code is retained only for regression compatibility and is not extended by v0.6.
