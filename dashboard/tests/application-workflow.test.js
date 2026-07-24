@@ -69,10 +69,19 @@ test("Applier Application columns follow the operational priority order",async()
   for(const label of labels){const next=section.indexOf(`title:\"${label}\"`);assert.ok(next>position,`${label} follows the requested order`);position=next;}
   assert.match(section,/source_url/);
   assert.match(section,/application_url/);
+  assert.ok(section.indexOf('title:"Application #"')<section.indexOf('title:"Company"'));
 });
 
 test("manager Application list identifies both sides of the JD and Resume pair",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   const section=source.slice(source.indexOf("const managerColumns="),source.indexOf("const applierColumns="));
   for(const field of ["company","job_title","resume_name","candidate_name","assignee_name"])assert.match(section,new RegExp(field));
+  assert.match(section,/numberColumn/);
+});
+
+test("Application number is visible on the list, detail heading, and search",async()=>{
+  const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
+  assert.match(source,/Application #/);
+  assert.match(source,/Application number/);
+  assert.match(source,/Application #, company, or job title/);
 });
