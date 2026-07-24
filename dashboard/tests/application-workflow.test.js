@@ -60,3 +60,13 @@ test("Application pages expose list, create, detail, history, and empty/loading 
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   for(const text of ["ApplicationsPage","CreateApplicationPage","ApplicationDetailPage","Create Application","Assignment History","Status History","No Applications","Loading..."])assert.match(source,new RegExp(text));
 });
+
+test("Applier Application columns follow the operational priority order",async()=>{
+  const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
+  const section=source.slice(source.indexOf("const applierColumns="),source.indexOf("const columns=manager?"));
+  const labels=["Company","Job title","Resume","Link","Status","Captured at","Primary category"];
+  let position=-1;
+  for(const label of labels){const next=section.indexOf(`title:\"${label}\"`);assert.ok(next>position,`${label} follows the requested order`);position=next;}
+  assert.match(section,/source_url/);
+  assert.match(section,/application_url/);
+});
