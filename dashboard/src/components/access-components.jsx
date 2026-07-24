@@ -1,15 +1,17 @@
 import React from "react";
+import {Alert,Card,Flex,Tag,Typography} from "antd";
 import {roleLabel} from "../access/role-codes.js";
+const {Text,Title}=Typography;
 
 export function RoleBadges({roles = []}) {
-  return roles.length ? <div className="tags" aria-label="Assigned roles">{roles.map(role => <span className="tag role-badge" key={role}>{roleLabel(role)}</span>)}</div> : <span className="muted">No roles assigned</span>;
+  return roles.length ? <Flex gap="small" wrap aria-label="Assigned roles">{roles.map(role => <Tag color="blue" key={role}>{roleLabel(role)}</Tag>)}</Flex> : <Text type="secondary">No roles assigned</Text>;
 }
 
 export function AccountStatusBadge({status}) {
   const label = status === "ACTIVE" ? "Active" : status === "INACTIVE" ? "Inactive" : "Unknown";
-  return <span className={`badge badge-${String(status || "").toLowerCase()}`}>{label}</span>;
+  return <Tag color={status==="ACTIVE"?"green":status==="INACTIVE"?"red":"default"}>{label}</Tag>;
 }
 
 export function AccessStatePanel({title, message, action}) {
-  return <section className="state access-state" aria-labelledby="access-state-heading"><h1 id="access-state-heading" tabIndex="-1">{title}</h1><p>{message}</p>{action}</section>;
+  return <Card className="access-state"><Alert type="warning" showIcon message={<Title level={2} id="access-state-heading" tabIndex={-1}>{title}</Title>} description={<><p>{message}</p>{action}</>}/></Card>;
 }

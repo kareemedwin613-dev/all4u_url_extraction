@@ -1,6 +1,6 @@
 # Resume JD Capture and Operations Platform v0.6.0
 
-This repository contains a Manifest V3 Chrome extension, a React/Vite operations dashboard, and Supabase migrations. v0.6 adds the individual Application workflow while preserving the extension’s JD extraction, Resume upload, private Storage, authentication, profiles, fixed multi-role RBAC, and Admin user management.
+This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, and Supabase migrations. v0.6 adds the individual Application workflow while preserving the extension’s JD extraction, Resume upload, private Storage, authentication, profiles, fixed multi-role RBAC, and Admin user management.
 
 An Application links exactly one Job Description and one active Resume. Applying Managers and Admins create, assign, reassign, unassign, prioritize, schedule, update, or cancel Applications. Assigned Appliers can see only their Applications and can update progress fields. Work status and employer-facing Application status remain separate, and assignment/status changes are recorded automatically.
 

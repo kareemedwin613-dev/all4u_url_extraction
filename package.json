@@ -18,7 +18,9 @@
     "check": "npm run lint && npm run typecheck && npm run test && npm run build && node scripts/validate-builds.mjs"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.2",
     "@supabase/supabase-js": "^2.52.1",
+    "antd": "^6.5.2",
     "mammoth": "^1.9.1",
     "pdfjs-dist": "^5.3.31",
     "react": "^19.2.8",
