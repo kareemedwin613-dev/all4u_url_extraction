@@ -10,6 +10,9 @@ const validPartialDate=value=>!value||(Number.isInteger(value.year)&&value.year>
 export function validateResumeUpload(value={},file){
   const errors={},fileError=validatePdfFile(file);
   if(!String(value.candidateName||"").trim())errors.candidateName="Candidate name is required.";
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value.candidateEmail||"").trim()))errors.candidateEmail="Enter the candidate's email address.";
+  const phoneDigits=String(value.candidatePhone||"").replace(/[^0-9]/g,"");
+  if(phoneDigits.length<7||phoneDigits.length>15)errors.candidatePhone="Enter the candidate's phone number.";
   if(!String(value.resumeName||"").trim())errors.resumeName="Resume name is required.";
   if(!UUID.test(String(value.primaryCategoryId||"")))errors.primaryCategoryId="Select a primary category.";
   if(value.subcategoryId&&!UUID.test(String(value.subcategoryId)))errors.subcategoryId="Select a valid subcategory.";
@@ -35,10 +38,12 @@ export function validateResumeUpload(value={},file){
   return {valid:!Object.keys(errors).length,errors};
 }
 
-export async function findResumeByChecksum(client,checksum){
-  const {data,error}=await client.from("resumes").select("id,candidate_name,resume_name,status").eq("file_sha256",checksum).limit(1);
-  if(error)throw new Error("The duplicate Resume check failed.");
-  return data?.[0]||null;
+export async function findResumesByIdentity(client,value={}){
+  const candidateName=String(value.candidateName||"").trim(),candidateEmail=String(value.candidateEmail||"").trim().toLowerCase(),candidatePhone=String(value.candidatePhone||"").trim();
+  if(!candidateName||!candidateEmail||candidatePhone.replace(/[^0-9]/g,"").length<7)return [];
+  const {data,error}=await client.rpc("find_resume_identity_duplicates",{p_candidate_name:candidateName,p_candidate_email:candidateEmail,p_candidate_phone:candidatePhone});
+  if(error)throw new Error("The duplicate candidate check failed.");
+  return Array.isArray(data)?data:[];
 }
 
 export async function uploadAdminResume(client,userId,value,file){
@@ -47,7 +52,7 @@ export async function uploadAdminResume(client,userId,value,file){
   const id=crypto.randomUUID(),path=buildStoragePath(userId,id,file.name);
   const {error:uploadError}=await client.storage.from("original-resumes").upload(path,file,{contentType:PDF_MIME,upsert:false});
   if(uploadError)throw new Error("The private PDF upload failed.");
-  const row={id,user_id:userId,candidate_name:value.candidateName.trim(),resume_name:value.resumeName.trim(),primary_category_id:value.primaryCategoryId,subcategory_id:value.subcategoryId||null,seniority:value.seniority,skills:split(value.skills),industries:split(value.industries),resume_text:value.resumeText.trim(),structured_content:cleanStructuredResumeV2(value.structuredContent),structured_schema_version:2,storage_bucket:"original-resumes",storage_path:path,original_filename:file.name,mime_type:PDF_MIME,file_size_bytes:file.size,file_sha256:value.checksum,status:"ACTIVE"};
+  const row={id,user_id:userId,candidate_name:value.candidateName.trim(),candidate_email:value.candidateEmail.trim().toLowerCase(),candidate_phone:value.candidatePhone.trim(),resume_name:value.resumeName.trim(),primary_category_id:value.primaryCategoryId,subcategory_id:value.subcategoryId||null,seniority:value.seniority,skills:split(value.skills),industries:split(value.industries),resume_text:value.resumeText.trim(),structured_content:cleanStructuredResumeV2(value.structuredContent),structured_schema_version:2,storage_bucket:"original-resumes",storage_path:path,original_filename:file.name,mime_type:PDF_MIME,file_size_bytes:file.size,file_sha256:value.checksum,status:"ACTIVE"};
   const {data,error}=await client.from("resumes").insert(row).select("id").single();
   if(error){
     const {error:cleanupError}=await client.storage.from("original-resumes").remove([path]);

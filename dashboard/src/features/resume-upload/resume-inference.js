@@ -15,14 +15,21 @@ export function candidateNameFromResume(text="",filename=""){
   return base&&base.toLowerCase()!=="resume"?titleCase(base):"";
 }
 
+export function candidateContactFromResume(text=""){
+  const header=clean(text).slice(0,4000);
+  const email=(header.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0]||"").toLowerCase();
+  const phone=header.match(/(?:\+?\d{1,3}[ .-]*)?(?:\(\d{3}\)|\d{3})[ .-]+\d{3}[ .-]+\d{4}(?:\s*(?:x|ext\.?|extension)\s*\d{1,6})?/i)?.[0]?.trim()||header.match(/\b\d{10}\b/)?.[0]||"";
+  return {candidateEmail:email,candidatePhone:phone};
+}
+
 const seniorityCode=value=>({"Intern":"INTERN","Entry":"ENTRY","Associate":"ENTRY","Mid-Level":"MID","Senior":"SENIOR","Lead":"LEAD","Staff":"PRINCIPAL","Principal":"PRINCIPAL","Manager":"MANAGER","Director":"DIRECTOR","Vice President":"EXECUTIVE","Executive":"EXECUTIVE","Unspecified":"UNSPECIFIED"}[value]||"UNSPECIFIED");
 const domainLabel=slug=>slug?slug.split("-").map(titleCase).join(" "):"";
 
 export function inferResumeInformation(text,filename="resume.pdf"){
   const resumeText=clean(text),candidateName=candidateNameFromResume(resumeText,filename),resumeName=candidateName?candidateName+" Resume":String(filename).replace(/\.pdf$/i,"").replace(/[_-]+/g," ").trim();
-  const category=suggestControlledCategory(resumeName,resumeText),industry=detectIndustryDomain("",resumeText);
+  const category=suggestControlledCategory(resumeName,resumeText),industry=detectIndustryDomain("",resumeText),contact=candidateContactFromResume(resumeText);
   return {
-    candidateName,resumeName,
+    candidateName,resumeName,...contact,
     categorySlug:category.categorySlug||"",subcategorySlug:category.subcategorySlug||"",
     categoryConfidence:category.confidence,reasons:category.reasons,
     seniority:seniorityCode(suggestSeniority(resumeText.slice(0,1500))),
