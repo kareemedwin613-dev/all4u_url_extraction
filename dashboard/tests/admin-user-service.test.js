@@ -4,14 +4,15 @@ import {assignRole,getUser,listUsers,normalizeAccessError,normalizeListOptions,r
 
 const id="f3a34ffd-d66a-49f7-815e-c7786857576b";
 test("admin list input is bounded and calculates server offset",()=>{
-  assert.deepEqual(normalizeListOptions({search:" x ",status:"active",roleCode:"admin",page:3,pageSize:50}),{search:"x",status:"ACTIVE",roleCode:"ADMIN",page:3,pageSize:50,offset:100});
+  assert.deepEqual(normalizeListOptions({search:" x ",status:"active",roleCode:"admin",sort:"name_asc",page:3,pageSize:50}),{search:"x",status:"ACTIVE",roleCode:"ADMIN",sort:"name_asc",page:3,pageSize:50,offset:100});
   assert.equal(normalizeListOptions({page:-2,pageSize:999}).pageSize,25);
+  assert.equal(normalizeListOptions({sort:"unsafe"}).sort,"created_desc");
 });
 
 test("admin list sends normalized filters and returns pagination",async()=>{
   let call;const client={rpc:async(name,args)=>{call={name,args};return {data:[{id,total_count:26}],error:null};}};
-  const result=await listUsers(client,{page:2,pageSize:25,status:"ACTIVE",roleCode:"APPLIER"});
-  assert.equal(call.name,"admin_list_users");assert.equal(call.args.p_offset,25);assert.equal(result.totalPages,2);
+  const result=await listUsers(client,{page:2,pageSize:25,status:"ACTIVE",roleCode:"APPLIER",sort:"email_desc"});
+  assert.equal(call.name,"admin_list_users_v2");assert.equal(call.args.p_offset,25);assert.equal(call.args.p_sort,"email_desc");assert.equal(result.totalPages,2);
 });
 
 test("admin mutations use secured RPC contracts",async()=>{

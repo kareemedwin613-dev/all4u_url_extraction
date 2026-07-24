@@ -1,0 +1,54 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
+import {bulkConfirmationCounts,clearRows,creationPayload,defaultEligibleSelection,filterBulkCombinations,pairKey,selectEligible} from "../src/features/bulk-applications/bulk-state.js";
+import {createBulkApplications,listApplicationBatches,normalizeBulkError,previewBulkApplications} from "../src/features/bulk-applications/bulk-service.js";
+
+const jd1="f3a34ffd-d66a-49f7-815e-c7786857576b",jd2="b4d63a80-e306-4a2f-afca-29cd4b3951e0",resume1="8660f115-ce73-41ff-889b-b6d07202a3e4",resume2="a21c0738-2905-4733-8a1d-d6e0dddb0122";
+const rows=[
+  {key:pairKey(jd1,resume1),jobDescriptionId:jd1,resumeId:resume1,company:"Acme",jobTitle:"Engineer",jobCategoryId:"cat-1",candidateName:"Alex",resumeName:"Alex Main",eligible:true},
+  {key:pairKey(jd1,resume2),jobDescriptionId:jd1,resumeId:resume2,company:"Acme",jobTitle:"Engineer",jobCategoryId:"cat-1",candidateName:"Blair",resumeName:"Blair Main",eligible:false,existingApplicationId:"existing",exclusionCode:"EXISTING_APPLICATION"},
+  {key:pairKey(jd2,resume2),jobDescriptionId:jd2,resumeId:resume2,company:"Beta",jobTitle:"Analyst",jobCategoryId:"cat-2",candidateName:"Blair",resumeName:"Blair Main",eligible:true},
+];
+const preview={combinations:rows,duplicateCount:1};
+
+test("preview selects every eligible non-duplicate pair by default",()=>{
+  const selected=defaultEligibleSelection(preview);
+  assert.deepEqual([...selected],[rows[0].key,rows[2].key]);
+  assert.deepEqual(bulkConfirmationCounts(preview,selected),{selectedJdCount:2,selectedResumeCount:2,applicationCount:2,duplicateCount:1});
+  assert.deepEqual(creationPayload(preview,selected),[{job_description_id:jd1,resume_id:resume1},{job_description_id:jd2,resume_id:resume2}]);
+});
+
+test("search and every preview filter operate locally without losing stable selection",()=>{
+  assert.deepEqual(filterBulkCombinations(rows,{search:"analyst"}).map(x=>x.key),[rows[2].key]);
+  assert.deepEqual(filterBulkCombinations(rows,{company:"Acme",candidate:"Alex",resume:"Alex Main",categoryId:"cat-1",eligibility:"ELIGIBLE"}).map(x=>x.key),[rows[0].key]);
+  assert.deepEqual(filterBulkCombinations(rows,{eligibility:"EXCLUDED",exclusionCode:"EXISTING_APPLICATION"}).map(x=>x.key),[rows[1].key]);
+  let acrossPages=selectEligible([rows[0]],new Set());acrossPages=selectEligible([rows[2]],acrossPages);
+  assert.deepEqual([...acrossPages],[rows[0].key,rows[2].key]);
+  assert.deepEqual([...clearRows([rows[0]],acrossPages)],[rows[2].key]);
+});
+
+test("bulk service makes one preview RPC and one creation RPC",async()=>{
+  const calls=[],client={rpc:async(name,args)=>{calls.push([name,args]);return {data:name==="preview_bulk_applications"?preview:{batchId:"batch",createdCount:2},error:null};}};
+  await previewBulkApplications(client,[jd1,jd1,jd2]);
+  await createBulkApplications(client,creationPayload(preview,defaultEligibleSelection(preview)),"Morning run");
+  assert.deepEqual(calls.map(x=>x[0]),["preview_bulk_applications","create_applications_bulk"]);
+  assert.deepEqual(calls[0][1].p_selected_jd_ids,[jd1,jd2]);
+  assert.equal(calls[1][1].p_combinations.length,2);
+});
+
+test("limits, empty requests, authorization, and network interruption have friendly errors",async()=>{
+  await assert.rejects(()=>previewBulkApplications({rpc:()=>{}},[]),error=>error.code==="BULK_NO_JDS"&&/Select at least one job description/.test(error.message));
+  await assert.rejects(()=>createBulkApplications({rpc:()=>{}},[]),error=>error.code==="BULK_NO_COMBINATIONS"&&/Select at least one eligible combination/.test(error.message));
+  assert.equal(normalizeBulkError({code:"42501",message:"policy"}).code,"APPLICATION_ACCESS_DENIED");
+  assert.match(normalizeBulkError(new Error("Failed to fetch")).message,/Check Batch History before retrying/);
+});
+
+test("batch listing is one paginated, sorted RPC",async()=>{const calls=[],client={rpc:async(name,args)=>{calls.push([name,args]);return {data:{items:[],total:30,limit:25,offset:25},error:null};}};const data=await listApplicationBatches(client,{page:2,pageSize:25,status:"COMPLETED",sort:"name_asc"});assert.equal(data.page,2);assert.equal(calls.length,1);assert.equal(calls[0][0],"list_application_batches_v2");assert.equal(calls[0][1].p_offset,25);assert.equal(calls[0][1].p_sort,"name_asc");});
+
+test("bulk pages use Ant Design, disabled exclusions, confirmation, and guarded double submission",async()=>{
+  const source=await readFile(new URL("../src/features/bulk-applications/bulk-pages.jsx",import.meta.url),"utf8");
+  for(const text of ["PreviewSummary","Select all eligible","Select visible eligible","Clear visible selection","Clear all selection","getCheckboxProps","disabled","modal.confirm","Defaults:","submitLock.current","ApplicationBatchesPage","ApplicationBatchDetailPage"])assert.match(source,new RegExp(text));
+});
+
+test("JD page exposes selection only behind the bulk capability",async()=>{const source=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");assert.match(source,/APPLICATION_BULK_MANAGE/);assert.match(source,/rowSelection=\{\s*canBulk\s*\?/);assert.match(source,/preserveSelectedRowKeys\s*:\s*true/);assert.match(source,/Create Applications/);});

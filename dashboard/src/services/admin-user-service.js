@@ -24,15 +24,18 @@ export function normalizeListOptions(options = {}) {
   const status = ["ACTIVE", "INACTIVE"].includes(String(options.status || "").toUpperCase()) ? String(options.status).toUpperCase() : null;
   const roleCode = String(options.roleCode || "").trim().toUpperCase() || null;
   const search = String(options.search || "").trim().slice(0, 100);
-  return {search, status, roleCode, page, pageSize, offset: (page - 1) * pageSize};
+  const allowedSorts=["name_asc","name_desc","email_asc","email_desc","status_asc","status_desc","roles_asc","roles_desc","created_asc","created_desc"];
+  const sort=allowedSorts.includes(String(options.sort||""))?String(options.sort):"created_desc";
+  return {search, status, roleCode, sort, page, pageSize, offset: (page - 1) * pageSize};
 }
 
 export async function listUsers(client, options = {}) {
   const normalized = normalizeListOptions(options);
-  const {data, error} = await client.rpc("admin_list_users", {
+  const {data, error} = await client.rpc("admin_list_users_v2", {
     p_search: normalized.search,
     p_status: normalized.status,
     p_role_code: normalized.roleCode,
+    p_sort: normalized.sort,
     p_limit: normalized.pageSize,
     p_offset: normalized.offset,
   });

@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from "react";
 import {Card,Empty,Table,Typography} from "antd";
 import {ErrorState,LoadingState} from "../../components/ui.jsx";
+import {clientSortColumns} from "../../shared/table-sorting.js";
 import {listActiveAppliers} from "./application-service.js";
 const {Text,Title}=Typography;
 
@@ -8,5 +9,5 @@ export function ApplierDirectoryPage({client,reload}) {
   const [items,setItems]=useState();
   const [error,setError]=useState("");
   useEffect(()=>{let live=true;listActiveAppliers(client).then(value=>live&&setItems(value)).catch(value=>live&&setError(value.message));return()=>{live=false};},[client,reload]);
-  const columns=[{title:"Name",dataIndex:"display_name"},{title:"Email",dataIndex:"email"},{title:"Active Applications",dataIndex:"active_application_count"}];return <div className="page"><Title level={1} tabIndex={-1}>Users</Title><Text>This read-only directory lists active Appliers available for individual Application assignment. User status and role management remain Admin-only.</Text>{error?<ErrorState message={error}/>:!items?<LoadingState/>:!items.length?<Card><Empty description="No active Appliers. An Admin can assign the Applier role from User Management."/></Card>:<Card><Table rowKey="id" columns={columns} dataSource={items} pagination={false}/></Card>}</div>;
+  const columns=clientSortColumns([{title:"Name",dataIndex:"display_name"},{title:"Email",dataIndex:"email"},{title:"Active Applications",dataIndex:"active_application_count"}]);return <div className="page"><Title level={1} tabIndex={-1}>Users</Title><Text>This read-only directory lists active Appliers available for individual Application assignment. User status and role management remain Admin-only.</Text>{error?<ErrorState message={error}/>:!items?<LoadingState/>:!items.length?<Card><Empty description="No active Appliers. An Admin can assign the Applier role from User Management."/></Card>:<Card><Table rowKey="id" columns={columns} dataSource={items} pagination={false}/></Card>}</div>;
 }

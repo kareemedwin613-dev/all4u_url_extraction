@@ -1,96 +1,1470 @@
-import React,{useCallback,useEffect,useRef,useState} from "react";
-import {Button,Card,Col,Form,Input,Layout,Menu,Row,Select,Space,Statistic,Typography} from "antd";
-import {LogoutOutlined,ReloadOutlined} from "@ant-design/icons";
-import {parseRoute} from "./router.js";
-import {getSession,signIn,signOut} from "./services/auth-service.js";
-import {categoryName,loadCategories} from "./services/category-service.js";
-import {getJob,jobCount,listJobs,recentJobs} from "./services/job-read-service.js";
-import {getResume,listResumes,recentResumes,resumeCount} from "./services/resume-read-service.js";
-import {createResumeSignedUrl} from "./services/storage-read-service.js";
-import {getMyAccessContext,listSystemRoles} from "./services/access-service.js";
-import {CAPABILITIES,hasCapability} from "./access/capabilities.js";
-import {guardAccessRoute,navigationForAccess} from "./access/route-access.js";
-import {formatBytes,formatDate,formatLabel,formatMime,cleanTags} from "./shared/formatters.js";
-import {parseJobQuery,parseResumeQuery,serializeQuery} from "./shared/query-state.js";
-import {normalizeSearch,validateLogin} from "./shared/validation.js";
-import {safeExternalUrl} from "./shared/url.js";
-import {MIME_TYPES,PAGE_SIZES,SENIORITIES,STATUSES} from "./shared/constants.js";
-import {AccessDeniedPage,AccessLoadErrorPage,InactiveAccountPage,PendingAccessPage,ProfilePage,TechnicalOverview} from "./pages/access-pages.jsx";
-import {AdminRolesPage,AdminUserDetailPage,AdminUsersPage} from "./pages/admin-pages.jsx";
-import {ApplicationCountCards,ApplicationDetailPage,ApplicationsPage,CreateApplicationPage} from "./features/applications/application-pages.jsx";
-import {ApplierDirectoryPage} from "./features/applications/applier-directory-page.jsx";
-import {AdminResumeUploadPage} from "./features/resume-upload/resume-upload-page.jsx";
-import {StructuredResumeView} from "./features/resume-upload/structured-resume-view.jsx";
-import {DataPagination,EmptyState,ErrorState as UiErrorState,LegacyTable,LoadingState,Metadata,StatusTag,TagList} from "./components/ui.jsx";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Flex,
+  Form,
+  Input,
+  Layout,
+  Menu,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Table as AntTable,
+  Typography,
+} from "antd";
+import {
+  AppstoreOutlined,
+  BarsOutlined,
+  FileSearchOutlined,
+  HistoryOutlined,
+  HomeOutlined,
+  LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  ProfileOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  UploadOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
+import { parseRoute } from "./router.js";
+import { getSession, signIn, signOut } from "./services/auth-service.js";
+import { categoryName, loadCategories } from "./services/category-service.js";
+import {
+  getJob,
+  jobCount,
+  listJobs,
+  recentJobs,
+} from "./services/job-read-service.js";
+import {
+  getResume,
+  listResumes,
+  recentResumes,
+  resumeCount,
+} from "./services/resume-read-service.js";
+import { createResumeSignedUrl } from "./services/storage-read-service.js";
+import {
+  getMyAccessContext,
+  listSystemRoles,
+} from "./services/access-service.js";
+import { CAPABILITIES, hasCapability } from "./access/capabilities.js";
+import {
+  guardAccessRoute,
+  navigationForAccess,
+} from "./access/route-access.js";
+import {
+  formatBytes,
+  formatDate,
+  formatLabel,
+  formatMime,
+  cleanTags,
+} from "./shared/formatters.js";
+import {
+  parseJobQuery,
+  parseResumeQuery,
+  serializeQuery,
+} from "./shared/query-state.js";
+import { normalizeSearch, validateLogin } from "./shared/validation.js";
+import { safeExternalUrl } from "./shared/url.js";
+import {
+  JOB_SORTS,
+  MIME_TYPES,
+  PAGE_SIZES,
+  RESUME_SORTS,
+  SENIORITIES,
+  STATUSES,
+} from "./shared/constants.js";
+import {
+  serverSortColumns,
+  serverSortFromTable,
+} from "./shared/table-sorting.js";
+import {
+  AccessDeniedPage,
+  AccessLoadErrorPage,
+  InactiveAccountPage,
+  PendingAccessPage,
+  ProfilePage,
+  TechnicalOverview,
+} from "./pages/access-pages.jsx";
+import {
+  AdminRolesPage,
+  AdminUserDetailPage,
+  AdminUsersPage,
+} from "./pages/admin-pages.jsx";
+import {
+  ApplicationCountCards,
+  ApplicationDetailPage,
+  ApplicationsPage,
+  CreateApplicationPage,
+} from "./features/applications/application-pages.jsx";
+import {
+  ApplicationBatchDetailPage,
+  ApplicationBatchesPage,
+  BulkCreatePage,
+} from "./features/bulk-applications/bulk-pages.jsx";
+import { MAX_BULK_JDS } from "./features/bulk-applications/bulk-state.js";
+import { ApplierDirectoryPage } from "./features/applications/applier-directory-page.jsx";
+import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-page.jsx";
+import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
+import {
+  DataPagination,
+  EmptyState,
+  ErrorState as UiErrorState,
+  LegacyTable,
+  LoadingState,
+  Metadata,
+  StatusTag,
+  TabbedSections,
+  TagList,
+} from "./components/ui.jsx";
 
-const go=(hash,replace=false)=>replace?location.replace(hash):location.assign(hash);
-const {Content,Header,Sider}=Layout,{Text,Title}=Typography;
-const Loading=LoadingState,ErrorState=UiErrorState;
-const Badge=StatusTag;
-const Tags=({values,empty})=><TagList values={cleanTags(values)} empty={empty}/>;
-const Meta=Metadata;
-const capturedBy=job=>job?.captured_by?.display_name?.trim()||job?.captured_by?.email||job?.user_id||"Unknown user";
-const salaryRange=job=>{if(job?.salary_min==null&&job?.salary_max==null)return job?.salary_text||"Not specified";const currency=job.salary_currency||"",amount=value=>value==null?"":new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(value)),range=job.salary_min===job.salary_max?amount(job.salary_min):`${amount(job.salary_min)} – ${amount(job.salary_max)}`;return `${currency} ${range}${job.salary_period?` per ${formatLabel(job.salary_period).toLowerCase()}`:""}`.trim();};
-const Table=LegacyTable,Empty=EmptyState;
+const go = (hash, replace = false) =>
+  replace ? location.replace(hash) : location.assign(hash);
+const { Content, Header, Sider } = Layout,
+  { Text, Title } = Typography;
+const Loading = LoadingState,
+  ErrorState = UiErrorState;
+const Badge = StatusTag;
+const Tags = ({ values, empty }) => (
+  <TagList values={cleanTags(values)} empty={empty} />
+);
+const Meta = Metadata;
+const capturedBy = (job) =>
+  job?.captured_by?.display_name?.trim() ||
+  job?.captured_by?.email ||
+  job?.user_id ||
+  "Unknown user";
+const salaryRange = (job) => {
+  if (job?.salary_min == null && job?.salary_max == null)
+    return job?.salary_text || "Not specified";
+  const currency = job.salary_currency || "",
+    amount = (value) =>
+      value == null
+        ? ""
+        : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
+            Number(value),
+          ),
+    range =
+      job.salary_min === job.salary_max
+        ? amount(job.salary_min)
+        : `${amount(job.salary_min)} – ${amount(job.salary_max)}`;
+  return `${currency} ${range}${job.salary_period ? ` per ${formatLabel(job.salary_period).toLowerCase()}` : ""}`.trim();
+};
+const Table = LegacyTable,
+  Empty = EmptyState;
 
-const Pagination=DataPagination;
+const Pagination = DataPagination;
 
-function Shell({route,title,access,refresh,logout,children}){const items=access?.status==="ACTIVE"&&access.roles?.length?navigationForAccess(access):[],selected=items.find(item=>location.hash.startsWith(item.href.slice(1)))?.name,profileName=access?.fullName?.trim();return <Layout className="dashboard-layout"><Sider className="dashboard-sider" breakpoint="lg" collapsedWidth="0"><div className="brand">Resume JD<br/>Operations</div><Menu theme="dark" mode="inline" selectedKeys={selected?[selected]:[]} items={items.map(item=>({key:item.name,label:<a href={item.href}>{item.label}</a>}))}/></Sider><Layout><Header className="dashboard-header"><div><Text type="secondary" className="eyebrow">v0.6 · Individual Application workflow</Text><Text strong>{title}</Text></div><Space wrap>{refresh&&<Button icon={<ReloadOutlined/>} onClick={refresh}>Refresh</Button>}<Space direction="vertical" size={0} className="user-identity"><Text strong>{profileName||access?.email}</Text>{profileName&&<Text type="secondary" className="user-email">{access?.email}</Text>}</Space><Button icon={<LogoutOutlined/>} onClick={logout}>Sign Out</Button></Space></Header><Content id="main-content" className="dashboard-content" tabIndex="-1">{children}</Content></Layout></Layout>;}
+const NAV_ICONS = Object.freeze({
+    overview: <HomeOutlined />,
+    applications: <AppstoreOutlined />,
+    "application-batches": <HistoryOutlined />,
+    jobs: <FileSearchOutlined />,
+    resumes: <ProfileOutlined />,
+    "resume-upload": <UploadOutlined />,
+    "users-directory": <UserOutlined />,
+    "admin-users": <SettingOutlined />,
+    "admin-roles": <SafetyCertificateOutlined />,
+    profile: <UserOutlined />,
+  }),
+  PARENT_NAVIGATION = Object.freeze({
+    "application-detail": "applications",
+    "application-new": "applications",
+    "application-bulk-create": "applications",
+    "application-batch-detail": "application-batches",
+    "job-detail": "jobs",
+    "resume-detail": "resumes",
+    "admin-user-detail": "admin-users",
+  });
 
-function Login({client,onSignedIn}){const [message,setMessage]=useState(""),[busy,setBusy]=useState(false);async function submit(values){const check=validateLogin(values.email,values.password);if(!check.valid){setMessage(Object.values(check.errors).join(" "));return;}setBusy(true);try{onSignedIn(await signIn(client,values.email,values.password));}catch(error){setMessage(error.message);}finally{setBusy(false);}}return <main className="login-page"><Card className="login-card"><Text type="secondary" className="eyebrow">Resume JD Operations</Text><Title level={1} tabIndex={-1}>Sign in</Title><Text>Use the same Supabase email and password as the Chrome extension.</Text>{message&&<UiErrorState title="Sign in failed" message={message}/>}<Form layout="vertical" onFinish={submit} requiredMark={false}><Form.Item label="Email" name="email" rules={[{required:true,message:"Enter your email address."},{type:"email",message:"Enter a valid email address."}]}><Input autoComplete="username"/></Form.Item><Form.Item label="Password" name="password" rules={[{required:true,message:"Enter your password."}]}><Input.Password autoComplete="current-password"/></Form.Item><Button type="primary" htmlType="submit" loading={busy} block>Sign In</Button></Form></Card></main>;}
+function Shell({ route, title, access, refresh, logout, children }) {
+  const [collapsed, setCollapsed] = useState(() => {
+      try {
+        return localStorage.getItem("dashboard-sider") !== "expanded";
+      } catch {
+        return true;
+      }
+    }),
+    [narrow, setNarrow] = useState(false),
+    items =
+      access?.status === "ACTIVE" && access.roles?.length
+        ? navigationForAccess(access)
+        : [],
+    selected = PARENT_NAVIGATION[route.name] || route.name,
+    profileName = access?.fullName?.trim();
+  const updateCollapsed = useCallback((next, remember = true) => {
+    setCollapsed(next);
+    if (remember) {
+      try {
+        localStorage.setItem(
+          "dashboard-sider",
+          next ? "collapsed" : "expanded",
+        );
+      } catch {
+        // Storage may be disabled; the navigation remains usable for this session.
+      }
+    }
+  }, []);
+  useEffect(() => {
+    const keydown = (event) => {
+      if (
+        event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        event.key.toLowerCase() === "m"
+      ) {
+        event.preventDefault();
+        updateCollapsed(!collapsed);
+      } else if (event.key === "Escape" && !collapsed) {
+        updateCollapsed(true);
+      }
+    };
+    addEventListener("keydown", keydown);
+    return () => removeEventListener("keydown", keydown);
+  }, [collapsed, updateCollapsed]);
+  return (
+    <Layout className="dashboard-layout">
+      {!collapsed && narrow && (
+        <button
+          type="button"
+          className="dashboard-sider-mask"
+          aria-label="Close navigation"
+          onClick={() => updateCollapsed(true)}
+        />
+      )}
+      <Sider
+        className="dashboard-sider dashboard-sider-overlay"
+        breakpoint="lg"
+        width={248}
+        collapsedWidth={narrow ? 0 : 64}
+        collapsed={collapsed}
+        collapsible
+        trigger={null}
+        onBreakpoint={(broken) => {
+          setNarrow(broken);
+          if (broken) updateCollapsed(true, false);
+        }}
+      >
+        <div className="brand" title="Resume JD Operations">
+          <span className="brand-full">
+            Resume JD
+            <br />
+            Operations
+          </span>
+          <span className="brand-compact" aria-hidden="true">
+            RJ
+          </span>
+        </div>
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={selected ? [selected] : []}
+          inlineCollapsed={collapsed}
+          onClick={() => narrow && updateCollapsed(true)}
+          items={items.map((item) => ({
+            key: item.name,
+            icon: NAV_ICONS[item.name] || <BarsOutlined />,
+            label: <a href={item.href}>{item.label}</a>,
+            title: item.label,
+          }))}
+        />
+        <Button
+          type="text"
+          className="sider-edge-trigger"
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          title={`${collapsed ? "Expand" : "Collapse"} navigation (Alt+M)`}
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => updateCollapsed(!collapsed)}
+        />
+      </Sider>
+      <Layout className="dashboard-workspace">
+        <Header className="dashboard-header">
+          <Flex align="center" gap="small">
+            <Button
+              type="text"
+              className="sider-header-trigger"
+              aria-label={
+                collapsed ? "Expand navigation" : "Collapse navigation"
+              }
+              aria-expanded={!collapsed}
+              title={`${collapsed ? "Expand" : "Collapse"} navigation (Alt+M)`}
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => updateCollapsed(!collapsed)}
+            />
+            <div>
+              <Text type="secondary" className="eyebrow">
+                v0.7 · Bulk Application creation
+              </Text>
+              <Text strong>{title}</Text>
+            </div>
+          </Flex>
+          <Space wrap>
+            {refresh && (
+              <Button icon={<ReloadOutlined />} onClick={refresh}>
+                Refresh
+              </Button>
+            )}
+            <Space direction="vertical" size={0} className="user-identity">
+              <Text strong>{profileName || access?.email}</Text>
+              {profileName && (
+                <Text type="secondary" className="user-email">
+                  {access?.email}
+                </Text>
+              )}
+            </Space>
+            <Button icon={<LogoutOutlined />} onClick={logout}>
+              Sign Out
+            </Button>
+          </Space>
+        </Header>
+        <Content id="main-content" className="dashboard-content" tabIndex="-1">
+          {children}
+        </Content>
+      </Layout>
+    </Layout>
+  );
+}
 
-function FilterForm({kind,value,categories,onApply,onClear}){function submit(raw){try{onApply({...raw,search:normalizeSearch(raw.search),page:1,pageSize:Number(raw.pageSize)});}catch(error){window.alert(error.message);}}const sorts=kind==="jobs"?[["created_desc","Captured — Newest"],["created_asc","Captured — Oldest"],["company_asc","Company — A to Z"],["title_asc","Job title — A to Z"]]:[["updated_desc","Updated — Newest"],["updated_asc","Updated — Oldest"],["candidate_asc","Candidate — A to Z"],["name_asc","Resume name — A to Z"]],formKey=serializeQuery(value),field={xs:24,sm:12,lg:6};return <Card className="filter-card"><Form key={formKey} layout="vertical" initialValues={value} onFinish={submit}><Row gutter={12}><Col {...field}><Form.Item label={`Search ${kind==="jobs"?"company or job title":"candidate or resume name"}`} name="search"><Input.Search maxLength={100} allowClear/></Form.Item></Col><Col {...field}><Form.Item label="Primary category" name="categoryId"><Select options={[{value:"",label:"All categories"},...categories.primary.map(item=>({value:item.id,label:item.name}))]}/></Form.Item></Col><Col {...field}><Form.Item label="Seniority" name="seniority"><Select options={[{value:"",label:"All seniority"},...SENIORITIES.map(item=>({value:item,label:formatLabel(item)}))]}/></Form.Item></Col><Col {...field}><Form.Item label="Status" name="status"><Select options={[{value:"",label:"All statuses"},...STATUSES.map(item=>({value:item,label:formatLabel(item)}))]}/></Form.Item></Col>{kind==="resumes"&&<Col {...field}><Form.Item label="File type" name="mimeType"><Select options={[{value:"",label:"All file types"},...MIME_TYPES.map(item=>({value:item,label:formatMime(item)}))]}/></Form.Item></Col>}<Col {...field}><Form.Item label="Sort" name="sort"><Select options={sorts.map(([option,label])=>({value:option,label}))}/></Form.Item></Col><Col {...field}><Form.Item label="Page size" name="pageSize"><Select options={PAGE_SIZES.map(item=>({value:item,label:String(item)}))}/></Form.Item></Col><Col {...field} className="filter-actions"><Space><Button type="primary" htmlType="submit">Apply</Button><Button onClick={onClear}>Clear filters</Button></Space></Col></Row></Form></Card>;}
+function Login({ client, onSignedIn }) {
+  const [message, setMessage] = useState(""),
+    [busy, setBusy] = useState(false);
+  async function submit(values) {
+    const check = validateLogin(values.email, values.password);
+    if (!check.valid) {
+      setMessage(Object.values(check.errors).join(" "));
+      return;
+    }
+    setBusy(true);
+    try {
+      onSignedIn(await signIn(client, values.email, values.password));
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="login-page">
+      <Card className="login-card">
+        <Text type="secondary" className="eyebrow">
+          Resume JD Operations
+        </Text>
+        <Title level={1} tabIndex={-1}>
+          Sign in
+        </Title>
+        <Text>
+          Use the same Supabase email and password as the Chrome extension.
+        </Text>
+        {message && <UiErrorState title="Sign in failed" message={message} />}
+        <Form layout="vertical" onFinish={submit} requiredMark={false}>
+          <Form.Item
+            label="Email"
+            name="email"
+            rules={[
+              { required: true, message: "Enter your email address." },
+              { type: "email", message: "Enter a valid email address." },
+            ]}
+          >
+            <Input autoComplete="username" />
+          </Form.Item>
+          <Form.Item
+            label="Password"
+            name="password"
+            rules={[{ required: true, message: "Enter your password." }]}
+          >
+            <Input.Password autoComplete="current-password" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={busy} block>
+            Sign In
+          </Button>
+        </Form>
+      </Card>
+    </main>
+  );
+}
 
-function BusinessOverview({client,categories,reload}){const [result,setResult]=useState(null),[error,setError]=useState("");useEffect(()=>{let live=true;Promise.all([jobCount(client),jobCount(client,"ACTIVE"),resumeCount(client),resumeCount(client,"ACTIVE"),recentJobs(client),recentResumes(client)]).then(value=>live&&setResult(value)).catch(value=>live&&setError(value.message));return()=>{live=false};},[client,reload]);if(error)return <ErrorState message={error}/>;if(!result)return <Loading text="Loading dashboard…"/>;const [jobs,activeJobs,resumes,activeResumes,recentJ,recentR]=result;return <div className="page"><Title level={1} tabIndex={-1}>Overview</Title><Row gutter={[16,16]} className="summary-grid">{[["Total Job Descriptions",jobs],["Active Job Descriptions",activeJobs],["Total Resumes",resumes],["Active Resumes",activeResumes]].map(([label,count])=><Col xs={24} sm={12} xl={6} key={label}><Card><Statistic title={label} value={count}/></Card></Col>)}</Row><Card title="Recent job descriptions" extra={<a href="#/jobs">View all</a>}>{recentJ.length?<Table headers={["Company","Job title","Category","Captured by","Status","Captured"]}>{recentJ.map(job=><tr key={job.id}><td>{job.company}</td><td><a href={`#/jobs/${job.id}`}>{job.job_title}</a></td><td>{categoryName(categories,job.category_id)}</td><td>{capturedBy(job)}</td><td><Badge value={job.status}/></td><td>{formatDate(job.created_at)}</td></tr>)}</Table>:<Text type="secondary">No job descriptions have been captured yet.</Text>}</Card><Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>{recentR.length?<Table headers={["Candidate","Resume","Category","Status","Updated"]}>{recentR.map(resume=><tr key={resume.id}><td>{resume.candidate_name}</td><td><a href={`#/resumes/${resume.id}`}>{resume.resume_name}</a></td><td>{categoryName(categories,resume.primary_category_id)}</td><td><Badge value={resume.status}/></td><td>{formatDate(resume.updated_at)}</td></tr>)}</Table>:<Text type="secondary">No resumes have been uploaded yet.</Text>}</Card></div>;}
+function FilterForm({ kind, value, categories, onApply, onClear }) {
+  function submit(raw) {
+    try {
+      onApply({
+        ...raw,
+        search: normalizeSearch(raw.search),
+        page: 1,
+        pageSize: Number(raw.pageSize),
+      });
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+  const sortMap = kind === "jobs" ? JOB_SORTS : RESUME_SORTS,
+    sorts = Object.keys(sortMap).map((option) => ({
+      value: option,
+      label: option.split("_").map(formatLabel).join(" · "),
+    })),
+    formKey = serializeQuery(value),
+    field = { xs: 24, sm: 12, lg: 6 };
+  return (
+    <Card className="filter-card">
+      <Form
+        key={formKey}
+        layout="vertical"
+        initialValues={value}
+        onFinish={submit}
+      >
+        <Row gutter={12}>
+          <Col {...field}>
+            <Form.Item
+              label={`Search ${kind === "jobs" ? "company or job title" : "candidate or resume name"}`}
+              name="search"
+            >
+              <Input.Search maxLength={100} allowClear />
+            </Form.Item>
+          </Col>
+          <Col {...field}>
+            <Form.Item label="Primary category" name="categoryId">
+              <Select
+                options={[
+                  { value: "", label: "All categories" },
+                  ...categories.primary.map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                  })),
+                ]}
+              />
+            </Form.Item>
+          </Col>
+          <Col {...field}>
+            <Form.Item label="Seniority" name="seniority">
+              <Select
+                options={[
+                  { value: "", label: "All seniority" },
+                  ...SENIORITIES.map((item) => ({
+                    value: item,
+                    label: formatLabel(item),
+                  })),
+                ]}
+              />
+            </Form.Item>
+          </Col>
+          <Col {...field}>
+            <Form.Item label="Status" name="status">
+              <Select
+                options={[
+                  { value: "", label: "All statuses" },
+                  ...STATUSES.map((item) => ({
+                    value: item,
+                    label: formatLabel(item),
+                  })),
+                ]}
+              />
+            </Form.Item>
+          </Col>
+          {kind === "resumes" && (
+            <Col {...field}>
+              <Form.Item label="File type" name="mimeType">
+                <Select
+                  options={[
+                    { value: "", label: "All file types" },
+                    ...MIME_TYPES.map((item) => ({
+                      value: item,
+                      label: formatMime(item),
+                    })),
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          )}
+          <Col {...field}>
+            <Form.Item label="Sort" name="sort">
+              <Select options={sorts} />
+            </Form.Item>
+          </Col>
+          <Col {...field}>
+            <Form.Item label="Page size" name="pageSize">
+              <Select
+                options={PAGE_SIZES.map((item) => ({
+                  value: item,
+                  label: String(item),
+                }))}
+              />
+            </Form.Item>
+          </Col>
+          <Col {...field} className="filter-actions">
+            <Space>
+              <Button type="primary" htmlType="submit">
+                Apply
+              </Button>
+              <Button onClick={onClear}>Clear filters</Button>
+            </Space>
+          </Col>
+        </Row>
+      </Form>
+    </Card>
+  );
+}
 
-function Jobs({client,categories,query,reload}){const filters=parseJobQuery(query),[data,setData]=useState(null),[error,setError]=useState("");useEffect(()=>{let live=true;setData(null);setError("");listJobs(client,filters).then(value=>live&&setData(value)).catch(value=>live&&setError(value.message));return()=>{live=false};},[client,query,reload]);const update=patch=>{const value=serializeQuery({...filters,...patch});go(`#/jobs${value?`?${value}`:""}`);};return <div className="page"><Title level={1} tabIndex={-1}>Job Descriptions</Title><FilterForm kind="jobs" value={filters} categories={categories} onApply={update} onClear={()=>go("#/jobs")}/>{error?<ErrorState message={error}/>:!data?<Loading text="Loading job descriptions…"/>:!data.items.length?<Empty title="No job descriptions" text="No job descriptions match the current view." onClear={()=>go("#/jobs")}/>:<Card><Table headers={["Company","Job title","Primary category","Subcategory","Seniority","Source site","Captured by","Status","Captured",""]}>{data.items.map(job=><tr key={job.id}><td>{job.company}</td><td>{job.job_title}</td><td>{categoryName(categories,job.category_id)}</td><td>{job.subcategory_id?categoryName(categories,job.subcategory_id):"None"}</td><td>{formatLabel(job.seniority)}</td><td>{job.source_site||"—"}</td><td>{capturedBy(job)}</td><td><Badge value={job.status}/></td><td>{formatDate(job.created_at)}</td><td><a href={`#/jobs/${job.id}`}>View</a></td></tr>)}</Table><Pagination data={data} onPage={page=>update({page})}/></Card>}</div>;}
+function BusinessOverview({ client, categories, reload }) {
+  const [result, setResult] = useState(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      jobCount(client),
+      jobCount(client, "ACTIVE"),
+      resumeCount(client),
+      resumeCount(client, "ACTIVE"),
+      recentJobs(client),
+      recentResumes(client),
+    ])
+      .then((value) => live && setResult(value))
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, reload]);
+  if (error) return <ErrorState message={error} />;
+  if (!result) return <Loading text="Loading dashboard…" />;
+  const [jobs, activeJobs, resumes, activeResumes, recentJ, recentR] = result;
+  return (
+    <div className="page">
+      <Title level={1} tabIndex={-1}>
+        Overview
+      </Title>
+      <Row gutter={[16, 16]} className="summary-grid">
+        {[
+          ["Total Job Descriptions", jobs],
+          ["Active Job Descriptions", activeJobs],
+          ["Total Resumes", resumes],
+          ["Active Resumes", activeResumes],
+        ].map(([label, count]) => (
+          <Col xs={24} sm={12} xl={6} key={label}>
+            <Card>
+              <Statistic title={label} value={count} />
+            </Card>
+          </Col>
+        ))}
+      </Row>
+      <Card
+        title="Recent job descriptions"
+        extra={<a href="#/jobs">View all</a>}
+      >
+        {recentJ.length ? (
+          <Table
+            headers={[
+              "Company",
+              "Job title",
+              "Category",
+              "Captured by",
+              "Status",
+              "Captured",
+            ]}
+          >
+            {recentJ.map((job) => (
+              <tr key={job.id}>
+                <td>{job.company}</td>
+                <td>
+                  <a href={`#/jobs/${job.id}`}>{job.job_title}</a>
+                </td>
+                <td>{categoryName(categories, job.category_id)}</td>
+                <td>{capturedBy(job)}</td>
+                <td>
+                  <Badge value={job.status} />
+                </td>
+                <td>{formatDate(job.created_at)}</td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <Text type="secondary">
+            No job descriptions have been captured yet.
+          </Text>
+        )}
+      </Card>
+      <Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>
+        {recentR.length ? (
+          <Table
+            headers={["Candidate", "Resume", "Category", "Status", "Updated"]}
+          >
+            {recentR.map((resume) => (
+              <tr key={resume.id}>
+                <td>{resume.candidate_name}</td>
+                <td>
+                  <a href={`#/resumes/${resume.id}`}>{resume.resume_name}</a>
+                </td>
+                <td>{categoryName(categories, resume.primary_category_id)}</td>
+                <td>
+                  <Badge value={resume.status} />
+                </td>
+                <td>{formatDate(resume.updated_at)}</td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <Text type="secondary">No resumes have been uploaded yet.</Text>
+        )}
+      </Card>
+    </div>
+  );
+}
 
-function Resumes({client,categories,query,reload}){const filters=parseResumeQuery(query),[data,setData]=useState(null),[error,setError]=useState("");useEffect(()=>{let live=true;setData(null);setError("");listResumes(client,filters).then(value=>live&&setData(value)).catch(value=>live&&setError(value.message));return()=>{live=false};},[client,query,reload]);const update=patch=>{const value=serializeQuery({...filters,...patch});go(`#/resumes${value?`?${value}`:""}`);};return <div className="page"><Title level={1} tabIndex={-1}>Resumes</Title><FilterForm kind="resumes" value={filters} categories={categories} onApply={update} onClear={()=>go("#/resumes")}/>{error?<ErrorState message={error}/>:!data?<Loading text="Loading resumes…"/>:!data.items.length?<Empty title="No resumes" text="No resumes match the current view. Resumes are uploaded through the extension." onClear={()=>go("#/resumes")}/>:<Card><Table headers={["Candidate","Resume","Primary category","Subcategory","Seniority","Status","File type","Updated",""]}>{data.items.map(resume=><tr key={resume.id}><td>{resume.candidate_name}</td><td>{resume.resume_name}</td><td>{categoryName(categories,resume.primary_category_id)}</td><td>{resume.subcategory_id?categoryName(categories,resume.subcategory_id):"None"}</td><td>{formatLabel(resume.seniority)}</td><td><Badge value={resume.status}/></td><td>{formatMime(resume.mime_type)}</td><td>{formatDate(resume.updated_at)}</td><td><a href={`#/resumes/${resume.id}`}>View</a></td></tr>)}</Table><Pagination data={data} onPage={page=>update({page})}/></Card>}</div>;}
+function Jobs({
+  client,
+  categories,
+  query,
+  reload,
+  access,
+  selectedJobIds,
+  onSelectedJobIdsChange,
+}) {
+  const filters = parseJobQuery(query),
+    [data, setData] = useState(null),
+    [error, setError] = useState(""),
+    canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE);
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    setError("");
+    listJobs(client, filters)
+      .then((value) => live && setData(value))
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, query, reload]);
+  const update = (patch) => {
+    const value = serializeQuery({ ...filters, ...patch });
+    go(`#/jobs${value ? `?${value}` : ""}`);
+  };
+  const columns = serverSortColumns(
+    [
+      { title: "Company", dataIndex: "company", sortKey: "company" },
+      { title: "Job title", dataIndex: "job_title", sortKey: "title" },
+      {
+        title: "Primary category",
+        dataIndex: "category_id",
+        sortKey: "category",
+        render: (value) => categoryName(categories, value),
+      },
+      {
+        title: "Subcategory",
+        dataIndex: "subcategory_id",
+        sortKey: "subcategory",
+        render: (value) => (value ? categoryName(categories, value) : "None"),
+      },
+      {
+        title: "Seniority",
+        dataIndex: "seniority",
+        sortKey: "seniority",
+        render: formatLabel,
+      },
+      {
+        title: "Source site",
+        dataIndex: "source_site",
+        sortKey: "source",
+        render: (value) => value || "—",
+      },
+      {
+        title: "Captured by",
+        key: "captured_by",
+        sortKey: "capturer",
+        render: (_, job) => capturedBy(job),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        sortKey: "status",
+        render: (value) => <Badge value={value} />,
+      },
+      {
+        title: "Captured",
+        dataIndex: "created_at",
+        sortKey: "created",
+        render: formatDate,
+      },
+      {
+        title: "",
+        key: "action",
+        render: (_, job) => <a href={`#/jobs/${job.id}`}>View</a>,
+      },
+    ],
+    filters.sort,
+  );
+  const selectedCount = selectedJobIds.length,
+    tooMany = selectedCount > MAX_BULK_JDS;
+  return (
+    <div className="page">
+      <Flex justify="space-between" align="center" wrap>
+        <Title level={1} tabIndex={-1}>
+          Job Descriptions
+        </Title>
+        {canBulk && (
+          <Space>
+            <Text>{selectedCount} selected</Text>
+            <Button
+              onClick={() => onSelectedJobIdsChange([])}
+              disabled={!selectedCount}
+            >
+              Clear selection
+            </Button>
+            <Button
+              type="primary"
+              disabled={!selectedCount || tooMany}
+              onClick={() => go("#/applications/bulk-create")}
+            >
+              Create Applications
+            </Button>
+          </Space>
+        )}
+      </Flex>
+      {tooMany && (
+        <Alert
+          type="error"
+          showIcon
+          message={`Select no more than ${MAX_BULK_JDS} job descriptions.`}
+        />
+      )}
+      <FilterForm
+        kind="jobs"
+        value={filters}
+        categories={categories}
+        onApply={update}
+        onClear={() => go("#/jobs")}
+      />
+      {error ? (
+        <ErrorState message={error} />
+      ) : !data ? (
+        <Loading text="Loading job descriptions…" />
+      ) : !data.items.length ? (
+        <Empty
+          title="No job descriptions"
+          text="No job descriptions match the current view."
+          onClear={() => go("#/jobs")}
+        />
+      ) : (
+        <Card>
+          <AntTable
+            rowKey="id"
+            columns={columns}
+            dataSource={data.items}
+            pagination={false}
+            scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
+            onChange={(_pagination, _tableFilters, sorter) =>
+              update({
+                sort: serverSortFromTable(sorter, "created_desc"),
+                page: 1,
+              })
+            }
+            rowSelection={
+              canBulk
+                ? {
+                    selectedRowKeys: selectedJobIds,
+                    preserveSelectedRowKeys: true,
+                    onChange: (keys) => onSelectedJobIdsChange(keys),
+                  }
+                : undefined
+            }
+          />
+          <Pagination data={data} onPage={(page) => update({ page })} />
+        </Card>
+      )}
+    </div>
+  );
+}
 
-function JobDetail({client,categories,id,back,reload}){const [job,setJob]=useState(),[error,setError]=useState("");useEffect(()=>{getJob(client,id).then(setJob).catch(value=>setError(value.message));},[client,id,reload]);if(error)return <ErrorState message={error}/>;if(job===undefined)return <Loading/>;if(!job)return <ErrorState message="Job description not found or you do not have access to it."/>;const source=safeExternalUrl(job.source_url);return <div className="page"><a className="back-link" href={back}>← Back to Job Descriptions</a><div className="detail-title"><div><Text type="secondary" className="eyebrow">{job.company}</Text><Title level={1} tabIndex={-1}>{job.job_title}</Title></div><Badge value={job.status}/></div><Card title="Details" extra={source?<Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button>:null}><Meta items={[["Primary category",categoryName(categories,job.category_id)],["Subcategory",job.subcategory_id?categoryName(categories,job.subcategory_id):"None"],["Industry domain",formatLabel(job.industry_domain)],["Seniority",formatLabel(job.seniority)],["Location",job.location_text||"Not specified / remote"],["Work arrangement",formatLabel(job.work_arrangement)],["Salary range",salaryRange(job)],["Original salary text",job.salary_text||"—"],["Travel required",job.travel_required===null?"Not specified":job.travel_required?"Yes":"No"],["Travel details",job.travel_details||"—"],["Source site",job.source_site],["Captured by",capturedBy(job)],["Capturer user ID",job.user_id],["Capture method",formatLabel(job.capture_method)],["Extraction confidence",formatLabel(job.extraction_confidence)],["Captured at",formatDate(job.created_at)],["Last updated",formatDate(job.updated_at)]]}/></Card><Card title="Security requirements"><Tags values={job.clearance_requirements?.map(formatLabel)} empty="No clearance requirement detected"/></Card><Card title="Detected technology stack"><Tags values={job.detected_skills} empty="No technology stack detected"/></Card><Card title="Job description"><div className="long-text">{job.description_text}</div></Card></div>;}
+function Resumes({ client, categories, query, reload }) {
+  const filters = parseResumeQuery(query),
+    [data, setData] = useState(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    setError("");
+    listResumes(client, filters)
+      .then((value) => live && setData(value))
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, query, reload]);
+  const update = (patch) => {
+      const value = serializeQuery({ ...filters, ...patch });
+      go(`#/resumes${value ? `?${value}` : ""}`);
+    },
+    columns = serverSortColumns(
+      [
+        {
+          title: "Candidate",
+          dataIndex: "candidate_name",
+          sortKey: "candidate",
+        },
+        { title: "Resume", dataIndex: "resume_name", sortKey: "name" },
+        {
+          title: "Primary category",
+          dataIndex: "primary_category_id",
+          sortKey: "category",
+          render: (value) => categoryName(categories, value),
+        },
+        {
+          title: "Subcategory",
+          dataIndex: "subcategory_id",
+          sortKey: "subcategory",
+          render: (value) => (value ? categoryName(categories, value) : "None"),
+        },
+        {
+          title: "Seniority",
+          dataIndex: "seniority",
+          sortKey: "seniority",
+          render: formatLabel,
+        },
+        {
+          title: "Status",
+          dataIndex: "status",
+          sortKey: "status",
+          render: (value) => <Badge value={value} />,
+        },
+        {
+          title: "File type",
+          dataIndex: "mime_type",
+          sortKey: "mime",
+          render: formatMime,
+        },
+        {
+          title: "Updated",
+          dataIndex: "updated_at",
+          sortKey: "updated",
+          render: formatDate,
+        },
+        {
+          title: "",
+          key: "action",
+          render: (_, resume) => <a href={`#/resumes/${resume.id}`}>View</a>,
+        },
+      ],
+      filters.sort,
+    );
+  return (
+    <div className="page">
+      <Title level={1} tabIndex={-1}>
+        Resumes
+      </Title>
+      <FilterForm
+        kind="resumes"
+        value={filters}
+        categories={categories}
+        onApply={update}
+        onClear={() => go("#/resumes")}
+      />
+      {error ? (
+        <ErrorState message={error} />
+      ) : !data ? (
+        <Loading text="Loading resumes…" />
+      ) : !data.items.length ? (
+        <Empty
+          title="No resumes"
+          text="No resumes match the current view. Resumes are uploaded through the extension."
+          onClear={() => go("#/resumes")}
+        />
+      ) : (
+        <Card>
+          <AntTable
+            rowKey="id"
+            columns={columns}
+            dataSource={data.items}
+            pagination={false}
+            scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
+            onChange={(_pagination, _tableFilters, sorter) =>
+              update({
+                sort: serverSortFromTable(sorter, "updated_desc"),
+                page: 1,
+              })
+            }
+          />
+          <Pagination data={data} onPage={(page) => update({ page })} />
+        </Card>
+      )}
+    </div>
+  );
+}
 
-function ResumeDetail({client,categories,id,back,reload}){const [resume,setResume]=useState(),[error,setError]=useState(""),[fileMessage,setFileMessage]=useState("");useEffect(()=>{getResume(client,id).then(setResume).catch(value=>setError(value.message));},[client,id,reload]);if(error)return <ErrorState message={error}/>;if(resume===undefined)return <Loading/>;if(!resume)return <ErrorState message="Resume not found or you do not have access to it."/>;async function open(){setFileMessage("Generating a secure link…");try{const url=await createResumeSignedUrl(client,{bucket:resume.storage_bucket,path:resume.storage_path});window.open(url,"_blank","noopener,noreferrer");setFileMessage("Secure link opened. It expires shortly.");}catch(value){setFileMessage(value.message);}}const structured=resume.structured_content||{};return <div className="page"><a className="back-link" href={back}>← Back to Resumes</a><div className="detail-title"><div><Text type="secondary" className="eyebrow">{resume.candidate_name}</Text><Title level={1} tabIndex={-1}>{resume.resume_name}</Title></div><Badge value={resume.status}/></div><Card title="Details"><Meta items={[["Candidate email",resume.candidate_email||"Not recorded"],["Candidate phone",resume.candidate_phone||"Not recorded"],["Primary category",categoryName(categories,resume.primary_category_id)],["Subcategory",resume.subcategory_id?categoryName(categories,resume.subcategory_id):"None"],["Seniority",formatLabel(resume.seniority)],["Structured schema version",resume.structured_schema_version||"Legacy"],["Original filename",resume.original_filename],["File type",formatMime(resume.mime_type)],["File size",formatBytes(resume.file_size_bytes)],["Created at",formatDate(resume.created_at)],["Last updated",formatDate(resume.updated_at)]]}/><Button type="primary" onClick={open}>Open Original Resume</Button>{fileMessage&&<Text type="secondary"> {fileMessage}</Text>}</Card><Card title="Skills"><Tags values={resume.skills} empty="No skills recorded"/></Card><Card title="Industries"><Tags values={resume.industries} empty="No industries recorded"/></Card><Card title="Structured resume"><StructuredResumeView content={structured} version={resume.structured_schema_version}/></Card><Card title="Original extracted Resume text" collapsible><div className="long-text">{resume.resume_text}</div></Card></div>;}
+function JobDetail({ client, categories, id, back, reload }) {
+  const [job, setJob] = useState(),
+    [error, setError] = useState("");
+  useEffect(() => {
+    getJob(client, id)
+      .then(setJob)
+      .catch((value) => setError(value.message));
+  }, [client, id, reload]);
+  if (error) return <ErrorState message={error} />;
+  if (job === undefined) return <Loading />;
+  if (!job)
+    return (
+      <ErrorState message="Job description not found or you do not have access to it." />
+    );
+  const source = safeExternalUrl(job.source_url),
+    tabs = [
+      {
+        key: "overview",
+        label: "Overview",
+        children: (
+          <Meta
+            items={[
+              ["Primary category", categoryName(categories, job.category_id)],
+              [
+                "Subcategory",
+                job.subcategory_id
+                  ? categoryName(categories, job.subcategory_id)
+                  : "None",
+              ],
+              ["Industry domain", formatLabel(job.industry_domain)],
+              ["Seniority", formatLabel(job.seniority)],
+              ["Location", job.location_text || "Not specified / remote"],
+              ["Work arrangement", formatLabel(job.work_arrangement)],
+              ["Salary range", salaryRange(job)],
+              ["Original salary text", job.salary_text || "—"],
+              [
+                "Travel required",
+                job.travel_required === null
+                  ? "Not specified"
+                  : job.travel_required
+                    ? "Yes"
+                    : "No",
+              ],
+              ["Travel details", job.travel_details || "—"],
+              ["Source site", job.source_site],
+              ["Captured by", capturedBy(job)],
+              ["Capturer user ID", job.user_id],
+              ["Capture method", formatLabel(job.capture_method)],
+              ["Extraction confidence", formatLabel(job.extraction_confidence)],
+              ["Captured at", formatDate(job.created_at)],
+              ["Last updated", formatDate(job.updated_at)],
+            ]}
+          />
+        ),
+      },
+      {
+        key: "requirements",
+        label: "Requirements",
+        children: (
+          <>
+            <Card size="small" title="Security requirements">
+              <Tags
+                values={job.clearance_requirements?.map(formatLabel)}
+                empty="No clearance requirement detected"
+              />
+            </Card>
+            <Card size="small" title="Detected technology stack">
+              <Tags
+                values={job.detected_skills}
+                empty="No technology stack detected"
+              />
+            </Card>
+          </>
+        ),
+      },
+      {
+        key: "description",
+        label: "Job description",
+        children: <div className="long-text">{job.description_text}</div>,
+      },
+    ];
+  return (
+    <div className="page">
+      <a className="back-link" href={back}>
+        ← Back to Job Descriptions
+      </a>
+      <div className="detail-title">
+        <div>
+          <Text type="secondary" className="eyebrow">
+            {job.company}
+          </Text>
+          <Title level={1} tabIndex={-1}>
+            {job.job_title}
+          </Title>
+        </div>
+        <Badge value={job.status} />
+      </div>
+      <TabbedSections
+        items={tabs}
+        extra={
+          source ? (
+            <Button
+              type="link"
+              href={source}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open original posting
+            </Button>
+          ) : null
+        }
+      />
+    </div>
+  );
+}
 
-export function ConfigurationError({message}){return <main className="config-page"><Card className="login-card"><UiErrorState title="Dashboard setup required" message={<>{message}<br/>Create dashboard/.env.local from dashboard/.env.example, then restart or rebuild.</>}/></Card></main>;}
+function ResumeDetail({ client, categories, id, back, reload }) {
+  const [resume, setResume] = useState(),
+    [error, setError] = useState(""),
+    [fileMessage, setFileMessage] = useState("");
+  useEffect(() => {
+    getResume(client, id)
+      .then(setResume)
+      .catch((value) => setError(value.message));
+  }, [client, id, reload]);
+  if (error) return <ErrorState message={error} />;
+  if (resume === undefined) return <Loading />;
+  if (!resume)
+    return (
+      <ErrorState message="Resume not found or you do not have access to it." />
+    );
+  async function open() {
+    setFileMessage("Generating a secure link…");
+    try {
+      const url = await createResumeSignedUrl(client, {
+        bucket: resume.storage_bucket,
+        path: resume.storage_path,
+      });
+      window.open(url, "_blank", "noopener,noreferrer");
+      setFileMessage("Secure link opened. It expires shortly.");
+    } catch (value) {
+      setFileMessage(value.message);
+    }
+  }
+  const structured = resume.structured_content || {},
+    tabs = [
+      {
+        key: "overview",
+        label: "Overview",
+        children: (
+          <>
+            <Meta
+              items={[
+                ["Candidate email", resume.candidate_email || "Not recorded"],
+                ["Candidate phone", resume.candidate_phone || "Not recorded"],
+                [
+                  "Primary category",
+                  categoryName(categories, resume.primary_category_id),
+                ],
+                [
+                  "Subcategory",
+                  resume.subcategory_id
+                    ? categoryName(categories, resume.subcategory_id)
+                    : "None",
+                ],
+                ["Seniority", formatLabel(resume.seniority)],
+                [
+                  "Structured schema version",
+                  resume.structured_schema_version || "Legacy",
+                ],
+                ["Original filename", resume.original_filename],
+                ["File type", formatMime(resume.mime_type)],
+                ["File size", formatBytes(resume.file_size_bytes)],
+                ["Created at", formatDate(resume.created_at)],
+                ["Last updated", formatDate(resume.updated_at)],
+              ]}
+            />
+            <Card size="small" title="Skills">
+              <Tags values={resume.skills} empty="No skills recorded" />
+            </Card>
+            <Card size="small" title="Industries">
+              <Tags values={resume.industries} empty="No industries recorded" />
+            </Card>
+          </>
+        ),
+      },
+      {
+        key: "structured",
+        label: "Structured Resume",
+        children: (
+          <StructuredResumeView
+            content={structured}
+            version={resume.structured_schema_version}
+          />
+        ),
+      },
+      {
+        key: "original",
+        label: "Original text",
+        children: <div className="long-text">{resume.resume_text}</div>,
+      },
+    ];
+  return (
+    <div className="page">
+      <a className="back-link" href={back}>
+        ← Back to Resumes
+      </a>
+      <div className="detail-title">
+        <div>
+          <Text type="secondary" className="eyebrow">
+            {resume.candidate_name}
+          </Text>
+          <Title level={1} tabIndex={-1}>
+            {resume.resume_name}
+          </Title>
+        </div>
+        <Badge value={resume.status} />
+      </div>
+      {fileMessage && <Alert type="info" showIcon message={fileMessage} />}
+      <TabbedSections
+        items={tabs}
+        extra={
+          <Button type="primary" onClick={open}>
+            Open Original Resume
+          </Button>
+        }
+      />
+    </div>
+  );
+}
 
-export function App({client}) {
-  const [session,setSession]=useState(undefined),[access,setAccess]=useState(undefined),[accessError,setAccessError]=useState(null),[route,setRoute]=useState(()=>parseRoute(location.hash||"#/")),[categories,setCategories]=useState(null),[roles,setRoles]=useState([]),[reload,setReload]=useState(0),jobsBack=useRef("#/jobs"),resumesBack=useRef("#/resumes");
-  const reloadAccess=useCallback(async()=>{if(!session)return;setAccessError(null);try{const next=await getMyAccessContext(client);setAccess(next);return next;}catch(error){setAccess(null);setAccessError(error);}},[client,session]);
-  useEffect(()=>{getSession(client).then(setSession).catch(()=>setSession(null));const {data}=client.auth.onAuthStateChange((_event,next)=>{setSession(next);setAccess(undefined);setAccessError(null);});const hash=()=>setRoute(parseRoute(location.hash));addEventListener("hashchange",hash);if(!location.hash)location.hash="#/";return()=>{data.subscription.unsubscribe();removeEventListener("hashchange",hash);};},[client]);
-  useEffect(()=>{if(session)reloadAccess();else{setAccess(undefined);setCategories(null);setRoles([]);}},[session,reloadAccess]);
-  useEffect(()=>{let live=true;if(access&&hasCapability(access,CAPABILITIES.BUSINESS_DATA_READ)&&!categories)loadCategories(client).then(value=>live&&setCategories(value)).catch(setAccessError);if(access&&!hasCapability(access,CAPABILITIES.BUSINESS_DATA_READ))setCategories(null);if(access&&hasCapability(access,CAPABILITIES.USER_ADMIN))listSystemRoles(client).then(value=>live&&setRoles(value)).catch(setAccessError);else setRoles([]);return()=>{live=false};},[access,client,categories]);
-  useEffect(()=>{if(session!==undefined&&(!session||access)){const redirect=guardAccessRoute(route,session,access);if(redirect)go(redirect,true);}document.title=`${route.name==="overview"?"Overview":formatLabel(route.name)} — Resume JD Operations`;queueMicrotask(()=>document.querySelector("h1")?.focus());},[route,session,access]);
-  if(session===undefined)return <Loading text="Restoring session…"/>;
-  if(!session)return <Login client={client} onSignedIn={next=>{setSession(next);go("#/",true);}}/>;
-  const logout=async()=>{await signOut(client);setSession(null);setAccess(undefined);setCategories(null);setRoles([]);go("#/login",true);};
-  if(accessError)return <Shell route={route} title="Access error" access={{email:session.user.email,status:"INACTIVE",roles:[]}} logout={logout}><AccessLoadErrorPage error={accessError} retry={reloadAccess}/></Shell>;
-  if(access===undefined)return <Loading text="Loading account access…"/>;
-  const guarded=guardAccessRoute(route,session,access);
-  if(guarded==="#/pending-access")return <Shell route={route} title="Pending Access" access={access} logout={logout}><PendingAccessPage/></Shell>;
-  if(guarded==="#/account-inactive")return <Shell route={route} title="Account Inactive" access={access} logout={logout}><InactiveAccountPage/></Shell>;
-  if(guarded==="#/access-denied")return <Shell route={route} title="Access Denied" access={access} logout={logout}><AccessDeniedPage/></Shell>;
-  const needsCategories=hasCapability(access,CAPABILITIES.BUSINESS_DATA_READ)&&["overview","jobs","job-detail","resumes","resume-detail","resume-upload","applications"].includes(route.name);
-  if(needsCategories&&!categories)return <Loading text="Loading categories…"/>;
-  if(hasCapability(access,CAPABILITIES.USER_ADMIN)&&["admin-users","admin-user-detail","admin-roles"].includes(route.name)&&!roles.length)return <Loading text="Loading system roles…"/>;
-  if(route.name==="jobs")jobsBack.current=location.hash;if(route.name==="resumes")resumesBack.current=location.hash;
+export function ConfigurationError({ message }) {
+  return (
+    <main className="config-page">
+      <Card className="login-card">
+        <UiErrorState
+          title="Dashboard setup required"
+          message={
+            <>
+              {message}
+              <br />
+              Create dashboard/.env.local from dashboard/.env.example, then
+              restart or rebuild.
+            </>
+          }
+        />
+      </Card>
+    </main>
+  );
+}
+
+export function App({ client }) {
+  const [session, setSession] = useState(undefined),
+    [access, setAccess] = useState(undefined),
+    [accessError, setAccessError] = useState(null),
+    [route, setRoute] = useState(() => parseRoute(location.hash || "#/")),
+    [categories, setCategories] = useState(null),
+    [roles, setRoles] = useState([]),
+    [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
+    [reload, setReload] = useState(0),
+    jobsBack = useRef("#/jobs"),
+    resumesBack = useRef("#/resumes");
+  const reloadAccess = useCallback(async () => {
+    if (!session) return;
+    setAccessError(null);
+    try {
+      const next = await getMyAccessContext(client);
+      setAccess(next);
+      return next;
+    } catch (error) {
+      setAccess(null);
+      setAccessError(error);
+    }
+  }, [client, session]);
+  useEffect(() => {
+    getSession(client)
+      .then(setSession)
+      .catch(() => setSession(null));
+    const { data } = client.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+      setAccess(undefined);
+      setAccessError(null);
+    });
+    const hash = () => setRoute(parseRoute(location.hash));
+    addEventListener("hashchange", hash);
+    if (!location.hash) location.hash = "#/";
+    return () => {
+      data.subscription.unsubscribe();
+      removeEventListener("hashchange", hash);
+    };
+  }, [client]);
+  useEffect(() => {
+    if (session) reloadAccess();
+    else {
+      setAccess(undefined);
+      setCategories(null);
+      setRoles([]);
+    }
+  }, [session, reloadAccess]);
+  useEffect(() => {
+    let live = true;
+    if (
+      access &&
+      hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) &&
+      !categories
+    )
+      loadCategories(client)
+        .then((value) => live && setCategories(value))
+        .catch(setAccessError);
+    if (access && !hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ))
+      setCategories(null);
+    if (access && hasCapability(access, CAPABILITIES.USER_ADMIN))
+      listSystemRoles(client)
+        .then((value) => live && setRoles(value))
+        .catch(setAccessError);
+    else setRoles([]);
+    return () => {
+      live = false;
+    };
+  }, [access, client, categories]);
+  useEffect(() => {
+    if (session !== undefined && (!session || access)) {
+      const redirect = guardAccessRoute(route, session, access);
+      if (redirect) go(redirect, true);
+    }
+    document.title = `${route.name === "overview" ? "Overview" : formatLabel(route.name)} — Resume JD Operations`;
+    queueMicrotask(() => document.querySelector("h1")?.focus());
+  }, [route, session, access]);
+  if (session === undefined) return <Loading text="Restoring session…" />;
+  if (!session)
+    return (
+      <Login
+        client={client}
+        onSignedIn={(next) => {
+          setSession(next);
+          go("#/", true);
+        }}
+      />
+    );
+  const logout = async () => {
+    await signOut(client);
+    setSession(null);
+    setAccess(undefined);
+    setCategories(null);
+    setRoles([]);
+    setSelectedBulkJobIds([]);
+    go("#/login", true);
+  };
+  if (accessError)
+    return (
+      <Shell
+        route={route}
+        title="Access error"
+        access={{ email: session.user.email, status: "INACTIVE", roles: [] }}
+        logout={logout}
+      >
+        <AccessLoadErrorPage error={accessError} retry={reloadAccess} />
+      </Shell>
+    );
+  if (access === undefined) return <Loading text="Loading account access…" />;
+  const guarded = guardAccessRoute(route, session, access);
+  if (guarded === "#/pending-access")
+    return (
+      <Shell
+        route={route}
+        title="Pending Access"
+        access={access}
+        logout={logout}
+      >
+        <PendingAccessPage />
+      </Shell>
+    );
+  if (guarded === "#/account-inactive")
+    return (
+      <Shell
+        route={route}
+        title="Account Inactive"
+        access={access}
+        logout={logout}
+      >
+        <InactiveAccountPage />
+      </Shell>
+    );
+  if (guarded === "#/access-denied")
+    return (
+      <Shell
+        route={route}
+        title="Access Denied"
+        access={access}
+        logout={logout}
+      >
+        <AccessDeniedPage />
+      </Shell>
+    );
+  const needsCategories =
+    hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) &&
+    [
+      "overview",
+      "jobs",
+      "job-detail",
+      "resumes",
+      "resume-detail",
+      "resume-upload",
+      "applications",
+    ].includes(route.name);
+  if (needsCategories && !categories)
+    return <Loading text="Loading categories…" />;
+  if (
+    hasCapability(access, CAPABILITIES.USER_ADMIN) &&
+    ["admin-users", "admin-user-detail", "admin-roles"].includes(route.name) &&
+    !roles.length
+  )
+    return <Loading text="Loading system roles…" />;
+  if (route.name === "jobs") jobsBack.current = location.hash;
+  if (route.name === "resumes") resumesBack.current = location.hash;
   let page;
-  if(route.name==="pending-access")page=<PendingAccessPage/>;
-  else if(route.name==="account-inactive")page=<InactiveAccountPage/>;
-  else if(route.name==="access-denied")page=<AccessDeniedPage/>;
-  else if(route.name==="profile")page=<ProfilePage client={client} access={access} reloadAccess={reloadAccess}/>;
-  else if(route.name==="overview")page=hasCapability(access,CAPABILITIES.BUSINESS_DATA_READ)?<><div className="page application-overview"><ApplicationCountCards client={client} access={access} reload={reload}/></div><BusinessOverview client={client} categories={categories} reload={reload}/></>:<TechnicalOverview access={access}/>;
-  else if(route.name==="applications")page=<ApplicationsPage client={client} access={access} categories={categories} query={route.query} reload={reload}/>;
-  else if(route.name==="application-new")page=<CreateApplicationPage client={client}/>;
-  else if(route.name==="application-detail")page=<ApplicationDetailPage client={client} access={access} id={route.id} reload={reload}/>;
-  else if(route.name==="users-directory")page=<ApplierDirectoryPage client={client} reload={reload}/>;
-  else if(route.name==="jobs")page=<Jobs client={client} categories={categories} query={route.query} reload={reload}/>;
-  else if(route.name==="job-detail")page=<JobDetail client={client} categories={categories} id={route.id} back={jobsBack.current} reload={reload}/>;
-  else if(route.name==="resumes")page=<Resumes client={client} categories={categories} query={route.query} reload={reload}/>;
-  else if(route.name==="resume-detail")page=<ResumeDetail client={client} categories={categories} id={route.id} back={resumesBack.current} reload={reload}/>;
-  else if(route.name==="resume-upload")page=<AdminResumeUploadPage client={client} access={access} categories={categories}/>;
-  else if(route.name==="admin-users")page=<AdminUsersPage client={client} roles={roles} reload={reload}/>;
-  else if(route.name==="admin-user-detail")page=<AdminUserDetailPage client={client} id={route.id} roles={roles} currentUserId={access.userId} onCurrentUserChanged={reloadAccess}/>;
-  else if(route.name==="admin-roles")page=<AdminRolesPage roles={roles}/>;
-  else page=<div className="page"><Card><Title level={1} tabIndex={-1}>Page not found</Title><Text>{route.name==="invalid-id"?"The record identifier is invalid.":"The requested page does not exist."}</Text><div><Button type="link" href="#/">Return to Overview</Button></div></Card></div>;
-  return <Shell route={route} title={formatLabel(route.name)} access={access} refresh={()=>setReload(value=>value+1)} logout={logout}>{page}</Shell>;
+  if (route.name === "pending-access") page = <PendingAccessPage />;
+  else if (route.name === "account-inactive") page = <InactiveAccountPage />;
+  else if (route.name === "access-denied") page = <AccessDeniedPage />;
+  else if (route.name === "profile")
+    page = (
+      <ProfilePage
+        client={client}
+        access={access}
+        reloadAccess={reloadAccess}
+      />
+    );
+  else if (route.name === "overview")
+    page = hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? (
+      <>
+        <div className="page application-overview">
+          <ApplicationCountCards
+            client={client}
+            access={access}
+            reload={reload}
+          />
+        </div>
+        <BusinessOverview
+          client={client}
+          categories={categories}
+          reload={reload}
+        />
+      </>
+    ) : (
+      <TechnicalOverview access={access} />
+    );
+  else if (route.name === "applications")
+    page = (
+      <ApplicationsPage
+        client={client}
+        access={access}
+        categories={categories}
+        query={route.query}
+        reload={reload}
+      />
+    );
+  else if (route.name === "application-new")
+    page = <CreateApplicationPage client={client} />;
+  else if (route.name === "application-bulk-create")
+    page = (
+      <BulkCreatePage
+        client={client}
+        selectedJobIds={selectedBulkJobIds}
+        onClearJobSelection={() => setSelectedBulkJobIds([])}
+      />
+    );
+  else if (route.name === "application-detail")
+    page = (
+      <ApplicationDetailPage
+        client={client}
+        access={access}
+        id={route.id}
+        reload={reload}
+      />
+    );
+  else if (route.name === "application-batches")
+    page = <ApplicationBatchesPage client={client} query={route.query} />;
+  else if (route.name === "application-batch-detail")
+    page = <ApplicationBatchDetailPage client={client} id={route.id} />;
+  else if (route.name === "users-directory")
+    page = <ApplierDirectoryPage client={client} reload={reload} />;
+  else if (route.name === "jobs")
+    page = (
+      <Jobs
+        client={client}
+        categories={categories}
+        query={route.query}
+        reload={reload}
+        access={access}
+        selectedJobIds={selectedBulkJobIds}
+        onSelectedJobIdsChange={setSelectedBulkJobIds}
+      />
+    );
+  else if (route.name === "job-detail")
+    page = (
+      <JobDetail
+        client={client}
+        categories={categories}
+        id={route.id}
+        back={jobsBack.current}
+        reload={reload}
+      />
+    );
+  else if (route.name === "resumes")
+    page = (
+      <Resumes
+        client={client}
+        categories={categories}
+        query={route.query}
+        reload={reload}
+      />
+    );
+  else if (route.name === "resume-detail")
+    page = (
+      <ResumeDetail
+        client={client}
+        categories={categories}
+        id={route.id}
+        back={resumesBack.current}
+        reload={reload}
+      />
+    );
+  else if (route.name === "resume-upload")
+    page = (
+      <AdminResumeUploadPage
+        client={client}
+        access={access}
+        categories={categories}
+      />
+    );
+  else if (route.name === "admin-users")
+    page = <AdminUsersPage client={client} roles={roles} reload={reload} />;
+  else if (route.name === "admin-user-detail")
+    page = (
+      <AdminUserDetailPage
+        client={client}
+        id={route.id}
+        roles={roles}
+        currentUserId={access.userId}
+        onCurrentUserChanged={reloadAccess}
+      />
+    );
+  else if (route.name === "admin-roles")
+    page = <AdminRolesPage roles={roles} />;
+  else
+    page = (
+      <div className="page">
+        <Card>
+          <Title level={1} tabIndex={-1}>
+            Page not found
+          </Title>
+          <Text>
+            {route.name === "invalid-id"
+              ? "The record identifier is invalid."
+              : "The requested page does not exist."}
+          </Text>
+          <div>
+            <Button type="link" href="#/">
+              Return to Overview
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  return (
+    <Shell
+      route={route}
+      title={formatLabel(route.name)}
+      access={access}
+      refresh={() => setReload((value) => value + 1)}
+      logout={logout}
+    >
+      {page}
+    </Shell>
+  );
 }

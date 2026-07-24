@@ -11,7 +11,10 @@ test("parses dashboard routes",()=>{
   assert.equal(parseRoute("#/access-denied").name,"access-denied");
   assert.equal(parseRoute("#/applications").name,"applications");
   assert.equal(parseRoute("#/applications/new").name,"application-new");
+  assert.equal(parseRoute("#/applications/bulk-create").name,"application-bulk-create");
   assert.equal(parseRoute("#/applications/"+id).name,"application-detail");
+  assert.equal(parseRoute("#/application-batches").name,"application-batches");
+  assert.equal(parseRoute("#/application-batches/"+id).name,"application-batch-detail");
   assert.equal(parseRoute("#/users").name,"users-directory");
   assert.equal(parseRoute("#/jobs").name,"jobs");
   assert.deepEqual(parseRoute("#/jobs/"+id).id,id);

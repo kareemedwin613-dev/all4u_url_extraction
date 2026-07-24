@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {applicationActions,validateApplicationCreate,validateApplicationProgress} from "../src/features/applications/validation.js";
 import {parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
-import {createApplication,listApplications,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
+import {bulkAssignApplications,createApplication,listApplications,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
 import {capabilitiesForRoles} from "../src/access/capabilities.js";
 import {readFile} from "node:fs/promises";
 
@@ -25,23 +25,32 @@ test("application action visibility follows roles and assignment",()=>{
 });
 
 test("application query state is allowlisted and serializable",()=>{
-  const value=parseApplicationQuery("page=2&pageSize=50&workStatus=BLOCKED&priority=URGENT&sort=due_asc&search=Acme");
+  const value=parseApplicationQuery(`page=2&pageSize=50&workStatus=BLOCKED&priority=URGENT&sort=due_asc&search=Acme&creationMode=BULK&creationBatchId=${id}`);
   assert.equal(value.page,2);assert.equal(value.priority,"URGENT");assert.equal(value.sort,"due_asc");
+  assert.equal(value.creationMode,"BULK");assert.equal(value.creationBatchId,id);
   assert.match(serializeApplicationQuery(value),/workStatus=BLOCKED/);
   assert.equal(parseApplicationQuery("workStatus=INJECTED&sort=bad").workStatus,"");
 });
 
 test("application services use protected RPC contracts",async()=>{
-  const calls=[],client={rpc:async(name,args)=>{calls.push([name,args]);if(name==="list_applications")return {data:{items:[{id}],total:1},error:null};if(name==="create_application")return {data:{id},error:null};return {data:{id},error:null};}};
+  const calls=[],client={rpc:async(name,args)=>{calls.push([name,args]);if(name==="list_applications_v07")return {data:{items:[{id}],total:1},error:null};if(name==="create_application")return {data:{id},error:null};return {data:{id},error:null};}};
   const list=await listApplications(client,{page:1,pageSize:25,search:"",sort:"updated_desc"});
   assert.equal(list.total,1);
   await createApplication(client,{jobDescriptionId:id,resumeId:id2,priority:"HIGH"});
   await updateApplication(client,id,{workStatus:"IN_PROGRESS",applicationStatus:"NOT_APPLIED",priority:"HIGH"});
   await updateApplication(client,id,{workStatus:"IN_PROGRESS",applicationStatus:"APPLIED",applicationUrl:"https://jobs.example.test/application"});
   await reassignApplication(client,id,id2,"Capacity");
-  assert.deepEqual(calls.map(x=>x[0]),["list_applications","create_application","update_application_progress","update_application_progress","reassign_application"]);
+  assert.deepEqual(calls.map(x=>x[0]),["list_applications_v07","create_application","update_application_progress","update_application_progress","reassign_application"]);
   assert.equal(calls[0][1].p_limit,25);
   assert.equal(calls[3][1].p_priority,null);assert.equal(calls[3][1].p_due_at,null);assert.equal(calls[3][1].p_applied_at,null);assert.equal(calls[3][1].p_notes,null);
+});
+
+test("bulk assignment deduplicates identifiers and uses one protected RPC",async()=>{
+  const calls=[],client={rpc:async(name,args)=>{calls.push([name,args]);return {data:{requestedCount:2,changedCount:2,unchangedCount:0,missingCount:0,results:[]},error:null};}};
+  const result=await bulkAssignApplications(client,[id,id,id2],id2,"Queue redistribution");
+  assert.equal(result.changedCount,2);
+  assert.deepEqual(calls,[["bulk_assign_applications",{p_application_ids:[id,id2],p_new_assignee_id:id2,p_reason:"Queue redistribution"}]]);
+  assert.throws(()=>bulkAssignApplications(client,[],id2),error=>error.code==="BULK_ASSIGN_NO_APPLICATIONS");
 });
 
 test("private resume flow authorizes by Application before signing",async()=>{
@@ -61,20 +70,25 @@ test("Application pages expose list, create, detail, history, and empty/loading 
   for(const text of ["ApplicationsPage","CreateApplicationPage","ApplicationDetailPage","Create Application","Assignment History","Status History","No Applications","Loading..."])assert.match(source,new RegExp(text));
 });
 
+test("manager Application page exposes persistent bulk assignment controls",async()=>{
+  const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
+  for(const text of ["Assign Selected","bulkAssignApplications","preserveSelectedRowKeys\\s*:\\s*true","Unassign selected Applications","Assignment reason \\(optional\\)"])assert.match(source,new RegExp(text));
+});
+
 test("Applier Application columns follow the operational priority order",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  const section=source.slice(source.indexOf("const applierColumns="),source.indexOf("const columns=manager?"));
+  const section=source.slice(source.indexOf("const applierColumns ="),source.indexOf("const columns = serverSortColumns"));
   const labels=["Company","Job title","Resume","Link","Status","Captured at","Primary category"];
   let position=-1;
-  for(const label of labels){const next=section.indexOf(`title:\"${label}\"`);assert.ok(next>position,`${label} follows the requested order`);position=next;}
+  for(const label of labels){const match=new RegExp(`title:\\s*\"${label}\"`).exec(section),next=match?.index??-1;assert.ok(next>position,`${label} follows the requested order`);position=next;}
   assert.match(section,/source_url/);
   assert.match(section,/application_url/);
-  assert.ok(section.indexOf('title:"Application #"')<section.indexOf('title:"Company"'));
+  assert.ok(section.indexOf("numberColumn")<section.search(/title:\s*"Company"/));
 });
 
 test("manager Application list identifies both sides of the JD and Resume pair",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  const section=source.slice(source.indexOf("const managerColumns="),source.indexOf("const applierColumns="));
+  const section=source.slice(source.indexOf("const managerColumns ="),source.indexOf("const applierColumns ="));
   for(const field of ["company","job_title","resume_name","candidate_name","assignee_name"])assert.match(section,new RegExp(field));
   assert.match(section,/numberColumn/);
 });
