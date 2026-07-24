@@ -70,3 +70,9 @@ test("Applier Application columns follow the operational priority order",async()
   assert.match(section,/source_url/);
   assert.match(section,/application_url/);
 });
+
+test("manager Application list identifies both sides of the JD and Resume pair",async()=>{
+  const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
+  const section=source.slice(source.indexOf("const managerColumns="),source.indexOf("const applierColumns="));
+  for(const field of ["company","job_title","resume_name","candidate_name","assignee_name"])assert.match(section,new RegExp(field));
+});

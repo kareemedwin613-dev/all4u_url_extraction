@@ -23,6 +23,7 @@ export function ApplicationsPage({client,access,categories,query,reload}){
   const managerColumns=[
     {title:"Company",dataIndex:"company"},
     {title:"Job title",dataIndex:"job_title"},
+    {title:"Resume",dataIndex:"resume_name",render:(value,record)=><div><Text strong>{value||"Unnamed Resume"}</Text>{record.candidate_name&&<div><Text type="secondary">{record.candidate_name}</Text></div>}</div>},
     {title:"Applier profile",dataIndex:"assignee_name",render:(value,record)=>value||record.assignee_email||"Unassigned"},
     {title:"Work Status",dataIndex:"work_status",render:value=><StatusTag value={value}/>},
     {title:"Application Status",dataIndex:"application_status",render:value=><StatusTag value={value}/>},
