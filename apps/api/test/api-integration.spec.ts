@@ -21,6 +21,7 @@ const { LookupService } = await import("../src/lookups/lookup.service.js");
 const { ResumeService } = await import("../src/resumes/resume.service.js");
 const { ApplicationService } = await import("../src/applications/application.service.js");
 const { ApplicationBatchesService } = await import("../src/application-batches/application-batches.service.js");
+const { BulkAssignmentService } = await import("../src/bulk-assignment/bulk-assignment.service.js");
 const { PlatformService, TailoringService } = await import("../src/platform/platform.service.js");
 
 let app: INestApplication, mode: "create"|"duplicate"|"identity"|"rls" = "create", active = true, roles = ["APPLYING_MANAGER"];
@@ -62,6 +63,16 @@ before(async () => {
       list:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0,nextCursor:null}),options:async()=>[],
       detail:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",name:"Test",applications:[]}),
       results:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),
+    })
+    .overrideProvider(BulkAssignmentService).useValue({
+      workloads:async()=>({items:[{userId:"applier-1",remainingCapacity:5}],page:{nextCursor:null,pageSize:25,total:1}}),
+      settings:async()=>({userId:"applier-1",isAvailable:true,maxActiveApplications:10}),
+      updateSettings:async()=>({userId:"applier-1",isAvailable:false,maxActiveApplications:10}),
+      preview:async()=>({strategy:"EVEN",proposals:[{applicationId:"application-1",proposedAssigneeId:"applier-1"}],excludedApplications:[]}),
+      assign:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",assignedCount:1,skippedCount:0,failedCount:0,replayed:false}),
+      batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),
+      batch:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",strategy:"EVEN"}),
+      results:async()=>({items:[],page:{nextCursor:null,pageSize:25,total:0}}),
     })
     .overrideProvider(PlatformService).useValue({roles:async()=>[{code:"ADMIN"}],users:async()=>({items:[],page:1,pageSize:25,total:0,totalPages:0}),user:async()=>({id:"user-1"}),role:async()=>["ADMIN"],status:async()=>({id:"user-1",status:"INACTIVE"}),profile:async()=>({id:"user-1",full_name:"Name"}),overview:async()=>({jobCounts:{total:1}})})
     .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
@@ -130,6 +141,20 @@ test("Application and bulk routes enforce roles and validate protected mutations
   await request(app.getHttpServer()).get(`/api/v1/application-batches/${id}`).set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).get(`/api/v1/application-batches/${id}/results?page=1&limit=25`).set("Authorization","Bearer token").expect(200);
   roles=["APPLYING_MANAGER"];
+});
+
+test("v0.8 workload and bulk-assignment routes are manager-only and require idempotency",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get("/api/v1/appliers/workloads").set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assignment-preview").set("Authorization","Bearer token").send({strategy:"EVEN",applicationIds:[id],applierIds:[id]}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).get("/api/v1/appliers/workloads?limit=25").set("Authorization","Bearer token").expect(200).expect(({body})=>{assert.equal(body.data.length,1);assert.equal(body.page.total,1);});
+  await request(app.getHttpServer()).patch(`/api/v1/appliers/${id}/workload-settings`).set("Authorization","Bearer token").send({isAvailable:false,maxActiveApplications:10}).expect(200);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assignment-preview").set("Authorization","Bearer token").send({strategy:"EVEN",applicationIds:[id],applierIds:[id]}).expect(201);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assign").set("Authorization","Bearer token").send({strategy:"EVEN",assignments:[{applicationId:id,assignedTo:id}]}).expect(400);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assign").set("Authorization","Bearer token").set("Idempotency-Key","assign_test_123").send({strategy:"EVEN",assignments:[{applicationId:id,assignedTo:id}]}).expect(201);
+  await request(app.getHttpServer()).get(`/api/v1/assignment-batches/${id}/results?limit=25`).set("Authorization","Bearer token").expect(200);
 });
 
 test("Profile, Admin, overview, and tailoring routes enforce the final backend boundary",async()=>{

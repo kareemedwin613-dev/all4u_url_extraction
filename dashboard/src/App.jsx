@@ -110,6 +110,7 @@ import {
 import { MAX_BULK_JDS } from "./features/bulk-applications/bulk-state.js";
 import { ApplierDirectoryPage } from "./features/applications/applier-directory-page.jsx";
 import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-page.jsx";
+import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage, BulkAssignmentWizardPage } from "./features/bulk-assignment/bulk-assignment-pages.jsx";
 import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
 import {
   DataPagination,
@@ -165,6 +166,8 @@ const NAV_ICONS = Object.freeze({
     overview: <HomeOutlined />,
     applications: <AppstoreOutlined />,
     "application-batches": <HistoryOutlined />,
+    "assignment-batches": <HistoryOutlined />,
+    "applier-workloads": <UserOutlined />,
     jobs: <FileSearchOutlined />,
     resumes: <ProfileOutlined />,
     "resume-upload": <UploadOutlined />,
@@ -177,7 +180,9 @@ const NAV_ICONS = Object.freeze({
     "application-detail": "applications",
     "application-new": "applications",
     "application-bulk-create": "applications",
+    "application-bulk-assign": "applications",
     "application-batch-detail": "application-batches",
+    "assignment-batch-detail": "assignment-batches",
     "job-detail": "jobs",
     "resume-detail": "resumes",
     "admin-user-detail": "admin-users",
@@ -1415,6 +1420,8 @@ export function App({ client, apiBaseUrl }) {
         onClearJobSelection={() => setSelectedBulkJobIds([])}
       />
     );
+  else if (route.name === "application-bulk-assign")
+    page = <BulkAssignmentWizardPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} />;
   else if (route.name === "application-detail")
     page = (
       <ApplicationDetailPage
@@ -1429,6 +1436,12 @@ export function App({ client, apiBaseUrl }) {
     page = <ApplicationBatchesPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} />;
   else if (route.name === "application-batch-detail")
     page = <ApplicationBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
+  else if (route.name === "assignment-batches")
+    page = <AssignmentBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "assignment-batch-detail")
+    page = <AssignmentBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
+  else if (route.name === "applier-workloads")
+    page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "users-directory")
     page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "jobs")

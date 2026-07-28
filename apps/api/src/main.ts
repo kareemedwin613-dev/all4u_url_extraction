@@ -24,7 +24,7 @@ export async function createApiApplication(options: { serverless?: boolean } = {
   } }));
   app.useGlobalFilters(new ApiExceptionFilter());
   if (env.SWAGGER_ENABLED && env.NODE_ENV !== "production") {
-    const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle("Resume JD Operations API").setVersion("0.7.4").addBearerAuth({ type: "http", scheme: "bearer", bearerFormat: "Supabase JWT" }).build());
+    const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle("Resume JD Operations API").setVersion("0.8").addBearerAuth({ type: "http", scheme: "bearer", bearerFormat: "Supabase JWT" }).build());
     SwaggerModule.setup("api/docs", app, document);
   }
   return app;

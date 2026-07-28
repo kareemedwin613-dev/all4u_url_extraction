@@ -170,3 +170,56 @@ export interface ApplicationBatchDetail extends ApplicationBatchSummary {
 }
 export interface ApplicationBatchResult extends BulkCreateRowResult { id: string; createdAt: string; }
 export interface CursorPage { nextCursor: string | null; pageSize: number; total?: number; }
+
+export type BulkAssignmentStrategy = "MANUAL" | "EVEN" | "CAPACITY_AWARE";
+export interface ApplierWorkload {
+  userId: string; fullName: string; email: string; isAvailable: boolean;
+  activeApplicationCount: number; maxActiveApplications: number; remainingCapacity: number;
+}
+export interface ApplierWorkloadSettings {
+  userId: string; fullName: string; email: string; isAvailable: boolean;
+  maxActiveApplications: number; usesDefaultSettings: boolean; updatedBy: string | null;
+  createdAt: string | null; updatedAt: string | null;
+}
+export interface UpdateWorkloadSettingsRequest { isAvailable: boolean; maxActiveApplications: number; }
+export interface ManualAssignment { applicationId: string; assignedTo: string; }
+export interface BulkAssignmentPreviewRequest {
+  strategy: BulkAssignmentStrategy; applicationIds?: string[]; applierIds?: string[]; assignments?: ManualAssignment[];
+}
+export interface AssignmentProposal {
+  applicationId: string; company: string; jobTitle: string; candidateName?: string | null; resumeName: string;
+  proposedAssigneeId: string; proposedAssigneeName: string; currentApplierWorkload: number;
+  proposedAdditionalCount: number; projectedFinalWorkload: number; maxCapacity: number; remainingCapacityAfter: number;
+}
+export interface ApplierAssignmentSummary {
+  userId: string; fullName: string; currentWorkload: number; proposedCount: number;
+  projectedWorkload: number; maxCapacity: number; remainingCapacityAfter: number; eligible: boolean;
+}
+export interface ExcludedApplication { applicationId: string; code: string; reason: string; }
+export interface BulkAssignmentPreviewData {
+  strategy: BulkAssignmentStrategy; selectedApplicationCount: number; eligibleApplicationCount: number;
+  excludedApplicationCount: number; selectedApplierCount: number; proposals: AssignmentProposal[];
+  applierSummaries: ApplierAssignmentSummary[]; excludedApplications: ExcludedApplication[];
+}
+export interface BulkAssignmentPreviewResponse extends RequestMetadata { data: BulkAssignmentPreviewData; }
+export interface BulkAssignRequest { batchName?: string; strategy: BulkAssignmentStrategy; assignments: ManualAssignment[]; }
+export type BulkAssignmentOutcome = "ASSIGNED" | "SKIPPED" | "FAILED";
+export interface BulkAssignmentRowResult {
+  id: string; applicationId: string; previousAssigneeId: string | null; newAssigneeId: string | null;
+  outcome: BulkAssignmentOutcome; errorCode: string | null; message: string; createdAt: string;
+}
+export interface BulkAssignData {
+  batchId: string; batchName: string; strategy: BulkAssignmentStrategy; requestedCount: number;
+  assignedCount: number; skippedCount: number; failedCount: number; status: string; replayed: boolean;
+  results: BulkAssignmentRowResult[];
+}
+export interface BulkAssignResponse extends RequestMetadata { data: BulkAssignData; }
+export interface AssignmentBatchSummary {
+  id: string; name: string; strategy: BulkAssignmentStrategy; selectedApplicationCount: number;
+  requestedCount: number; assignedCount: number; skippedCount: number; failedCount: number;
+  status: string; createdBy: string; creatorName: string; createdAt: string; completedAt: string | null;
+}
+export type AssignmentBatchDetail = AssignmentBatchSummary;
+export interface AssignmentBatchResult extends BulkAssignmentRowResult {
+  applicationNumber: number | null; company: string | null; jobTitle: string | null; newAssigneeName: string | null;
+}

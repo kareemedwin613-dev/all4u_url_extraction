@@ -12,10 +12,14 @@ export function parseRoute(hash = "#/") {
   if (parts[0] === "access-denied" && parts.length === 1) return {name: "access-denied", path: "/access-denied", query};
   if (parts[0] === "applications" && parts.length === 1) return {name: "applications", path: "/applications", query};
   if (parts[0] === "applications" && parts[1] === "bulk-create" && parts.length === 2) return {name: "application-bulk-create", path: "/applications/bulk-create", query};
+  if (parts[0] === "applications" && parts[1] === "bulk-assign" && parts.length === 2) return {name: "application-bulk-assign", path: "/applications/bulk-assign", query};
   if (parts[0] === "applications" && parts[1] === "new" && parts.length === 2) return {name: "application-new", path: "/applications/new", query};
   if (parts[0] === "applications" && parts.length === 2) return isUuid(parts[1]) ? {name: "application-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "application-batches" && parts.length === 1) return {name: "application-batches", path: "/application-batches", query};
   if (parts[0] === "application-batches" && parts.length === 2) return isUuid(parts[1]) ? {name: "application-batch-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
+  if (parts[0] === "assignment-batches" && parts.length === 1) return {name: "assignment-batches", path: "/assignment-batches", query};
+  if (parts[0] === "assignment-batches" && parts.length === 2) return isUuid(parts[1]) ? {name: "assignment-batch-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
+  if (parts[0] === "applier-workloads" && parts.length === 1) return {name: "applier-workloads", path: "/applier-workloads", query};
   if (parts[0] === "users" && parts.length === 1) return {name: "users-directory", path: "/users", query};
   if (parts[0] === "jobs" && parts.length === 1) return {name: "jobs", path: "/jobs", query};
   if (parts[0] === "jobs" && parts.length === 2) return isUuid(parts[1]) ? {name: "job-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
