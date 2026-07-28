@@ -167,9 +167,24 @@ export function App() {
     try {
       const context = await getApplicationExtensionContext(client, backendBaseUrl, response.data.applicationId);
       await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "TARGET_READY");
-      setActiveApplicationSession({ session: response.data, context });
+      let loadedResume = null;
+      if (response.data.action === "LOAD_RESUME") {
+        const loaded = await chrome.runtime.sendMessage({
+          type: MESSAGE_TYPES.LOAD_APPLICATION_RESUME,
+          payload: {
+            sessionId: response.data.id,
+            applicationId: response.data.applicationId,
+            baseUrl: backendBaseUrl,
+            accessToken: session.access_token,
+          },
+        });
+        if (!loaded?.ok) throw new Error(loaded?.error?.message || "The private Resume could not be loaded.");
+        loadedResume = loaded.data;
+      }
+      setActiveApplicationSession({ session: response.data, context, loadedResume });
       setCurrentView("applications");
     } catch (error) {
+      await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "FAILED", "RESUME_LOAD_FAILED").catch(() => {});
       setActiveApplicationSession(null);
       handleError(error);
     }
@@ -227,6 +242,7 @@ export function App() {
 
   async function handleSignOut() {
     try {
+      await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION }).catch(() => {});
       await signOut(client);
     } finally {
       mountedViewsRef.current.clear();
@@ -239,6 +255,7 @@ export function App() {
   async function handleClearSession() {
     setClearBusy(true);
     try {
+      await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION }).catch(() => {});
       if (client) await signOut(client).catch(() => {});
       const all = await chrome.storage.local.get(null);
       for (const key of Object.keys(all)) {
@@ -350,7 +367,7 @@ export function App() {
         </div>
       )}
       <Content className="sidepanel-content">
-        {activeApplicationSession && <Alert type="info" showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} â€” ${activeApplicationSession.context.job.jobTitle}`} description={`Application #${activeApplicationSession.context.application.applicationNumber ?? "â€”"} is connected. Resume bytes are not downloaded in v0.8.5.`} style={{ marginBottom: 12 }} />}
+        {activeApplicationSession && <Alert type={activeApplicationSession.loadedResume?.ready ? "success" : "info"} showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.loadedResume?.ready ? "Resume Ready" : activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} — ${activeApplicationSession.context.job.jobTitle}`} description={activeApplicationSession.loadedResume?.ready ? `${activeApplicationSession.loadedResume.filename} (${Math.ceil(activeApplicationSession.loadedResume.fileSizeBytes / 1024)} KiB) is held in extension memory for Application #${activeApplicationSession.context.application.applicationNumber ?? "—"}.` : `Application #${activeApplicationSession.context.application.applicationNumber ?? "—"} is connected. Resume attachment is introduced in v0.8.7.`} style={{ marginBottom: 12 }} />}
         {renderedViewKeys.map((key) => (
           <div key={key} hidden={key !== currentView}>
             {views[key]}

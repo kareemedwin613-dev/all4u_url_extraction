@@ -23,5 +23,6 @@ test("Manifest V3 bridge uses a narrow dashboard content script and memory-safe 
   assert.match(background,/DASHBOARD_ORIGIN_DENIED/);
   assert.match(bridge,/event\.source !== window/);
   assert.match(app,/getApplicationExtensionContext/);
-  assert.doesNotMatch(`${background}${bridge}${app}`,/storage_path|storage_bucket|signedUrl|resume bytes.*storage/i);
+  assert.doesNotMatch(`${bridge}${app}`,/storage_path|storage_bucket|signedUrl|resume bytes.*storage/i);
+  assert.doesNotMatch(background,/chrome\.storage\.session\.set\([^)]*(signedUrl|accessToken|bytes)/s);
 });

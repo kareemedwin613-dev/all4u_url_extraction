@@ -57,6 +57,7 @@ before(async () => {
       extensionContext:async()=>({application:{id:"123e4567-e89b-42d3-a456-426614174000",applicationNumber:1},job:{sourceUrl:"https://example.com/jobs/1"},resume:{id:"resume-1"},candidate:{profileAvailable:false},permissions:{canLoadResume:true,canAutofill:true}}),
       createExtensionSession:async(_user:any,id:string,body:any)=>({id:"323e4567-e89b-42d3-a456-426614174000",applicationId:id,action:body.action,status:"CREATED",targetUrl:"https://example.com/jobs/1",expiresAt:"2026-07-28T12:15:00Z"}),
       updateExtensionSession:async(_user:any,id:string,body:any)=>({id,applicationId:"123e4567-e89b-42d3-a456-426614174000",action:"AUTOFILL",status:body.status,expiresAt:"2026-07-28T12:15:00Z"}),
+      resumeAccess:async()=>({signedUrl:"https://storage.example/signed-resume",filename:"candidate.pdf",mimeType:"application/pdf",fileSizeBytes:1024,expiresAt:"2026-07-28T12:01:00Z"}),
       preview:async()=>({combinations:[]}),bulkCreate:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",createdCount:1}),batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),batchOptions:async()=>[],batch:async()=>({batch:{id:"123e4567-e89b-42d3-a456-426614174000"}}),
       resumeUrl:async()=>({signedUrl:"https://storage.example/resume",expiresInSeconds:90}),screenshots:async()=>[],addScreenshot:async()=>({id:"screenshot-1"}),removeScreenshot:async()=>({id:"screenshot-1"}),screenshotUrl:async()=>({signedUrl:"https://storage.example/screenshot",expiresInSeconds:90}),
     })
@@ -150,12 +151,15 @@ test("v0.8.5 extension context and sessions enforce roles and validate state",as
   const id="123e4567-e89b-42d3-a456-426614174000",sessionId="323e4567-e89b-42d3-a456-426614174000";
   roles=["DEVELOPER"];
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/extension-context`).set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").expect(403);
   roles=["APPLIER"];
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/extension-context`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.permissions.canLoadResume,true));
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/extension-sessions`).set("Authorization","Bearer token").send({action:"AUTOFILL",unexpected:true}).expect(400);
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/extension-sessions`).set("Authorization","Bearer token").send({action:"AUTOFILL",extensionVersion:"0.8.5"}).expect(201).expect(({body})=>assert.equal(body.data.applicationId,id));
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}`).set("Authorization","Bearer token").send({status:"TARGET_READY"}).expect(200).expect(({body})=>assert.equal(body.data.status,"TARGET_READY"));
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}`).set("Authorization","Bearer token").send({status:"UNKNOWN"}).expect(400);
+  await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").send({resumeId:"223e4567-e89b-42d3-a456-426614174000"}).expect(400);
+  await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").expect(201).expect(({body})=>{assert.equal(body.data.filename,"candidate.pdf");assert.equal(body.data.fileSizeBytes,1024);});
   roles=["APPLYING_MANAGER"];
 });
 

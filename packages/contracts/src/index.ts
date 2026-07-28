@@ -241,3 +241,11 @@ export interface ApplicationExtensionSession {
 }
 export interface ApplicationExtensionContextResponse extends RequestMetadata { data: ApplicationExtensionContext; }
 export interface ApplicationExtensionSessionResponse extends RequestMetadata { data: ApplicationExtensionSession; }
+export interface ApplicationResumeAccess {
+  signedUrl: string;
+  filename: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  expiresAt: string;
+}
+export interface ApplicationResumeAccessResponse extends RequestMetadata { data: ApplicationResumeAccess; }
