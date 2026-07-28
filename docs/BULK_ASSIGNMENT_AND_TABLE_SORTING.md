@@ -1,5 +1,7 @@
 # Bulk assignment and table sorting
 
+> Historical v0.7 note: v0.8 revokes authenticated execution of this legacy bulk reassignment RPC. New bulk assignment is unassigned-only, capacity-aware, and documented in `api/bulk-assignment.md`.
+
 Migration `202607240017_bulk_assignment_and_table_sorting.sql` adds a protected, set-based `bulk_assign_applications` RPC. Active Applying Managers and Admins may submit up to 500 distinct Application IDs, one active Applier ID or `null`, and an optional reason of at most 2,000 characters.
 
 The RPC validates authorization and the destination Applier, updates changed Applications in one statement, derives `assigned_by` from `auth.uid()`, and writes one `application_assignment_history` row per change. Any automatic work-status transition also receives an `application_status_history` row. Assigning an unassigned row changes its work status to `ASSIGNED`; unassigning changes it to `UNASSIGNED`. Existing in-progress statuses are preserved during reassignment. Missing and unchanged rows are returned as outcomes instead of silently disappearing.

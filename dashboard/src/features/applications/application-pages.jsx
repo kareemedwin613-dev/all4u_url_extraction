@@ -42,7 +42,6 @@ import {
   serializeApplicationQuery,
 } from "./query-state.js";
 import {
-  bulkAssignApplications,
   createApplication,
   getApplication,
   getApplicationCounts,
@@ -55,6 +54,7 @@ import {
   updateApplication,
 } from "./application-service.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
+import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -318,14 +318,9 @@ export function ApplicationsPage({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [selectedIds, setSelectedIds] = useState([]),
-    [bulkOpen, setBulkOpen] = useState(false),
-    [bulkAssignee, setBulkAssignee] = useState(),
-    [bulkReason, setBulkReason] = useState(""),
-    [bulkBusy, setBulkBusy] = useState(false),
     [localReload, setLocalReload] = useState(0),
     [cursorStack, setCursorStack] = useState([null]),
     [pageIndex, setPageIndex] = useState(0),
-    bulkLock = useRef(false),
     requestId = useRef(0);
   function loadPage(index, stack) {
     const id = ++requestId.current;
@@ -530,37 +525,7 @@ export function ApplicationsPage({
     viewColumn,
   ];
   const columns = manager ? managerColumns : applierColumns,
-    tooMany = selectedIds.length > 500;
-  async function submitBulkAssignment() {
-    if (bulkLock.current || bulkBusy || !bulkAssignee || !selectedIds.length)
-      return;
-    bulkLock.current = true;
-    setBulkBusy(true);
-    setError("");
-    try {
-      const assignee = bulkAssignee === "__UNASSIGN__" ? null : bulkAssignee,
-        result = await bulkAssignApplications(
-          client,
-          apiBaseUrl,
-          selectedIds,
-          assignee,
-          bulkReason,
-        );
-      setNotice(
-        `${result.changedCount} Application(s) changed; ${result.unchangedCount} unchanged; ${result.missingCount} missing.`,
-      );
-      setSelectedIds([]);
-      setBulkOpen(false);
-      setBulkAssignee();
-      setBulkReason("");
-      setLocalReload((value) => value + 1);
-    } catch (cause) {
-      setError(cause.message);
-    } finally {
-      bulkLock.current = false;
-      setBulkBusy(false);
-    }
-  }
+    tooMany = selectedIds.length > 2000;
   return (
     <div className="page">
       <Flex justify="space-between" align="center" wrap>
@@ -578,7 +543,8 @@ export function ApplicationsPage({
             </Button>
             <Button
               disabled={!selectedIds.length || tooMany}
-              onClick={() => setBulkOpen(true)}
+              href="#/applications/bulk-assign"
+              onClick={() => storeAssignmentIds(selectedIds)}
             >
               Assign Selected
             </Button>
@@ -601,7 +567,7 @@ export function ApplicationsPage({
         <Alert
           type="error"
           showIcon
-          message="Select no more than 500 Applications for one assignment."
+          message="Select no more than 2,000 Applications for one assignment."
         />
       )}
       <ApplicationFilters
@@ -641,6 +607,11 @@ export function ApplicationsPage({
                     selectedRowKeys: selectedIds,
                     preserveSelectedRowKeys: true,
                     onChange: setSelectedIds,
+                    getCheckboxProps: (record) => ({
+                      disabled:
+                        record.assigned_to != null ||
+                        record.work_status !== "UNASSIGNED",
+                    }),
                   }
                 : undefined
             }
@@ -667,63 +638,6 @@ export function ApplicationsPage({
           </Flex>
         </Card>
       )}
-      <Modal
-        open={bulkOpen}
-        title={`Assign ${selectedIds.length} Applications`}
-        okText={
-          bulkAssignee === "__UNASSIGN__"
-            ? "Unassign Applications"
-            : "Assign Applications"
-        }
-        confirmLoading={bulkBusy}
-        okButtonProps={{
-          disabled: !selectedIds.length || tooMany || !bulkAssignee,
-        }}
-        onOk={submitBulkAssignment}
-        onCancel={() => !bulkBusy && setBulkOpen(false)}
-      >
-        <Form layout="vertical">
-          <Form.Item label="Assignment action" required>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              value={bulkAssignee}
-              placeholder="Select an active Applier or unassign"
-              onChange={setBulkAssignee}
-              options={[
-                {
-                  value: "__UNASSIGN__",
-                  label: "Unassign selected Applications",
-                },
-                ...appliers.map((applier) => ({
-                  value: applier.id,
-                  label: `${name(applier)} - ${applier.active_application_count} active`,
-                })),
-              ]}
-            />
-          </Form.Item>
-          <Form.Item label="Assignment reason (optional)">
-            <Input.TextArea
-              value={bulkReason}
-              onChange={(event) => setBulkReason(event.target.value)}
-              maxLength={2000}
-              showCount
-              rows={4}
-            />
-          </Form.Item>
-          {bulkAssignee && (
-            <Alert
-              type="warning"
-              showIcon
-              message={
-                bulkAssignee === "__UNASSIGN__"
-                  ? "Every selected Application will return to the unassigned queue."
-                  : "Every selected Application will be assigned to the same Applier."
-              }
-            />
-          )}
-        </Form>
-      </Modal>
     </div>
   );
 }

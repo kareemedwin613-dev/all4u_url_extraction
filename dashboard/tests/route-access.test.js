@@ -32,6 +32,6 @@ test("navigation is exact for technical, business, admin, and multi-role users",
   assert.deepEqual(navigationForAccess(access(["DEVELOPER"])).map(x=>x.label),["Overview","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER","DEVELOPER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Job Descriptions","Resumes","Users","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Job Descriptions","Resumes","Upload Resume","Users","Roles","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Job Descriptions","Resumes","Users","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Job Descriptions","Resumes","Upload Resume","Users","Roles","My Profile"]);
 });

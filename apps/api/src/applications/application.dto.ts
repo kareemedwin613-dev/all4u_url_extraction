@@ -39,7 +39,6 @@ export class UpdateApplicationDto{
   @IsOptional()@IsIn(PRIORITIES)priority?:string;@IsOptional()@IsISO8601()dueAt?:string;
 }
 export class ReassignApplicationDto{@IsOptional()@IsUUID("4")newAssigneeId?:string;@IsOptional()@IsString()@MaxLength(2000)reason?:string;}
-export class BulkAssignApplicationDto extends ReassignApplicationDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(500)@IsUUID("4",{each:true})applicationIds!:string[];}
 export class BulkPreviewDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(100)@IsUUID("4",{each:true})jobDescriptionIds!:string[];}
 export class BulkCombinationDto{@IsUUID("4")job_description_id!:string;@IsUUID("4")resume_id!:string;}
 export class BulkCreateDto{

@@ -14,6 +14,7 @@ import { ResumeModule } from "./resumes/resume.module.js";
 import { ApplicationModule } from "./applications/application.module.js";
 import { PlatformModule } from "./platform/platform.module.js";
 import { ApplicationBatchesModule } from "./application-batches/application-batches.module.js";
+import { BulkAssignmentModule } from "./bulk-assignment/bulk-assignment.module.js";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ApplicationBatchesModule } from "./application-batches/application-batc
     ApplicationModule,
     PlatformModule,
     ApplicationBatchesModule,
+    BulkAssignmentModule,
   ],
   providers: [
     JsonLogger,

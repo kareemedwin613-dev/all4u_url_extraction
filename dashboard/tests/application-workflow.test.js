@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {applicationActions,validateApplicationCreate,validateApplicationProgress} from "../src/features/applications/validation.js";
 import {parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
-import {bulkAssignApplications,createApplication,listApplicationsCursor,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
+import {createApplication,listApplicationsCursor,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
 import {capabilitiesForRoles} from "../src/access/capabilities.js";
 import {readFile} from "node:fs/promises";
 
@@ -40,11 +40,6 @@ test("application services use protected RPC contracts",async()=>{
   assert.deepEqual(calls.map(x=>[x.options.method,x.url.pathname]),[["GET","/api/v1/applications"],["POST","/api/v1/applications"],["PATCH",`/api/v1/applications/${id}/progress`],["PATCH",`/api/v1/applications/${id}/progress`],["PATCH",`/api/v1/applications/${id}/assignment`]]);assert.equal(calls[0].url.searchParams.get("pageSize"),"25");assert.equal(calls[3].body.priority,undefined);
 });
 
-test("bulk assignment deduplicates identifiers and uses one protected RPC",async()=>{
-  let request;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})}};globalThis.fetch=async(url,options)=>{request={url,body:JSON.parse(options.body)};return new Response(JSON.stringify({data:{requestedCount:2,changedCount:2,unchangedCount:0,missingCount:0,results:[]}}),{status:200});};
-  try{const result=await bulkAssignApplications(client,"https://api.example.com",[id,id,id2],id2,"Queue redistribution");assert.equal(result.changedCount,2);assert.deepEqual(request.body,{applicationIds:[id,id2],newAssigneeId:id2,reason:"Queue redistribution"});assert.match(request.url,/applications\/bulk-assignment$/);assert.throws(()=>bulkAssignApplications(client,"https://api.example.com",[],id2),error=>error.code==="BULK_ASSIGN_NO_APPLICATIONS");}finally{globalThis.fetch=originalFetch;}
-});
-
 test("private resume flow authorizes by Application before signing",async()=>{
   let requested;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");},storage:{from:()=>{throw new Error("Direct Storage attempted");}}};globalThis.fetch=async(url)=>{requested=url;return new Response(JSON.stringify({data:{signedUrl:"https://signed.test",expiresInSeconds:90}}),{status:200});};
   try{assert.equal(await openApplicationResume(client,"https://api.example.com",id),"https://signed.test");assert.match(requested,new RegExp(`/applications/${id}/resume-file-url$`));}finally{globalThis.fetch=originalFetch;}
@@ -62,7 +57,7 @@ test("Application pages expose list, create, detail, history, and empty/loading 
 
 test("manager Application page exposes persistent bulk assignment controls",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  for(const text of ["Assign Selected","bulkAssignApplications","preserveSelectedRowKeys\\s*:\\s*true","Unassign selected Applications","Assignment reason \\(optional\\)"])assert.match(source,new RegExp(text));
+  for(const text of ["Assign Selected","applications/bulk-assign","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","assigned_to != null",'work_status !== "UNASSIGNED"'])assert.match(source,new RegExp(text));
 });
 
 test("Applier Application columns follow the operational priority order",async()=>{

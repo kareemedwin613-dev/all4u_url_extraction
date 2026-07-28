@@ -1,12 +1,14 @@
-# Resume JD Capture and Operations Platform v0.7.2
+# Resume JD Capture and Operations Platform v0.8
 
-This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, Supabase migrations, and a NestJS API. The dashboard and API can be deployed together as one Vercel project and public origin; the extension points to that same origin. See [unified Vercel deployment](docs/DEPLOYMENT_VERCEL.md), [API setup](apps/api/README.md), and [architecture](docs/architecture/backend-api-v0.7.2.md).
+This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, Supabase migrations, and a NestJS API. The dashboard and API can be deployed together as one Vercel project and public origin; the extension points to that same origin. See [unified Vercel deployment](docs/DEPLOYMENT_VERCEL.md), [API setup](apps/api/README.md), and [v0.8 architecture](docs/architecture/backend-api-v0.8.md).
+
+Development uses protected `main` plus short-lived typed branches and squash-merged pull requests. See the [branching and pull-request guide](CONTRIBUTING.md) before committing or opening a PR.
 
 All business-data operations now use the NestJS API: access context, profiles, Admin users/roles, Job Descriptions, Resumes, Applications, bulk/batches, assignments, screenshots, business overview, controlled lookups, and tailoring queue/files. Supabase Auth intentionally stays in the browser to establish and refresh the user's session; its access token is then sent to NestJS, which uses the same token for RLS-protected Supabase access.
 
 Applying Managers and Admins can select up to 100 Job Descriptions, preview every active same-category Resume combination, exclude existing Applications, keep selections across preview pages, and submit up to 2,000 reviewed pairs in one database call. Each request creates an auditable batch with per-pair outcomes. Bulk-created Applications are always unassigned with `UNASSIGNED`, `NOT_APPLIED`, and `NORMAL` defaults. Appliers, Developers, and Development Managers cannot use or query the bulk administration workflow.
 
-Applying Managers and Admins can also select up to 500 existing Applications and assign all of them to one active Applier, or explicitly return them to the unassigned queue, through one protected set-based database call. Changed rows receive assignment-history records; repeated no-op assignments do not create duplicate history. Dashboard data tables expose ascending and descending sorting from their column headers. Paginated Applications, users, and creation batches use allowlisted server-side sorting.
+Applying Managers and Admins can select up to 2,000 unassigned Applications and distribute them manually, evenly, or by remaining capacity among as many as 100 active and available Appliers. Preview is deterministic and read-only; the final protected database operation rechecks eligibility and capacity under row locks, records assignment history and per-row batch outcomes, and supports safe idempotent retry. Workload settings default to available with capacity 50. See [bulk assignment](docs/api/bulk-assignment.md) and [capacity operations](docs/operations/workload-capacity.md).
 
 Long dashboard workflows use compact Ant Design tabs instead of stacking every section vertically. Press `Alt+1` through `Alt+9` to open a numbered tab, or focus the tab strip and use the arrow keys. Tab contents remain mounted, so switching sections does not discard unsaved form edits. Primary list tables use bounded viewport scrolling to keep filters, actions, and pagination nearby.
 
@@ -27,7 +29,7 @@ The role-aware sidebar follows Ant Design's collapsible-overlay pattern: a 64-pi
 
 ## Supabase
 
-Apply all migrations in filename order. The v0.7 migration is `supabase/migrations/202607240016_v0_7_bulk_application_creation.sql`; the follow-up bulk-assignment and sorting migration is `supabase/migrations/202607240017_bulk_assignment_and_table_sorting.sql`.
+Apply all migrations in filename order. The v0.8 migration is `supabase/migrations/202607280021_v0_8_bulk_assignment_workloads.sql`.
 
 For a linked project, inspect before explicitly deploying:
 
@@ -38,10 +40,10 @@ See the [v0.7 implementation record](docs/V0.7_IMPLEMENTATION.md), [v0.7 setup](
 
 ## Security model
 
-All new batch tables use RLS. Authenticated table access is read-only and role-scoped; preview, creation, and bulk assignment use `SECURITY DEFINER` RPCs that verify the active caller. Bulk assignment accepts only Application IDs, validates any destination as an active Applier, and derives the actor from `auth.uid()`. Private Resume Storage and short-lived signed URLs are unchanged.
+All new workload and assignment-batch tables use RLS. Authenticated table access is role-scoped and direct writes are denied; preview and assignment use `SECURITY DEFINER` RPCs that verify the active caller. Bulk assignment accepts reviewed Application/Applier IDs, revalidates live eligibility and capacity, and derives the actor from `auth.uid()`. Private Resume Storage and short-lived signed URLs are unchanged.
 
 Only the Supabase project URL and publishable/anon key belong in browser settings. Never place a service-role key, secret key, database password, or other private credential in frontend code.
 
 ## Boundaries
 
-Automatic workload distribution, teams, organizations, feature-permission tables, AI matching/scoring, Resume tailoring automation, job-site submission, Google Workspace integration, OpenAI API, and every other AI API are intentionally excluded.
+AI workload optimization, scheduled assignment, bulk reassignment, teams, organizations, feature-permission tables, AI matching/scoring, Resume tailoring automation, job-site submission, Google Workspace integration, OpenAI API, and every other AI API are intentionally excluded.
