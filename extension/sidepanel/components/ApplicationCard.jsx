@@ -16,9 +16,10 @@ const STATUS_COLORS = {
   CLOSED: "default",
 };
 
-export function ApplicationCard({ application, onUpdateStatus }) {
+export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, extensionBusy }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
+  const extensionEligible = Boolean(jobUrl && application.resume_id && !["COMPLETED","CANCELLED"].includes(application.work_status) && !["REJECTED","WITHDRAWN","CLOSED"].includes(application.application_status));
   return (
     <Card size="small" style={{ marginBottom: 8 }}>
       <Flex justify="space-between" align="start" gap={8}>
@@ -63,9 +64,11 @@ export function ApplicationCard({ application, onUpdateStatus }) {
         {!jobUrl && !applicationUrl && <Text type="secondary">No link available</Text>}
       </Space>
       <div style={{ marginTop: 8 }}>
-        <Button size="small" onClick={() => onUpdateStatus(application)}>
-          Update Status
-        </Button>
+        <Space wrap>
+          <Button size="small" onClick={() => onUpdateStatus(application)}>Update Status</Button>
+          <Button size="small" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:LOAD_RESUME`} onClick={() => onExtensionAction(application,"LOAD_RESUME")}>Load Resume</Button>
+          <Button size="small" type="primary" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
+        </Space>
       </div>
     </Card>
   );

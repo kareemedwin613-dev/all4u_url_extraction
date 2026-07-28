@@ -2,6 +2,9 @@ import {AppError} from "../shared/errors.js";import {apiRequest} from "./api-cli
 async function token(client){const{data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");return data.session.access_token;}
 async function call(client,baseUrl,path,options={}){return(await apiRequest({baseUrl,path,token:await token(client),...options})).data;}
 export async function listMyApplications(client,baseUrl,{applicationStatus="",sort="updated_desc",limit=100}={}){const q=new URLSearchParams({applicationStatus,sort,limit:String(limit)});return(await call(client,baseUrl,`/api/v1/applications/mine?${q}`))?.items||[];}
+export const getApplicationExtensionContext=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-context`);
+export const createApplicationExtensionSession=(client,baseUrl,applicationId,action)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-sessions`,{method:"POST",body:{action,extensionVersion:chrome.runtime.getManifest().version}});
+export const updateApplicationExtensionSession=(client,baseUrl,sessionId,status,errorCode)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}`,{method:"PATCH",body:{status,...(errorCode?{errorCode}:{})}});
 export const updateApplicationProgress=(client,baseUrl,id,{workStatus,applicationStatus,applicationUrl})=>call(client,baseUrl,`/api/v1/applications/${id}/progress`,{method:"PATCH",body:{workStatus,applicationStatus,applicationUrl:applicationUrl||undefined}});
 export const listApplicationScreenshots=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`);
 const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),MAX_SCREENSHOT_SIZE=5*1024*1024;

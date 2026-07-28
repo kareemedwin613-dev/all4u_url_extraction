@@ -1,12 +1,19 @@
 {
   "manifest_version": 3,
   "name": "Resume JD Capture",
-  "version": "0.7.2",
+  "version": "0.8.5",
   "description": "Capture job descriptions, manage resumes, and create a private Supabase tailoring queue.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background/service-worker.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["https://all4u-url-extraction.vercel.app/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content/dashboard-bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
   "action": { "default_title": "Open Resume JD Capture" },
   "side_panel": { "default_path": "sidepanel/index.html" },
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* https://* wss://*.supabase.co" },
