@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { App as AntdApp, Button, Flex, Layout, Space, Spin, Tabs, Typography } from "antd";
+import { Alert, App as AntdApp, Button, Flex, Layout, Space, Spin, Tabs, Typography } from "antd";
 import {
   FileSearchOutlined,
   HistoryOutlined,
@@ -32,6 +32,8 @@ import { CaptureView } from "./views/CaptureView.jsx";
 import { MyApplicationsView } from "./views/MyApplicationsView.jsx";
 import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
+import { getApplicationExtensionContext, updateApplicationExtensionSession } from "../services/application-service.js";
+import { MESSAGE_TYPES } from "../shared/messages.js";
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
@@ -67,6 +69,7 @@ export function App() {
   const [industryDomains, setIndustryDomains] = useState([]);
   const [status, setStatus] = useState(null);
   const [clearBusy, setClearBusy] = useState(false);
+  const [activeApplicationSession, setActiveApplicationSession] = useState(null);
   const navRef = useRef(null);
   const mountedViewsRef = useRef(new Set());
 
@@ -153,6 +156,39 @@ export function App() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadApplicationSession = useCallback(async () => {
+    if (!client || !session || !backendBaseUrl) return;
+    const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.GET_ACTIVE_APPLICATION_SESSION });
+    if (!response?.ok || !response.data) {
+      setActiveApplicationSession(null);
+      return;
+    }
+    try {
+      const context = await getApplicationExtensionContext(client, backendBaseUrl, response.data.applicationId);
+      await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "TARGET_READY");
+      setActiveApplicationSession({ session: response.data, context });
+      setCurrentView("applications");
+    } catch (error) {
+      setActiveApplicationSession(null);
+      handleError(error);
+    }
+  }, [client, session, backendBaseUrl, handleError]);
+
+  useEffect(() => {
+    if (!client || !session) return;
+    loadApplicationSession();
+    const changed = (changes, area) => { if (area === "session" && changes.activeApplicationSession) loadApplicationSession(); };
+    chrome.storage.onChanged.addListener(changed);
+    return () => chrome.storage.onChanged.removeListener(changed);
+  }, [client, session, loadApplicationSession]);
+
+  async function resetApplicationSession() {
+    const id = activeApplicationSession?.session?.id;
+    if (id) await updateApplicationExtensionSession(client, backendBaseUrl, id, "CANCELLED").catch(() => {});
+    await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION });
+    setActiveApplicationSession(null);
+  }
 
   async function handleSaveSettings(normalizedConfig, normalizedBackendBaseUrl, score) {
     try {
@@ -286,7 +322,9 @@ export function App() {
           <Title level={5} style={{ margin: 0, color: "#fff" }}>
             Resume JD Capture
           </Title>
-          <Text style={{ color: "#c9d6e8", fontSize: 12 }}>v0.7.2</Text>
+          <Text style={{ color: "#c9d6e8", fontSize: 12 }}>
+            v{chrome.runtime.getManifest().version}
+          </Text>
         </div>
         <Space orientation="vertical" size={0} align="end">
           <Text style={{ color: "#fff", fontSize: 12 }}>{connectionText}</Text>
@@ -312,6 +350,7 @@ export function App() {
         </div>
       )}
       <Content className="sidepanel-content">
+        {activeApplicationSession && <Alert type="info" showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} â€” ${activeApplicationSession.context.job.jobTitle}`} description={`Application #${activeApplicationSession.context.application.applicationNumber ?? "â€”"} is connected. Resume bytes are not downloaded in v0.8.5.`} style={{ marginBottom: 12 }} />}
         {renderedViewKeys.map((key) => (
           <div key={key} hidden={key !== currentView}>
             {views[key]}

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Select, Space } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { listMyApplications } from "../../services/application-service.js";
+import { createApplicationExtensionSession, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
 
@@ -22,6 +23,23 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
   const [resumeFilter, setResumeFilter] = useState("");
   const [items, setItems] = useState(null);
   const [editingApplication, setEditingApplication] = useState(null);
+  const [extensionBusy, setExtensionBusy] = useState("");
+
+  async function startExtensionAction(application, action) {
+    const key=`${application.id}:${action}`;
+    setExtensionBusy(key);
+    let extensionSession;
+    try {
+      extensionSession=await createApplicationExtensionSession(client,backendBaseUrl,application.id,action);
+      const result=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.HANDOFF_APPLICATION_SESSION,payload:extensionSession});
+      if(!result?.ok)throw Object.assign(new Error(result?.error?.message||"The Application could not be activated."),{code:result?.error?.code});
+      await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"RECEIVED");
+      onStatus({message:`${action==="LOAD_RESUME"?"Resume loading":"Autofill"} context is active.`,kind:"success"});
+    } catch(error) {
+      if(extensionSession?.id)await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"FAILED","HANDOFF_FAILED").catch(()=>{});
+      onError(error);
+    } finally { setExtensionBusy(""); }
+  }
 
   async function reload(nextStatus = applicationStatus) {
     try {
@@ -81,7 +99,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         </Card>
       ) : (
         filteredItems.map((application) => (
-          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} />
+          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} extensionBusy={extensionBusy} />
         ))
       )}
       {editingApplication && (

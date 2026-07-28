@@ -8,6 +8,9 @@ const query=(values)=>{const p=new URLSearchParams();for(const[key,value]of Obje
 export function listApplicationsCursor(client,baseUrl,filters={},cursor=null,pageSize=25){return api(client,baseUrl,"/api/v1/applications"+query({...filters,cursorUpdatedAt:cursor?.updatedAt,cursorId:cursor?.id,pageSize}));}
 export const getApplication=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}`);
 export const getApplicationCounts=(client,baseUrl)=>api(client,baseUrl,"/api/v1/applications/counts");
+export const getApplicationExtensionContext=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/extension-context`);
+export const createApplicationExtensionSession=(client,baseUrl,id,action)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/extension-sessions`,{method:"POST",body:{action}});
+export const updateApplicationExtensionSession=(client,baseUrl,id,status,errorCode)=>api(client,baseUrl,`/api/v1/extension-sessions/${encodeURIComponent(id)}`,{method:"PATCH",body:{status,...(errorCode?{errorCode}:{})}});
 export const listActiveAppliers=(client,baseUrl,search="")=>api(client,baseUrl,"/api/v1/applications/appliers"+query({search}));
 export const listApplicationJobs=(client,baseUrl,search="")=>api(client,baseUrl,"/api/v1/applications/options/jobs"+query({search}));
 export const listApplicationResumes=(client,baseUrl,jobDescriptionId,search="")=>api(client,baseUrl,"/api/v1/applications/options/resumes"+query({jobDescriptionId,search}));

@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, MaxLength, Min, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, Matches, MaxLength, Min, ValidateNested } from "class-validator";
 
 const WORK_STATUSES=["UNASSIGNED","ASSIGNED","IN_PROGRESS","BLOCKED","COMPLETED","CANCELLED"];
 const APPLICATION_STATUSES=["NOT_APPLIED","APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED"];
@@ -39,6 +39,14 @@ export class UpdateApplicationDto{
   @IsOptional()@IsIn(PRIORITIES)priority?:string;@IsOptional()@IsISO8601()dueAt?:string;
 }
 export class ReassignApplicationDto{@IsOptional()@IsUUID("4")newAssigneeId?:string;@IsOptional()@IsString()@MaxLength(2000)reason?:string;}
+export class CreateApplicationExtensionSessionDto{
+  @IsIn(["LOAD_RESUME","AUTOFILL"])action!:string;
+  @IsOptional()@IsString()@MaxLength(40)extensionVersion?:string;
+}
+export class UpdateApplicationExtensionSessionDto{
+  @IsIn(["RECEIVED","TARGET_READY","COMPLETED","CANCELLED","FAILED"])status!:string;
+  @IsOptional()@IsString()@MaxLength(80)@Matches(/^[A-Z][A-Z0-9_]{0,79}$/)errorCode?:string;
+}
 export class BulkPreviewDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(100)@IsUUID("4",{each:true})jobDescriptionIds!:string[];}
 export class BulkCombinationDto{@IsUUID("4")job_description_id!:string;@IsUUID("4")resume_id!:string;}
 export class BulkCreateDto{

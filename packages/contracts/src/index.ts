@@ -223,3 +223,21 @@ export type AssignmentBatchDetail = AssignmentBatchSummary;
 export interface AssignmentBatchResult extends BulkAssignmentRowResult {
   applicationNumber: number | null; company: string | null; jobTitle: string | null; newAssigneeName: string | null;
 }
+
+export type ApplicationExtensionAction = "LOAD_RESUME" | "AUTOFILL";
+export type ApplicationExtensionSessionStatus = "CREATED" | "RECEIVED" | "TARGET_READY" | "COMPLETED" | "CANCELLED" | "FAILED" | "EXPIRED";
+export interface ApplicationExtensionContext {
+  application: { id: string; applicationNumber: number | null; workStatus: string; applicationStatus: string; assignedTo: string | null };
+  job: { id: string; company: string; jobTitle: string; sourceUrl: string };
+  candidate: { displayName: string; profileId: string | null; profileAvailable: boolean };
+  resume: { id: string; resumeName: string; originalFilename: string; mimeType: string; fileSizeBytes: number; status: string };
+  permissions: { canLoadResume: boolean; canAutofill: boolean };
+}
+export interface CreateApplicationExtensionSessionRequest { action: ApplicationExtensionAction; extensionVersion?: string; }
+export interface UpdateApplicationExtensionSessionRequest { status: Exclude<ApplicationExtensionSessionStatus, "CREATED" | "EXPIRED">; errorCode?: string; }
+export interface ApplicationExtensionSession {
+  id: string; applicationId: string; action: ApplicationExtensionAction; status: ApplicationExtensionSessionStatus;
+  targetUrl?: string | null; expiresAt: string; createdAt?: string; updatedAt?: string;
+}
+export interface ApplicationExtensionContextResponse extends RequestMetadata { data: ApplicationExtensionContext; }
+export interface ApplicationExtensionSessionResponse extends RequestMetadata { data: ApplicationExtensionSession; }
