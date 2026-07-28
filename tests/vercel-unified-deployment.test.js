@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { routedUrl } from "../api/request-url.mjs";
+import { prepareRoutedRequest, routedUrl } from "../api/request-url.mjs";
 
 test("Vercel routes API and health requests into one Nest function", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
@@ -19,4 +19,11 @@ test("Vercel route metadata is removed before Nest handles the request", () => {
   assert.equal(routedUrl({ url: "/api/index", query: { __path: "/api/v1/applications", page: "2", status: ["A", "B"] } }), "/api/v1/applications?page=2&status=A&status=B");
   assert.equal(routedUrl({ url: "/api/index", query: { __path: "/api/v1/assignment-batches", path: "assignment-batches", limit: "25" } }), "/api/v1/assignment-batches?limit=25");
   assert.equal(routedUrl({ url: "/unchanged", query: {} }), "/unchanged");
+});
+
+test("Vercel cached query metadata cannot shadow Express query parsing", () => {
+  const request = { url: "/api/index", query: { __path: "/api/v1/application-batches", path: "application-batches", search: "", page: "1", pageSize: "25" } };
+  prepareRoutedRequest(request);
+  assert.equal(request.url, "/api/v1/application-batches?search=&page=1&pageSize=25");
+  assert.equal(Object.prototype.hasOwnProperty.call(request, "query"), false);
 });

@@ -1,5 +1,5 @@
 import { createApiApplication } from "../apps/api/dist/main.js";
-import { routedUrl } from "./request-url.mjs";
+import { prepareRoutedRequest } from "./request-url.mjs";
 
 let handlerPromise;
 
@@ -17,6 +17,6 @@ async function getHandler() {
 }
 
 export default async function handler(request, response) {
-  request.url = routedUrl(request);
+  prepareRoutedRequest(request);
   return (await getHandler())(request, response);
 }

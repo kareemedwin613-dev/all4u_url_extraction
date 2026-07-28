@@ -12,3 +12,22 @@ export function routedUrl(request) {
   const suffix = query.toString();
   return suffix ? `${raw}?${suffix}` : raw;
 }
+
+export function prepareRoutedRequest(request) {
+  const url = routedUrl(request);
+  request.url = url;
+
+  // Vercel supplies `query` as an own property. Express 5 normally derives
+  // req.query from req.url, but the platform property shadows that getter and
+  // leaves rewrite metadata visible to Nest. Remove the cached platform value
+  // so Express parses the sanitized URL above.
+  if (Object.prototype.hasOwnProperty.call(request, "query")) {
+    try {
+      delete request.query;
+    } catch {
+      delete request.query?.__path;
+      delete request.query?.path;
+    }
+  }
+  return request;
+}
