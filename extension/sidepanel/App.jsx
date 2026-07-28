@@ -70,6 +70,7 @@ export function App() {
   const [status, setStatus] = useState(null);
   const [clearBusy, setClearBusy] = useState(false);
   const [activeApplicationSession, setActiveApplicationSession] = useState(null);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const navRef = useRef(null);
   const mountedViewsRef = useRef(new Set());
 
@@ -203,6 +204,28 @@ export function App() {
     if (id) await updateApplicationExtensionSession(client, backendBaseUrl, id, "CANCELLED").catch(() => {});
     await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION });
     setActiveApplicationSession(null);
+  }
+
+  async function attachActiveResume() {
+    const active = activeApplicationSession;
+    if (!active?.loadedResume?.ready || attachmentBusy) return;
+    setAttachmentBusy(true);
+    try {
+      const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_LOADED_RESUME, payload: { sessionId: active.session.id } });
+      if (!response?.ok) throw new Error(response?.error?.message || "The Resume could not be attached.");
+      const attachment = response.data;
+      setActiveApplicationSession((current) => current ? { ...current, attachment } : current);
+      if (attachment.status === "ATTACHED") {
+        await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
+        setStatus({ message: "Resume attached and verified on the tracked job page.", kind: "success" });
+      } else if (attachment.status === "MANUAL_REQUIRED" || attachment.status === "UNSUPPORTED") {
+        setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
+      } else throw new Error(attachment.message || "The Resume attachment could not be verified.");
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setAttachmentBusy(false);
+    }
   }
 
   async function handleSaveSettings(normalizedConfig, normalizedBackendBaseUrl, score) {
@@ -367,7 +390,7 @@ export function App() {
         </div>
       )}
       <Content className="sidepanel-content">
-        {activeApplicationSession && <Alert type={activeApplicationSession.loadedResume?.ready ? "success" : "info"} showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.loadedResume?.ready ? "Resume Ready" : activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} — ${activeApplicationSession.context.job.jobTitle}`} description={activeApplicationSession.loadedResume?.ready ? `${activeApplicationSession.loadedResume.filename} (${Math.ceil(activeApplicationSession.loadedResume.fileSizeBytes / 1024)} KiB) is held in extension memory for Application #${activeApplicationSession.context.application.applicationNumber ?? "—"}.` : `Application #${activeApplicationSession.context.application.applicationNumber ?? "—"} is connected. Resume attachment is introduced in v0.8.7.`} style={{ marginBottom: 12 }} />}
+        {activeApplicationSession && <Alert type={activeApplicationSession.attachment?.status === "ATTACHED" ? "success" : activeApplicationSession.attachment?.status === "MANUAL_REQUIRED" || activeApplicationSession.attachment?.status === "UNSUPPORTED" ? "warning" : activeApplicationSession.loadedResume?.ready ? "success" : "info"} showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.attachment?.status === "ATTACHED" ? "Resume Attached" : activeApplicationSession.loadedResume?.ready ? "Resume Ready" : activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} — ${activeApplicationSession.context.job.jobTitle}`} description={activeApplicationSession.attachment?.status === "ATTACHED" ? `The standard file input was updated and verified for Application #${activeApplicationSession.context.application.applicationNumber ?? "—"}. Review the page before continuing; the extension will not submit it.` : activeApplicationSession.attachment?.message || (activeApplicationSession.loadedResume?.ready ? `${activeApplicationSession.loadedResume.filename} (${Math.ceil(activeApplicationSession.loadedResume.fileSizeBytes / 1024)} KiB) is held in extension memory. Attach it only after reviewing the tracked job page.` : `Application #${activeApplicationSession.context.application.applicationNumber ?? "—"} is connected.`)} action={activeApplicationSession.loadedResume?.ready && activeApplicationSession.attachment?.status !== "ATTACHED" ? <Button size="small" loading={attachmentBusy} onClick={attachActiveResume}>{activeApplicationSession.attachment ? "Retry Attachment" : "Attach Resume to Page"}</Button> : null} style={{ marginBottom: 12 }} />}
         {renderedViewKeys.map((key) => (
           <div key={key} hidden={key !== currentView}>
             {views[key]}
