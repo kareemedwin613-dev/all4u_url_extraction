@@ -6,7 +6,7 @@
   "outputDirectory": "dashboard/dist",
   "functions": {
     "api/index.mjs": {
-      "includeFiles": ["apps/api/dist/**", "packages/contracts/dist/**"],
+      "includeFiles": "{apps/api/dist/**,packages/contracts/dist/**}",
       "maxDuration": 60
     }
   },
