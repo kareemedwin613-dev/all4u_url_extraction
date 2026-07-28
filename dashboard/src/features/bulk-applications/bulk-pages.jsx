@@ -21,12 +21,14 @@ import {
 } from "antd";
 import {
   ErrorState,
+  FilterPanel,
   LoadingState,
   PageHeading,
   StatusTag,
   TabbedSections,
 } from "../../components/ui.jsx";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
+import { useDebouncedValue } from "../../shared/use-debounced-value.js";
 import {
   clientSortColumns,
   serverSortColumns,
@@ -35,6 +37,7 @@ import {
 import {
   createBulkApplications,
   getApplicationBatch,
+  listApplicationBatchResults,
   listApplicationBatches,
   previewBulkApplications,
 } from "./bulk-service.js";
@@ -98,8 +101,9 @@ function PreviewFilters({ rows, value, onChange }) {
           .map((row) => [row.jobCategoryId, row.jobCategoryName]),
       ).entries(),
     ].map(([value, label]) => ({ value, label }));
+  const activeCount = Object.values(value).filter(Boolean).length;
   return (
-    <Card className="filter-card">
+    <FilterPanel activeCount={activeCount}>
       <Row gutter={12}>
         <Col {...field}>
           <label>
@@ -207,7 +211,7 @@ function PreviewFilters({ rows, value, onChange }) {
           <Button onClick={() => onChange(emptyFilters)}>Clear filters</Button>
         </Col>
       </Row>
-    </Card>
+    </FilterPanel>
   );
 }
 
@@ -283,11 +287,13 @@ function BulkResult({ result, onAnother }) {
 
 export function BulkCreatePage({
   client,
+  apiBaseUrl,
   selectedJobIds,
   onClearJobSelection,
 }) {
   const { modal } = AntApp.useApp(),
     submitLock = useRef(false),
+    idempotencyAttempt = useRef({ key: "", fingerprint: "" }),
     [preview, setPreview] = useState(),
     [selected, setSelected] = useState(new Set()),
     [filters, setFilters] = useState(emptyFilters),
@@ -307,7 +313,7 @@ export function BulkCreatePage({
     if (!ids.length) return;
     setLoading(true);
     setError("");
-    previewBulkApplications(client, ids)
+    previewBulkApplications(client, apiBaseUrl, ids)
       .then((value) => {
         if (live) {
           setPreview(value);
@@ -319,7 +325,7 @@ export function BulkCreatePage({
     return () => {
       live = false;
     };
-  }, [client, ids.join("|")]);
+  }, [client, apiBaseUrl, ids.join("|")]);
   const filtered = useMemo(
       () => filterBulkCombinations(preview?.combinations, filters),
       [preview, filters],
@@ -362,7 +368,11 @@ export function BulkCreatePage({
     setSubmitting(true);
     setError("");
     try {
-      const created = await createBulkApplications(client, payload, batchName);
+      const fingerprint = JSON.stringify({ payload, batchName: batchName.trim() });
+      if (idempotencyAttempt.current.fingerprint !== fingerprint)
+        idempotencyAttempt.current = { key: crypto.randomUUID(), fingerprint };
+      const created = await createBulkApplications(client, apiBaseUrl, payload, batchName, idempotencyAttempt.current.key);
+      idempotencyAttempt.current = { key: "", fingerprint: "" };
       setResult(created);
       onClearJobSelection();
     } catch (cause) {
@@ -605,25 +615,33 @@ export function BulkCreatePage({
   );
 }
 
-export function ApplicationBatchesPage({ client, query, reload }) {
+export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
   const params = new URLSearchParams(query),
-    [search, setSearch] = useState(params.get("search") || ""),
+    [searchInput, setSearchInput] = useState(params.get("search") || ""),
+    search = useDebouncedValue(searchInput, 300),
+    searchRef = useRef(search),
     [status, setStatus] = useState(params.get("status") || ""),
     [sort, setSort] = useState(params.get("sort") || "created_desc"),
     [page, setPage] = useState(Math.max(1, Number(params.get("page")) || 1)),
     [data, setData] = useState(),
     [error, setError] = useState("");
   useEffect(() => {
+    if (searchRef.current !== search) {
+      searchRef.current = search;
+      setPage(1);
+    }
+  }, [search]);
+  useEffect(() => {
     let live = true;
     setData();
     setError("");
-    listApplicationBatches(client, { search, status, sort, page, pageSize: 25 })
+    listApplicationBatches(client, apiBaseUrl, { search, status, sort, page, pageSize: 25 })
       .then((value) => live && setData(value))
       .catch((cause) => live && setError(cause.message));
     return () => {
       live = false;
     };
-  }, [client, search, status, sort, page, reload]);
+  }, [client, apiBaseUrl, search, status, sort, page, reload]);
   const columns = serverSortColumns(
     [
       {
@@ -634,35 +652,35 @@ export function ApplicationBatchesPage({ client, query, reload }) {
           <a href={`#/application-batches/${row.id}`}>{value}</a>
         ),
       },
-      { title: "Created by", dataIndex: "creator_name", sortKey: "creator" },
+      { title: "Created by", dataIndex: "creatorName", sortKey: "creator" },
       {
         title: "Created at",
-        dataIndex: "created_at",
+        dataIndex: "createdAt",
         sortKey: "created",
         render: formatDate,
       },
       {
         title: "Selected JDs",
-        dataIndex: "selected_jd_count",
+        dataIndex: "selectedJdCount",
         sortKey: "selected",
       },
       {
         title: "Requested",
-        dataIndex: "requested_combination_count",
+        dataIndex: "requestedCount",
         sortKey: "requested",
       },
       {
         title: "Created Applications",
-        dataIndex: "created_application_count",
+        dataIndex: "createdCount",
         sortKey: "created_count",
       },
       {
         title: "Duplicates",
-        dataIndex: "duplicate_count",
+        dataIndex: "duplicateCount",
         sortKey: "duplicate",
       },
-      { title: "Skipped", dataIndex: "skipped_count", sortKey: "skipped" },
-      { title: "Failed", dataIndex: "failed_count", sortKey: "failed" },
+      { title: "Skipped", dataIndex: "skippedCount", sortKey: "skipped" },
+      { title: "Failed", dataIndex: "failedCount", sortKey: "failed" },
       {
         title: "Status",
         dataIndex: "status",
@@ -675,16 +693,13 @@ export function ApplicationBatchesPage({ client, query, reload }) {
   return (
     <div className="page">
       <PageHeading title="Application Batches" />
-      <Card>
+      <FilterPanel activeCount={[search, status].filter(Boolean).length}>
         <Space wrap>
           <Input.Search
-            value={search}
+            value={searchInput}
             allowClear
             placeholder="Search batch name"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
+            onChange={(event) => setSearchInput(event.target.value)}
             style={{ width: 280 }}
           />
           <Select
@@ -705,7 +720,7 @@ export function ApplicationBatchesPage({ client, query, reload }) {
             ]}
           />
         </Space>
-      </Card>
+      </FilterPanel>
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
@@ -740,18 +755,29 @@ export function ApplicationBatchesPage({ client, query, reload }) {
   );
 }
 
-export function ApplicationBatchDetailPage({ client, id, reload }) {
+export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
   const [detail, setDetail] = useState(),
+    [results, setResults] = useState(),
+    [resultPage, setResultPage] = useState(1),
+    [outcome, setOutcome] = useState(""),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    getApplicationBatch(client, id)
+    getApplicationBatch(client, apiBaseUrl, id)
       .then((value) => live && setDetail(value))
       .catch((cause) => live && setError(cause.message));
     return () => {
       live = false;
     };
-  }, [client, id, reload]);
+  }, [client, apiBaseUrl, id, reload]);
+  useEffect(() => {
+    let live = true;
+    setResults();
+    listApplicationBatchResults(client, apiBaseUrl, id, { page: resultPage, limit: 25, outcome })
+      .then((value) => live && setResults(value))
+      .catch((cause) => live && setError(cause.message));
+    return () => { live = false; };
+  }, [client, apiBaseUrl, id, resultPage, outcome, reload]);
   if (error)
     return (
       <div className="page">
@@ -759,7 +785,7 @@ export function ApplicationBatchDetailPage({ client, id, reload }) {
       </div>
     );
   if (!detail) return <LoadingState />;
-  const batch = detail.batch,
+  const batch = detail,
     columns = [
       {
         title: "Company",
@@ -768,17 +794,17 @@ export function ApplicationBatchDetailPage({ client, id, reload }) {
       },
       {
         title: "Job title",
-        dataIndex: "job_title",
+        dataIndex: "jobTitle",
         render: (value) => value || "Unavailable",
       },
       {
         title: "Candidate",
-        dataIndex: "candidate_name",
+        dataIndex: "candidateName",
         render: (value) => value || "Unavailable",
       },
       {
         title: "Resume",
-        dataIndex: "resume_name",
+        dataIndex: "resumeName",
         render: (value) => value || "Unavailable",
       },
       {
@@ -789,18 +815,18 @@ export function ApplicationBatchDetailPage({ client, id, reload }) {
       { title: "Reason", dataIndex: "message" },
       {
         title: "Application",
-        dataIndex: "application_id",
+        dataIndex: "applicationId",
         render: (value) =>
           value ? <a href={`#/applications/${value}`}>Open</a> : "—",
       },
     ],
     stats = [
-      ["Selected JDs", batch.selected_jd_count],
-      ["Requested", batch.requested_combination_count],
-      ["Created", batch.created_application_count],
-      ["Duplicates", batch.duplicate_count],
-      ["Skipped", batch.skipped_count],
-      ["Failed", batch.failed_count],
+      ["Selected JDs", batch.selectedJdCount],
+      ["Requested", batch.requestedCount],
+      ["Created", batch.createdCount],
+      ["Duplicates", batch.duplicateCount],
+      ["Skipped", batch.skippedCount],
+      ["Failed", batch.failedCount],
     ],
     tabs = [
       {
@@ -818,26 +844,35 @@ export function ApplicationBatchDetailPage({ client, id, reload }) {
               ))}
             </Row>
             <p>
-              Created by: <strong>{batch.creator_name}</strong>
+              Created by: <strong>{batch.creatorName}</strong>
             </p>
             <p>
-              Started: {formatDate(batch.created_at)} · Completed:{" "}
-              {formatDate(batch.completed_at)}
+              Started: {formatDate(batch.createdAt)} · Completed:{" "}
+              {formatDate(batch.completedAt)}
             </p>
           </>
         ),
       },
       {
         key: "outcomes",
-        label: `Outcomes (${detail.results?.length || 0})`,
+        label: `Outcomes (${results?.total ?? batch.requestedCount})`,
         children: (
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={detail.results || []}
-            pagination={{ pageSize: 25 }}
-            scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
-          />
+          <>
+            <FilterPanel activeCount={outcome ? 1 : 0}>
+              <Select
+                value={outcome}
+                style={{ width: 240 }}
+                onChange={(value) => { setOutcome(value); setResultPage(1); }}
+                options={[{ value: "", label: "All outcomes" }, ...["CREATED", "DUPLICATE", "SKIPPED", "FAILED"].map((value) => ({ value, label: formatLabel(value) }))]}
+              />
+            </FilterPanel>
+            {!results ? <LoadingState /> : (
+              <>
+                <Table rowKey="id" columns={columns} dataSource={results.items} pagination={false} scroll={{ x: "max-content", y: "calc(100vh - 500px)" }} />
+                <Pagination current={results.page} pageSize={results.pageSize} total={results.total} showSizeChanger={false} onChange={setResultPage} />
+              </>
+            )}
+          </>
         ),
       },
     ];

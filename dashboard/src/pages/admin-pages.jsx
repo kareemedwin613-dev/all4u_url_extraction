@@ -19,7 +19,12 @@ import {
   AccountStatusBadge,
   RoleBadges,
 } from "../components/access-components.jsx";
-import { ErrorState, LoadingState, TabbedSections } from "../components/ui.jsx";
+import {
+  ErrorState,
+  FilterPanel,
+  LoadingState,
+  TabbedSections,
+} from "../components/ui.jsx";
 import {
   assignRole,
   getUser,
@@ -33,6 +38,7 @@ import {
   serverSortColumns,
   serverSortFromTable,
 } from "../shared/table-sorting.js";
+import { useDebouncedValue } from "../shared/use-debounced-value.js";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -40,8 +46,9 @@ const { Text, Title } = Typography,
   ),
   PAGE_SIZES = [25, 50, 100];
 
-export function AdminUsersPage({ client, roles, reload }) {
+export function AdminUsersPage({ client, apiBaseUrl, roles, reload }) {
   const [searchInput, setSearchInput] = useState(""),
+    debouncedSearch = useDebouncedValue(searchInput, 300),
     [filters, setFilters] = useState({
       search: "",
       status: null,
@@ -53,74 +60,75 @@ export function AdminUsersPage({ client, roles, reload }) {
     [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
-    const timer = setTimeout(
-      () =>
-        setFilters((value) => ({
-          ...value,
-          search: searchInput.trim(),
-          page: 1,
-        })),
-      300,
-    );
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+    setFilters((value) => ({ ...value, search: debouncedSearch.trim(), page: 1 }));
+  }, [debouncedSearch]);
   useEffect(() => {
     let active = true;
     setResult(null);
     setError("");
-    listUsers(client, filters)
+    listUsers(client, apiBaseUrl, filters)
       .then((value) => active && setResult(value))
       .catch((value) => active && setError(value.message));
     return () => {
       active = false;
     };
-  }, [client, filters, reload]);
+  }, [client, apiBaseUrl, filters, reload]);
   const change = (patch) => setFilters((value) => ({ ...value, ...patch })),
-    columns = serverSortColumns(
-      [
-        {
-          title: "Name",
-          dataIndex: "full_name",
-          sortKey: "name",
-          render: (value) => value || "Name not provided",
-        },
-        { title: "Email", dataIndex: "email", sortKey: "email" },
-        {
-          title: "Status",
-          dataIndex: "status",
-          sortKey: "status",
-          render: (value) => <AccountStatusBadge status={value} />,
-        },
-        {
-          title: "Roles",
-          dataIndex: "role_codes",
-          sortKey: "roles",
-          render: (value) => <RoleBadges roles={value || []} />,
-        },
-        {
-          title: "Created",
-          dataIndex: "created_at",
-          sortKey: "created",
-          render: formatDate,
-        },
-        {
-          title: "Actions",
-          key: "actions",
-          render: (_, user) => (
-            <Button type="link" href={`#/admin/users/${user.id}`}>
-              Manage
-            </Button>
-          ),
-        },
-      ],
-      filters.sort,
+    columns = useMemo(
+      () =>
+        serverSortColumns(
+          [
+            {
+              title: "Name",
+              dataIndex: "full_name",
+              sortKey: "name",
+              render: (value) => value || "Name not provided",
+            },
+            { title: "Email", dataIndex: "email", sortKey: "email" },
+            {
+              title: "Status",
+              dataIndex: "status",
+              sortKey: "status",
+              render: (value) => <AccountStatusBadge status={value} />,
+            },
+            {
+              title: "Roles",
+              dataIndex: "role_codes",
+              sortKey: "roles",
+              render: (value) => <RoleBadges roles={value || []} />,
+            },
+            {
+              title: "Created",
+              dataIndex: "created_at",
+              sortKey: "created",
+              render: formatDate,
+            },
+            {
+              title: "Actions",
+              key: "actions",
+              render: (_, user) => (
+                <Button type="link" href={`#/admin/users/${user.id}`}>
+                  Manage
+                </Button>
+              ),
+            },
+          ],
+          filters.sort,
+        ),
+      [filters.sort],
     );
   return (
     <div className="page">
       <Title level={1} tabIndex={-1}>
         Users
       </Title>
-      <Card>
+      <FilterPanel
+        activeCount={[
+          filters.search,
+          filters.status,
+          filters.roleCode,
+        ].filter(Boolean).length}
+      >
         <Flex gap="middle" wrap>
           <Input.Search
             aria-label="Search name or email"
@@ -163,7 +171,7 @@ export function AdminUsersPage({ client, roles, reload }) {
             }))}
           />
         </Flex>
-      </Card>
+      </FilterPanel>
       {error ? (
         <ErrorState title="Users could not be loaded" message={error} />
       ) : !result ? (
@@ -217,6 +225,7 @@ export function AdminUsersPage({ client, roles, reload }) {
 
 export function AdminUserDetailPage({
   client,
+  apiBaseUrl,
   id,
   roles,
   currentUserId,
@@ -232,14 +241,14 @@ export function AdminUserDetailPage({
   const load = useCallback(async () => {
     setError("");
     try {
-      const value = await getUser(client, id);
+      const value = await getUser(client, apiBaseUrl, id);
       setUser(value);
       setSelected(new Set(value.roles || []));
       setStatusValue(value.status);
     } catch (value) {
       setError(value.message);
     }
-  }, [client, id]);
+  }, [client, apiBaseUrl, id]);
   useEffect(() => {
     load();
   }, [load]);
@@ -263,13 +272,17 @@ export function AdminUserDetailPage({
     setBusy(true);
     setMessage("");
     try {
-      const before = new Set(user.roles || []);
-      for (const role of roles)
-        if (selected.has(role.code) && !before.has(role.code))
-          await assignRole(client, id, role.code);
-      for (const role of roles)
-        if (!selected.has(role.code) && before.has(role.code))
-          await removeRole(client, id, role.code);
+      const before = new Set(user.roles || []),
+        toAssign = roles.filter(
+          (role) => selected.has(role.code) && !before.has(role.code),
+        ),
+        toRemove = roles.filter(
+          (role) => !selected.has(role.code) && before.has(role.code),
+        );
+      await Promise.all([
+        ...toAssign.map((role) => assignRole(client, apiBaseUrl, id, role.code)),
+        ...toRemove.map((role) => removeRole(client, apiBaseUrl, id, role.code)),
+      ]);
       await load();
       if (id === currentUserId) await onCurrentUserChanged();
       setMessage("Role assignments saved successfully.");
@@ -286,7 +299,7 @@ export function AdminUserDetailPage({
     setBusy(true);
     setMessage("");
     try {
-      await setStatus(client, id, statusValue);
+      await setStatus(client, apiBaseUrl, id, statusValue);
       await load();
       if (id === currentUserId) await onCurrentUserChanged();
       setMessage("Account status updated successfully.");

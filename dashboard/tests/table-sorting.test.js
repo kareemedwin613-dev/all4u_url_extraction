@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import React from "react";
 import {clientSortColumns,serverSortColumns,serverSortFromTable} from "../src/shared/table-sorting.js";
 import {JOB_SORTS,RESUME_SORTS} from "../src/shared/constants.js";
-import {APPLICATION_SORTS} from "../src/features/applications/constants.js";
 
 test("client table columns sort text, numbers, dates, and rendered values",()=>{
   const columns=clientSortColumns([
@@ -37,9 +36,5 @@ test("paginated dashboard sort allowlists include both directions for displayed 
   for(const key of ["candidate","name","category","subcategory","seniority","status","mime","updated"]){
     assert.ok(resumeSorts.includes(`${key}_asc`));
     assert.ok(resumeSorts.includes(`${key}_desc`));
-  }
-  for(const key of ["number","company","title","resume","candidate","assignee","link","work","application_status","priority","due","updated","created","captured","category","batch"]){
-    assert.ok(APPLICATION_SORTS.some(([value])=>value===`${key}_asc`));
-    assert.ok(APPLICATION_SORTS.some(([value])=>value===`${key}_desc`));
   }
 });

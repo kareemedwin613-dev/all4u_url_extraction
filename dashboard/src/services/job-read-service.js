@@ -1,8 +1,9 @@
-import {JOB_SORTS} from "../shared/constants.js";import {normalizeError} from "../shared/errors.js";import {pageRange,paginationMeta} from "../shared/pagination.js";import {applyFilters,applySearch,applySort} from "./query-helpers.js";
-export const JOB_LIST_FIELDS="id,user_id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,source_site,status,created_at,updated_at,industry_domain:industry_domain_categories!job_descriptions_industry_domain_category_fkey(name,slug),captured_by:user_profiles!job_descriptions_user_profile_fkey(display_name,email)";
-export const JOB_DETAIL_FIELDS=`${JOB_LIST_FIELDS},source_url,description_text,detected_skills,clearance_requirements,travel_required,travel_details,salary_min,salary_max,salary_currency,salary_period,salary_text,capture_method,extraction_confidence`;
-const normalizeJob=job=>job?{...job,industry_domain:job.industry_domain?.name||null}:job;
-export async function listJobs(client,filters){try{const {from,to}=pageRange(filters.page,filters.pageSize);let q=client.from("job_descriptions").select(JOB_LIST_FIELDS,{count:"exact"});q=applySearch(q,filters.search,["company","job_title"]);q=applyFilters(q,filters,{categoryId:"category_id",seniority:"seniority",status:"status"});q=applySort(q,filters.sort,JOB_SORTS,"created_desc").range(from,to);const {data,error,count}=await q;if(error)throw error;return {items:(data||[]).map(normalizeJob),...paginationMeta(count,filters.page,filters.pageSize)};}catch(error){throw normalizeError(error,"Unable to load job descriptions.");}}
-export async function getJob(client,id){const {data,error}=await client.from("job_descriptions").select(JOB_DETAIL_FIELDS).eq("id",id).maybeSingle();if(error)throw normalizeError(error,"Unable to load the job description.");return normalizeJob(data);}
-export async function jobCount(client,status=""){let q=client.from("job_descriptions").select("id",{count:"exact",head:true});if(status)q=q.eq("status",status);const {count,error}=await q;if(error)throw normalizeError(error,"Unable to load job counts.");return count||0;}
-export async function recentJobs(client){const {data,error}=await client.from("job_descriptions").select(JOB_LIST_FIELDS).order("created_at",{ascending:false}).limit(5);if(error)throw normalizeError(error,"Unable to load recent job descriptions.");return (data||[]).map(normalizeJob);}
+import {authenticatedApiRequest} from "./api-client.js";
+
+const params=value=>{const query=new URLSearchParams();for(const [key,item] of Object.entries(value||{}))if(item!==""&&item!==null&&item!==undefined)query.set(key,String(item));const text=query.toString();return text?`?${text}`:"";};
+const request=async(client,apiBaseUrl,path)=>{const {payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path});return payload.data;};
+
+export const listJobs=(client,apiBaseUrl,filters)=>request(client,apiBaseUrl,`/api/v1/job-descriptions${params(filters)}`);
+export const getJob=(client,apiBaseUrl,id)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/${encodeURIComponent(id)}`);
+export const jobCount=(client,apiBaseUrl,status="")=>request(client,apiBaseUrl,`/api/v1/job-descriptions/count${params({status})}`);
+export const recentJobs=(client,apiBaseUrl,limit=5)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/recent${params({limit})}`);

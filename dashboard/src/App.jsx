@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   Button,
@@ -26,6 +32,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ProfileOutlined,
+  PushpinFilled,
+  PushpinOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -35,18 +43,9 @@ import {
 import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import {
-  getJob,
-  jobCount,
-  listJobs,
-  recentJobs,
-} from "./services/job-read-service.js";
-import {
-  getResume,
-  listResumes,
-  recentResumes,
-  resumeCount,
-} from "./services/resume-read-service.js";
+import { getJob, listJobs } from "./services/job-read-service.js";
+import { getResume, listResumes } from "./services/resume-read-service.js";
+import { getBusinessOverview } from "./services/business-overview-service.js";
 import { createResumeSignedUrl } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -55,6 +54,7 @@ import {
 import { CAPABILITIES, hasCapability } from "./access/capabilities.js";
 import {
   guardAccessRoute,
+  NAVIGATION,
   navigationForAccess,
 } from "./access/route-access.js";
 import {
@@ -115,6 +115,7 @@ import {
   DataPagination,
   EmptyState,
   ErrorState as UiErrorState,
+  FilterPanel,
   LegacyTable,
   LoadingState,
   Metadata,
@@ -190,13 +191,24 @@ function Shell({ route, title, access, refresh, logout, children }) {
         return true;
       }
     }),
+    [pinned, setPinned] = useState(() => {
+      try {
+        return localStorage.getItem("dashboard-sider-pinned") === "pinned";
+      } catch {
+        return false;
+      }
+    }),
     [narrow, setNarrow] = useState(false),
     items =
       access?.status === "ACTIVE" && access.roles?.length
         ? navigationForAccess(access)
         : [],
     selected = PARENT_NAVIGATION[route.name] || route.name,
-    profileName = access?.fullName?.trim();
+    profileName = access?.fullName?.trim(),
+    sectionLabel =
+      NAVIGATION.find((item) => item.name === selected)?.label ||
+      "Resume JD Operations",
+    pushed = pinned && !collapsed && !narrow;
   const updateCollapsed = useCallback((next, remember = true) => {
     setCollapsed(next);
     if (remember) {
@@ -208,6 +220,14 @@ function Shell({ route, title, access, refresh, logout, children }) {
       } catch {
         // Storage may be disabled; the navigation remains usable for this session.
       }
+    }
+  }, []);
+  const updatePinned = useCallback((next) => {
+    setPinned(next);
+    try {
+      localStorage.setItem("dashboard-sider-pinned", next ? "pinned" : "unpinned");
+    } catch {
+      // Storage may be disabled; pinning remains usable for this session.
     }
   }, []);
   useEffect(() => {
@@ -238,7 +258,7 @@ function Shell({ route, title, access, refresh, logout, children }) {
         />
       )}
       <Sider
-        className="dashboard-sider dashboard-sider-overlay"
+        className={`dashboard-sider dashboard-sider-overlay${pushed ? " dashboard-sider-pushed" : ""}`}
         breakpoint="lg"
         width={248}
         collapsedWidth={narrow ? 0 : 64}
@@ -259,6 +279,21 @@ function Shell({ route, title, access, refresh, logout, children }) {
           <span className="brand-compact" aria-hidden="true">
             RJ
           </span>
+          {!collapsed && !narrow && (
+            <Button
+              type="text"
+              className="sider-pin-trigger"
+              aria-label={pinned ? "Unpin navigation" : "Pin navigation open"}
+              aria-pressed={pinned}
+              title={
+                pinned
+                  ? "Unpin navigation (currently pushes page content)"
+                  : "Pin navigation open (pushes page content instead of covering it)"
+              }
+              icon={pinned ? <PushpinFilled /> : <PushpinOutlined />}
+              onClick={() => updatePinned(!pinned)}
+            />
+          )}
         </div>
         <Menu
           theme="dark"
@@ -283,9 +318,11 @@ function Shell({ route, title, access, refresh, logout, children }) {
           onClick={() => updateCollapsed(!collapsed)}
         />
       </Sider>
-      <Layout className="dashboard-workspace">
+      <Layout
+        className={`dashboard-workspace${pushed ? " dashboard-workspace-pushed" : ""}`}
+      >
         <Header className="dashboard-header">
-          <Flex align="center" gap="small">
+          <Flex align="center" gap="small" className="dashboard-header-title">
             <Button
               type="text"
               className="sider-header-trigger"
@@ -297,20 +334,20 @@ function Shell({ route, title, access, refresh, logout, children }) {
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => updateCollapsed(!collapsed)}
             />
-            <div>
+            <div className="dashboard-header-heading">
               <Text type="secondary" className="eyebrow">
-                v0.7 · Bulk Application creation
+                {sectionLabel}
               </Text>
               <Text strong>{title}</Text>
             </div>
           </Flex>
-          <Space wrap>
+          <Space wrap className="dashboard-header-actions">
             {refresh && (
               <Button icon={<ReloadOutlined />} onClick={refresh}>
                 Refresh
               </Button>
             )}
-            <Space direction="vertical" size={0} className="user-identity">
+            <Space orientation="vertical" size={0} className="user-identity">
               <Text strong>{profileName || access?.email}</Text>
               {profileName && (
                 <Text type="secondary" className="user-email">
@@ -408,9 +445,16 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
       label: option.split("_").map(formatLabel).join(" · "),
     })),
     formKey = serializeQuery(value),
-    field = { xs: 24, sm: 12, lg: 6 };
+    field = { xs: 24, sm: 12, lg: 6 },
+    activeCount = [
+      value.search,
+      value.categoryId,
+      value.seniority,
+      value.status,
+      kind === "resumes" ? value.mimeType : "",
+    ].filter(Boolean).length;
   return (
-    <Card className="filter-card">
+    <FilterPanel activeCount={activeCount}>
       <Form
         key={formKey}
         layout="vertical"
@@ -505,32 +549,30 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
           </Col>
         </Row>
       </Form>
-    </Card>
+    </FilterPanel>
   );
 }
 
-function BusinessOverview({ client, categories, reload }) {
+function BusinessOverview({ client, apiBaseUrl, categories, reload }) {
   const [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    Promise.all([
-      jobCount(client),
-      jobCount(client, "ACTIVE"),
-      resumeCount(client),
-      resumeCount(client, "ACTIVE"),
-      recentJobs(client),
-      recentResumes(client),
-    ])
+    getBusinessOverview(client, apiBaseUrl)
       .then((value) => live && setResult(value))
       .catch((value) => live && setError(value.message));
     return () => {
       live = false;
     };
-  }, [client, reload]);
+  }, [client, apiBaseUrl, reload]);
   if (error) return <ErrorState message={error} />;
   if (!result) return <Loading text="Loading dashboard…" />;
-  const [jobs, activeJobs, resumes, activeResumes, recentJ, recentR] = result;
+  const jobs = result.jobCounts.total,
+    activeJobs = result.jobCounts.active,
+    resumes = result.resumeCounts.total,
+    activeResumes = result.resumeCounts.active,
+    recentJ = result.recentJobs,
+    recentR = result.recentResumes;
   return (
     <div className="page">
       <Title level={1} tabIndex={-1}>
@@ -615,6 +657,7 @@ function BusinessOverview({ client, categories, reload }) {
 
 function Jobs({
   client,
+  apiBaseUrl,
   categories,
   query,
   reload,
@@ -630,70 +673,75 @@ function Jobs({
     let live = true;
     setData(null);
     setError("");
-    listJobs(client, filters)
+    listJobs(client, apiBaseUrl, filters)
       .then((value) => live && setData(value))
       .catch((value) => live && setError(value.message));
     return () => {
       live = false;
     };
-  }, [client, query, reload]);
+  }, [client, apiBaseUrl, query, reload]);
   const update = (patch) => {
     const value = serializeQuery({ ...filters, ...patch });
     go(`#/jobs${value ? `?${value}` : ""}`);
   };
-  const columns = serverSortColumns(
-    [
-      { title: "Company", dataIndex: "company", sortKey: "company" },
-      { title: "Job title", dataIndex: "job_title", sortKey: "title" },
-      {
-        title: "Primary category",
-        dataIndex: "category_id",
-        sortKey: "category",
-        render: (value) => categoryName(categories, value),
-      },
-      {
-        title: "Subcategory",
-        dataIndex: "subcategory_id",
-        sortKey: "subcategory",
-        render: (value) => (value ? categoryName(categories, value) : "None"),
-      },
-      {
-        title: "Seniority",
-        dataIndex: "seniority",
-        sortKey: "seniority",
-        render: formatLabel,
-      },
-      {
-        title: "Source site",
-        dataIndex: "source_site",
-        sortKey: "source",
-        render: (value) => value || "—",
-      },
-      {
-        title: "Captured by",
-        key: "captured_by",
-        sortKey: "capturer",
-        render: (_, job) => capturedBy(job),
-      },
-      {
-        title: "Status",
-        dataIndex: "status",
-        sortKey: "status",
-        render: (value) => <Badge value={value} />,
-      },
-      {
-        title: "Captured",
-        dataIndex: "created_at",
-        sortKey: "created",
-        render: formatDate,
-      },
-      {
-        title: "",
-        key: "action",
-        render: (_, job) => <a href={`#/jobs/${job.id}`}>View</a>,
-      },
-    ],
-    filters.sort,
+  const columns = useMemo(
+    () =>
+      serverSortColumns(
+        [
+          { title: "Company", dataIndex: "company", sortKey: "company" },
+          { title: "Job title", dataIndex: "job_title", sortKey: "title" },
+          {
+            title: "Primary category",
+            dataIndex: "category_id",
+            sortKey: "category",
+            render: (value) => categoryName(categories, value),
+          },
+          {
+            title: "Subcategory",
+            dataIndex: "subcategory_id",
+            sortKey: "subcategory",
+            render: (value) =>
+              value ? categoryName(categories, value) : "None",
+          },
+          {
+            title: "Seniority",
+            dataIndex: "seniority",
+            sortKey: "seniority",
+            render: formatLabel,
+          },
+          {
+            title: "Source site",
+            dataIndex: "source_site",
+            sortKey: "source",
+            render: (value) => value || "—",
+          },
+          {
+            title: "Captured by",
+            key: "captured_by",
+            sortKey: "capturer",
+            render: (_, job) => capturedBy(job),
+          },
+          {
+            title: "Status",
+            dataIndex: "status",
+            sortKey: "status",
+            render: (value) => <Badge value={value} />,
+          },
+          {
+            title: "Captured",
+            dataIndex: "created_at",
+            sortKey: "created",
+            render: formatDate,
+          },
+          {
+            title: "",
+            key: "action",
+            render: (_, job) => <a href={`#/jobs/${job.id}`}>View</a>,
+          },
+        ],
+        filters.sort,
+      ),
+    [categories, filters.sort],
   );
   const selectedCount = selectedJobIds.length,
     tooMany = selectedCount > MAX_BULK_JDS;
@@ -777,7 +825,7 @@ function Jobs({
   );
 }
 
-function Resumes({ client, categories, query, reload }) {
+function Resumes({ client, apiBaseUrl, categories, query, reload }) {
   const filters = parseResumeQuery(query),
     [data, setData] = useState(null),
     [error, setError] = useState("");
@@ -785,68 +833,75 @@ function Resumes({ client, categories, query, reload }) {
     let live = true;
     setData(null);
     setError("");
-    listResumes(client, filters)
+    listResumes(client, apiBaseUrl, filters)
       .then((value) => live && setData(value))
       .catch((value) => live && setError(value.message));
     return () => {
       live = false;
     };
-  }, [client, query, reload]);
+  }, [client, apiBaseUrl, query, reload]);
   const update = (patch) => {
       const value = serializeQuery({ ...filters, ...patch });
       go(`#/resumes${value ? `?${value}` : ""}`);
     },
-    columns = serverSortColumns(
-      [
-        {
-          title: "Candidate",
-          dataIndex: "candidate_name",
-          sortKey: "candidate",
-        },
-        { title: "Resume", dataIndex: "resume_name", sortKey: "name" },
-        {
-          title: "Primary category",
-          dataIndex: "primary_category_id",
-          sortKey: "category",
-          render: (value) => categoryName(categories, value),
-        },
-        {
-          title: "Subcategory",
-          dataIndex: "subcategory_id",
-          sortKey: "subcategory",
-          render: (value) => (value ? categoryName(categories, value) : "None"),
-        },
-        {
-          title: "Seniority",
-          dataIndex: "seniority",
-          sortKey: "seniority",
-          render: formatLabel,
-        },
-        {
-          title: "Status",
-          dataIndex: "status",
-          sortKey: "status",
-          render: (value) => <Badge value={value} />,
-        },
-        {
-          title: "File type",
-          dataIndex: "mime_type",
-          sortKey: "mime",
-          render: formatMime,
-        },
-        {
-          title: "Updated",
-          dataIndex: "updated_at",
-          sortKey: "updated",
-          render: formatDate,
-        },
-        {
-          title: "",
-          key: "action",
-          render: (_, resume) => <a href={`#/resumes/${resume.id}`}>View</a>,
-        },
-      ],
-      filters.sort,
+    columns = useMemo(
+      () =>
+        serverSortColumns(
+          [
+            {
+              title: "Candidate",
+              dataIndex: "candidate_name",
+              sortKey: "candidate",
+            },
+            { title: "Resume", dataIndex: "resume_name", sortKey: "name" },
+            {
+              title: "Primary category",
+              dataIndex: "primary_category_id",
+              sortKey: "category",
+              render: (value) => categoryName(categories, value),
+            },
+            {
+              title: "Subcategory",
+              dataIndex: "subcategory_id",
+              sortKey: "subcategory",
+              render: (value) =>
+                value ? categoryName(categories, value) : "None",
+            },
+            {
+              title: "Seniority",
+              dataIndex: "seniority",
+              sortKey: "seniority",
+              render: formatLabel,
+            },
+            {
+              title: "Status",
+              dataIndex: "status",
+              sortKey: "status",
+              render: (value) => <Badge value={value} />,
+            },
+            {
+              title: "File type",
+              dataIndex: "mime_type",
+              sortKey: "mime",
+              render: formatMime,
+            },
+            {
+              title: "Updated",
+              dataIndex: "updated_at",
+              sortKey: "updated",
+              render: formatDate,
+            },
+            {
+              title: "",
+              key: "action",
+              render: (_, resume) => (
+                <a href={`#/resumes/${resume.id}`}>View</a>
+              ),
+            },
+          ],
+          filters.sort,
+        ),
+      [categories, filters.sort],
     );
   return (
     <div className="page">
@@ -892,14 +947,14 @@ function Resumes({ client, categories, query, reload }) {
   );
 }
 
-function JobDetail({ client, categories, id, back, reload }) {
+function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
   const [job, setJob] = useState(),
     [error, setError] = useState("");
   useEffect(() => {
-    getJob(client, id)
+    getJob(client, apiBaseUrl, id)
       .then(setJob)
       .catch((value) => setError(value.message));
-  }, [client, id, reload]);
+  }, [client, apiBaseUrl, id, reload]);
   if (error) return <ErrorState message={error} />;
   if (job === undefined) return <Loading />;
   if (!job)
@@ -1008,15 +1063,15 @@ function JobDetail({ client, categories, id, back, reload }) {
   );
 }
 
-function ResumeDetail({ client, categories, id, back, reload }) {
+function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
   const [resume, setResume] = useState(),
     [error, setError] = useState(""),
     [fileMessage, setFileMessage] = useState("");
   useEffect(() => {
-    getResume(client, id)
+    getResume(client, apiBaseUrl, id)
       .then(setResume)
       .catch((value) => setError(value.message));
-  }, [client, id, reload]);
+  }, [client, apiBaseUrl, id, reload]);
   if (error) return <ErrorState message={error} />;
   if (resume === undefined) return <Loading />;
   if (!resume)
@@ -1026,10 +1081,7 @@ function ResumeDetail({ client, categories, id, back, reload }) {
   async function open() {
     setFileMessage("Generating a secure link…");
     try {
-      const url = await createResumeSignedUrl(client, {
-        bucket: resume.storage_bucket,
-        path: resume.storage_path,
-      });
+      const url = await createResumeSignedUrl(client, {id:resume.id,apiBaseUrl});
       window.open(url, "_blank", "noopener,noreferrer");
       setFileMessage("Secure link opened. It expires shortly.");
     } catch (value) {
@@ -1143,7 +1195,7 @@ export function ConfigurationError({ message }) {
   );
 }
 
-export function App({ client }) {
+export function App({ client, apiBaseUrl }) {
   const [session, setSession] = useState(undefined),
     [access, setAccess] = useState(undefined),
     [accessError, setAccessError] = useState(null),
@@ -1158,14 +1210,14 @@ export function App({ client }) {
     if (!session) return;
     setAccessError(null);
     try {
-      const next = await getMyAccessContext(client);
+      const next = await getMyAccessContext(client, apiBaseUrl);
       setAccess(next);
       return next;
     } catch (error) {
       setAccess(null);
       setAccessError(error);
     }
-  }, [client, session]);
+  }, [client, apiBaseUrl, session]);
   useEffect(() => {
     getSession(client)
       .then(setSession)
@@ -1198,20 +1250,20 @@ export function App({ client }) {
       hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) &&
       !categories
     )
-      loadCategories(client)
+      loadCategories(client, apiBaseUrl)
         .then((value) => live && setCategories(value))
         .catch(setAccessError);
     if (access && !hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ))
       setCategories(null);
     if (access && hasCapability(access, CAPABILITIES.USER_ADMIN))
-      listSystemRoles(client)
+      listSystemRoles(client, apiBaseUrl)
         .then((value) => live && setRoles(value))
         .catch(setAccessError);
     else setRoles([]);
     return () => {
       live = false;
     };
-  }, [access, client, categories]);
+  }, [access, client, apiBaseUrl, categories]);
   useEffect(() => {
     if (session !== undefined && (!session || access)) {
       const redirect = guardAccessRoute(route, session, access);
@@ -1315,6 +1367,7 @@ export function App({ client }) {
     page = (
       <ProfilePage
         client={client}
+        apiBaseUrl={apiBaseUrl}
         access={access}
         reloadAccess={reloadAccess}
       />
@@ -1325,12 +1378,14 @@ export function App({ client }) {
         <div className="page application-overview">
           <ApplicationCountCards
             client={client}
+            apiBaseUrl={apiBaseUrl}
             access={access}
             reload={reload}
           />
         </div>
         <BusinessOverview
           client={client}
+          apiBaseUrl={apiBaseUrl}
           categories={categories}
           reload={reload}
         />
@@ -1342,6 +1397,7 @@ export function App({ client }) {
     page = (
       <ApplicationsPage
         client={client}
+        apiBaseUrl={apiBaseUrl}
         access={access}
         categories={categories}
         query={route.query}
@@ -1349,11 +1405,12 @@ export function App({ client }) {
       />
     );
   else if (route.name === "application-new")
-    page = <CreateApplicationPage client={client} />;
+    page = <CreateApplicationPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "application-bulk-create")
     page = (
       <BulkCreatePage
         client={client}
+        apiBaseUrl={apiBaseUrl}
         selectedJobIds={selectedBulkJobIds}
         onClearJobSelection={() => setSelectedBulkJobIds([])}
       />
@@ -1362,21 +1419,23 @@ export function App({ client }) {
     page = (
       <ApplicationDetailPage
         client={client}
+        apiBaseUrl={apiBaseUrl}
         access={access}
         id={route.id}
         reload={reload}
       />
     );
   else if (route.name === "application-batches")
-    page = <ApplicationBatchesPage client={client} query={route.query} />;
+    page = <ApplicationBatchesPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} />;
   else if (route.name === "application-batch-detail")
-    page = <ApplicationBatchDetailPage client={client} id={route.id} />;
+    page = <ApplicationBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "users-directory")
-    page = <ApplierDirectoryPage client={client} reload={reload} />;
+    page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "jobs")
     page = (
       <Jobs
         client={client}
+        apiBaseUrl={apiBaseUrl}
         categories={categories}
         query={route.query}
         reload={reload}
@@ -1389,6 +1448,7 @@ export function App({ client }) {
     page = (
       <JobDetail
         client={client}
+        apiBaseUrl={apiBaseUrl}
         categories={categories}
         id={route.id}
         back={jobsBack.current}
@@ -1399,6 +1459,7 @@ export function App({ client }) {
     page = (
       <Resumes
         client={client}
+        apiBaseUrl={apiBaseUrl}
         categories={categories}
         query={route.query}
         reload={reload}
@@ -1408,6 +1469,7 @@ export function App({ client }) {
     page = (
       <ResumeDetail
         client={client}
+        apiBaseUrl={apiBaseUrl}
         categories={categories}
         id={route.id}
         back={resumesBack.current}
@@ -1418,16 +1480,18 @@ export function App({ client }) {
     page = (
       <AdminResumeUploadPage
         client={client}
+        apiBaseUrl={apiBaseUrl}
         access={access}
         categories={categories}
       />
     );
   else if (route.name === "admin-users")
-    page = <AdminUsersPage client={client} roles={roles} reload={reload} />;
+    page = <AdminUsersPage client={client} apiBaseUrl={apiBaseUrl} roles={roles} reload={reload} />;
   else if (route.name === "admin-user-detail")
     page = (
       <AdminUserDetailPage
         client={client}
+        apiBaseUrl={apiBaseUrl}
         id={route.id}
         roles={roles}
         currentUserId={access.userId}

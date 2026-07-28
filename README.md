@@ -1,6 +1,8 @@
-# Resume JD Capture and Operations Platform v0.7.0
+# Resume JD Capture and Operations Platform v0.7.2
 
-This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, and Supabase migrations. v0.7 adds reviewed bulk Application creation while preserving JD extraction, private structured Resume storage/upload, authentication, profiles, fixed multi-role RBAC, Admin user management, and the individual v0.6 Application workflow.
+This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, Supabase migrations, and a NestJS API. The dashboard and API can be deployed together as one Vercel project and public origin; the extension points to that same origin. See [unified Vercel deployment](docs/DEPLOYMENT_VERCEL.md), [API setup](apps/api/README.md), and [architecture](docs/architecture/backend-api-v0.7.2.md).
+
+All business-data operations now use the NestJS API: access context, profiles, Admin users/roles, Job Descriptions, Resumes, Applications, bulk/batches, assignments, screenshots, business overview, controlled lookups, and tailoring queue/files. Supabase Auth intentionally stays in the browser to establish and refresh the user's session; its access token is then sent to NestJS, which uses the same token for RLS-protected Supabase access.
 
 Applying Managers and Admins can select up to 100 Job Descriptions, preview every active same-category Resume combination, exclude existing Applications, keep selections across preview pages, and submit up to 2,000 reviewed pairs in one database call. Each request creates an auditable batch with per-pair outcomes. Bulk-created Applications are always unassigned with `UNASSIGNED`, `NOT_APPLIED`, and `NORMAL` defaults. Appliers, Developers, and Development Managers cannot use or query the bulk administration workflow.
 
@@ -8,7 +10,7 @@ Applying Managers and Admins can also select up to 500 existing Applications and
 
 Long dashboard workflows use compact Ant Design tabs instead of stacking every section vertically. Press `Alt+1` through `Alt+9` to open a numbered tab, or focus the tab strip and use the arrow keys. Tab contents remain mounted, so switching sections does not discard unsaved form edits. Primary list tables use bounded viewport scrolling to keep filters, actions, and pagination nearby.
 
-The role-aware sidebar follows Ant Design's collapsible-overlay pattern: a 64-pixel icon rail remains on desktop, expanding over the workspace without changing its width. Use the edge trigger, the header trigger on narrow screens, or `Alt+M`; press `Escape` to collapse it. The current section stays highlighted on detail routes, and mobile expansion includes a click-to-close backdrop.
+The role-aware sidebar follows Ant Design's collapsible-overlay pattern: a 64-pixel icon rail remains on desktop, expanding over the workspace without changing its width. Use the edge trigger, the header trigger on narrow screens, or `Alt+M`; press `Escape` to collapse it. The header eyebrow reflects the current section instead of a static label. On desktop, the pin control in the expanded sidebar switches it from a temporary overlay to a docked panel that pushes page content aside so nothing is covered; pinning is unavailable on narrow screens, where the overlay always covers content and a click-to-close backdrop is used instead. The current section stays highlighted on detail routes.
 
 ## Local commands
 

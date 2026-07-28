@@ -47,7 +47,7 @@ const { Text, Title } = Typography,
     checksum: "",
   });
 
-export function AdminResumeUploadPage({ client, access, categories }) {
+export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }) {
   const { modal } = AntApp.useApp(),
     [file, setFile] = useState(),
     [draft, setDraft] = useState(emptyDraft),
@@ -156,7 +156,7 @@ export function AdminResumeUploadPage({ client, access, categories }) {
     setBusy(true);
     setProgress("Checking for an existing candidate…");
     try {
-      const duplicates = await findResumesByIdentity(client, draft);
+      const duplicates = await findResumesByIdentity(client, apiBaseUrl, draft);
       if (duplicates.length && !(await confirmDuplicate(duplicates))) {
         setProgress("Upload cancelled.");
         return;
@@ -166,6 +166,7 @@ export function AdminResumeUploadPage({ client, access, categories }) {
       );
       const created = await uploadAdminResume(
         client,
+        apiBaseUrl,
         access.userId,
         draft,
         file,

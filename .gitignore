@@ -2,8 +2,13 @@
 node_modules/
 extension/dist/
 dashboard/dist/
+apps/api/dist/
+packages/contracts/dist/
 dashboard/.env.local
 dashboard/.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
 supabase/.temp/
 *.log
 .clasp.json

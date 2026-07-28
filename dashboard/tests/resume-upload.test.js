@@ -51,26 +51,15 @@ test("PDF and Resume metadata validation are bounded",()=>{
 });
 
 test("duplicate lookup uses normalized candidate identity instead of file checksum",async()=>{
-  let call;const client={rpc:async(name,args)=>{call={name,args};return {data:[{id:"one"}],error:null};}};
-  const result=await findResumesByIdentity(client,{candidateName:" Jordan Lee ",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148"});
+  let call;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};globalThis.fetch=async(url,options)=>{call={url,body:JSON.parse(options.body)};return new Response(JSON.stringify({data:[{id:"one"}]}),{status:200});};
+  const result=await findResumesByIdentity(client,"https://api.example.com",{candidateName:" Jordan Lee ",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148"});globalThis.fetch=originalFetch;
   assert.equal(result[0].id,"one");
-  assert.deepEqual(call,{name:"find_resume_identity_duplicates",args:{p_candidate_name:"Jordan Lee",p_candidate_email:"jordan.lee@example.com",p_candidate_phone:"(202) 555-0148"}});
+  assert.equal(new URL(call.url).pathname,"/api/v1/resumes/identity-duplicates");assert.deepEqual(call.body,{candidateName:"Jordan Lee",candidateEmail:"jordan.lee@example.com",candidatePhone:"(202) 555-0148"});
 });
 
-test("Admin upload stores a private PDF and structured Resume row",async()=>{
-  let uploaded,inserted;
-  const client={
-    storage:{from:bucket=>({upload:async(path,blob,options)=>{uploaded={bucket,path,blob,options};return {error:null};},remove:async()=>({error:null})})},
-    from:()=>({insert:row=>{inserted=row;return {select:()=>({single:async()=>({data:{id:row.id},error:null})})};}}),
-  };
+test("Admin upload sends a private multipart Resume request to the backend",async()=>{
+  let request;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},from:()=>{throw new Error("Direct table insert attempted");},storage:{from:()=>{throw new Error("Direct Storage upload attempted");}}};globalThis.fetch=async(url,options)=>{request={url,options};return new Response(JSON.stringify({data:{id:"created"}}),{status:201});};
   const value={candidateName:"Jordan Lee",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"Python, SQL, Python",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64)};
-  const result=await uploadAdminResume(client,userId,value,file);
-  assert.equal(result.id,inserted.id);assert.equal(uploaded.bucket,"original-resumes");
-  assert.match(uploaded.path,new RegExp("^"+userId+"/"));
-  assert.deepEqual(inserted.skills,["Python","SQL"]);
-  assert.equal(inserted.structured_schema_version,2);
-  assert.equal(inserted.structured_content.professional_experience[0].company,"Acme Health");
-  assert.equal(inserted.user_id,userId);
-  assert.equal(inserted.candidate_email,"jordan.lee@example.com");
-  assert.equal(inserted.candidate_phone,"(202) 555-0148");
+  const uploadFile=new File([new Uint8Array(1200)],file.name,{type:file.type});const result=await uploadAdminResume(client,"https://api.example.com",userId,value,uploadFile);globalThis.fetch=originalFetch;
+  assert.equal(result.id,"created");assert.equal(new URL(request.url).pathname,"/api/v1/resumes");assert.ok(request.options.body instanceof FormData);const metadata=JSON.parse(request.options.body.get("metadata"));assert.deepEqual(metadata.skills,["Python","SQL"]);assert.equal(metadata.structuredSchemaVersion,2);assert.equal(metadata.structuredContent.professional_experience[0].company,"Acme Health");
 });

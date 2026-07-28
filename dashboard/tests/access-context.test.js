@@ -18,7 +18,9 @@ test("rejects missing profiles and malformed RPC responses",()=>{
   assert.throws(()=>normalizeAccessContext({userId:"bad",status:"ACTIVE",roles:[]}),{code:"ACCESS_CONTEXT_FAILED"});
 });
 
-test("access service distinguishes network failure from no roles",async()=>{
-  const client={rpc:async()=>({data:null,error:new Error("network fetch failed")})};
-  await assert.rejects(()=>getMyAccessContext(client),{code:"NETWORK_ERROR",retryable:true});
+test("access service distinguishes backend network failure from no roles",async()=>{
+  const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct access RPC attempted");}};
+  globalThis.fetch=async()=>{throw new TypeError("network fetch failed");};
+  try{await assert.rejects(()=>getMyAccessContext(client,"https://api.example.com"),{code:"NETWORK_ERROR",retryable:true});}
+  finally{globalThis.fetch=originalFetch;}
 });

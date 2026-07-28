@@ -1,0 +1,26 @@
+# Query inventory (v0.7.1)
+
+Snapshot as of `supabase/migrations/202607270019_v0_7_1_performance_scalability.sql`. Compiled by reading every RPC/direct-table call the dashboard and extension actually make (not a generic template) — see the migration's own header comment and `docs/performance/index-strategy.md`/`search-strategy.md` for the reasoning behind each change.
+
+| Feature | Query / RPC | Tables touched | Columns selected | Pagination | Server-side sort | Notes |
+|---|---|---|---|---|---|---|
+| JD list | `job-read-service.js` `listJobs` (direct `.from("job_descriptions")`) | `job_descriptions`, embeds `industry_domain_categories`, `user_profiles` | `JOB_LIST_FIELDS` (explicit; excludes `description_text`) | offset `.range()`, page size 25/50/100 | `JOB_SORTS` allowlist | Search moved to `.textSearch("search_vector", ...)` (was `ilike` on company/job_title) |
+| JD detail | `getJob` | `job_descriptions` | `JOB_DETAIL_FIELDS` (adds `description_text` etc.) | single row | n/a | Unchanged |
+| Resume list | `resume-read-service.js` `listResumes` | `resumes` | `RESUME_LIST_FIELDS` (excludes `resume_text`) | offset `.range()` | `RESUME_SORTS` allowlist | Search moved to `.textSearch("search_vector", ...)` (was `ilike` on candidate/resume name) |
+| Resume detail | `getResume` | `resumes` | `RESUME_DETAIL_FIELDS` | single row | n/a | Unchanged |
+| Applier Application queue / Manager Application list | `list_applications_cursor` (dashboard, new) / `list_applications_v07` (extension, unchanged) | `applications` join `job_descriptions`, `resumes`; left join `categories`, `profiles`, `application_creation_batches`; scalar subquery on `application_screenshots` | Explicit column list (all `applications` columns **except `notes`**) + joined display fields + `screenshot_count` | Dashboard: cursor (`updated_at desc, id desc`, page size 25/50/100, no `count(*)`). Extension: unchanged offset (`p_limit`/`p_offset`, capped 100) | Cursor RPC: fixed order only. `list_applications_v07`: unchanged 30-key sort allowlist | Search now `jobs.search_vector @@ websearch_to_tsquery(...)` instead of `ilike` on company/job_title |
+| Application detail | `get_application_detail` | `applications`, `job_descriptions`, `resumes`, `profiles` ×2, history tables | Full detail payload (unchanged — legitimately a single-row detail fetch) | single row | n/a | Unchanged |
+| Application create pickers | `list_application_jobs`, `list_application_resumes` | `job_descriptions`, `resumes` | Explicit narrow columns (unchanged) | `limit` only, capped 200 | name order | Search moved to `search_vector` FTS |
+| Batch list | `list_application_batches_v2` | `application_creation_batches` join `profiles` | `batches.*` (small table, no oversized columns — confirmed, left as-is) | offset, page size 25 | allowlisted | Search now debounced 300ms client-side (was per-keystroke) |
+| Batch detail | `get_application_batch_detail` | `application_creation_batches`, `application_creation_batch_results` | Full detail payload | single row + paginated results | n/a | Unchanged |
+| Assignment / status history | `application_assignment_history` / `application_status_history` direct reads via `get_application_detail` | history tables | Full row (small, bounded) | Loaded only on the detail page, not the list | n/a | RLS policy left unrewritten — see index-strategy.md |
+| Dashboard summary (Applications) | `get_application_counts` | `applications` | Aggregates only | n/a | n/a | Already a single efficient role-aware RPC — unchanged |
+| Dashboard summary (business overview) | `get_business_overview` (new) | `job_descriptions`, `resumes`, `user_profiles` | Aggregates + 5 recent rows each | n/a | n/a | Replaces 6 separate requests (`jobCount`×2, `resumeCount`×2, `recentJobs`, `recentResumes`) with 1 |
+| Bulk preview | `preview_bulk_applications` | `job_descriptions`, `resumes`, `applications` | Set-based, capped 100 JDs / 2,000 combinations | Client-side over the full returned set (unchanged — see pagination-strategy.md) | n/a | Unchanged |
+| Bulk creation | `create_applications_bulk` | `applications`, `application_creation_batches`, `application_creation_batch_results` | Set-based single call | n/a | n/a | Unchanged |
+| User list | `admin_list_users_v2` | `profiles`, `user_roles`, `roles` | Explicit columns | offset, page size 25 | allowlisted | Search stays `ilike` on email/full_name — deliberately not moved to FTS (see search-strategy.md) |
+| Active Appliers picker | `list_active_appliers` | `profiles`, `user_roles`, `roles`, `applications` | Explicit columns, capped 200 | n/a | name order | Search stays `ilike` — same reasoning |
+
+**Confirmed clean (no action needed):** no `select("*")` in any dashboard/extension JS list query; no N+1 query patterns in list rendering (only two write-path loops existed, both fixed — see below); `resumes`/`job_descriptions` list reads already excluded their large text columns before this migration.
+
+**N+1 fixed:** `extension/services/tailoring-job-service.js` `createTailoringJobs` (was one `insert` per resume, now one `upsert` with `ignoreDuplicates`); `dashboard/src/pages/admin-pages.jsx` `saveRoles()` (was two sequential awaited loops, now one `Promise.all`).

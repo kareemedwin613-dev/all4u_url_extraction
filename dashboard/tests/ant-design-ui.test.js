@@ -29,3 +29,35 @@ test("dashboard Sider follows the collapsible overlay interaction",async()=>{
   assert.match(css,/dashboard-sider-mask/);
   assert.match(css,/@media\(max-width:991px\)/);
 });
+
+test("the Sider can be pinned to push page content instead of covering it",async()=>{
+  const [app,css]=await Promise.all([read("../src/App.jsx"),read("../src/styles/antd-dashboard.css")]);
+  for(const contract of [
+    /pushed = pinned && !collapsed && !narrow/,
+    /sider-pin-trigger/,
+    /dashboard-sider-pushed/,
+    /dashboard-workspace-pushed/,
+    /dashboard-sider-pinned/,
+    /aria-pressed=\{pinned\}/,
+  ])assert.match(app,contract);
+  assert.match(css,/\.dashboard-workspace-pushed\{margin-left:248px\}/);
+  assert.match(css,/\.sider-pin-trigger/);
+});
+
+test("filter panels are collapsible and the dashboard header remains visible",async()=>{
+  const [ui,app,applications,bulk,admin,css]=await Promise.all([
+    read("../src/components/ui.jsx"),
+    read("../src/App.jsx"),
+    read("../src/features/applications/application-pages.jsx"),
+    read("../src/features/bulk-applications/bulk-pages.jsx"),
+    read("../src/pages/admin-pages.jsx"),
+    read("../src/styles/antd-dashboard.css"),
+  ]);
+  assert.match(ui,/export function FilterPanel/);
+  assert.match(ui,/<Collapse/);
+  assert.match(ui,/activeCount > 0/);
+  for(const source of [app,applications,bulk,admin])assert.match(source,/<FilterPanel/);
+  assert.match(css,/\.dashboard-header\{position:sticky;top:0/);
+  assert.match(css,/\.filter-collapse/);
+  assert.match(css,/\.dashboard-sider-overlay \.ant-menu-item/);
+});

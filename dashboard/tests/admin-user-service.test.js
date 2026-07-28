@@ -10,15 +10,14 @@ test("admin list input is bounded and calculates server offset",()=>{
 });
 
 test("admin list sends normalized filters and returns pagination",async()=>{
-  let call;const client={rpc:async(name,args)=>{call={name,args};return {data:[{id,total_count:26}],error:null};}};
-  const result=await listUsers(client,{page:2,pageSize:25,status:"ACTIVE",roleCode:"APPLIER",sort:"email_desc"});
-  assert.equal(call.name,"admin_list_users_v2");assert.equal(call.args.p_offset,25);assert.equal(call.args.p_sort,"email_desc");assert.equal(result.totalPages,2);
+  let call;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};globalThis.fetch=async(url,options)=>{call={url:new URL(url),options};return new Response(JSON.stringify({data:{items:[{id}],page:2,pageSize:25,total:26,totalPages:2}}),{status:200});};
+  try{const result=await listUsers(client,"https://api.example.com",{page:2,pageSize:25,status:"ACTIVE",roleCode:"APPLIER",sort:"email_desc"});assert.equal(call.url.pathname,"/api/v1/admin/users");assert.equal(call.url.searchParams.get("page"),"2");assert.equal(call.url.searchParams.get("sort"),"email_desc");assert.equal(result.totalPages,2);}finally{globalThis.fetch=originalFetch;}
 });
 
-test("admin mutations use secured RPC contracts",async()=>{
-  const calls=[],client={rpc:async(name,args)=>{calls.push([name,args]);return {data:name==="admin_get_user"?{id}:name==="admin_set_user_status"?{id,status:"INACTIVE"}:["ADMIN"],error:null};}};
-  assert.equal((await getUser(client,id)).id,id);assert.deepEqual(await assignRole(client,id,"admin"),["ADMIN"]);assert.deepEqual(await removeRole(client,id,"admin"),["ADMIN"]);assert.equal((await setStatus(client,id,"inactive")).status,"INACTIVE");
-  assert.deepEqual(calls.map(x=>x[0]),["admin_get_user","admin_assign_role","admin_remove_role","admin_set_user_status"]);
+test("admin mutations use secured API contracts",async()=>{
+  const calls=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options});const path=new URL(url).pathname,data=path.endsWith("/status")?{id,status:"INACTIVE"}:path.includes("/roles")?["ADMIN"]:{id};return new Response(JSON.stringify({data}),{status:200});};
+  try{const base="https://api.example.com";assert.equal((await getUser(client,base,id)).id,id);assert.deepEqual(await assignRole(client,base,id,"admin"),["ADMIN"]);assert.deepEqual(await removeRole(client,base,id,"admin"),["ADMIN"]);assert.equal((await setStatus(client,base,id,"inactive")).status,"INACTIVE");}finally{globalThis.fetch=originalFetch;}
+  assert.deepEqual(calls.map(x=>x.options.method||"GET"),["GET","POST","DELETE","PATCH"]);
 });
 
 test("known database errors are safe and actionable",()=>{

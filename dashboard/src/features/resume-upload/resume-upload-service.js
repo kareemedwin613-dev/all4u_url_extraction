@@ -1,7 +1,7 @@
-import {buildStoragePath} from "../../../../extension/shared/resume-validation.js";
 import {SENIORITIES} from "../../shared/constants.js";
 import {PDF_MIME,validatePdfFile} from "./resume-upload-constants.js";
 import {cleanStructuredResumeV2} from "./resume-structure.js";
+import {authenticatedApiRequest} from "../../services/api-client.js";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const split=value=>[...new Set(String(value||"").split(",").map(item=>item.trim()).filter(Boolean))];
@@ -38,26 +38,17 @@ export function validateResumeUpload(value={},file){
   return {valid:!Object.keys(errors).length,errors};
 }
 
-export async function findResumesByIdentity(client,value={}){
+export async function findResumesByIdentity(client,apiBaseUrl,value={}){
   const candidateName=String(value.candidateName||"").trim(),candidateEmail=String(value.candidateEmail||"").trim().toLowerCase(),candidatePhone=String(value.candidatePhone||"").trim();
   if(!candidateName||!candidateEmail||candidatePhone.replace(/[^0-9]/g,"").length<7)return [];
-  const {data,error}=await client.rpc("find_resume_identity_duplicates",{p_candidate_name:candidateName,p_candidate_email:candidateEmail,p_candidate_phone:candidatePhone});
-  if(error)throw new Error("The duplicate candidate check failed.");
-  return Array.isArray(data)?data:[];
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/resumes/identity-duplicates",method:"POST",body:{candidateName,candidateEmail,candidatePhone}});
+  return Array.isArray(payload.data)?payload.data:[];
 }
 
-export async function uploadAdminResume(client,userId,value,file){
+export async function uploadAdminResume(client,apiBaseUrl,userId,value,file){
   if(!UUID.test(String(userId||"")))throw new Error("Your authenticated user ID is invalid.");
   const check=validateResumeUpload(value,file);if(!check.valid)throw new Error(Object.values(check.errors).join(" "));
-  const id=crypto.randomUUID(),path=buildStoragePath(userId,id,file.name);
-  const {error:uploadError}=await client.storage.from("original-resumes").upload(path,file,{contentType:PDF_MIME,upsert:false});
-  if(uploadError)throw new Error("The private PDF upload failed.");
-  const row={id,user_id:userId,candidate_name:value.candidateName.trim(),candidate_email:value.candidateEmail.trim().toLowerCase(),candidate_phone:value.candidatePhone.trim(),resume_name:value.resumeName.trim(),primary_category_id:value.primaryCategoryId,subcategory_id:value.subcategoryId||null,seniority:value.seniority,skills:split(value.skills),industries:split(value.industries),resume_text:value.resumeText.trim(),structured_content:cleanStructuredResumeV2(value.structuredContent),structured_schema_version:2,storage_bucket:"original-resumes",storage_path:path,original_filename:file.name,mime_type:PDF_MIME,file_size_bytes:file.size,file_sha256:value.checksum,status:"ACTIVE"};
-  const {data,error}=await client.from("resumes").insert(row).select("id").single();
-  if(error){
-    const {error:cleanupError}=await client.storage.from("original-resumes").remove([path]);
-    if(cleanupError)throw new Error("Resume metadata failed to save and the uploaded PDF could not be cleaned up.");
-    throw new Error("Resume metadata could not be saved. Review the category and extracted fields.");
-  }
-  return data;
+  const metadata={...value,skills:split(value.skills),industries:split(value.industries),structuredContent:cleanStructuredResumeV2(value.structuredContent),structuredSchemaVersion:2};
+  const body=new FormData();body.append("metadata",JSON.stringify(metadata));body.append("file",file,file.name);
+  return(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/resumes",method:"POST",body})).payload.data;
 }

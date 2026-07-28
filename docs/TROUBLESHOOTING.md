@@ -7,7 +7,7 @@
 - **RLS insert/403:** verify migrations, `auth.uid()`, category IDs, row ownership, and Storage folder first segment. Inspect Supabase Auth, Postgres, API, and Storage logs.
 - **Missing bucket:** push the Storage migration and confirm both buckets are private.
 - **Partial upload:** inspect the authenticated user's Storage folder. The extension attempts deletion when metadata insertion fails and reports a cleanup error separately.
-- **Duplicate JD:** use Update Existing JD only after reviewing the existing record. URL fragments and known tracking parameters normalize away.
+- **Duplicate JD:** the backend returns the existing record without creating another row. URL fragments and known tracking parameters normalize away.
 - **Parser:** `.doc` and image-only PDFs are unsupported. Verify extension/MIME agreement and the 5 MiB limit.
 - **Paylocity:** refresh the page, grant its origin, and inspect side-panel and service-worker DevTools diagnostics.
 - **Site permission:** use Chrome's extension site-access controls if the prompt was denied.

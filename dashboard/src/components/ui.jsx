@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  Collapse,
   Descriptions,
   Empty,
   Flex,
@@ -116,6 +117,40 @@ export const PageCard = ({ title, extra, children, className = "" }) => (
     {children}
   </Card>
 );
+export function FilterPanel({
+  children,
+  activeCount = 0,
+  title = "Filters",
+  defaultOpen = false,
+}) {
+  const [activeKeys, setActiveKeys] = useState(
+    defaultOpen || activeCount > 0 ? ["filters"] : [],
+  );
+  useEffect(() => {
+    if (activeCount > 0) setActiveKeys(["filters"]);
+  }, [activeCount]);
+  return (
+    <Collapse
+      className="filter-collapse filter-card"
+      activeKey={activeKeys}
+      onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys : [keys])}
+      items={[
+        {
+          key: "filters",
+          label: (
+            <Flex align="center" gap="small" wrap>
+              <Text strong>{title}</Text>
+              {activeCount > 0 && (
+                <Tag color="blue">{activeCount} active</Tag>
+              )}
+            </Flex>
+          ),
+          children,
+        },
+      ]}
+    />
+  );
+}
 export function LegacyTable({ headers, children }) {
   const rows = React.Children.toArray(children).map((row, rowIndex) => {
       const values = { key: row.key || rowIndex };

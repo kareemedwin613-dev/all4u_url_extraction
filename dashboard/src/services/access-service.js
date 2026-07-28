@@ -1,11 +1,11 @@
 import {normalizeAccessContext, accessError} from "../access/access-context.js";
 import {normalizeAccessError} from "./admin-user-service.js";
+import {authenticatedApiRequest} from "./api-client.js";
 
-export async function getMyAccessContext(client) {
+export async function getMyAccessContext(client,apiBaseUrl) {
   try {
-    const {data, error} = await client.rpc("get_my_access_context");
-    if (error) throw error;
-    return normalizeAccessContext(data);
+    const {payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/access-context"});
+    return normalizeAccessContext(payload.data);
   } catch (error) {
     if (error?.code === "ACCESS_CONTEXT_FAILED") throw error;
     const normalized = normalizeAccessError(error, "ACCESS_CONTEXT_FAILED", "Your access context could not be loaded.");
@@ -13,8 +13,7 @@ export async function getMyAccessContext(client) {
   }
 }
 
-export async function listSystemRoles(client) {
-  const {data, error} = await client.from("roles").select("id,code,name,description,active,is_system,created_at").order("code");
-  if (error) throw normalizeAccessError(error, "DATA_REQUEST_FAILED", "System roles could not be loaded.");
-  return data || [];
+export async function listSystemRoles(client,apiBaseUrl) {
+  try{const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/admin/roles"});return payload.data||[];}
+  catch(error){throw normalizeAccessError(error,"DATA_REQUEST_FAILED","System roles could not be loaded.");}
 }

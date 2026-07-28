@@ -23,14 +23,14 @@ export function AccessLoadErrorPage({error, retry}) {
   return <AccessStatePanel title={ACCESS_STATE_COPY.ACCESS_ERROR.title} message={error?.message || ACCESS_STATE_COPY.ACCESS_ERROR.message} action={<Button danger onClick={retry}>Retry</Button>}/>;
 }
 
-export function ProfilePage({client, access, reloadAccess}) {
+export function ProfilePage({client,apiBaseUrl, access, reloadAccess}) {
   const [name, setName] = useState(access.fullName);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => setName(access.fullName), [access.fullName]);
   async function save() {
     setBusy(true); setMessage("");
-    try { await updateMyProfile(client, name); await reloadAccess(); setMessage("Profile updated successfully."); }
+    try { await updateMyProfile(client,apiBaseUrl, name); await reloadAccess(); setMessage("Profile updated successfully."); }
     catch (error) { setMessage(error.message); }
     finally { setBusy(false); }
   }

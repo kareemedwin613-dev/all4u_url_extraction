@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   App as AntApp,
@@ -12,7 +12,6 @@ import {
   Form,
   Input,
   Modal,
-  Pagination,
   Row,
   Select,
   Space,
@@ -23,20 +22,16 @@ import {
 } from "antd";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
-import {
-  clientSortColumns,
-  serverSortColumns,
-  serverSortFromTable,
-} from "../../shared/table-sorting.js";
+import { clientSortColumns } from "../../shared/table-sorting.js";
 import {
   ErrorState,
+  FilterPanel,
   LoadingState,
   StatusTag,
   TabbedSections,
 } from "../../components/ui.jsx";
 import {
   APPLICATION_PRIORITIES,
-  APPLICATION_SORTS,
   APPLICATION_STATUSES,
   DUE_FILTERS,
   WORK_STATUSES,
@@ -54,7 +49,7 @@ import {
   listActiveAppliers,
   listApplicationJobs,
   listApplicationResumes,
-  listApplications,
+  listApplicationsCursor,
   openApplicationResume,
   reassignApplication,
   updateApplication,
@@ -80,18 +75,18 @@ const Notice = ({ message, error = false }) =>
     />
   ) : null;
 
-export function ApplicationCountCards({ client, access, reload }) {
+export function ApplicationCountCards({ client, apiBaseUrl, access, reload }) {
   const [data, setData] = useState(),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    getApplicationCounts(client)
+    getApplicationCounts(client, apiBaseUrl)
       .then((x) => live && setData(x))
       .catch((x) => live && setError(x.message));
     return () => {
       live = false;
     };
-  }, [client, reload]);
+  }, [client, apiBaseUrl, reload]);
   if (error) return <Notice message={error} error />;
   if (!data) return <LoadingState />;
   const manager = isApplicationManager(access),
@@ -138,16 +133,26 @@ function ApplicationFilters({
   onApply,
   onClear,
 }) {
-  const field = { xs: 24, sm: 12, lg: 6 };
+  const field = { xs: 24, sm: 12, lg: 6 },
+    activeCount = [
+      value.search,
+      manager ? value.assignedTo : "",
+      value.workStatus,
+      value.applicationStatus,
+      value.priority,
+      value.company,
+      value.categoryId,
+      value.dueFilter,
+      manager ? value.creationMode : "",
+      manager ? value.creationBatchId : "",
+    ].filter(Boolean).length;
   return (
-    <Card className="filter-card">
+    <FilterPanel activeCount={activeCount}>
       <Form
         layout="vertical"
         initialValues={value}
         key={serializeApplicationQuery(value)}
-        onFinish={(raw) =>
-          onApply({ ...raw, page: 1, pageSize: Number(raw.pageSize) })
-        }
+        onFinish={(raw) => onApply({ ...raw, pageSize: Number(raw.pageSize) })}
       >
         <Row gutter={12}>
           <Col {...field}>
@@ -273,16 +278,6 @@ function ApplicationFilters({
             </>
           )}
           <Col {...field}>
-            <Form.Item label="Sort" name="sort">
-              <Select
-                options={APPLICATION_SORTS.map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
             <Form.Item label="Page size" name="pageSize">
               <Select
                 options={[25, 50, 100].map((value) => ({
@@ -302,12 +297,13 @@ function ApplicationFilters({
           </Col>
         </Row>
       </Form>
-    </Card>
+    </FilterPanel>
   );
 }
 
 export function ApplicationsPage({
   client,
+  apiBaseUrl,
   access,
   categories,
   query,
@@ -315,6 +311,7 @@ export function ApplicationsPage({
 }) {
   const manager = isApplicationManager(access),
     filters = parseApplicationQuery(query),
+    filterKey = JSON.stringify(filters),
     [data, setData] = useState(),
     [appliers, setAppliers] = useState([]),
     [batches, setBatches] = useState([]),
@@ -326,28 +323,47 @@ export function ApplicationsPage({
     [bulkReason, setBulkReason] = useState(""),
     [bulkBusy, setBulkBusy] = useState(false),
     [localReload, setLocalReload] = useState(0),
-    bulkLock = useRef(false);
-  useEffect(() => {
-    let live = true;
+    [cursorStack, setCursorStack] = useState([null]),
+    [pageIndex, setPageIndex] = useState(0),
+    bulkLock = useRef(false),
+    requestId = useRef(0);
+  function loadPage(index, stack) {
+    const id = ++requestId.current;
     setData();
     setError("");
     Promise.all([
-      listApplications(client, filters),
-      manager ? listActiveAppliers(client) : Promise.resolve([]),
-      manager ? listApplicationBatchOptions(client) : Promise.resolve([]),
+      listApplicationsCursor(client, apiBaseUrl, filters, stack[index], filters.pageSize),
+      manager ? listActiveAppliers(client, apiBaseUrl) : Promise.resolve([]),
+      manager ? listApplicationBatchOptions(client, apiBaseUrl) : Promise.resolve([]),
     ])
       .then(([items, users, batchItems]) => {
-        if (live) {
-          setData(items);
-          setAppliers(users);
-          setBatches(batchItems);
-        }
+        if (id !== requestId.current) return;
+        setData(items);
+        setAppliers(users);
+        setBatches(batchItems);
+        setPageIndex(index);
       })
-      .catch((x) => live && setError(x.message));
-    return () => {
-      live = false;
-    };
-  }, [client, query, reload, manager, localReload]);
+      .catch((x) => {
+        if (id === requestId.current) setError(x.message);
+      });
+  }
+  useEffect(() => {
+    setCursorStack([null]);
+    loadPage(0, [null]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, filterKey, reload, manager, localReload]);
+  function goToNextPage() {
+    if (!data?.hasMore || !data?.nextCursor) return;
+    setCursorStack((stack) => {
+      const next = stack.slice(0, pageIndex + 1).concat([data.nextCursor]);
+      loadPage(pageIndex + 1, next);
+      return next;
+    });
+  }
+  function goToPreviousPage() {
+    if (pageIndex === 0) return;
+    loadPage(pageIndex - 1, cursorStack);
+  }
   const update = (patch) => {
     const text = serializeApplicationQuery({ ...filters, ...patch });
     go(`#/applications${text ? `?${text}` : ""}`);
@@ -426,7 +442,13 @@ export function ApplicationsPage({
         ),
     },
     {
-      title: "Updated",
+      title: "Captured at",
+      dataIndex: "captured_at",
+      sortKey: "captured",
+      render: formatDate,
+    },
+    {
+      title: "Last updated",
       dataIndex: "updated_at",
       sortKey: "updated",
       render: formatDate,
@@ -460,7 +482,7 @@ export function ApplicationsPage({
         const jobUrl = safeExternalUrl(record.source_url),
           applicationUrl = safeExternalUrl(record.application_url);
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             {jobUrl ? (
               <a href={jobUrl} target="_blank" rel="noopener noreferrer">
                 Job posting
@@ -494,6 +516,12 @@ export function ApplicationsPage({
       render: formatDate,
     },
     {
+      title: "Last updated",
+      dataIndex: "updated_at",
+      sortKey: "updated",
+      render: formatDate,
+    },
+    {
       title: "Primary category",
       dataIndex: "category_name",
       sortKey: "category",
@@ -501,10 +529,7 @@ export function ApplicationsPage({
     },
     viewColumn,
   ];
-  const columns = serverSortColumns(
-      manager ? managerColumns : applierColumns,
-      filters.sort,
-    ),
+  const columns = manager ? managerColumns : applierColumns,
     tooMany = selectedIds.length > 500;
   async function submitBulkAssignment() {
     if (bulkLock.current || bulkBusy || !bulkAssignee || !selectedIds.length)
@@ -516,6 +541,7 @@ export function ApplicationsPage({
       const assignee = bulkAssignee === "__UNASSIGN__" ? null : bulkAssignee,
         result = await bulkAssignApplications(
           client,
+          apiBaseUrl,
           selectedIds,
           assignee,
           bulkReason,
@@ -618,12 +644,6 @@ export function ApplicationsPage({
                   }
                 : undefined
             }
-            onChange={(_pagination, _tableFilters, sorter) =>
-              update({
-                sort: serverSortFromTable(sorter, "updated_desc"),
-                page: 1,
-              })
-            }
           />
           <Flex
             justify="space-between"
@@ -633,15 +653,17 @@ export function ApplicationsPage({
             style={{ marginTop: 16 }}
           >
             <Text>
-              Showing {data.from}–{data.to} of {data.total}
+              Sorted by last updated · {data.items.length} shown on this page
             </Text>
-            <Pagination
-              current={data.page}
-              pageSize={data.pageSize}
-              total={data.total}
-              showSizeChanger={false}
-              onChange={(page) => update({ page })}
-            />
+            <Space>
+              <Button disabled={pageIndex === 0} onClick={goToPreviousPage}>
+                Previous
+              </Button>
+              <Text type="secondary">Page {pageIndex + 1}</Text>
+              <Button disabled={!data.hasMore} onClick={goToNextPage}>
+                Next
+              </Button>
+            </Space>
           </Flex>
         </Card>
       )}
@@ -706,7 +728,7 @@ export function ApplicationsPage({
   );
 }
 
-export function CreateApplicationPage({ client }) {
+export function CreateApplicationPage({ client, apiBaseUrl }) {
   const [jobs, setJobs] = useState([]),
     [resumes, setResumes] = useState([]),
     [appliers, setAppliers] = useState([]),
@@ -715,7 +737,7 @@ export function CreateApplicationPage({ client }) {
     [busy, setBusy] = useState(false);
   useEffect(() => {
     let live = true;
-    Promise.all([listApplicationJobs(client), listActiveAppliers(client)])
+    Promise.all([listApplicationJobs(client, apiBaseUrl), listActiveAppliers(client, apiBaseUrl)])
       .then(([j, a]) => {
         if (live) {
           setJobs(j);
@@ -726,25 +748,25 @@ export function CreateApplicationPage({ client }) {
     return () => {
       live = false;
     };
-  }, [client]);
+  }, [client, apiBaseUrl]);
   useEffect(() => {
     let live = true;
     if (!jobId) {
       setResumes([]);
       return;
     }
-    listApplicationResumes(client, jobId)
+    listApplicationResumes(client, apiBaseUrl, jobId)
       .then((x) => live && setResumes(x))
       .catch((x) => live && setMessage(x.message));
     return () => {
       live = false;
     };
-  }, [client, jobId]);
+  }, [client, apiBaseUrl, jobId]);
   async function submit(raw) {
     setMessage("");
     setBusy(true);
     try {
-      const created = await createApplication(client, {
+      const created = await createApplication(client, apiBaseUrl, {
         ...raw,
         dueAt: fromLocal(raw.dueAt),
       });
@@ -924,7 +946,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
   );
 }
 
-export function ApplicationDetailPage({ client, access, id, reload }) {
+export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }) {
   const { modal } = AntApp.useApp(),
     [detail, setDetail] = useState(),
     [appliers, setAppliers] = useState([]),
@@ -936,8 +958,8 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
     setDetail();
     setMessage("");
     Promise.all([
-      getApplication(client, id),
-      manager ? listActiveAppliers(client) : Promise.resolve([]),
+      getApplication(client, apiBaseUrl, id),
+      manager ? listActiveAppliers(client, apiBaseUrl) : Promise.resolve([]),
     ])
       .then(([d, a]) => {
         setDetail(d);
@@ -948,7 +970,7 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
         setMessage(x.message);
       });
   };
-  useEffect(load, [client, id, reload, manager]);
+  useEffect(load, [client, apiBaseUrl, id, reload, manager]);
   if (!detail)
     return (
       <div className="page">
@@ -969,7 +991,7 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
       await task();
       setIsError(false);
       setMessage(success);
-      setDetail(await getApplication(client, id));
+      setDetail(await getApplication(client, apiBaseUrl, id));
     } catch (x) {
       setIsError(true);
       setMessage(x.message);
@@ -980,7 +1002,7 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
   async function openResume() {
     setBusy(true);
     try {
-      const url = await openApplicationResume(client, id);
+      const url = await openApplicationResume(client, apiBaseUrl, id);
       window.open(url, "_blank", "noopener,noreferrer");
       setIsError(false);
       setMessage("A short-lived private Resume link was opened.");
@@ -1173,7 +1195,7 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
                   busy={busy}
                   onSave={(value) =>
                     run(
-                      () => updateApplication(client, id, value),
+                      () => updateApplication(client, apiBaseUrl, id, value),
                       "Application progress was saved.",
                     )
                   }
@@ -1201,7 +1223,7 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
                       onOk: () =>
                         run(
                           () =>
-                            reassignApplication(client, id, next, raw.reason),
+                            reassignApplication(client, apiBaseUrl, id, next, raw.reason),
                           next
                             ? "Application was reassigned."
                             : "Application was unassigned.",
@@ -1240,7 +1262,7 @@ export function ApplicationDetailPage({ client, access, id, reload }) {
                         onOk: () =>
                           run(
                             () =>
-                              updateApplication(client, id, {
+                              updateApplication(client, apiBaseUrl, id, {
                                 workStatus: "CANCELLED",
                                 applicationStatus: a.application_status,
                                 applicationUrl: a.application_url,

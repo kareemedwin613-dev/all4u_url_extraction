@@ -1,10 +1,14 @@
 export const EXTENSION_CAPABILITIES = Object.freeze({
   BUSINESS_READ: "BUSINESS_READ",
   BUSINESS_WRITE: "EXTENSION_BUSINESS_WRITE",
+  RESUME_QUEUE_READ: "RESUME_QUEUE_READ",
+  MY_APPLICATIONS_READ: "MY_APPLICATIONS_READ",
 });
 
-const BUSINESS_READ_ROLES = new Set(["APPLIER", "APPLYING_MANAGER", "ADMIN"]);
+const BUSINESS_READ_ROLES = new Set(["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "ADMIN"]);
 const BUSINESS_WRITE_ROLES = new Set(["APPLYING_MANAGER", "ADMIN"]);
+const RESUME_QUEUE_ROLES = new Set(["ADMIN"]);
+const MY_APPLICATIONS_ROLES = new Set(["APPLIER"]);
 
 export function normalizeExtensionAccess(raw) {
   const source = Array.isArray(raw) ? raw[0] : raw;
@@ -16,12 +20,16 @@ export function normalizeExtensionAccess(raw) {
   if (status === "ACTIVE") {
     if (roles.some(role=>BUSINESS_READ_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.BUSINESS_READ);
     if (roles.some(role=>BUSINESS_WRITE_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.BUSINESS_WRITE);
+    if (roles.some(role=>RESUME_QUEUE_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.RESUME_QUEUE_READ);
+    if (roles.some(role=>MY_APPLICATIONS_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.MY_APPLICATIONS_READ);
   }
   return {userId:String(source.userId??source.user_id??""),email:String(source.email||"").toLowerCase(),fullName:String(source.fullName??source.full_name??""),status,roles,capabilities};
 }
 
 export const canReadBusiness=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.BUSINESS_READ)===true;
 export const canWriteBusiness=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.BUSINESS_WRITE)===true;
+export const canAccessResumeQueue=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.RESUME_QUEUE_READ)===true;
+export const canAccessMyApplications=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.MY_APPLICATIONS_READ)===true;
 
 export function extensionAccessMessage(access) {
   if (!access) return "Your access context could not be loaded.";

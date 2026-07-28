@@ -43,6 +43,7 @@ select throws_ok($$select public.create_application('63000000-0000-4000-8000-000
 select set_config('request.jwt.claim.sub','61000000-0000-4000-8000-000000000003',true);
 select is((select count(*)::integer from public.applications),1,'assigned Applier reads own Application');
 select throws_ok($$select public.create_application('63000000-0000-4000-8000-000000000002','64000000-0000-4000-8000-000000000002',null,'NORMAL',null,null)$$,'42501',null,'Applier cannot create Application');
+select public.attach_application_screenshot((select id from public.applications limit 1),(select id::text||'/confirmation.png' from public.applications limit 1),'confirmation.png','image/png',2048);
 select is(public.update_application_progress((select id from public.applications limit 1),'IN_PROGRESS','APPLIED','https://example.test/application',null,null,null,null)->>'application_status','APPLIED','assigned Applier updates permitted status and URL');
 select ok((select applied_at is not null from public.applications limit 1),'APPLIED automatically populates applied_at');
 select is((select count(*)::integer from public.application_status_history),2,'two changed status fields create two history rows');
