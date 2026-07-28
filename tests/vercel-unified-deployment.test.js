@@ -17,5 +17,6 @@ test("Vercel routes API and health requests into one Nest function", async () =>
 test("Vercel route metadata is removed before Nest handles the request", () => {
   assert.equal(routedUrl({ url: "/api/index", query: { __path: "/health" } }), "/health");
   assert.equal(routedUrl({ url: "/api/index", query: { __path: "/api/v1/applications", page: "2", status: ["A", "B"] } }), "/api/v1/applications?page=2&status=A&status=B");
+  assert.equal(routedUrl({ url: "/api/index", query: { __path: "/api/v1/assignment-batches", path: "assignment-batches", limit: "25" } }), "/api/v1/assignment-batches?limit=25");
   assert.equal(routedUrl({ url: "/unchanged", query: {} }), "/unchanged");
 });

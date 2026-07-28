@@ -3,7 +3,10 @@ export function routedUrl(request) {
   if (!raw || typeof raw !== "string" || !raw.startsWith("/")) return request.url;
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(request.query || {})) {
-    if (key === "__path" || value === undefined) continue;
+    // Vercel exposes both the explicit __path destination parameter and the
+    // :path* source capture on request.query. Neither is an application query
+    // parameter, so forwarding `path` makes strict NestJS DTO validation fail.
+    if (key === "__path" || key === "path" || value === undefined) continue;
     for (const item of Array.isArray(value) ? value : [value]) query.append(key, String(item));
   }
   const suffix = query.toString();
