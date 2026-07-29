@@ -22,6 +22,7 @@ const { ResumeService } = await import("../src/resumes/resume.service.js");
 const { ApplicationService } = await import("../src/applications/application.service.js");
 const { ApplicationBatchesService } = await import("../src/application-batches/application-batches.service.js");
 const { BulkAssignmentService } = await import("../src/bulk-assignment/bulk-assignment.service.js");
+const { CandidateService } = await import("../src/candidates/candidate.service.js");
 const { PlatformService, TailoringService } = await import("../src/platform/platform.service.js");
 
 let app: INestApplication, mode: "create"|"duplicate"|"identity"|"rls" = "create", active = true, roles = ["APPLYING_MANAGER"];
@@ -77,6 +78,12 @@ before(async () => {
       batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),
       batch:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",strategy:"EVEN"}),
       results:async()=>({items:[],page:{nextCursor:null,pageSize:25,total:0}}),
+    })
+    .overrideProvider(CandidateService).useValue({
+      get:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",fullName:"Candidate",reviewStatus:"NEEDS_REVIEW",employment:[],education:[]}),
+      update:async(_user:any,id:string,body:any)=>({id,fullName:body.fullName,reviewStatus:body.reviewStatus}),
+      employment:async(_user:any,id:string,body:any)=>({id:"employment-1",profile:{id,employment:[body]}}),
+      education:async(_user:any,id:string,body:any)=>({id:"education-1",profile:{id,education:[body]}}),
     })
     .overrideProvider(PlatformService).useValue({roles:async()=>[{code:"ADMIN"}],users:async()=>({items:[],page:1,pageSize:25,total:0,totalPages:0}),user:async()=>({id:"user-1"}),role:async()=>["ADMIN"],status:async()=>({id:"user-1",status:"INACTIVE"}),profile:async()=>({id:"user-1",full_name:"Name"}),overview:async()=>({jobCounts:{total:1}})})
     .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
@@ -161,6 +168,18 @@ test("v0.8.5 extension context and sessions enforce roles and validate state",as
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").send({resumeId:"223e4567-e89b-42d3-a456-426614174000"}).expect(400);
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").expect(201).expect(({body})=>{assert.equal(body.data.filename,"candidate.pdf");assert.equal(body.data.fileSizeBytes,1024);});
   roles=["APPLYING_MANAGER"];
+});
+
+test("v0.8.8 Candidate Profile routes allow assigned Applier reads and manager review only",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/candidates/${id}/autofill-profile`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.reviewStatus,"NEEDS_REVIEW"));
+  await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED",unexpected:true}).expect(400);
+  await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(200).expect(({body})=>assert.equal(body.data.reviewStatus,"VERIFIED"));
+  await request(app.getHttpServer()).post(`/api/v1/candidates/${id}/employment`).set("Authorization","Bearer token").send({company:"Acme",jobTitle:"Engineer",isCurrent:true}).expect(201);
+  await request(app.getHttpServer()).post(`/api/v1/candidates/${id}/education`).set("Authorization","Bearer token").send({institution:"State University"}).expect(201);
 });
 
 test("v0.8 workload and bulk-assignment routes are manager-only and require idempotency",async()=>{

@@ -249,3 +249,47 @@ export interface ApplicationResumeAccess {
   expiresAt: string;
 }
 export interface ApplicationResumeAccessResponse extends RequestMetadata { data: ApplicationResumeAccess; }
+
+export type CandidateProfileReviewStatus = "NEEDS_REVIEW" | "VERIFIED";
+export interface CandidateAddress {
+  id: string; addressType: "PRIMARY" | "MAILING" | "OTHER"; addressLine1: string | null;
+  addressLine2: string | null; city: string | null; stateRegion: string | null;
+  postalCode: string | null; country: string | null; isPrimary: boolean;
+}
+export interface CandidateEmployment {
+  id: string; company: string; jobTitle: string; location: string | null; startDate: string | null;
+  endDate: string | null; isCurrent: boolean; experienceDetails: string | null; displayOrder: number;
+  source: "MANUAL" | "RESUME_IMPORTED";
+}
+export interface CandidateEducation {
+  id: string; institution: string; degree: string | null; fieldOfStudy: string | null;
+  location: string | null; startDate: string | null; endDate: string | null; gpa: string | null;
+  details: string | null; displayOrder: number; source: "MANUAL" | "RESUME_IMPORTED";
+}
+export interface CandidateCertification {
+  id: string; name: string; issuer: string | null; issuedDate: string | null; expirationDate: string | null;
+  credentialId: string | null; credentialUrl: string | null; source: "MANUAL" | "RESUME_IMPORTED";
+}
+export interface CandidateLink { id: string; linkType: "LINKEDIN" | "GITHUB" | "PORTFOLIO" | "OTHER"; label: string | null; url: string; }
+export interface CandidateAutofillProfile {
+  id: string; resumeId: string; fullName: string; firstName: string | null; middleName: string | null;
+  lastName: string | null; email: string | null; phone: string | null; reviewStatus: CandidateProfileReviewStatus;
+  reviewedBy: string | null; reviewedAt: string | null; createdAt: string; updatedAt: string;
+  addresses: CandidateAddress[]; employment: CandidateEmployment[]; education: CandidateEducation[];
+  certifications: CandidateCertification[]; links: CandidateLink[];
+}
+export interface CandidateAutofillProfileResponse extends RequestMetadata { data: CandidateAutofillProfile; }
+export interface UpdateCandidateProfileRequest {
+  fullName: string; firstName?: string; middleName?: string; lastName?: string;
+  email?: string; phone?: string; reviewStatus: CandidateProfileReviewStatus;
+  primaryAddress?: Omit<CandidateAddress, "id" | "addressType" | "isPrimary">;
+  links?: Array<Pick<CandidateLink, "linkType" | "url"> & { label?: string }>;
+}
+export interface CandidateEmploymentRequest {
+  company: string; jobTitle: string; location?: string; startDate?: string | null; endDate?: string | null;
+  isCurrent: boolean; experienceDetails?: string; displayOrder?: number;
+}
+export interface CandidateEducationRequest {
+  institution: string; degree?: string; fieldOfStudy?: string; location?: string;
+  startDate?: string | null; endDate?: string | null; gpa?: string; details?: string; displayOrder?: number;
+}

@@ -7,6 +7,7 @@ export const ROUTE_CAPABILITIES = Object.freeze({
   "job-detail": CAPABILITIES.BUSINESS_DATA_READ,
   resumes: CAPABILITIES.BUSINESS_DATA_READ,
   "resume-detail": CAPABILITIES.BUSINESS_DATA_READ,
+  "candidate-profile": CAPABILITIES.APPLICATION_MANAGE,
   "resume-upload": CAPABILITIES.USER_ADMIN,
   applications: CAPABILITIES.APPLICATION_VIEW,
   "application-detail": CAPABILITIES.APPLICATION_VIEW,

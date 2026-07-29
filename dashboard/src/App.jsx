@@ -112,6 +112,7 @@ import { ApplierDirectoryPage } from "./features/applications/applier-directory-
 import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-page.jsx";
 import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage, BulkAssignmentWizardPage } from "./features/bulk-assignment/bulk-assignment-pages.jsx";
 import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
+import { CandidateProfilePage } from "./features/candidates/candidate-profile-page.jsx";
 import {
   DataPagination,
   EmptyState,
@@ -185,6 +186,7 @@ const NAV_ICONS = Object.freeze({
     "assignment-batch-detail": "assignment-batches",
     "job-detail": "jobs",
     "resume-detail": "resumes",
+    "candidate-profile": "resumes",
     "admin-user-detail": "admin-users",
   });
 
@@ -1068,7 +1070,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
   );
 }
 
-function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
+function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
   const [resume, setResume] = useState(),
     [error, setError] = useState(""),
     [fileMessage, setFileMessage] = useState("");
@@ -1171,9 +1173,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
       <TabbedSections
         items={tabs}
         extra={
-          <Button type="primary" onClick={open}>
-            Open Original Resume
-          </Button>
+          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{resume.candidate_profile&&hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/candidates/${resume.candidate_profile.id}`}>Review Candidate Profile</Button>}</Space>
         }
       />
     </div>
@@ -1409,6 +1409,8 @@ export function App({ client, apiBaseUrl }) {
         reload={reload}
       />
     );
+  else if (route.name === "candidate-profile")
+    page = <CandidateProfilePage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "application-new")
     page = <CreateApplicationPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "application-bulk-create")
@@ -1487,6 +1489,7 @@ export function App({ client, apiBaseUrl }) {
         id={route.id}
         back={resumesBack.current}
         reload={reload}
+        access={access}
       />
     );
   else if (route.name === "resume-upload")
