@@ -27,6 +27,8 @@ test("professional experience parsing preserves multiple companies, dates, and c
 
 test("legacy separate bullets normalize into one experience details field",()=>{const value=normalizeStructuredResumeV2({professional_experience:[{company:"Acme",job_title:"Engineer",bullets:[{text:"Built APIs"},{text:"Improved latency"}]}]});assert.equal(value.professional_experience[0].experience_details,"• Built APIs\n• Improved latency");});
 
+test("structured Resume normalization preserves v3 education and certification metadata",()=>{const value=normalizeStructuredResumeV2({education:[{id:"school-1",institution:"State University",degree:"BS",field_of_study:"Computer Science"}],education_legacy_text:"Legacy school text",certifications:[{id:"cert-1",name:"AWS Certified"}]});assert.equal(value.education[0].institution,"State University");assert.equal(value.education[0].field_of_study,"Computer Science");assert.equal(value.education_legacy_text,"Legacy school text");assert.equal(value.certifications[0].name,"AWS Certified");});
+
 test("candidate name falls back safely to the PDF filename",()=>{
   assert.equal(candidateNameFromResume("SUMMARY\nTechnical profile","Taylor_Morgan_Resume.pdf"),"Taylor Morgan");
   assert.equal(candidateNameFromResume("SUMMARY\nTechnical profile","resume.pdf"),"");

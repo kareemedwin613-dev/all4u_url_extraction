@@ -10,13 +10,13 @@ import { CandidateEducationDto, CandidateEmploymentDto, UpdateCandidateProfileDt
 import { CandidateService } from "./candidate.service.js";
 
 const READERS = ["APPLIER", "APPLYING_MANAGER", "ADMIN"] as const, MANAGERS = ["APPLYING_MANAGER", "ADMIN"] as const;
-@ApiTags("Candidate Profiles") @ApiBearerAuth() @Controller("candidates") @UseGuards(AuthGuard, RolesGuard) @Throttle({ default: { limit: 60, ttl: 60000 } })
+@ApiTags("Resume Autofill Metadata") @ApiBearerAuth() @Controller("candidates") @UseGuards(AuthGuard, RolesGuard) @Throttle({ default: { limit: 60, ttl: 60000 } })
 export class CandidateController {
   constructor(@Inject(CandidateService) private readonly service: CandidateService) {}
   private response(request: ApiRequest, data: unknown) { return { data, requestId: request.requestId }; }
-  @Get(":id/autofill-profile") @RequireRoles(...READERS) @ApiOperation({ summary: "Load a reviewable Resume-scoped Candidate Profile" })
+  @Get(":id/autofill-profile") @RequireRoles(...READERS) @ApiOperation({ summary: "Load reviewable autofill metadata from a Resume" })
   async get(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return this.response(request, await this.service.get(request.user!, id)); }
-  @Patch(":id/profile") @RequireRoles(...MANAGERS) @ApiOperation({ summary: "Review and update Candidate personal/contact details" })
+  @Patch(":id/profile") @RequireRoles(...MANAGERS) @ApiOperation({ summary: "Review and update Resume personal/contact metadata" })
   async update(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(UpdateCandidateProfileDto)) body: UpdateCandidateProfileDto) { return this.response(request, await this.service.update(request.user!, id, body)); }
   @Post(":id/employment") @RequireRoles(...MANAGERS) @ApiOperation({ summary: "Add Candidate employment history" })
   async addEmployment(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(CandidateEmploymentDto)) body: CandidateEmploymentDto) { return this.response(request, await this.service.employment(request.user!, id, body)); }

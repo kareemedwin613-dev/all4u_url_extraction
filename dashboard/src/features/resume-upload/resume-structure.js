@@ -50,7 +50,9 @@ function normalizeExperience(value){
 
 export function normalizeStructuredResumeV2(value={}){
   const rawExperience=value?.professional_experience,professionalExperience=Array.isArray(rawExperience)?rawExperience.map(normalizeExperience):parseProfessionalExperiences(rawExperience);
-  return {summary:text(value?.summary),professional_experience:professionalExperience,education:text(value?.education),skills:text(value?.skills)};
+  const education=Array.isArray(value?.education)?value.education.map(item=>({id:text(item?.id)||makeId(),institution:text(item?.institution),degree:text(item?.degree),field_of_study:text(item?.field_of_study),location:text(item?.location),start_date:item?.start_date||null,end_date:item?.end_date||null,gpa:text(item?.gpa),details:text(item?.details)})):text(value?.education);
+  const certifications=Array.isArray(value?.certifications)?value.certifications:[];
+  return {summary:text(value?.summary),professional_experience:professionalExperience,education,education_legacy_text:text(value?.education_legacy_text),certifications,skills:text(value?.skills)};
 }
 
 export function cleanStructuredResumeV2(value={}){

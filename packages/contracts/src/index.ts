@@ -259,16 +259,16 @@ export interface CandidateAddress {
 export interface CandidateEmployment {
   id: string; company: string; jobTitle: string; location: string | null; startDate: string | null;
   endDate: string | null; isCurrent: boolean; experienceDetails: string | null; displayOrder: number;
-  source: "MANUAL" | "RESUME_IMPORTED";
+  source: "RESUME_METADATA";
 }
 export interface CandidateEducation {
   id: string; institution: string; degree: string | null; fieldOfStudy: string | null;
   location: string | null; startDate: string | null; endDate: string | null; gpa: string | null;
-  details: string | null; displayOrder: number; source: "MANUAL" | "RESUME_IMPORTED";
+  details: string | null; displayOrder: number; source: "RESUME_METADATA";
 }
 export interface CandidateCertification {
   id: string; name: string; issuer: string | null; issuedDate: string | null; expirationDate: string | null;
-  credentialId: string | null; credentialUrl: string | null; source: "MANUAL" | "RESUME_IMPORTED";
+  credentialId: string | null; credentialUrl: string | null; source: "RESUME_METADATA";
 }
 export interface CandidateLink { id: string; linkType: "LINKEDIN" | "GITHUB" | "PORTFOLIO" | "OTHER"; label: string | null; url: string; }
 export interface CandidateAutofillProfile {
@@ -277,6 +277,7 @@ export interface CandidateAutofillProfile {
   reviewedBy: string | null; reviewedAt: string | null; createdAt: string; updatedAt: string;
   addresses: CandidateAddress[]; employment: CandidateEmployment[]; education: CandidateEducation[];
   certifications: CandidateCertification[]; links: CandidateLink[];
+  educationLegacyText?: string;
 }
 export interface CandidateAutofillProfileResponse extends RequestMetadata { data: CandidateAutofillProfile; }
 export interface UpdateCandidateProfileRequest {
