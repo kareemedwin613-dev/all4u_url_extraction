@@ -1173,7 +1173,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       <TabbedSections
         items={tabs}
         extra={
-          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/candidates/${resume.id}`}>Review Autofill Metadata</Button>}</Space>
+          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Review Autofill Metadata</Button>}</Space>
         }
       />
     </div>

@@ -294,3 +294,34 @@ export interface CandidateEducationRequest {
   institution: string; degree?: string; fieldOfStudy?: string; location?: string;
   startDate?: string | null; endDate?: string | null; gpa?: string; details?: string; displayOrder?: number;
 }
+
+/** Canonical v0.8.9 names; Candidate-prefixed names remain compatibility aliases. */
+export type ResumeAutofillReviewStatus = CandidateProfileReviewStatus;
+export type ResumeAutofillAddress = CandidateAddress;
+export type ResumeAutofillEmployment = CandidateEmployment;
+export type ResumeAutofillEducation = CandidateEducation;
+export type ResumeAutofillCertification = CandidateCertification;
+export type ResumeAutofillLink = CandidateLink;
+export type ResumeAutofillProfile = CandidateAutofillProfile;
+export type ResumeAutofillProfileResponse = CandidateAutofillProfileResponse;
+export type UpdateResumeAutofillProfileRequest = UpdateCandidateProfileRequest;
+export type ResumeAutofillEmploymentRequest = CandidateEmploymentRequest;
+export type ResumeAutofillEducationRequest = CandidateEducationRequest;
+
+export interface ApplicationAutofillContext {
+  applicationId: string;
+  sessionId: string;
+  job: { company: string; jobTitle: string; sourceUrl: string };
+  resumeId: string;
+  resumeUpdatedAt: string;
+  profileSchemaVersion: number;
+  reviewedAt: string;
+  values: Partial<Record<
+    | "candidate.firstName" | "candidate.middleName" | "candidate.lastName" | "candidate.fullName"
+    | "candidate.email" | "candidate.phone" | "candidate.addressLine1" | "candidate.addressLine2"
+      | "candidate.city" | "candidate.state" | "candidate.postalCode" | "candidate.country"
+      | "candidate.linkedInUrl" | "candidate.githubUrl" | "candidate.portfolioUrl" | "candidate.summary",
+    string
+  >>;
+}
+export interface ApplicationAutofillContextResponse extends RequestMetadata { data: ApplicationAutofillContext; }

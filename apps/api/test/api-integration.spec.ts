@@ -57,6 +57,7 @@ before(async () => {
       create:async()=>({id:"application-1"}),update:async()=>({id:"application-1",work_status:"IN_PROGRESS"}),assign:async()=>({id:"application-1"}),bulkAssign:async()=>({changedCount:1}),
       extensionContext:async()=>({application:{id:"123e4567-e89b-42d3-a456-426614174000",applicationNumber:1},job:{sourceUrl:"https://example.com/jobs/1"},resume:{id:"resume-1"},candidate:{profileAvailable:false},permissions:{canLoadResume:true,canAutofill:true}}),
       createExtensionSession:async(_user:any,id:string,body:any)=>({id:"323e4567-e89b-42d3-a456-426614174000",applicationId:id,action:body.action,status:"CREATED",targetUrl:"https://example.com/jobs/1",expiresAt:"2026-07-28T12:15:00Z"}),
+      autofillContext:async(_user:any,id:string,query:any)=>({applicationId:id,sessionId:query.sessionId,resumeId:"223e4567-e89b-42d3-a456-426614174000",resumeUpdatedAt:"2026-07-29T00:00:00Z",profileSchemaVersion:1,reviewedAt:"2026-07-29T00:00:00Z",job:{company:"Example",jobTitle:"Engineer",sourceUrl:"https://example.com/jobs/1"},values:{"candidate.email":"person@example.com"}}),
       updateExtensionSession:async(_user:any,id:string,body:any)=>({id,applicationId:"123e4567-e89b-42d3-a456-426614174000",action:"AUTOFILL",status:body.status,expiresAt:"2026-07-28T12:15:00Z"}),
       resumeAccess:async()=>({signedUrl:"https://storage.example/signed-resume",filename:"candidate.pdf",mimeType:"application/pdf",fileSizeBytes:1024,expiresAt:"2026-07-28T12:01:00Z"}),
       preview:async()=>({combinations:[]}),bulkCreate:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",createdCount:1}),batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),batchOptions:async()=>[],batch:async()=>({batch:{id:"123e4567-e89b-42d3-a456-426614174000"}}),
@@ -180,6 +181,19 @@ test("v0.8.8 Candidate Profile routes allow assigned Applier reads and manager r
   await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(200).expect(({body})=>assert.equal(body.data.reviewStatus,"VERIFIED"));
   await request(app.getHttpServer()).post(`/api/v1/candidates/${id}/employment`).set("Authorization","Bearer token").send({company:"Acme",jobTitle:"Engineer",isCurrent:true}).expect(201);
   await request(app.getHttpServer()).post(`/api/v1/candidates/${id}/education`).set("Authorization","Bearer token").send({institution:"State University"}).expect(201);
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${id}/autofill-profile`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.id,id));
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/autofill-profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(200);
+});
+
+test("v0.8.9 Application Autofill context requires a validated active session identifier",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000",sessionId="323e4567-e89b-42d3-a456-426614174000";
+  roles=["DEVELOPER"];
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=${sessionId}`).set("Authorization","Bearer token").expect(403);
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context`).set("Authorization","Bearer token").expect(400);
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=bad`).set("Authorization","Bearer token").expect(400);
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=${sessionId}&resumeUpdatedAt=2026-07-29T00:00:00Z`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.values["candidate.email"],"person@example.com"));
+  roles=["APPLYING_MANAGER"];
 });
 
 test("v0.8 workload and bulk-assignment routes are manager-only and require idempotency",async()=>{

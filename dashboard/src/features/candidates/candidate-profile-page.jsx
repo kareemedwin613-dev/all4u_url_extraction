@@ -1,6 +1,6 @@
 import React,{useEffect,useState}from"react";
 import{Alert,Button,Card,Checkbox,Col,Empty,Flex,Form,Input,InputNumber,Modal,Row,Space,Tag,Typography}from"antd";
-import{createCandidateEducation,createCandidateEmployment,getCandidateProfile,updateCandidateEducation,updateCandidateEmployment,updateCandidateProfile}from"./candidate-profile-service.js";
+import{createCandidateEducation,createCandidateEmployment,importCandidateEmployment,updateCandidateEducation,updateCandidateEmployment,updateCandidateProfile}from"./candidate-profile-service.js";
 const{Title,Text}=Typography;
 const emptyEmployment={company:"",jobTitle:"",location:"",startDate:null,endDate:null,isCurrent:false,experienceDetails:"",displayOrder:0};
 const emptyEducation={institution:"",degree:"",fieldOfStudy:"",location:"",startDate:null,endDate:null,gpa:"",details:"",displayOrder:0};
@@ -11,7 +11,7 @@ const cleanDates=(value)=>({...value,startDate:value.startDate||null,endDate:val
 
 export function CandidateProfilePage({client,apiBaseUrl,id}){
  const[profile,setProfile]=useState(),[error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false),[editor,setEditor]=useState(null),[editForm]=Form.useForm(),[profileForm]=Form.useForm();
- const load=()=>{setError("");setProfile(undefined);getCandidateProfile(client,apiBaseUrl,id).then(setProfile).catch(x=>setError(x.message));};
+ const load=()=>{setError("");setProfile(undefined);importCandidateEmployment(client,apiBaseUrl,id).then(setProfile).catch(x=>setError(x.message));};
  useEffect(load,[client,apiBaseUrl,id]);
  useEffect(()=>{if(!profile)return;const address=profile.addresses?.find(x=>x.isPrimary)||{},links=Object.fromEntries((profile.links||[]).map(x=>[x.linkType,x.url]));profileForm.setFieldsValue({fullName:profile.fullName,firstName:profile.firstName,middleName:profile.middleName,lastName:profile.lastName,email:profile.email,phone:profile.phone,addressLine1:address.addressLine1,addressLine2:address.addressLine2,city:address.city,stateRegion:address.stateRegion,postalCode:address.postalCode,country:address.country,linkedInUrl:links.LINKEDIN,githubUrl:links.GITHUB,portfolioUrl:links.PORTFOLIO,verified:profile.reviewStatus==="VERIFIED"});},[profile,profileForm]);
  async function saveProfile(values){setBusy(true);setError("");try{const links=[["LINKEDIN",values.linkedInUrl],["GITHUB",values.githubUrl],["PORTFOLIO",values.portfolioUrl]].filter(([,url])=>url).map(([linkType,url])=>({linkType,url}));const primaryAddress={addressLine1:values.addressLine1||"",addressLine2:values.addressLine2||"",city:values.city||"",stateRegion:values.stateRegion||"",postalCode:values.postalCode||"",country:values.country||""};const next=await updateCandidateProfile(client,apiBaseUrl,id,{fullName:values.fullName,firstName:values.firstName||"",middleName:values.middleName||"",lastName:values.lastName||"",email:values.email||undefined,phone:values.phone||"",reviewStatus:values.verified?"VERIFIED":"NEEDS_REVIEW",primaryAddress,links});setProfile(next);setNotice(values.verified?"Candidate Profile verified and saved.":"Candidate Profile saved as needing review.");}catch(x){setError(x.message);}finally{setBusy(false);}}

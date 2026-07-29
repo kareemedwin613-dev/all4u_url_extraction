@@ -81,7 +81,7 @@ export function verifyResumeUpload(input, file) {
 
 export function manualResumeFallback(input, code = "MANUAL_ATTACHMENT_REQUIRED") {
   try { input?.scrollIntoView?.({ block: "center", behavior: "smooth" }); input?.focus?.({ preventScroll: true }); } catch {}
-  return { status: "MANUAL_REQUIRED", code, message: "Use the highlighted job-site file chooser and select the Resume manually." };
+  return { status: "MANUAL_REQUIRED", code, message: "Open the job site's Application form or Application tab, then retry. If automatic attachment is unsupported, use the highlighted file chooser manually." };
 }
 
 function decodeBase64(value) {

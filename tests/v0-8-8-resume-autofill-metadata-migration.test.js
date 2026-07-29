@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-const sql=(await readFile(new URL("../supabase/migrations/202607280023_v0_8_8_resume_autofill_metadata.sql",import.meta.url),"utf8")).toLowerCase();
+const sql=(await readFile(new URL("../supabase/migrations/202607290024_v0_8_8_resume_autofill_metadata_correction.sql",import.meta.url),"utf8")).toLowerCase();
 
 test("v0.8.8 keeps the Resume as the only Candidate metadata record",()=>{
   assert.match(sql,/alter table public\.resumes/);
-  for(const column of ["candidate_first_name","candidate_middle_name","candidate_last_name","address_line_1","address_city","linkedin_url","github_url","portfolio_url","profile_review_status","profile_reviewed_by","profile_reviewed_at"])assert.match(sql,new RegExp(`add column ${column}`));
+  for(const column of ["candidate_first_name","candidate_middle_name","candidate_last_name","address_line_1","address_city","linkedin_url","github_url","portfolio_url","profile_review_status","profile_reviewed_by","profile_reviewed_at"])assert.match(sql,new RegExp(`add column(?: if not exists)? ${column}`));
   for(const table of ["candidate_profiles","candidate_addresses","candidate_employment_history","candidate_education","candidate_certifications","candidate_links"])assert.doesNotMatch(sql,new RegExp(`create table public\\.${table}`));
   assert.doesNotMatch(sql,/create table public\.candidates\b/);
 });

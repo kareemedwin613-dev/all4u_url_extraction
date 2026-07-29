@@ -3,32 +3,61 @@
 -- Resume remains the canonical record and structured_content keeps repeatable
 -- employment, education, and certification metadata.
 
-alter table public.resumes
-  add column candidate_first_name text check (candidate_first_name is null or char_length(candidate_first_name) <= 100),
-  add column candidate_middle_name text check (candidate_middle_name is null or char_length(candidate_middle_name) <= 100),
-  add column candidate_last_name text check (candidate_last_name is null or char_length(candidate_last_name) <= 100),
-  add column address_line_1 text check (address_line_1 is null or char_length(address_line_1) <= 200),
-  add column address_line_2 text check (address_line_2 is null or char_length(address_line_2) <= 200),
-  add column address_city text check (address_city is null or char_length(address_city) <= 120),
-  add column address_state_region text check (address_state_region is null or char_length(address_state_region) <= 120),
-  add column address_postal_code text check (address_postal_code is null or char_length(address_postal_code) <= 40),
-  add column address_country text check (address_country is null or char_length(address_country) <= 120),
-  add column linkedin_url text check (linkedin_url is null or (linkedin_url ~* '^https://[^[:space:]]+$' and char_length(linkedin_url) <= 2000)),
-  add column github_url text check (github_url is null or (github_url ~* '^https://[^[:space:]]+$' and char_length(github_url) <= 2000)),
-  add column portfolio_url text check (portfolio_url is null or (portfolio_url ~* '^https://[^[:space:]]+$' and char_length(portfolio_url) <= 2000)),
-  add column profile_review_status text not null default 'NEEDS_REVIEW' check (profile_review_status in ('NEEDS_REVIEW','VERIFIED')),
-  add column profile_reviewed_by uuid references auth.users(id) on delete set null,
-  add column profile_reviewed_at timestamptz,
-  add column profile_schema_version integer not null default 1 check (profile_schema_version between 1 and 100),
-  add constraint resumes_profile_review_check check (
-    (profile_review_status='NEEDS_REVIEW' and profile_reviewed_by is null and profile_reviewed_at is null)
-    or (profile_review_status='VERIFIED' and profile_reviewed_by is not null and profile_reviewed_at is not null)
-  );
+-- Migration 202607280023 was briefly deployed with separate candidate child
+-- tables. Remove that abandoned model before installing the Resume-owned one.
+drop trigger if exists resumes_create_candidate_profile_v088 on public.resumes;
+drop function if exists public.ensure_candidate_profile_for_resume_v088() cascade;
+drop function if exists public.candidate_profile_actor_can_view(uuid) cascade;
+drop function if exists public.get_candidate_autofill_profile_v088(uuid);
+drop function if exists public.update_candidate_profile_v088(uuid,text,text,text,text,text,text,text,jsonb,jsonb);
+drop function if exists public.create_candidate_employment_v088(uuid,text,text,text,date,date,boolean,text,integer);
+drop function if exists public.update_candidate_employment_v088(uuid,uuid,text,text,text,date,date,boolean,text,integer);
+drop function if exists public.create_candidate_education_v088(uuid,text,text,text,text,date,date,text,text,integer);
+drop function if exists public.update_candidate_education_v088(uuid,uuid,text,text,text,text,date,date,text,text,integer);
 
-create index resumes_profile_review_status_idx on public.resumes(profile_review_status,updated_at desc);
+drop table if exists public.candidate_links cascade;
+drop table if exists public.candidate_certifications cascade;
+drop table if exists public.candidate_education cascade;
+drop table if exists public.candidate_employment_history cascade;
+drop table if exists public.candidate_addresses cascade;
+drop table if exists public.candidate_profiles cascade;
+
+alter table public.resumes
+  add column if not exists candidate_first_name text check (candidate_first_name is null or char_length(candidate_first_name) <= 100),
+  add column if not exists candidate_middle_name text check (candidate_middle_name is null or char_length(candidate_middle_name) <= 100),
+  add column if not exists candidate_last_name text check (candidate_last_name is null or char_length(candidate_last_name) <= 100),
+  add column if not exists address_line_1 text check (address_line_1 is null or char_length(address_line_1) <= 200),
+  add column if not exists address_line_2 text check (address_line_2 is null or char_length(address_line_2) <= 200),
+  add column if not exists address_city text check (address_city is null or char_length(address_city) <= 120),
+  add column if not exists address_state_region text check (address_state_region is null or char_length(address_state_region) <= 120),
+  add column if not exists address_postal_code text check (address_postal_code is null or char_length(address_postal_code) <= 40),
+  add column if not exists address_country text check (address_country is null or char_length(address_country) <= 120),
+  add column if not exists linkedin_url text check (linkedin_url is null or (linkedin_url ~* '^https://[^[:space:]]+$' and char_length(linkedin_url) <= 2000)),
+  add column if not exists github_url text check (github_url is null or (github_url ~* '^https://[^[:space:]]+$' and char_length(github_url) <= 2000)),
+  add column if not exists portfolio_url text check (portfolio_url is null or (portfolio_url ~* '^https://[^[:space:]]+$' and char_length(portfolio_url) <= 2000)),
+  add column if not exists profile_review_status text not null default 'NEEDS_REVIEW' check (profile_review_status in ('NEEDS_REVIEW','VERIFIED')),
+  add column if not exists profile_reviewed_by uuid references auth.users(id) on delete set null,
+  add column if not exists profile_reviewed_at timestamptz,
+  add column if not exists profile_schema_version integer not null default 1 check (profile_schema_version between 1 and 100);
+
+alter table public.resumes drop constraint if exists resumes_profile_review_check;
+alter table public.resumes add constraint resumes_profile_review_check check (
+  (profile_review_status='NEEDS_REVIEW' and profile_reviewed_by is null and profile_reviewed_at is null)
+  or (profile_review_status='VERIFIED' and profile_reviewed_by is not null and profile_reviewed_at is not null)
+);
+
+create index if not exists resumes_profile_review_status_idx on public.resumes(profile_review_status,updated_at desc);
 
 comment on column public.resumes.profile_review_status is 'Human review state for Resume metadata used by autofill. Resume extraction never sets VERIFIED.';
 comment on column public.resumes.structured_content is 'Versioned Resume metadata. Version 3 supports professional_experience, education, and certifications as ordered arrays; older versions remain readable.';
+
+-- v0.4 limited this field to versions 1 and 2. The Resume-owned autofill
+-- document is version 3, so widen the constraint before converting any rows.
+alter table public.resumes
+  drop constraint if exists resumes_structured_schema_version_check;
+alter table public.resumes
+  add constraint resumes_structured_schema_version_check
+  check (structured_schema_version in (1,2,3));
 
 -- Upgrade the structured document shape without attempting to infer schools or
 -- certifications. Preserve the old free-text education for manual review.
