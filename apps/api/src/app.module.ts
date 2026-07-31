@@ -16,6 +16,7 @@ import { PlatformModule } from "./platform/platform.module.js";
 import { ApplicationBatchesModule } from "./application-batches/application-batches.module.js";
 import { BulkAssignmentModule } from "./bulk-assignment/bulk-assignment.module.js";
 import { CandidateModule } from "./candidates/candidate.module.js";
+import { ResumeAnswerModule } from "./resume-answers/resume-answer.module.js";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { CandidateModule } from "./candidates/candidate.module.js";
     ApplicationBatchesModule,
     BulkAssignmentModule,
     CandidateModule,
+    ResumeAnswerModule,
   ],
   providers: [
     JsonLogger,

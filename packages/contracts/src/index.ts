@@ -323,5 +323,13 @@ export interface ApplicationAutofillContext {
       | "candidate.linkedInUrl" | "candidate.githubUrl" | "candidate.portfolioUrl" | "candidate.summary",
     string
   >>;
+  applicationAnswers: ResumeApplicationAnswerSnapshot[];
 }
 export interface ApplicationAutofillContextResponse extends RequestMetadata { data: ApplicationAutofillContext; }
+
+export type ResumeApplicationAnswerKey = "authorized_to_work"|"requires_sponsorship"|"willing_to_relocate"|"available_start_date"|"desired_salary"|"years_of_experience"|"remote_work_preference";
+export type ResumeApplicationAnswerType = "BOOLEAN"|"NUMBER"|"DATE"|"TEXT"|"SINGLE_SELECT";
+export type ResumeApplicationAnswerReviewStatus = "NEEDS_REVIEW"|"VERIFIED";
+export interface ResumeApplicationAnswerSnapshot { answerKey:ResumeApplicationAnswerKey;questionPatterns:string[];answerType:ResumeApplicationAnswerType;answerValue:boolean|number|string;reviewedAt:string; }
+export interface ResumeApplicationAnswer extends ResumeApplicationAnswerSnapshot { id:string;resumeId:string;reviewStatus:ResumeApplicationAnswerReviewStatus;reviewedBy:string|null;reviewerName:string|null;active:boolean;createdBy:string;creatorName:string|null;createdAt:string;updatedAt:string; }
+export interface SaveResumeApplicationAnswerRequest { answerKey:ResumeApplicationAnswerKey;questionPatterns:string[];answerType:ResumeApplicationAnswerType;answerValue:boolean|number|string;reviewStatus:ResumeApplicationAnswerReviewStatus;active:boolean; }

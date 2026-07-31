@@ -23,6 +23,7 @@ const { ApplicationService } = await import("../src/applications/application.ser
 const { ApplicationBatchesService } = await import("../src/application-batches/application-batches.service.js");
 const { BulkAssignmentService } = await import("../src/bulk-assignment/bulk-assignment.service.js");
 const { CandidateService } = await import("../src/candidates/candidate.service.js");
+const { ResumeAnswerService } = await import("../src/resume-answers/resume-answer.service.js");
 const { PlatformService, TailoringService } = await import("../src/platform/platform.service.js");
 
 let app: INestApplication, mode: "create"|"duplicate"|"identity"|"rls" = "create", active = true, roles = ["APPLYING_MANAGER"];
@@ -85,6 +86,11 @@ before(async () => {
       update:async(_user:any,id:string,body:any)=>({id,fullName:body.fullName,reviewStatus:body.reviewStatus}),
       employment:async(_user:any,id:string,body:any)=>({id:"employment-1",profile:{id,employment:[body]}}),
       education:async(_user:any,id:string,body:any)=>({id:"education-1",profile:{id,education:[body]}}),
+    })
+    .overrideProvider(ResumeAnswerService).useValue({
+      list:async()=>[{id:"answer-1",answerKey:"authorized_to_work",answerValue:true}],
+      save:async(_user:any,_resumeId:string,body:any,id?:string)=>({id:id||"answer-1",...body}),
+      archive:async()=>({id:"answer-1",active:false}),
     })
     .overrideProvider(PlatformService).useValue({roles:async()=>[{code:"ADMIN"}],users:async()=>({items:[],page:1,pageSize:25,total:0,totalPages:0}),user:async()=>({id:"user-1"}),role:async()=>["ADMIN"],status:async()=>({id:"user-1",status:"INACTIVE"}),profile:async()=>({id:"user-1",full_name:"Name"}),overview:async()=>({jobCounts:{total:1}})})
     .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
@@ -193,6 +199,20 @@ test("v0.8.9 Application Autofill context requires a validated active session id
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context`).set("Authorization","Bearer token").expect(400);
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=bad`).set("Authorization","Bearer token").expect(400);
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=${sessionId}&resumeUpdatedAt=2026-07-29T00:00:00Z`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.values["candidate.email"],"person@example.com"));
+  roles=["APPLYING_MANAGER"];
+});
+
+test("v0.9.0 Resume Answer Library is manager-only and validates fixed answer contracts",async()=>{
+  const resumeId="123e4567-e89b-42d3-a456-426614174000",answerId="223e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].answerKey,"authorized_to_work"));
+  const valid={answerKey:"authorized_to_work",questionPatterns:["Are you legally authorized to work?"],answerType:"BOOLEAN",answerValue:true,reviewStatus:"VERIFIED",active:true};
+  await request(app.getHttpServer()).post(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").send(valid).expect(201);
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${resumeId}/application-answers/${answerId}`).set("Authorization","Bearer token").send({...valid,unexpected:true}).expect(400);
+  await request(app.getHttpServer()).post(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").send({...valid,answerKey:"race"}).expect(400);
+  await request(app.getHttpServer()).delete(`/api/v1/resumes/${resumeId}/application-answers/${answerId}`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.active,false));
   roles=["APPLYING_MANAGER"];
 });
 

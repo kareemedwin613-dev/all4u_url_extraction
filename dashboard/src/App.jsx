@@ -113,6 +113,7 @@ import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-pa
 import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage, BulkAssignmentWizardPage } from "./features/bulk-assignment/bulk-assignment-pages.jsx";
 import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
 import { CandidateProfilePage } from "./features/candidates/candidate-profile-page.jsx";
+import { ResumeAnswerLibrary } from "./features/resume-answers/resume-answer-library.jsx";
 import {
   DataPagination,
   EmptyState,
@@ -1106,6 +1107,8 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
               items={[
                 ["Candidate email", resume.candidate_email || "Not recorded"],
                 ["Candidate phone", resume.candidate_phone || "Not recorded"],
+                ["Autofill metadata", formatLabel(resume.profile_review_status)],
+                ["Metadata reviewed at", formatDate(resume.profile_reviewed_at)],
                 [
                   "Primary category",
                   categoryName(categories, resume.primary_category_id),
@@ -1152,6 +1155,11 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
         label: "Original text",
         children: <div className="long-text">{resume.resume_text}</div>,
       },
+      ...(hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)?[{
+        key:"answers",
+        label:"Answer Library",
+        children:<ResumeAnswerLibrary client={client} apiBaseUrl={apiBaseUrl} resumeId={resume.id}/>,
+      }]:[]),
     ];
   return (
     <div className="page">
@@ -1173,7 +1181,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       <TabbedSections
         items={tabs}
         extra={
-          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Review Autofill Metadata</Button>}</Space>
+          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Resume Metadata</Button>}</Space>
         }
       />
     </div>

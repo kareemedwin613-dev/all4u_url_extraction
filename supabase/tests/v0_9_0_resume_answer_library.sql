@@ -1,0 +1,16 @@
+begin;
+select plan(12);
+select has_table('public','resume_application_answers');
+select col_is_pk('public','resume_application_answers','id');
+select fk_ok('public','resume_application_answers','resume_id','public','resumes','id');
+select has_column('public','resume_application_answers','answer_key');
+select has_column('public','resume_application_answers','answer_value');
+select has_column('public','resume_application_answers','review_status');
+select has_index('public','resume_application_answers','resume_application_answers_resume_active_idx');
+select has_function('public','list_resume_application_answers_v090',array['uuid']);
+select has_function('public','save_resume_application_answer_v090',array['uuid','uuid','text','text[]','text','jsonb','text','boolean']);
+select has_function('public','archive_resume_application_answer_v090',array['uuid','uuid']);
+select ok((select relrowsecurity from pg_class where oid='public.resume_application_answers'::regclass),'Resume answer library RLS enabled');
+select is((select count(*)::integer from pg_policies where schemaname='public' and tablename='resume_application_answers'),1,'only the manager read policy is exposed');
+select * from finish();
+rollback;
