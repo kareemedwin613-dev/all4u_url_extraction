@@ -26,6 +26,13 @@ test("employment and education mutations send allowlisted RPC arguments",async()
   assert.equal("created_by" in calls[0].args,false);
 });
 
+test("structured Resume save is one request-scoped atomic RPC",async()=>{
+  const{calls,service}=fixture();
+  await service.structured(user as any,resumeId,{summary:" Summary ",skills:" SQL, Python ",employment:[{id:"employment-1",company:"Acme",jobTitle:"Engineer",isCurrent:true}],education:[],certifications:[]}as any);
+  assert.equal(calls.length,1);assert.equal(calls[0].name,"update_resume_structured_content_v091");
+  assert.equal(calls[0].args.p_summary,"Summary");assert.equal(calls[0].args.p_employment[0].company,"Acme");
+});
+
 test("database policy failures become safe API errors",async()=>{
   const service=new CandidateService({forUser:()=>({rpc:async()=>({data:null,error:{code:"42501",message:"permission denied for Resume metadata"}})})}as any);
   await assert.rejects(()=>service.get(user as any,resumeId),(error:any)=>error.code==="CANDIDATE_PROFILE_ACCESS_DENIED"&&error.status===403);

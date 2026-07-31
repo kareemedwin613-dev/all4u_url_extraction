@@ -49,3 +49,29 @@ export class CandidateEducationDto {
   @IsOptional() @IsString() @MaxLength(10000) details?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1000) displayOrder = 0;
 }
+
+export class StructuredCertificationDto {
+  @IsOptional() @IsString() @MaxLength(100) id?: string;
+  @IsString() @MaxLength(240) name!: string;
+  @IsOptional() @IsString() @MaxLength(240) issuer?: string;
+  @IsOptional() @IsISO8601({ strict: true }) issuedDate?: string | null;
+  @IsOptional() @IsISO8601({ strict: true }) expirationDate?: string | null;
+  @IsOptional() @IsString() @MaxLength(240) credentialId?: string;
+  @IsOptional() @IsUrl({ protocols: ["https"], require_protocol: true, require_valid_protocol: true }) @MaxLength(2000) credentialUrl?: string;
+}
+
+export class StructuredEmploymentDto extends CandidateEmploymentDto {
+  @IsOptional() @IsString() @MaxLength(100) id?: string;
+}
+
+export class StructuredEducationDto extends CandidateEducationDto {
+  @IsOptional() @IsString() @MaxLength(100) id?: string;
+}
+
+export class UpdateResumeStructuredContentDto {
+  @IsOptional() @IsString() @MaxLength(30000) summary?: string;
+  @IsOptional() @IsString() @MaxLength(30000) skills?: string;
+  @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StructuredEmploymentDto) employment!: StructuredEmploymentDto[];
+  @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => StructuredEducationDto) education!: StructuredEducationDto[];
+  @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StructuredCertificationDto) certifications!: StructuredCertificationDto[];
+}

@@ -1,14 +1,18 @@
 import { Type } from "class-transformer";
-import { ArrayMaxSize, IsArray, IsBoolean, IsDefined, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, Validate, ValidatorConstraint, type ValidationArguments, type ValidatorConstraintInterface } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDefined, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, Validate, ValidateNested, ValidatorConstraint, type ValidationArguments, type ValidatorConstraintInterface } from "class-validator";
 
-export const RESUME_ANSWER_KEYS = ["authorized_to_work","requires_sponsorship","willing_to_relocate","available_start_date","desired_salary","years_of_experience","remote_work_preference"] as const;
+export const RESUME_ANSWER_KEYS = ["authorized_to_work","requires_sponsorship","willing_to_relocate","available_start_date","desired_salary","years_of_experience","remote_work_preference","gender_identity","race_ethnicity","veteran_status"] as const;
 export const RESUME_ANSWER_TYPES = ["BOOLEAN","NUMBER","DATE","TEXT","SINGLE_SELECT"] as const;
 const prohibited=/\b(race|racial|ethnicity|ethnic|gender|sex|sexual|orientation|religion|religious|disability|disabled|medical|veteran|military status|criminal|conviction|arrest|marital|pregnan\w*|genetic)\b/i;
 
 @ValidatorConstraint({name:"safeQuestionPatterns",async:false})
 class SafeQuestionPatterns implements ValidatorConstraintInterface{
-  validate(value:unknown){return Array.isArray(value)&&value.every(item=>typeof item==="string"&&!prohibited.test(item));}
-  defaultMessage(){return"Question patterns cannot contain prohibited sensitive categories.";}
+  validate(value:unknown,args:ValidationArguments){
+    const key=(args.object as SaveResumeAnswerDto).answerKey;
+    const allowed:Partial<Record<typeof RESUME_ANSWER_KEYS[number],RegExp>>={gender_identity:/\b(gender|sex|self.identif)/i,race_ethnicity:/\b(race|racial|ethnicity|ethnic)/i,veteran_status:/\b(veteran|military status|military service)/i};
+    return Array.isArray(value)&&value.every(item=>typeof item==="string"&&(allowed[key]?allowed[key]!.test(item):!prohibited.test(item)));
+  }
+  defaultMessage(){return"Question patterns do not match the approved answer category.";}
 }
 
 @ValidatorConstraint({name:"typedResumeAnswer",async:false})
@@ -24,6 +28,11 @@ export class SaveResumeAnswerDto {
   @IsDefined() @Validate(TypedResumeAnswer) answerValue!: unknown;
   @IsIn(["NEEDS_REVIEW","VERIFIED"]) reviewStatus!: "NEEDS_REVIEW"|"VERIFIED";
   @IsOptional() @IsBoolean() active = true;
+}
+
+export class SaveResumeAnswersBulkDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(10) @ValidateNested({each:true}) @Type(()=>SaveResumeAnswerDto)
+  answers!: SaveResumeAnswerDto[];
 }
 
 // Kept separate so numeric coercion is never applied to answerValue.

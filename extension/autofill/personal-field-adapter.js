@@ -18,6 +18,8 @@ const FIELD_RULES = [
   { key: "candidate.githubUrl", autocomplete: [], pattern: /\bgithub(?:\s+(?:url|profile))?\b/i },
   { key: "candidate.portfolioUrl", autocomplete: ["url"], pattern: /\b(portfolio|personal\s+(?:site|website)|website)(?:\s+url)?\b/i },
   { key: "candidate.summary", autocomplete: [], pattern: /\b(summary|professional\s+profile|career\s+profile|about\s+me)\b/i },
+  { key: "candidate.currentLocation", autocomplete: [], pattern: /\b(current\s+location|candidate\s+location|location\s*\(\s*city\s*\))\b/i },
+  { key: "candidate.currentCompany", autocomplete: ["organization"], pattern: /\b(current|present|most\s+recent)\s+(company|employer)|current\s+employed\s+company\b/i },
 ];
 
 const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -76,9 +78,12 @@ export function detectPersonalFields(root = document, availableKeys = FIELD_RULE
     }
     if (best) candidates.push({ element, ...best });
   }
-  const selected = new Map();
+  const selected = new Map(), usedElements = new Set();
   for (const candidate of candidates.sort((a, b) => b.confidence - a.confidence)) {
-    if (!selected.has(candidate.rule.key)) selected.set(candidate.rule.key, candidate);
+    if (!selected.has(candidate.rule.key) && !usedElements.has(candidate.element)) {
+      selected.set(candidate.rule.key, candidate);
+      usedElements.add(candidate.element);
+    }
   }
   let sequence = 0;
   return [...selected.values()].map(({ element, rule, confidence }) => {

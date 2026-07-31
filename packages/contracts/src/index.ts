@@ -276,7 +276,7 @@ export interface CandidateAutofillProfile {
   lastName: string | null; email: string | null; phone: string | null; reviewStatus: CandidateProfileReviewStatus;
   reviewedBy: string | null; reviewedAt: string | null; createdAt: string; updatedAt: string;
   addresses: CandidateAddress[]; employment: CandidateEmployment[]; education: CandidateEducation[];
-  certifications: CandidateCertification[]; links: CandidateLink[];
+  certifications: CandidateCertification[]; links: CandidateLink[]; summary?: string; skills?: string;
   educationLegacyText?: string;
 }
 export interface CandidateAutofillProfileResponse extends RequestMetadata { data: CandidateAutofillProfile; }
@@ -293,6 +293,12 @@ export interface CandidateEmploymentRequest {
 export interface CandidateEducationRequest {
   institution: string; degree?: string; fieldOfStudy?: string; location?: string;
   startDate?: string | null; endDate?: string | null; gpa?: string; details?: string; displayOrder?: number;
+}
+export interface UpdateResumeStructuredContentRequest {
+  summary?: string; skills?: string;
+  employment: Array<CandidateEmploymentRequest & { id?: string }>;
+  education: Array<CandidateEducationRequest & { id?: string }>;
+  certifications: Array<Omit<CandidateCertification, "source" | "id"> & { id?: string }>;
 }
 
 /** Canonical v0.8.9 names; Candidate-prefixed names remain compatibility aliases. */
@@ -311,7 +317,7 @@ export type ResumeAutofillEducationRequest = CandidateEducationRequest;
 export interface ApplicationAutofillContext {
   applicationId: string;
   sessionId: string;
-  job: { company: string; jobTitle: string; sourceUrl: string };
+  job: { company: string; jobTitle: string; sourceUrl: string; salaryMin:number|null;salaryMax:number|null;salaryCurrency:string|null;salaryPeriod:SalaryPeriod|null;salaryText:string|null };
   resumeId: string;
   resumeUpdatedAt: string;
   profileSchemaVersion: number;
@@ -320,16 +326,32 @@ export interface ApplicationAutofillContext {
     | "candidate.firstName" | "candidate.middleName" | "candidate.lastName" | "candidate.fullName"
     | "candidate.email" | "candidate.phone" | "candidate.addressLine1" | "candidate.addressLine2"
       | "candidate.city" | "candidate.state" | "candidate.postalCode" | "candidate.country"
-      | "candidate.linkedInUrl" | "candidate.githubUrl" | "candidate.portfolioUrl" | "candidate.summary",
+      | "candidate.linkedInUrl" | "candidate.githubUrl" | "candidate.portfolioUrl" | "candidate.summary"
+      | "candidate.currentLocation" | "candidate.currentCompany",
     string
   >>;
   applicationAnswers: ResumeApplicationAnswerSnapshot[];
 }
 export interface ApplicationAutofillContextResponse extends RequestMetadata { data: ApplicationAutofillContext; }
 
-export type ResumeApplicationAnswerKey = "authorized_to_work"|"requires_sponsorship"|"willing_to_relocate"|"available_start_date"|"desired_salary"|"years_of_experience"|"remote_work_preference";
+export type ResumeApplicationAnswerKey = "authorized_to_work"|"requires_sponsorship"|"willing_to_relocate"|"available_start_date"|"desired_salary"|"years_of_experience"|"remote_work_preference"|"gender_identity"|"race_ethnicity"|"veteran_status";
 export type ResumeApplicationAnswerType = "BOOLEAN"|"NUMBER"|"DATE"|"TEXT"|"SINGLE_SELECT";
 export type ResumeApplicationAnswerReviewStatus = "NEEDS_REVIEW"|"VERIFIED";
 export interface ResumeApplicationAnswerSnapshot { answerKey:ResumeApplicationAnswerKey;questionPatterns:string[];answerType:ResumeApplicationAnswerType;answerValue:boolean|number|string;reviewedAt:string; }
 export interface ResumeApplicationAnswer extends ResumeApplicationAnswerSnapshot { id:string;resumeId:string;reviewStatus:ResumeApplicationAnswerReviewStatus;reviewedBy:string|null;reviewerName:string|null;active:boolean;createdBy:string;creatorName:string|null;createdAt:string;updatedAt:string; }
 export interface SaveResumeApplicationAnswerRequest { answerKey:ResumeApplicationAnswerKey;questionPatterns:string[];answerType:ResumeApplicationAnswerType;answerValue:boolean|number|string;reviewStatus:ResumeApplicationAnswerReviewStatus;active:boolean; }
+export interface SaveResumeApplicationAnswersRequest { answers:SaveResumeApplicationAnswerRequest[]; }
+export type StandardScreeningAutofillKey = `screening.${ResumeApplicationAnswerKey}`;
+export type StandardAutofillControlType = "input"|"select"|"radio"|"combobox";
+export interface StandardScreeningAutofillField {
+  fieldId:string;
+  key:StandardScreeningAutofillKey;
+  answerKey:ResumeApplicationAnswerKey;
+  answerType:ResumeApplicationAnswerType;
+  label:string;
+  confidence:number;
+  readiness:"READY"|"REVIEW_REQUIRED";
+  controlType:StandardAutofillControlType;
+  requiresReview:boolean;
+}
+export interface StandardAutofillFillResult { fieldId:string;key:string;status:"VERIFIED"|"FAILED"|"SKIPPED";code:string; }

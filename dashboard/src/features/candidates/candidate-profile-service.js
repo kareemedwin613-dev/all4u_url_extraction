@@ -3,6 +3,7 @@ const request=async(client,baseUrl,path,options={})=>(await authenticatedApiRequ
 export const getCandidateProfile=(client,baseUrl,id)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-profile`);
 export const importCandidateEmployment=(client,baseUrl,id)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-employment/import`,{method:"POST"});
 export const updateCandidateProfile=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-profile`,{method:"PATCH",body});
+export const updateResumeStructuredContent=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/structured-content`,{method:"PATCH",body});
 export const createCandidateEmployment=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-employment`,{method:"POST",body});
 export const updateCandidateEmployment=(client,baseUrl,id,employmentId,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-employment/${encodeURIComponent(employmentId)}`,{method:"PATCH",body});
 export const createCandidateEducation=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-education`,{method:"POST",body});

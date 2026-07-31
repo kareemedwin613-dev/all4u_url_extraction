@@ -37,6 +37,13 @@ test("v0.8.9 recognizes common ATS first and last name identifiers without visib
   assert.ok(fields.every(({ readiness }) => readiness === "READY"));
 });
 
+test("v0.9.1 recognizes current location and current employer without reusing one control",()=>{
+  const location=field({label:"Current location"}),company=field({label:"Current company",autocomplete:"organization"});
+  const fields=detectPersonalFields(root([location,company]),["candidate.currentLocation","candidate.currentCompany"]);
+  assert.deepEqual(fields.map(({key})=>key).sort(),["candidate.currentCompany","candidate.currentLocation"]);
+  assert.equal(new Set(fields.map(item=>item.fieldId)).size,2);
+});
+
 test("v0.8.9 reads accessible labels referenced with aria-labelledby", () => {
   const ownerDocument = { getElementById: (id) => id === "given-label" ? { textContent: "Given name" } : null };
   const first = field({ attributes: { "aria-labelledby": "given-label" }, ownerDocument });

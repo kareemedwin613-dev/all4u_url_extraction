@@ -42,6 +42,7 @@ import {
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
+import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobs } from "./services/job-read-service.js";
 import { getResume, listResumes } from "./services/resume-read-service.js";
@@ -1181,7 +1182,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       <TabbedSections
         items={tabs}
         extra={
-          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Resume Metadata</Button>}</Space>
+          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}</Space>
         }
       />
     </div>
@@ -1217,6 +1218,7 @@ export function App({ client, apiBaseUrl }) {
     [roles, setRoles] = useState([]),
     [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
     [reload, setReload] = useState(0),
+    sessionRef = useRef(undefined),
     jobsBack = useRef("#/jobs"),
     resumesBack = useRef("#/resumes");
   const reloadAccess = useCallback(async () => {
@@ -1233,12 +1235,23 @@ export function App({ client, apiBaseUrl }) {
   }, [client, apiBaseUrl, session]);
   useEffect(() => {
     getSession(client)
-      .then(setSession)
-      .catch(() => setSession(null));
-    const { data } = client.auth.onAuthStateChange((_event, next) => {
+      .then((next) => {
+        sessionRef.current = next;
+        setSession(next);
+      })
+      .catch(() => {
+        sessionRef.current = null;
+        setSession(null);
+      });
+    const { data } = client.auth.onAuthStateChange((event, next) => {
+      const decision = authStateDecision(event, sessionRef.current, next);
+      if (!decision.apply) return;
+      sessionRef.current = next;
       setSession(next);
-      setAccess(undefined);
-      setAccessError(null);
+      if (decision.resetAccess) {
+        setAccess(undefined);
+        setAccessError(null);
+      }
     });
     const hash = () => setRoute(parseRoute(location.hash));
     addEventListener("hashchange", hash);
@@ -1298,6 +1311,7 @@ export function App({ client, apiBaseUrl }) {
     );
   const logout = async () => {
     await signOut(client);
+    sessionRef.current = null;
     setSession(null);
     setAccess(undefined);
     setCategories(null);
