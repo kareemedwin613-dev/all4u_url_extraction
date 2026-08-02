@@ -43,7 +43,6 @@ import {
 } from "./query-state.js";
 import {
   createApplication,
-  createApplicationExtensionSession,
   getApplication,
   getApplicationCounts,
   listActiveAppliers,
@@ -53,9 +52,7 @@ import {
   openApplicationResume,
   reassignApplication,
   updateApplication,
-  updateApplicationExtensionSession,
 } from "./application-service.js";
-import { handoffApplicationSession } from "./extension-bridge.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
 
@@ -321,7 +318,6 @@ export function ApplicationsPage({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [selectedIds, setSelectedIds] = useState([]),
-    [extensionBusy, setExtensionBusy] = useState(""),
     [localReload, setLocalReload] = useState(0),
     [cursorStack, setCursorStack] = useState([null]),
     [pageIndex, setPageIndex] = useState(0),
@@ -367,32 +363,11 @@ export function ApplicationsPage({
     const text = serializeApplicationQuery({ ...filters, ...patch });
     go(`#/applications${text ? `?${text}` : ""}`);
   };
-  async function startExtensionAction(record, action) {
-    const key = `${record.id}:${action}`;
-    setExtensionBusy(key);
-    setError("");
-    setNotice("");
-    let session;
-    try {
-      session = await createApplicationExtensionSession(client, apiBaseUrl, record.id, action);
-      await handoffApplicationSession(session);
-      await updateApplicationExtensionSession(client, apiBaseUrl, session.id, "RECEIVED");
-      setNotice(`${action === "LOAD_RESUME" ? "Resume loading" : "Autofill"} context sent to the extension.`);
-    } catch (failure) {
-      if (session?.id) await updateApplicationExtensionSession(client, apiBaseUrl, session.id, "FAILED", failure.code === "EXTENSION_NOT_INSTALLED" ? "EXTENSION_NOT_INSTALLED" : "HANDOFF_FAILED").catch(() => {});
-      setError(failure.message || "The extension handoff could not be completed.");
-    } finally {
-      setExtensionBusy("");
-    }
-  }
   const actionColumn = {
     title: "Actions",
     key: "action",
     fixed: "right",
-    render: (_, record) => {
-      const eligible = Boolean(safeExternalUrl(record.source_url) && record.resume_id && !["COMPLETED","CANCELLED"].includes(record.work_status) && !["REJECTED","WITHDRAWN","CLOSED"].includes(record.application_status));
-      return <Space size="small"><Button type="link" href={`#/applications/${record.id}`}>View</Button><Button size="small" disabled={!eligible} loading={extensionBusy===`${record.id}:LOAD_RESUME`} onClick={()=>startExtensionAction(record,"LOAD_RESUME")}>Load Resume</Button><Button size="small" type="primary" disabled={!eligible} loading={extensionBusy===`${record.id}:AUTOFILL`} onClick={()=>startExtensionAction(record,"AUTOFILL")}>Autofill</Button></Space>;
-    },
+    render: (_, record) => <Button type="link" href={`#/applications/${record.id}`}>View</Button>,
   };
   const numberColumn = {
     title: "Application #",

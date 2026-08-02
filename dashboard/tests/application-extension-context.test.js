@@ -3,11 +3,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { dashboardBridgeTypes, handoffApplicationSession } from "../src/features/applications/extension-bridge.js";
 
-test("dashboard Application list exposes both reviewed extension actions",async()=>{
+test("dashboard Application list leaves Resume loading and Autofill to the extension",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  for(const text of ["Load Resume","Autofill","createApplicationExtensionSession","handoffApplicationSession","EXTENSION_NOT_INSTALLED"])assert.match(source,new RegExp(text));
-  assert.match(source,/updateApplicationExtensionSession/);
-  assert.match(source,/REJECTED.*WITHDRAWN.*CLOSED/);
+  assert.doesNotMatch(source,/Load Resume|Autofill|createApplicationExtensionSession|handoffApplicationSession|EXTENSION_NOT_INSTALLED/);
+  assert.match(source,/href={`#\/applications\/\$\{record\.id\}`}>View/);
 });
 
 test("dashboard bridge resolves only the matching same-origin extension acknowledgement",async()=>{
