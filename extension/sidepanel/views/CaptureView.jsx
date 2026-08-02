@@ -117,6 +117,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   const [creatingJobs, setCreatingJobs] = useState(false);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const draftTimer = useRef(null);
+  const latestDraft = useRef(null);
   const draftKey = `capture-current:${userId || "anonymous"}`;
   const jobCategoryValue = Form.useWatch("jobCategory", form);
 
@@ -127,6 +128,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       .then((stored) => {
         const draft = stored[draftKey];
         if (cancelled || !draft?.formValues) return;
+        latestDraft.current = draft;
         form.setFieldsValue({ ...DEFAULT_VALUES, ...draft.formValues });
         setCaptureMethod(draft.captureMethod || "manual");
         setConfidence(draft.confidence || "low");
@@ -137,6 +139,8 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
     return () => {
       cancelled = true;
       clearTimeout(draftTimer.current);
+      const pending = latestDraft.current;
+      if (pending) chrome.storage.local.set({ [draftKey]: pending }).catch(() => {});
     };
   }, [draftKey, form]);
 
@@ -154,23 +158,33 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   );
 
   function saveDraft(values = form.getFieldsValue()) {
-    return chrome.storage.local.set({
-      [draftKey]: {
-        version: 1,
-        formValues: values,
-        captureMethod,
-        confidence,
-        activeUrl: activeUrl || values.sourceUrl || "",
-        urlEditable,
-        updatedAt: new Date().toISOString(),
-      },
-    });
+    const draft = {
+      version: 1,
+      formValues: values,
+      captureMethod,
+      confidence,
+      activeUrl: activeUrl || values.sourceUrl || "",
+      urlEditable,
+      updatedAt: new Date().toISOString(),
+    };
+    latestDraft.current = draft;
+    return chrome.storage.local.set({ [draftKey]: draft });
   }
 
   function scheduleDraftSave(_changedValues, allValues) {
     clearTimeout(draftTimer.current);
+    const draft = {
+      version: 1,
+      formValues: allValues,
+      captureMethod,
+      confidence,
+      activeUrl: activeUrl || allValues.sourceUrl || "",
+      urlEditable,
+      updatedAt: new Date().toISOString(),
+    };
+    latestDraft.current = draft;
     draftTimer.current = setTimeout(() => {
-      saveDraft(allValues).catch(() => {});
+      chrome.storage.local.set({ [draftKey]: draft }).catch(() => {});
     }, 150);
   }
 
@@ -205,6 +219,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
 
   function resetCapture() {
     clearTimeout(draftTimer.current);
+    latestDraft.current = null;
     form.resetFields();
     setCaptureMethod("manual");
     setConfidence("low");
@@ -277,8 +292,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       }
       const nextActiveUrl = normalizeUrl(d.sourceUrl) || d.sourceUrl;
       setActiveUrl(nextActiveUrl);
-      await chrome.storage.local.set({
-        [draftKey]: {
+      const extractedDraft = {
           version: 1,
           formValues: form.getFieldsValue(),
           captureMethod: CAPTURE_METHOD_MAP[d.captureMethod] || "manual",
@@ -286,8 +300,9 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
           activeUrl: nextActiveUrl || "",
           urlEditable: false,
           updatedAt: new Date().toISOString(),
-        },
-      });
+      };
+      latestDraft.current = extractedDraft;
+      await chrome.storage.local.set({ [draftKey]: extractedDraft });
       onStatus({
         message:
           "Job extracted. Review the detected salary, technology stack, industry domain, and requirements before saving.",

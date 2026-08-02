@@ -15,6 +15,12 @@ export function candidateNameFromResume(text="",filename=""){
   return base&&base.toLowerCase()!=="resume"?titleCase(base):"";
 }
 
+export function candidateNameParts(fullName=""){
+  const parts=String(fullName).trim().split(/\s+/).filter(Boolean);
+  if(parts.length<2)return{candidateFirstName:parts[0]||"",candidateMiddleName:"",candidateLastName:""};
+  return{candidateFirstName:parts[0],candidateMiddleName:parts.slice(1,-1).join(" "),candidateLastName:parts.at(-1)};
+}
+
 export function candidateContactFromResume(text=""){
   const header=clean(text).slice(0,4000);
   const email=(header.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0]||"").toLowerCase();
@@ -27,13 +33,13 @@ const domainLabel=slug=>slug?slug.split("-").map(titleCase).join(" "):"";
 
 export function inferResumeInformation(text,filename="resume.pdf"){
   const resumeText=clean(text),candidateName=candidateNameFromResume(resumeText,filename),resumeName=candidateName?candidateName+" Resume":String(filename).replace(/\.pdf$/i,"").replace(/[_-]+/g," ").trim();
-  const category=suggestControlledCategory(resumeName,resumeText),industry=detectIndustryDomain("",resumeText),contact=candidateContactFromResume(resumeText);
+  const category=suggestControlledCategory(resumeName,resumeText),industry=detectIndustryDomain("",resumeText),contact=candidateContactFromResume(resumeText),extracted=normalizeStructuredResumeV2(parseResumeSections(resumeText)),structuredContent={...extracted,education_legacy_text:Array.isArray(extracted.education)?extracted.education_legacy_text||"":extracted.education||"",education:Array.isArray(extracted.education)?extracted.education:[],certifications:Array.isArray(extracted.certifications)?extracted.certifications:[]};
   return {
-    candidateName,resumeName,...contact,
+    candidateName,...candidateNameParts(candidateName),resumeName,...contact,
     categorySlug:category.categorySlug||"",subcategorySlug:category.subcategorySlug||"",
     categoryConfidence:category.confidence,reasons:category.reasons,
     seniority:seniorityCode(suggestSeniority(resumeText.slice(0,1500))),
     skills:detectSkills(resumeText),industries:industry?[domainLabel(industry)]:[],
-    resumeText,structuredContent:normalizeStructuredResumeV2(parseResumeSections(resumeText)),
+    resumeText,structuredContent,
   };
 }

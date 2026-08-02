@@ -10,6 +10,8 @@ const validPartialDate=value=>!value||(Number.isInteger(value.year)&&value.year>
 export function validateResumeUpload(value={},file){
   const errors={},fileError=validatePdfFile(file);
   if(!String(value.candidateName||"").trim())errors.candidateName="Candidate name is required.";
+  if(!String(value.candidateFirstName||"").trim())errors.candidateFirstName="Candidate first name is required.";
+  if(!String(value.candidateLastName||"").trim())errors.candidateLastName="Candidate last name is required.";
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value.candidateEmail||"").trim()))errors.candidateEmail="Enter the candidate's email address.";
   const phoneDigits=String(value.candidatePhone||"").replace(/[^0-9]/g,"");
   if(phoneDigits.length<7||phoneDigits.length>15)errors.candidatePhone="Enter the candidate's phone number.";
@@ -19,10 +21,10 @@ export function validateResumeUpload(value={},file){
   if(!SENIORITIES.includes(value.seniority))errors.seniority="Select a valid seniority.";
   const text=String(value.resumeText||"").trim();if(text.length<100||text.length>300000)errors.resumeText="Extracted Resume text must contain 100-300,000 characters.";
   const sections=value.structuredContent;
-  if(!sections||typeof sections.summary!=="string"||typeof sections.education!=="string"||typeof sections.skills!=="string"||!Array.isArray(sections.professional_experience))errors.structuredContent="The structured Resume format is invalid.";
+  if(!sections||typeof sections.summary!=="string"||!Array.isArray(sections.education)||!Array.isArray(sections.certifications)||typeof sections.education_legacy_text!=="string"||typeof sections.skills!=="string"||!Array.isArray(sections.professional_experience))errors.structuredContent="The structured Resume format is invalid.";
   else{
     const experiences=sections.professional_experience;
-    if(!sections.summary.trim()&&!sections.education.trim()&&!sections.skills.trim()&&!experiences.length)errors.structuredContent="At least one structured Resume section is required.";
+    if(!sections.summary.trim()&&!sections.education_legacy_text.trim()&&!sections.education.length&&!sections.certifications.length&&!sections.skills.trim()&&!experiences.length)errors.structuredContent="At least one structured Resume section is required.";
     for(const [index,experience] of experiences.entries()){
       if(!String(experience?.company||"").trim()){errors.structuredContent=`Experience ${index+1} requires a company.`;break;}
       if(!String(experience?.job_title||"").trim()){errors.structuredContent=`Experience ${index+1} requires a job title.`;break;}
@@ -32,9 +34,13 @@ export function validateResumeUpload(value={},file){
       if(!validPartialDate(end)){errors.structuredContent=`Experience ${index+1} has an invalid end date.`;break;}
       if(start&&end&&!experience.is_current&&(end.year<start.year||(end.year===start.year&&start.month!=null&&end.month!=null&&end.month<start.month))){errors.structuredContent=`Experience ${index+1} ends before it starts.`;break;}
     }
+    for(const [index,education] of sections.education.entries()){if(!String(education?.institution||"").trim()){errors.structuredContent=`Education ${index+1} requires an institution.`;break;}if(!validPartialDate(education.start_date)||!validPartialDate(education.end_date)){errors.structuredContent=`Education ${index+1} has an invalid date.`;break;}}
+    for(const [index,certification] of sections.certifications.entries()){if(!String(certification?.name||"").trim()){errors.structuredContent=`Certification ${index+1} requires a name.`;break;}}
   }
   if(fileError)errors.file=fileError;
   if(!/^[0-9a-f]{64}$/.test(String(value.checksum||"")))errors.checksum="The PDF checksum is missing. Select the file again.";
+  for(const key of ["linkedInUrl","githubUrl","portfolioUrl"]){const url=String(value[key]||"").trim();if(url&&!/^https:\/\/[^\s]+$/i.test(url))errors[key]=`${key.replace("Url"," URL")} must use HTTPS.`;}
+  if(value.reviewConfirmed!==true)errors.reviewConfirmed="Review the Resume metadata and select the confirmation checkbox before saving.";
   return {valid:!Object.keys(errors).length,errors};
 }
 

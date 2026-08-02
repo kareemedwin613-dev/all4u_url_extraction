@@ -47,6 +47,11 @@ export class UpdateApplicationExtensionSessionDto{
   @IsIn(["RECEIVED","TARGET_READY","COMPLETED","CANCELLED","FAILED"])status!:string;
   @IsOptional()@IsString()@MaxLength(80)@Matches(/^[A-Z][A-Z0-9_]{0,79}$/)errorCode?:string;
 }
+export class ResumeAccessDto {}
+export class ApplicationAutofillContextQueryDto {
+  @IsUUID("4") sessionId!: string;
+  @IsOptional() @IsISO8601({ strict: true }) resumeUpdatedAt?: string;
+}
 export class BulkPreviewDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(100)@IsUUID("4",{each:true})jobDescriptionIds!:string[];}
 export class BulkCombinationDto{@IsUUID("4")job_description_id!:string;@IsUUID("4")resume_id!:string;}
 export class BulkCreateDto{

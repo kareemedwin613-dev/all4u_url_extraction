@@ -42,6 +42,7 @@ import {
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
+import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobs } from "./services/job-read-service.js";
 import { getResume, listResumes } from "./services/resume-read-service.js";
@@ -112,6 +113,8 @@ import { ApplierDirectoryPage } from "./features/applications/applier-directory-
 import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-page.jsx";
 import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage, BulkAssignmentWizardPage } from "./features/bulk-assignment/bulk-assignment-pages.jsx";
 import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
+import { CandidateProfilePage } from "./features/candidates/candidate-profile-page.jsx";
+import { ResumeAnswerLibrary } from "./features/resume-answers/resume-answer-library.jsx";
 import {
   DataPagination,
   EmptyState,
@@ -185,6 +188,7 @@ const NAV_ICONS = Object.freeze({
     "assignment-batch-detail": "assignment-batches",
     "job-detail": "jobs",
     "resume-detail": "resumes",
+    "candidate-profile": "resumes",
     "admin-user-detail": "admin-users",
   });
 
@@ -1068,7 +1072,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
   );
 }
 
-function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
+function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
   const [resume, setResume] = useState(),
     [error, setError] = useState(""),
     [fileMessage, setFileMessage] = useState("");
@@ -1104,6 +1108,8 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
               items={[
                 ["Candidate email", resume.candidate_email || "Not recorded"],
                 ["Candidate phone", resume.candidate_phone || "Not recorded"],
+                ["Autofill metadata", formatLabel(resume.profile_review_status)],
+                ["Metadata reviewed at", formatDate(resume.profile_reviewed_at)],
                 [
                   "Primary category",
                   categoryName(categories, resume.primary_category_id),
@@ -1150,6 +1156,11 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
         label: "Original text",
         children: <div className="long-text">{resume.resume_text}</div>,
       },
+      ...(hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)?[{
+        key:"answers",
+        label:"Answer Library",
+        children:<ResumeAnswerLibrary client={client} apiBaseUrl={apiBaseUrl} resumeId={resume.id}/>,
+      }]:[]),
     ];
   return (
     <div className="page">
@@ -1171,9 +1182,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload }) {
       <TabbedSections
         items={tabs}
         extra={
-          <Button type="primary" onClick={open}>
-            Open Original Resume
-          </Button>
+          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}</Space>
         }
       />
     </div>
@@ -1209,6 +1218,7 @@ export function App({ client, apiBaseUrl }) {
     [roles, setRoles] = useState([]),
     [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
     [reload, setReload] = useState(0),
+    sessionRef = useRef(undefined),
     jobsBack = useRef("#/jobs"),
     resumesBack = useRef("#/resumes");
   const reloadAccess = useCallback(async () => {
@@ -1225,12 +1235,23 @@ export function App({ client, apiBaseUrl }) {
   }, [client, apiBaseUrl, session]);
   useEffect(() => {
     getSession(client)
-      .then(setSession)
-      .catch(() => setSession(null));
-    const { data } = client.auth.onAuthStateChange((_event, next) => {
+      .then((next) => {
+        sessionRef.current = next;
+        setSession(next);
+      })
+      .catch(() => {
+        sessionRef.current = null;
+        setSession(null);
+      });
+    const { data } = client.auth.onAuthStateChange((event, next) => {
+      const decision = authStateDecision(event, sessionRef.current, next);
+      if (!decision.apply) return;
+      sessionRef.current = next;
       setSession(next);
-      setAccess(undefined);
-      setAccessError(null);
+      if (decision.resetAccess) {
+        setAccess(undefined);
+        setAccessError(null);
+      }
     });
     const hash = () => setRoute(parseRoute(location.hash));
     addEventListener("hashchange", hash);
@@ -1290,6 +1311,7 @@ export function App({ client, apiBaseUrl }) {
     );
   const logout = async () => {
     await signOut(client);
+    sessionRef.current = null;
     setSession(null);
     setAccess(undefined);
     setCategories(null);
@@ -1409,6 +1431,8 @@ export function App({ client, apiBaseUrl }) {
         reload={reload}
       />
     );
+  else if (route.name === "candidate-profile")
+    page = <CandidateProfilePage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "application-new")
     page = <CreateApplicationPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "application-bulk-create")
@@ -1487,6 +1511,7 @@ export function App({ client, apiBaseUrl }) {
         id={route.id}
         back={resumesBack.current}
         reload={reload}
+        access={access}
       />
     );
   else if (route.name === "resume-upload")

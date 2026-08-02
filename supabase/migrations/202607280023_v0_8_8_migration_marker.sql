@@ -1,0 +1,3 @@
+-- Migration marker retained because version 202607280023 was already applied
+-- remotely during the superseded separate Candidate-table implementation.
+-- The forward-only correction is 202607290024.

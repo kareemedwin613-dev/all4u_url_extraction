@@ -4,6 +4,7 @@ import {
   App as AntApp,
   Button,
   Card,
+  Checkbox,
   Col,
   Collapse,
   Flex,
@@ -23,14 +24,27 @@ import {
   validateResumeUpload,
 } from "./resume-upload-service.js";
 import { ExperienceEditor } from "./experience-editor.jsx";
+import { CertificationEditor, EducationEditor } from "./education-editor.jsx";
 import { TabbedSections } from "../../components/ui.jsx";
 
 const { Text, Title } = Typography,
   { Dragger } = Upload,
   emptyDraft = () => ({
     candidateName: "",
+    candidateFirstName: "",
+    candidateMiddleName: "",
+    candidateLastName: "",
     candidateEmail: "",
     candidatePhone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    stateRegion: "",
+    postalCode: "",
+    country: "",
+    linkedInUrl: "",
+    githubUrl: "",
+    portfolioUrl: "",
     resumeName: "",
     primaryCategoryId: "",
     subcategoryId: "",
@@ -41,10 +55,13 @@ const { Text, Title } = Typography,
     structuredContent: {
       summary: "",
       professional_experience: [],
-      education: "",
+      education: [],
+      education_legacy_text: "",
+      certifications: [],
       skills: "",
     },
     checksum: "",
+    reviewConfirmed: false,
   });
 
 export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }) {
@@ -61,11 +78,12 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
       [categories, draft.primaryCategoryId],
     ),
     setField = (name, value) =>
-      setDraft((current) => ({ ...current, [name]: value })),
+      setDraft((current) => ({ ...current, [name]: value, ...(name === "reviewConfirmed" ? {} : { reviewConfirmed: false }) })),
     setSection = (name, value) =>
       setDraft((current) => ({
         ...current,
         structuredContent: { ...current.structuredContent, [name]: value },
+        reviewConfirmed: false,
       }));
 
   async function choose(selected) {
@@ -84,11 +102,25 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
       const { parsePdfResume } = await import("./resume-upload-parser.js"),
         parsed = await parsePdfResume(selected),
         primary = categories.bySlug.get(parsed.categorySlug),
-        subcategory = categories.bySlug.get(parsed.subcategorySlug);
+        subcategory = categories.bySlug.get(parsed.subcategorySlug),
+        extracted=parsed.structuredContent,
+        structuredContent={...extracted,education_legacy_text:Array.isArray(extracted.education)?extracted.education_legacy_text||"":extracted.education||"",education:Array.isArray(extracted.education)?extracted.education:[],certifications:Array.isArray(extracted.certifications)?extracted.certifications:[]};
       setDraft({
         candidateName: parsed.candidateName,
+        candidateFirstName: parsed.candidateFirstName,
+        candidateMiddleName: parsed.candidateMiddleName,
+        candidateLastName: parsed.candidateLastName,
         candidateEmail: parsed.candidateEmail,
         candidatePhone: parsed.candidatePhone,
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        stateRegion: "",
+        postalCode: "",
+        country: "",
+        linkedInUrl: "",
+        githubUrl: "",
+        portfolioUrl: "",
         resumeName: parsed.resumeName,
         primaryCategoryId: primary?.id || "",
         subcategoryId:
@@ -97,8 +129,9 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         skills: parsed.skills.join(", "),
         industries: parsed.industries.join(", "),
         resumeText: parsed.resumeText,
-        structuredContent: parsed.structuredContent,
+        structuredContent,
         checksum: parsed.checksum,
+        reviewConfirmed: false,
       });
       setDetails({
         pageCount: parsed.pageCount,
@@ -172,7 +205,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         file,
       );
       setMessage(
-        "Resume uploaded successfully. The private PDF and reviewed structured information were saved.",
+        "Resume uploaded successfully. The private PDF and verified Resume metadata were saved together.",
       );
       setProgress("Completed.");
       location.assign("#/resumes/" + created.id);
@@ -254,6 +287,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
           <TabbedSections
             extra={
               <Space>
+                <Checkbox checked={draft.reviewConfirmed} onChange={(event)=>setField("reviewConfirmed",event.target.checked)}>Reviewed and accurate</Checkbox>
                 <Button type="primary" htmlType="submit" loading={busy}>
                   Save Resume
                 </Button>
@@ -263,7 +297,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
             items={[
               {
                 key: "identity",
-                label: "Candidate & classification",
+                label: "Personal & classification",
                 children: (
                   <Card title="Review extracted Resume information">
                     <Row gutter={[16, 12]}>
@@ -291,6 +325,9 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                           />
                         </label>
                       </Col>
+                      <Col xs={24} md={8}><label>First name<Input value={draft.candidateFirstName} onChange={(event)=>setField("candidateFirstName",event.target.value)} maxLength={100}/></label></Col>
+                      <Col xs={24} md={8}><label>Middle name (optional)<Input value={draft.candidateMiddleName} onChange={(event)=>setField("candidateMiddleName",event.target.value)} maxLength={100}/></label></Col>
+                      <Col xs={24} md={8}><label>Last name<Input value={draft.candidateLastName} onChange={(event)=>setField("candidateLastName",event.target.value)} maxLength={100}/></label></Col>
                       <Col xs={24} md={12}>
                         <label>
                           Candidate email
@@ -327,6 +364,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                                 ...current,
                                 primaryCategoryId: value,
                                 subcategoryId: "",
+                                reviewConfirmed: false,
                               }))
                             }
                             options={categories.primary.map((item) => ({
@@ -392,6 +430,16 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                           />
                         </label>
                       </Col>
+                      <Col span={24}><Title level={4}>Address and professional links</Title></Col>
+                      <Col xs={24} md={12}><label>Address line 1<Input value={draft.addressLine1} onChange={(event)=>setField("addressLine1",event.target.value)} maxLength={200}/></label></Col>
+                      <Col xs={24} md={12}><label>Address line 2<Input value={draft.addressLine2} onChange={(event)=>setField("addressLine2",event.target.value)} maxLength={200}/></label></Col>
+                      <Col xs={24} md={6}><label>City<Input value={draft.city} onChange={(event)=>setField("city",event.target.value)} maxLength={120}/></label></Col>
+                      <Col xs={24} md={6}><label>State / region<Input value={draft.stateRegion} onChange={(event)=>setField("stateRegion",event.target.value)} maxLength={120}/></label></Col>
+                      <Col xs={24} md={6}><label>Postal code<Input value={draft.postalCode} onChange={(event)=>setField("postalCode",event.target.value)} maxLength={40}/></label></Col>
+                      <Col xs={24} md={6}><label>Country<Input value={draft.country} onChange={(event)=>setField("country",event.target.value)} maxLength={120}/></label></Col>
+                      <Col xs={24} md={8}><label>LinkedIn URL<Input type="url" value={draft.linkedInUrl} onChange={(event)=>setField("linkedInUrl",event.target.value)} maxLength={2000}/></label></Col>
+                      <Col xs={24} md={8}><label>GitHub URL<Input type="url" value={draft.githubUrl} onChange={(event)=>setField("githubUrl",event.target.value)} maxLength={2000}/></label></Col>
+                      <Col xs={24} md={8}><label>Portfolio URL<Input type="url" value={draft.portfolioUrl} onChange={(event)=>setField("portfolioUrl",event.target.value)} maxLength={2000}/></label></Col>
                     </Row>
                     <Alert
                       type="info"
@@ -401,6 +449,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                     {categoryDetails && (
                       <Alert type="info" showIcon message={categoryDetails} />
                     )}
+                    <Alert type="warning" showIcon message="Verification is part of this upload" description="Review the personal fields and structured Resume tabs. Autofill uses the values saved here; no second verification step is required for this Resume." />
                   </Card>
                 ),
               },
@@ -433,15 +482,17 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                         }
                       />
                       <label>
-                        Education
+                        Legacy extracted education text
                         <Input.TextArea
-                          value={draft.structuredContent.education}
+                          value={draft.structuredContent.education_legacy_text}
                           onChange={(event) =>
-                            setSection("education", event.target.value)
+                            setSection("education_legacy_text", event.target.value)
                           }
                           autoSize={{ minRows: 5, maxRows: 12 }}
                         />
                       </label>
+                      <EducationEditor items={draft.structuredContent.education} onChange={(value)=>setSection("education",value)}/>
+                      <CertificationEditor items={draft.structuredContent.certifications} onChange={(value)=>setSection("certifications",value)}/>
                       <label>
                         Skills Section
                         <Input.TextArea

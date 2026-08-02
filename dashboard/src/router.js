@@ -25,7 +25,9 @@ export function parseRoute(hash = "#/") {
   if (parts[0] === "jobs" && parts.length === 2) return isUuid(parts[1]) ? {name: "job-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "resumes" && parts.length === 1) return {name: "resumes", path: "/resumes", query};
   if (parts[0] === "resumes" && parts[1] === "upload" && parts.length === 2) return {name: "resume-upload", path: "/resumes/upload", query};
+  if (parts[0] === "resumes" && parts[2] === "autofill" && parts.length === 3) return isUuid(parts[1]) ? {name: "candidate-profile", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "resumes" && parts.length === 2) return isUuid(parts[1]) ? {name: "resume-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
+  if (parts[0] === "candidates" && parts.length === 2) return isUuid(parts[1]) ? {name: "candidate-profile", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "admin" && parts[1] === "users" && parts.length === 2) return {name: "admin-users", path: "/admin/users", query};
   if (parts[0] === "admin" && parts[1] === "users" && parts.length === 3) return isUuid(parts[2]) ? {name: "admin-user-detail", path, id: parts[2], query} : {name: "invalid-id", path, query};
   if (parts[0] === "admin" && parts[1] === "roles" && parts.length === 2) return {name: "admin-roles", path: "/admin/roles", query};

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Select, Space } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { createApplicationExtensionSession, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { createApplicationExtensionSession, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
@@ -30,11 +30,16 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     setExtensionBusy(key);
     let extensionSession;
     try {
+      const context=await getApplicationExtensionContext(client,backendBaseUrl,application.id);
+      if(action==="AUTOFILL"&&!context?.candidate?.profileAvailable)throw Object.assign(new Error("Verify this Resume's Autofill Metadata in the dashboard before using Autofill."),{code:"PROFILE_REVIEW_REQUIRED"});
+      if(action==="AUTOFILL"&&!context?.permissions?.canAutofill)throw Object.assign(new Error("This Application needs an active Resume and a valid HTTP(S) job URL before Autofill can start."),{code:"APPLICATION_AUTOFILL_UNAVAILABLE"});
+      if(action==="LOAD_RESUME"&&!context?.permissions?.canLoadResume)throw Object.assign(new Error("The Resume connected to this Application is not active."),{code:"APPLICATION_RESUME_UNAVAILABLE"});
       extensionSession=await createApplicationExtensionSession(client,backendBaseUrl,application.id,action);
       const result=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.HANDOFF_APPLICATION_SESSION,payload:extensionSession});
       if(!result?.ok)throw Object.assign(new Error(result?.error?.message||"The Application could not be activated."),{code:result?.error?.code});
       await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"RECEIVED");
-      onStatus({message:`${action==="LOAD_RESUME"?"Resume loading":"Autofill"} context is active.`,kind:"success"});
+      const targetHost=result.data?.targetTabUrl?new URL(result.data.targetTabUrl).hostname:"";
+      onStatus({message:action==="AUTOFILL"&&result.data?.usedCurrentTab?`Autofill is active on the current tab${targetHost?` (${targetHost})`:""}.`:`${action==="LOAD_RESUME"?"Resume loading":"Autofill"} context is active.`,kind:"success"});
     } catch(error) {
       if(extensionSession?.id)await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"FAILED","HANDOFF_FAILED").catch(()=>{});
       onError(error);

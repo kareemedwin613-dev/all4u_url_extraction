@@ -15,13 +15,18 @@ test("v0.8.5 API exposes protected context and session endpoints",async()=>{
 });
 
 test("Manifest V3 bridge uses a narrow dashboard content script and memory-safe session storage",async()=>{
-  const [manifestText,background,bridge,app]=await Promise.all([read("../extension/manifest.json"),read("../extension/background/service-worker.js"),read("../extension/content/dashboard-bridge.js"),read("../extension/sidepanel/App.jsx")]),manifest=JSON.parse(manifestText);
+  const [manifestText,background,bridge,app,applications]=await Promise.all([read("../extension/manifest.json"),read("../extension/background/service-worker.js"),read("../extension/content/dashboard-bridge.js"),read("../extension/sidepanel/App.jsx"),read("../extension/sidepanel/views/MyApplicationsView.jsx")]),manifest=JSON.parse(manifestText);
   assert.equal(manifest.manifest_version,3);
   assert.deepEqual(manifest.content_scripts[0].matches,["https://all4u-url-extraction.vercel.app/*","http://localhost/*","http://127.0.0.1/*"]);
   assert.match(background,/chrome\.storage\.session/);
   assert.match(background,/targetTabId/);
+  assert.match(background,/preferCurrent=internal&&payload\.action==="AUTOFILL"/);
+  assert.match(background,/usedCurrentTab:preferCurrent/);
+  assert.match(background,/sourceUrl:normalizeUrl\(payload\.targetUrl\)/);
   assert.match(background,/DASHBOARD_ORIGIN_DENIED/);
   assert.match(bridge,/event\.source !== window/);
   assert.match(app,/getApplicationExtensionContext/);
-  assert.doesNotMatch(`${background}${bridge}${app}`,/storage_path|storage_bucket|signedUrl|resume bytes.*storage/i);
+  assert.match(applications,/PROFILE_REVIEW_REQUIRED/);
+  assert.doesNotMatch(`${bridge}${app}`,/storage_path|storage_bucket|signedUrl|resume bytes.*storage/i);
+  assert.doesNotMatch(background,/chrome\.storage\.session\.set\([^)]*(signedUrl|accessToken|bytes)/s);
 });

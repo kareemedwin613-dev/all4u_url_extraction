@@ -32,7 +32,7 @@ test("long detail and workflow pages use compact tabbed layouts", async () => {
     assert.match(admin, new RegExp(`label: ["']${label}`));
   assert.match(bulk, /Review combinations/);
   assert.match(bulk, /Create selected/);
-  assert.match(upload, /Candidate & classification/);
+  assert.match(upload, /Personal & classification/);
   assert.match(upload, /Structured Resume/);
   assert.match(upload, /Original text/);
 });

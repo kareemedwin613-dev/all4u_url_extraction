@@ -12,6 +12,8 @@ const text="Jordan Lee\njordan.lee@example.com · (202) 555-0148\nSenior Data En
 test("Resume inference extracts reviewable information without AI",()=>{
   const result=inferResumeInformation(text,file.name);
   assert.equal(result.candidateName,"Jordan Lee");
+  assert.equal(result.candidateFirstName,"Jordan");
+  assert.equal(result.candidateLastName,"Lee");
   assert.equal(result.candidateEmail,"jordan.lee@example.com");
   assert.equal(result.candidatePhone,"(202) 555-0148");
   assert.equal(result.categorySlug,"data-engineering");
@@ -27,6 +29,8 @@ test("professional experience parsing preserves multiple companies, dates, and c
 
 test("legacy separate bullets normalize into one experience details field",()=>{const value=normalizeStructuredResumeV2({professional_experience:[{company:"Acme",job_title:"Engineer",bullets:[{text:"Built APIs"},{text:"Improved latency"}]}]});assert.equal(value.professional_experience[0].experience_details,"• Built APIs\n• Improved latency");});
 
+test("structured Resume normalization preserves v3 education and certification metadata",()=>{const value=normalizeStructuredResumeV2({education:[{id:"school-1",institution:"State University",degree:"BS",field_of_study:"Computer Science"}],education_legacy_text:"Legacy school text",certifications:[{id:"cert-1",name:"AWS Certified"}]});assert.equal(value.education[0].institution,"State University");assert.equal(value.education[0].field_of_study,"Computer Science");assert.equal(value.education_legacy_text,"Legacy school text");assert.equal(value.certifications[0].name,"AWS Certified");});
+
 test("candidate name falls back safely to the PDF filename",()=>{
   assert.equal(candidateNameFromResume("SUMMARY\nTechnical profile","Taylor_Morgan_Resume.pdf"),"Taylor Morgan");
   assert.equal(candidateNameFromResume("SUMMARY\nTechnical profile","resume.pdf"),"");
@@ -40,7 +44,7 @@ test("candidate contact extraction recognizes email and formatted or compact pho
 test("PDF and Resume metadata validation are bounded",()=>{
   assert.equal(validatePdfFile(file),"");
   assert.match(validatePdfFile({...file,name:"resume.txt",type:"text/plain"}),/Only a PDF/);
-  const valid={candidateName:"Jordan Lee",candidateEmail:"jordan.lee@example.com",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"Python, SQL",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64)};
+  const valid={candidateName:"Jordan Lee",candidateFirstName:"Jordan",candidateMiddleName:"",candidateLastName:"Lee",candidateEmail:"jordan.lee@example.com",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"Python, SQL",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64),reviewConfirmed:true};
   assert.equal(validateResumeUpload(valid,file).valid,true);
   const yearOnly=structuredClone(valid);yearOnly.structuredContent.professional_experience[0].start_date={year:2020,month:null};
   assert.equal(validateResumeUpload(yearOnly,file).valid,true);
@@ -59,7 +63,7 @@ test("duplicate lookup uses normalized candidate identity instead of file checks
 
 test("Admin upload sends a private multipart Resume request to the backend",async()=>{
   let request;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},from:()=>{throw new Error("Direct table insert attempted");},storage:{from:()=>{throw new Error("Direct Storage upload attempted");}}};globalThis.fetch=async(url,options)=>{request={url,options};return new Response(JSON.stringify({data:{id:"created"}}),{status:201});};
-  const value={candidateName:"Jordan Lee",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"Python, SQL, Python",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64)};
+  const value={candidateName:"Jordan Lee",candidateFirstName:"Jordan",candidateMiddleName:"",candidateLastName:"Lee",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"Python, SQL, Python",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64),reviewConfirmed:true,linkedInUrl:"https://linkedin.com/in/jordan"};
   const uploadFile=new File([new Uint8Array(1200)],file.name,{type:file.type});const result=await uploadAdminResume(client,"https://api.example.com",userId,value,uploadFile);globalThis.fetch=originalFetch;
-  assert.equal(result.id,"created");assert.equal(new URL(request.url).pathname,"/api/v1/resumes");assert.ok(request.options.body instanceof FormData);const metadata=JSON.parse(request.options.body.get("metadata"));assert.deepEqual(metadata.skills,["Python","SQL"]);assert.equal(metadata.structuredSchemaVersion,2);assert.equal(metadata.structuredContent.professional_experience[0].company,"Acme Health");
+  assert.equal(result.id,"created");assert.equal(new URL(request.url).pathname,"/api/v1/resumes");assert.ok(request.options.body instanceof FormData);const metadata=JSON.parse(request.options.body.get("metadata"));assert.deepEqual(metadata.skills,["Python","SQL"]);assert.equal(metadata.structuredSchemaVersion,2);assert.equal(metadata.structuredContent.professional_experience[0].company,"Acme Health");assert.equal(metadata.reviewConfirmed,true);assert.equal(metadata.candidateFirstName,"Jordan");
 });

@@ -22,6 +22,8 @@ const { ResumeService } = await import("../src/resumes/resume.service.js");
 const { ApplicationService } = await import("../src/applications/application.service.js");
 const { ApplicationBatchesService } = await import("../src/application-batches/application-batches.service.js");
 const { BulkAssignmentService } = await import("../src/bulk-assignment/bulk-assignment.service.js");
+const { CandidateService } = await import("../src/candidates/candidate.service.js");
+const { ResumeAnswerService } = await import("../src/resume-answers/resume-answer.service.js");
 const { PlatformService, TailoringService } = await import("../src/platform/platform.service.js");
 
 let app: INestApplication, mode: "create"|"duplicate"|"identity"|"rls" = "create", active = true, roles = ["APPLYING_MANAGER"];
@@ -56,7 +58,9 @@ before(async () => {
       create:async()=>({id:"application-1"}),update:async()=>({id:"application-1",work_status:"IN_PROGRESS"}),assign:async()=>({id:"application-1"}),bulkAssign:async()=>({changedCount:1}),
       extensionContext:async()=>({application:{id:"123e4567-e89b-42d3-a456-426614174000",applicationNumber:1},job:{sourceUrl:"https://example.com/jobs/1"},resume:{id:"resume-1"},candidate:{profileAvailable:false},permissions:{canLoadResume:true,canAutofill:true}}),
       createExtensionSession:async(_user:any,id:string,body:any)=>({id:"323e4567-e89b-42d3-a456-426614174000",applicationId:id,action:body.action,status:"CREATED",targetUrl:"https://example.com/jobs/1",expiresAt:"2026-07-28T12:15:00Z"}),
+      autofillContext:async(_user:any,id:string,query:any)=>({applicationId:id,sessionId:query.sessionId,resumeId:"223e4567-e89b-42d3-a456-426614174000",resumeUpdatedAt:"2026-07-29T00:00:00Z",profileSchemaVersion:1,reviewedAt:"2026-07-29T00:00:00Z",job:{company:"Example",jobTitle:"Engineer",sourceUrl:"https://example.com/jobs/1"},values:{"candidate.email":"person@example.com"}}),
       updateExtensionSession:async(_user:any,id:string,body:any)=>({id,applicationId:"123e4567-e89b-42d3-a456-426614174000",action:"AUTOFILL",status:body.status,expiresAt:"2026-07-28T12:15:00Z"}),
+      resumeAccess:async()=>({signedUrl:"https://storage.example/signed-resume",filename:"candidate.pdf",mimeType:"application/pdf",fileSizeBytes:1024,expiresAt:"2026-07-28T12:01:00Z"}),
       preview:async()=>({combinations:[]}),bulkCreate:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",createdCount:1}),batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),batchOptions:async()=>[],batch:async()=>({batch:{id:"123e4567-e89b-42d3-a456-426614174000"}}),
       resumeUrl:async()=>({signedUrl:"https://storage.example/resume",expiresInSeconds:90}),screenshots:async()=>[],addScreenshot:async()=>({id:"screenshot-1"}),removeScreenshot:async()=>({id:"screenshot-1"}),screenshotUrl:async()=>({signedUrl:"https://storage.example/screenshot",expiresInSeconds:90}),
     })
@@ -76,6 +80,19 @@ before(async () => {
       batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),
       batch:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",strategy:"EVEN"}),
       results:async()=>({items:[],page:{nextCursor:null,pageSize:25,total:0}}),
+    })
+    .overrideProvider(CandidateService).useValue({
+      get:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",fullName:"Candidate",reviewStatus:"NEEDS_REVIEW",employment:[],education:[]}),
+      update:async(_user:any,id:string,body:any)=>({id,fullName:body.fullName,reviewStatus:body.reviewStatus}),
+      structured:async(_user:any,id:string,body:any)=>({id,...body,reviewStatus:"VERIFIED"}),
+      employment:async(_user:any,id:string,body:any)=>({id:"employment-1",profile:{id,employment:[body]}}),
+      education:async(_user:any,id:string,body:any)=>({id:"education-1",profile:{id,education:[body]}}),
+    })
+    .overrideProvider(ResumeAnswerService).useValue({
+      list:async()=>[{id:"answer-1",answerKey:"authorized_to_work",answerValue:true}],
+      save:async(_user:any,_resumeId:string,body:any,id?:string)=>({id:id||"answer-1",...body}),
+      saveAll:async(_user:any,_resumeId:string,answers:any[])=>answers,
+      archive:async()=>({id:"answer-1",active:false}),
     })
     .overrideProvider(PlatformService).useValue({roles:async()=>[{code:"ADMIN"}],users:async()=>({items:[],page:1,pageSize:25,total:0,totalPages:0}),user:async()=>({id:"user-1"}),role:async()=>["ADMIN"],status:async()=>({id:"user-1",status:"INACTIVE"}),profile:async()=>({id:"user-1",full_name:"Name"}),overview:async()=>({jobCounts:{total:1}})})
     .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
@@ -150,12 +167,57 @@ test("v0.8.5 extension context and sessions enforce roles and validate state",as
   const id="123e4567-e89b-42d3-a456-426614174000",sessionId="323e4567-e89b-42d3-a456-426614174000";
   roles=["DEVELOPER"];
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/extension-context`).set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").expect(403);
   roles=["APPLIER"];
   await request(app.getHttpServer()).get(`/api/v1/applications/${id}/extension-context`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.permissions.canLoadResume,true));
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/extension-sessions`).set("Authorization","Bearer token").send({action:"AUTOFILL",unexpected:true}).expect(400);
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/extension-sessions`).set("Authorization","Bearer token").send({action:"AUTOFILL",extensionVersion:"0.8.5"}).expect(201).expect(({body})=>assert.equal(body.data.applicationId,id));
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}`).set("Authorization","Bearer token").send({status:"TARGET_READY"}).expect(200).expect(({body})=>assert.equal(body.data.status,"TARGET_READY"));
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}`).set("Authorization","Bearer token").send({status:"UNKNOWN"}).expect(400);
+  await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").send({resumeId:"223e4567-e89b-42d3-a456-426614174000"}).expect(400);
+  await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").expect(201).expect(({body})=>{assert.equal(body.data.filename,"candidate.pdf");assert.equal(body.data.fileSizeBytes,1024);});
+  roles=["APPLYING_MANAGER"];
+});
+
+test("v0.8.8 Candidate Profile routes allow assigned Applier reads and manager review only",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/candidates/${id}/autofill-profile`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.reviewStatus,"NEEDS_REVIEW"));
+  await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED",unexpected:true}).expect(400);
+  await request(app.getHttpServer()).patch(`/api/v1/candidates/${id}/profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(200).expect(({body})=>assert.equal(body.data.reviewStatus,"VERIFIED"));
+  await request(app.getHttpServer()).post(`/api/v1/candidates/${id}/employment`).set("Authorization","Bearer token").send({company:"Acme",jobTitle:"Engineer",isCurrent:true}).expect(201);
+  await request(app.getHttpServer()).post(`/api/v1/candidates/${id}/education`).set("Authorization","Bearer token").send({institution:"State University"}).expect(201);
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${id}/autofill-profile`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.id,id));
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/autofill-profile`).set("Authorization","Bearer token").send({fullName:"Candidate",reviewStatus:"VERIFIED"}).expect(200);
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/structured-content`).set("Authorization","Bearer token").send({summary:"Summary",skills:"SQL",employment:[],education:[],certifications:[]}).expect(200).expect(({body})=>assert.equal(body.data.summary,"Summary"));
+});
+
+test("v0.8.9 Application Autofill context requires a validated active session identifier",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000",sessionId="323e4567-e89b-42d3-a456-426614174000";
+  roles=["DEVELOPER"];
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=${sessionId}`).set("Authorization","Bearer token").expect(403);
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context`).set("Authorization","Bearer token").expect(400);
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=bad`).set("Authorization","Bearer token").expect(400);
+  await request(app.getHttpServer()).get(`/api/v1/applications/${id}/autofill-context?sessionId=${sessionId}&resumeUpdatedAt=2026-07-29T00:00:00Z`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.values["candidate.email"],"person@example.com"));
+  roles=["APPLYING_MANAGER"];
+});
+
+test("v0.9.0 Resume Answer Library is manager-only and validates fixed answer contracts",async()=>{
+  const resumeId="123e4567-e89b-42d3-a456-426614174000",answerId="223e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].answerKey,"authorized_to_work"));
+  const valid={answerKey:"authorized_to_work",questionPatterns:["Are you legally authorized to work?"],answerType:"BOOLEAN",answerValue:true,reviewStatus:"VERIFIED",active:true};
+  await request(app.getHttpServer()).post(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").send(valid).expect(201);
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").send({answers:[valid,{...valid,answerKey:"requires_sponsorship",answerValue:false}]}).expect(200);
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").send({answers:[]}).expect(400);
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${resumeId}/application-answers/${answerId}`).set("Authorization","Bearer token").send({...valid,unexpected:true}).expect(400);
+  await request(app.getHttpServer()).post(`/api/v1/resumes/${resumeId}/application-answers`).set("Authorization","Bearer token").send({...valid,answerKey:"race"}).expect(400);
+  await request(app.getHttpServer()).delete(`/api/v1/resumes/${resumeId}/application-answers/${answerId}`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.active,false));
   roles=["APPLYING_MANAGER"];
 });
 

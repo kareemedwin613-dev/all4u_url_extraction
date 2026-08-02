@@ -20,6 +20,12 @@ test("parses dashboard routes",()=>{
   assert.deepEqual(parseRoute("#/jobs/"+id).id,id);
   assert.equal(parseRoute("#/resumes").name,"resumes");
   assert.equal(parseRoute("#/resumes/upload").name,"resume-upload");
+  assert.deepEqual(parseRoute("#/resumes/"+id+"/autofill"),{
+    name:"candidate-profile",
+    path:"/resumes/"+id+"/autofill",
+    id,
+    query:""
+  });
   assert.deepEqual(parseRoute("#/resumes/"+id).id,id);
   assert.equal(parseRoute("#/admin/users").name,"admin-users");
   assert.equal(parseRoute("#/admin/users/"+id).name,"admin-user-detail");
