@@ -227,7 +227,7 @@ export interface AssignmentBatchResult extends BulkAssignmentRowResult {
 export type ApplicationExtensionAction = "LOAD_RESUME" | "AUTOFILL";
 export type ResumeType = "ORIGINAL" | "TAILORED";
 
-export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";
+export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"MATERIALIZING"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";
 export interface TailoringSourceExperience { id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string; }
 export interface ApplicationTailoringInput {
   contractVersion:"1.2";
@@ -248,6 +248,7 @@ export interface TailoringReviewEvent { id:string;tailoringJobId:string;applicat
 export interface TailoringRunnerTicketReceipt { ticketId:string;jobId:string;ticket:string;expiresAt:string; }
 export interface TailoringRunnerClaim { ticketId:string;jobId:string;runExpiresAt:string;input:TailoringInputContract; }
 export interface TailoringInputContract { contractVersion:"1.2";application:{id:string;applicationNumber:number};jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:Array<{id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string}>}; }
+export interface TailoringMaterializationReceipt { jobId:string;applicationId:string;status:"COMPLETED";sourceResumeId?:string;sourceResumeNumber?:number;tailoredResumeId:string;tailoredResumeNumber:number;filename?:string;alreadyMaterialized:boolean; }
 export interface ResumeIdentity {
   id: string;
   resumeNumber: number;
