@@ -1,5 +1,9 @@
 # Application API
 
+## Extension Resume download
+
+`GET /api/v1/applications/:id/resume-file-url` returns a 90-second signed URL for only the active Resume currently attached to the authorized Application. The response also includes `resumeNumber`, `resumeType`, filename, MIME type, and byte size. v1.7 extension cards use this endpoint to distinguish and download Original versus Tailored variants; they never query Supabase Storage directly.
+
 All routes require a verified Supabase bearer token. NestJS calls the existing PostgreSQL functions with that same user's token; PostgreSQL role checks, RLS, constraints, histories, and bulk set-based behavior remain authoritative.
 
 Core routes include:

@@ -3,6 +3,7 @@ import type { AuthenticatedUser } from "@resume-jd/contracts";
 import { SupabaseService } from "../supabase/supabase.service.js";
 import { ApiException } from "../common/errors/api.exception.js";
 import type { CreateJobDescriptionDto } from "./create-job-description.dto.js";
+import { GoogleWorkspaceJdSyncService } from "./google-workspace-jd-sync.service.js";
 
 const FIELDS = "id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,clearance_requirements,travel_required,travel_details,salary_min,salary_max,salary_currency,salary_period,salary_text,source_site,source_url,description_text,detected_skills,capture_method,extraction_confidence,created_at";
 const TRACKING = new Set(["utm_source","utm_medium","utm_campaign","utm_term","utm_content","trk","trackingid","ref"]);
@@ -18,7 +19,8 @@ const normalizeIdentityText = (value: string) => value.replace(/\s+/g, " ").trim
 
 @Injectable()
 export class JobDescriptionService {
-  constructor(@Inject(SupabaseService) private readonly supabase: SupabaseService) {}
+  constructor(@Inject(SupabaseService) private readonly supabase: SupabaseService,@Inject(GoogleWorkspaceJdSyncService)private readonly workspace:GoogleWorkspaceJdSyncService) {}
+  private async completed(user:AuthenticatedUser,row:any,duplicate:boolean,duplicateReason:"SOURCE_URL"|"COMPANY_JOB_TITLE"|null){return{row,duplicate,duplicateReason,workspaceSync:await this.workspace.sync(user,row)};}
   async create(user: AuthenticatedUser, input: CreateJobDescriptionDto) {
     if (input.salaryMin != null && input.salaryMax != null && input.salaryMax < input.salaryMin) throw new ApiException("VALIDATION_ERROR", "The request contains invalid fields.", HttpStatus.BAD_REQUEST, undefined, { salaryMax: ["Salary maximum must be at least the minimum."] });
     const normalizedUrl = normalizeSourceUrl(input.sourceUrl), normalizedCompany = normalizeIdentityText(input.company), normalizedJobTitle = normalizeIdentityText(input.jobTitle), client = this.supabase.forUser(user.token), row = {
@@ -53,19 +55,19 @@ export class JobDescriptionService {
       if (urlMatch.error.code === "42501" || /row-level security|permission denied/i.test(urlMatch.error.message)) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
       throw new ApiException("DATABASE_ERROR", "Duplicate checking could not be completed.", HttpStatus.BAD_GATEWAY);
     }
-    if (urlMatch.data) return { row: urlMatch.data, duplicate: true, duplicateReason: "SOURCE_URL" as const };
+    if (urlMatch.data) return this.completed(user,urlMatch.data,true,"SOURCE_URL");
     const identityMatch = await client.from("job_descriptions").select(FIELDS).eq("user_id", user.id).ilike("company", escapeLike(normalizedCompany)).ilike("job_title", escapeLike(normalizedJobTitle)).order("created_at", { ascending: true }).limit(1).maybeSingle();
     if (identityMatch.error) {
       if (identityMatch.error.code === "42501" || /row-level security|permission denied/i.test(identityMatch.error.message)) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
       throw new ApiException("DATABASE_ERROR", "Duplicate checking could not be completed.", HttpStatus.BAD_GATEWAY);
     }
-    if (identityMatch.data) return { row: identityMatch.data, duplicate: true, duplicateReason: "COMPANY_JOB_TITLE" as const };
+    if (identityMatch.data) return this.completed(user,identityMatch.data,true,"COMPANY_JOB_TITLE");
     const { data, error } = await client.from("job_descriptions").insert(row).select(FIELDS).single();
-    if (!error) return { row: data, duplicate: false, duplicateReason: null };
+    if (!error) return this.completed(user,data,false,null);
     if (error.code === "23505") {
       const existing = await client.from("job_descriptions").select(FIELDS).eq("user_id", user.id).eq("normalized_source_url", normalizedUrl).maybeSingle();
       if (existing.error || !existing.data) throw new ApiException("DATABASE_ERROR", "The existing job description could not be loaded.", HttpStatus.BAD_GATEWAY);
-      return { row: existing.data, duplicate: true, duplicateReason: "SOURCE_URL" as const };
+      return this.completed(user,existing.data,true,"SOURCE_URL");
     }
     if (error.code === "42501" || /row-level security|permission denied/i.test(error.message)) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
     if (error.code === "23503" || error.code === "23514") throw new ApiException("VALIDATION_ERROR", "The request conflicts with controlled database values.", HttpStatus.BAD_REQUEST);

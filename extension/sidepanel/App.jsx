@@ -18,6 +18,7 @@ import { getMyAccessContext } from "../services/access-service.js";
 import {
   canAccessMyApplications,
   canAccessResumeQueue,
+  canCreateTailoring,
   canReadBusiness,
   canWriteBusiness,
   extensionAccessMessage,
@@ -425,6 +426,7 @@ export function App() {
         industryDomains={industryDomains}
         minimumScore={minimumScore}
         canWrite={canWriteBusiness(access)}
+        canCreateTailoring={canCreateTailoring(access)}
         onStatus={setStatus}
         onError={handleError}
       />

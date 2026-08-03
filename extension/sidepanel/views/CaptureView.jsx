@@ -101,7 +101,7 @@ const DEFAULT_VALUES = {
   detectedSkills: "",
 };
 
-export function CaptureView({ client, backendBaseUrl, userId, categories, industryDomains, minimumScore, canWrite, onStatus, onError }) {
+export function CaptureView({ client, backendBaseUrl, userId, categories, industryDomains, minimumScore, canWrite, canCreateTailoring=false, onStatus, onError }) {
   const [form] = Form.useForm();
   const { modal } = AntdApp.useApp();
   const [captureMethod, setCaptureMethod] = useState("manual");
@@ -330,6 +330,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   }
 
   async function loadMatches(job) {
+    if(!canCreateTailoring){setMatches([]);return;}
     if (!job) return;
     setLoadingMatches(true);
     try {
@@ -384,7 +385,10 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       const saved = await createJob(client, backendBaseUrl, job);
       setSavedJob(saved);
       setDuplicateJob(null);
-      onStatus({ message: `JD saved to Supabase: ${saved.company} — ${saved.job_title}.`, kind: "success" });
+      const sync=saved.workspace_sync;
+      onStatus(sync?.enabled&&sync.status!=="SUCCEEDED"
+        ?{message:`JD saved to Supabase, but Google Sheets sync ${sync.status==="PENDING"?"is already in progress":"failed"}. Saving this JD again will retry safely.`,kind:"warning"}
+        :{message:`JD saved to ${sync?.status==="SUCCEEDED"?"Supabase and Google Sheets":"Supabase"}: ${saved.company} — ${saved.job_title}.`,kind:"success"});
       await loadMatches(saved);
     } catch (error) {
       if (error.code === "JD_DUPLICATE") {
@@ -392,13 +396,10 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
         const existing = duplicate.existing;
         setDuplicateJob(existing);
         setSavedJob(existing);
-        onStatus({
-          message:
-            duplicate.duplicateReason === "COMPANY_JOB_TITLE"
-              ? "A JD with the same company and job title is already saved. The existing JD was returned."
-              : "This source URL is already saved. The existing JD was returned without creating a duplicate.",
-          kind: "warning",
-        });
+        const duplicateMessage=duplicate.duplicateReason === "COMPANY_JOB_TITLE"
+          ? "A JD with the same company and job title is already saved. The existing JD was returned."
+          : "This source URL is already saved. The existing JD was returned without creating a duplicate.";
+        onStatus({message:`${duplicateMessage}${existing.workspace_sync?.enabled?` Google Sheets sync: ${existing.workspace_sync.status}.`:""}`,kind:"warning"});
         await loadMatches(existing);
       } else {
         onError(error);
@@ -575,7 +576,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
           </Space>
         </Form>
       </Card>
-      {matches.length > 0 && (
+      {canCreateTailoring && matches.length > 0 && (
         <Card title="Matching active resumes" style={{ marginTop: 12 }} loading={loadingMatches}>
           {matches.map((match) => (
             <MatchCard

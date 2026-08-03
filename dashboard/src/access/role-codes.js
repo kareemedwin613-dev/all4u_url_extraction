@@ -3,6 +3,7 @@ export const ROLE_CODES = Object.freeze({
   APPLYING_MANAGER: "APPLYING_MANAGER",
   DEVELOPER: "DEVELOPER",
   DEVELOPMENT_MANAGER: "DEVELOPMENT_MANAGER",
+  JD_FINDER: "JD_FINDER",
   ADMIN: "ADMIN",
 });
 
@@ -13,6 +14,7 @@ export const ROLE_LABELS = Object.freeze({
   APPLYING_MANAGER: "Applying Manager",
   DEVELOPER: "Developer",
   DEVELOPMENT_MANAGER: "Development Manager",
+  JD_FINDER: "JD Finder",
   ADMIN: "Admin",
 });
 

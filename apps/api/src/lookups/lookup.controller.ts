@@ -6,7 +6,7 @@ import { RolesGuard } from "../auth/roles.guard.js";
 import type { ApiRequest } from "../common/types/request.js";
 import { LookupService } from "./lookup.service.js";
 
-const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "ADMIN"] as const;
+const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "JD_FINDER", "ADMIN"] as const;
 
 @ApiTags("Lookups")
 @ApiBearerAuth()

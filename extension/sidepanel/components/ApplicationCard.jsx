@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge, Button, Card, Flex, Space, Tag, Typography } from "antd";
-import { PaperClipOutlined } from "@ant-design/icons";
+import { DownloadOutlined, PaperClipOutlined } from "@ant-design/icons";
 import { normalizeUrl } from "../../shared/normalization.js";
 
 const { Text } = Typography;
@@ -19,7 +19,7 @@ const STATUS_COLORS = {
   CANCELLED: "default",
 };
 
-export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, extensionBusy }) {
+export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, extensionBusy }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
   const extensionEligible = Boolean(jobUrl && application.resume_id && !["APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"].includes(application.status));
@@ -34,8 +34,9 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
         </Text>
       </Flex>
       <div style={{ margin: "4px 0" }}>
-        <Text>{application.resume_name || "Unnamed Resume"}</Text>
+        <Text>{application.resume_number ? `Resume #${application.resume_number} · ` : ""}{application.resume_name || "Unnamed Resume"}</Text>
         {application.candidate_name && <Text type="secondary"> · {application.candidate_name}</Text>}
+        {application.resume_type && <Tag color={application.resume_type === "TAILORED" ? "purple" : "default"} style={{ marginInlineStart: 6 }}>{application.resume_type === "TAILORED" ? "Tailored" : "Original"}</Tag>}
       </div>
       <Space wrap style={{ margin: "4px 0" }}>
         <Tag color={STATUS_COLORS[application.status] || "default"}>
@@ -69,7 +70,7 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
       <div style={{ marginTop: 8 }}>
         <Space wrap>
           <Button size="small" onClick={() => onUpdateStatus(application)}>Update Status</Button>
-          <Button size="small" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:LOAD_RESUME`} onClick={() => onExtensionAction(application,"LOAD_RESUME")}>Load Resume</Button>
+          <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_RESUME`} onClick={() => onDownloadResume(application)}>Download Resume</Button>
           <Button size="small" type="primary" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
         </Space>
       </div>

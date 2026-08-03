@@ -10,6 +10,14 @@ export const recordApplicationAutofillTelemetry=(client,baseUrl,sessionId,teleme
 export const getApplicationAutofillRecovery=(client,baseUrl,sessionId)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`);
 export const updateApplicationAutofillRecovery=(client,baseUrl,sessionId,recovery)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`,{method:"PATCH",body:recovery});
 export const updateApplicationProgress=(client,baseUrl,id,{status,applicationUrl})=>call(client,baseUrl,`/api/v1/applications/${id}/progress`,{method:"PATCH",body:{status,applicationUrl:applicationUrl||undefined}});
+const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
+export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
+  const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`),url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");
+  if(url.protocol!=="https:"||!Number.isSafeInteger(number)||number<1||!["ORIGINAL","TAILORED"].includes(type))throw new AppError("APPLICATION_RESUME_METADATA_INVALID","The attached Resume download metadata is invalid.");
+  const downloadId=await downloadImpl({url:url.toString(),filename:safeDownloadName(data.filename),saveAs:true,conflictAction:"uniquify"});
+  if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
+  return{...data,downloadId};
+}
 export const listApplicationScreenshots=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`);
 const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),MAX_SCREENSHOT_SIZE=5*1024*1024;
 export function validateApplicationScreenshotFile(file){const errors={};if(!file)errors.file="Choose a screenshot file.";else if(!SCREENSHOT_MIME_TYPES.has(file.type))errors.file="Use a PNG, JPG, WEBP, or PDF file.";else if(!file.size||file.size>MAX_SCREENSHOT_SIZE)errors.file="Screenshot must be between 1 byte and 5 MiB.";return{valid:!Object.keys(errors).length,errors};}
