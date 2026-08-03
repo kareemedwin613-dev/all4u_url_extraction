@@ -710,7 +710,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
               disabled={!jobId}
               options={resumes.map((x) => ({
                 value: x.id,
-                label: `${x.same_category ? "Same category - " : ""}${x.candidate_name} - ${x.resume_name}`,
+                label: `${x.same_category ? "Same category - " : ""}${x.candidate_name} - ${x.resume_name}${x.resume_number ? ` #${x.resume_number}` : ""}`,
               }))}
             />
           </Form.Item>

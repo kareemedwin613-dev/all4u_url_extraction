@@ -860,6 +860,12 @@ function Resumes({ client, apiBaseUrl, categories, query, reload }) {
         serverSortColumns(
           [
             {
+              title: "Resume #",
+              dataIndex: "resume_number",
+              sortKey: "number",
+              render: (value) => (value ? `#${value}` : "—"),
+            },
+            {
               title: "Candidate",
               dataIndex: "candidate_name",
               sortKey: "candidate",
@@ -1108,6 +1114,9 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
           <>
             <Meta
               items={[
+                ["Resume number", resume.resume_number ? `#${resume.resume_number}` : "Not assigned"],
+                ["Resume type", formatLabel(resume.resume_type || "ORIGINAL")],
+                ["Parent Resume", resume.parent_resume_id ? "Original Resume available from this Application's tailoring history" : "None — this is an original Resume"],
                 ["Candidate email", resume.candidate_email || "Not recorded"],
                 ["Candidate phone", resume.candidate_phone || "Not recorded"],
                 ["Autofill metadata", formatLabel(resume.profile_review_status)],
@@ -1175,7 +1184,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
             {resume.candidate_name}
           </Text>
           <Title level={1} tabIndex={-1}>
-            {resume.resume_name}
+            {resume.resume_name}{resume.resume_number ? ` #${resume.resume_number}` : ""}
           </Title>
         </div>
         <Badge value={resume.status} />

@@ -225,13 +225,20 @@ export interface AssignmentBatchResult extends BulkAssignmentRowResult {
 }
 
 export type ApplicationExtensionAction = "LOAD_RESUME" | "AUTOFILL";
+export type ResumeType = "ORIGINAL" | "TAILORED";
+export interface ResumeIdentity {
+  id: string;
+  resumeNumber: number;
+  resumeType: ResumeType;
+  parentResumeId: string | null;
+}
 export type ApplicationExtensionSessionStatus = "CREATED" | "RECEIVED" | "TARGET_READY" | "COMPLETED" | "CANCELLED" | "FAILED" | "EXPIRED";
 export type ApplicationStatus="UNASSIGNED"|"ASSIGNED"|"IN_PROGRESS"|"BLOCKED"|"APPLIED"|"SCREENING"|"INTERVIEW_SCHEDULED"|"OFFER_RECEIVED"|"REJECTED"|"WITHDRAWN"|"CLOSED"|"CANCELLED";
 export interface ApplicationExtensionContext {
   application: { id: string; applicationNumber: number | null; status: ApplicationStatus; assignedTo: string | null };
   job: { id: string; company: string; jobTitle: string; sourceUrl: string };
   candidate: { displayName: string; profileId: string | null; profileAvailable: boolean };
-  resume: { id: string; resumeName: string; originalFilename: string; mimeType: string; fileSizeBytes: number; status: string };
+  resume: { id: string; resumeNumber?: number; resumeType?: ResumeType; parentResumeId?: string | null; resumeName: string; originalFilename: string; mimeType: string; fileSizeBytes: number; status: string };
   permissions: { canLoadResume: boolean; canAutofill: boolean };
 }
 export interface CreateApplicationExtensionSessionRequest { action: ApplicationExtensionAction; extensionVersion?: string; }
