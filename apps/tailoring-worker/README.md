@@ -1,8 +1,23 @@
-# Resume tailoring worker v1.2
+# Resume tailoring worker v1.5
 
 This separately buildable local worker proves the Codex CLI tailoring contract without reading or writing Supabase. It accepts a prepared fixture selected by Application UUID, exposes only the original Resume summary, experience records, and skills to Codex, validates a strict JSON result, and writes a create-only local preview.
 
 v1.3 also supports an authenticated NestJS lifecycle. The worker loads a database-derived, sanitized input and submits only the validated preview. It never connects to Supabase directly.
+
+v1.5 is the normal operator workflow. The dashboard creates a ten-minute, one-job runner ticket and shows the complete command. The worker claims it without a Supabase access token, receives a 30-minute run window, writes a unique local recovery artifact, and submits one validated preview.
+
+## v1.5 one-command mode
+
+1. Sign in to the dashboard as an Applying Manager or Admin.
+2. Open an Application and select **Request or View Tailoring**.
+3. Select **Create Runner Command** and copy the displayed command.
+4. From the repository root, paste and run it. For example:
+
+```powershell
+npm run tailoring:run -- --ticket "trt_<short-lived-ticket>" --api-base-url "https://your-dashboard.example"
+```
+
+No `TAILORING_ACCESS_TOKEN`, job UUID, or output path is required. The dashboard polls while the job is pending or processing and displays the preview when it reaches `NEEDS_REVIEW`. Creating another command revokes the earlier ticket. Raw tickets are temporary secrets and must not be shared or committed.
 
 ## Local proof
 
@@ -25,7 +40,7 @@ npm run proof:tailoring -- `
 
 The output directory is ignored by Git. The command refuses to overwrite an existing preview. Delete or rename an earlier preview intentionally before rerunning.
 
-## v1.3 API mode
+## Legacy v1.3 API mode
 
 First request an Application tailoring job through `POST /api/v1/tailoring-jobs/application/:applicationId`. Then run the worker with a short-lived authenticated user session:
 
