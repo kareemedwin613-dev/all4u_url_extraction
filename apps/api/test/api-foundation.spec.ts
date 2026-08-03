@@ -116,8 +116,8 @@ test("lookup service loads controlled values through the user-scoped client",asy
 
 test("Application service forwards only allowlisted RPC arguments with the caller JWT",async()=>{
   let call:any;const service=new ApplicationService({forUser:(token:string)=>{assert.equal(token,"user-jwt");return{rpc:async(name:string,args:any)=>{call={name,args};return{data:{items:[]},error:null};}};}}as any);
-  await service.list({id:"user-1",token:"user-jwt",claims:{}},{search:"Acme",workStatus:"IN_PROGRESS",pageSize:25,unexpected:"ignored"});
-  assert.equal(call.name,"list_applications_cursor");assert.equal(call.args.p_search,"Acme");assert.equal(call.args.p_limit,25);assert.equal("unexpected" in call.args,false);
+  await service.list({id:"user-1",token:"user-jwt",claims:{}},{search:"Acme",status:"IN_PROGRESS",pageSize:25,unexpected:"ignored"});
+  assert.equal(call.name,"list_applications_cursor");assert.equal(call.args.p_search,"Acme");assert.equal(call.args.p_work_status,"IN_PROGRESS");assert.equal(call.args.p_limit,25);assert.equal("unexpected" in call.args,false);
 });
 
 test("Application service maps database authorization errors without exposing raw details",async()=>{

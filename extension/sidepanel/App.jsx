@@ -32,10 +32,11 @@ import { CaptureView } from "./views/CaptureView.jsx";
 import { MyApplicationsView } from "./views/MyApplicationsView.jsx";
 import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
-import { getApplicationAutofillContext, getApplicationExtensionContext, updateApplicationExtensionSession } from "../services/application-service.js";
+import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, recordApplicationAutofillTelemetry, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
-import { autofillValue, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
+import { autofillValue, autofillValues, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
+import { buildAutofillTelemetry, mapAutofillRecovery, mergeAutofillResults } from "../autofill/session-telemetry.js";
 import { clearSidepanelView, loadSidepanelView, saveSidepanelView } from "./ui-state.js";
 
 const { Header, Content } = Layout;
@@ -201,29 +202,43 @@ export function App() {
         if (!loaded?.ok) throw new Error(loaded?.error?.message || "The private Resume could not be loaded.");
         loadedResume = loaded.data;
       }
-      let autofillContext = null, autofillFields = [], unresolvedAutofillQuestions=[], autofillAdapter=null, selectedAutofillFieldIds = [], autofillResults = [];
+      let autofillContext = null, autofillFields = [], unresolvedAutofillQuestions=[], autofillAdapter=null, autofillTargetDomain="", autofillTargetOrigin="", selectedAutofillFieldIds = [], autofillResults = [];
       if (response.data.action === "AUTOFILL") {
         autofillContext = await getApplicationAutofillContext(client, backendBaseUrl, response.data.applicationId, response.data.id);
-        const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillContext.values || {}), applicationAnswers: screeningDefinitions(autofillContext) } });
+        const priorRecovery=await getApplicationAutofillRecovery(client,backendBaseUrl,response.data.id).catch(()=>null);
+        const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext) } });
         if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
         autofillFields = prepared.data.fields || [];
         unresolvedAutofillQuestions=prepared.data.unresolved||[];
         autofillAdapter=prepared.data.adapter||null;
+        autofillTargetDomain=prepared.data.targetDomain||"";
+        autofillTargetOrigin=prepared.data.targetOrigin||response.data.targetOrigin||"";
         selectedAutofillFieldIds = autofillFields.map((field) => field.fieldId);
-        if (autofillFields.length) {
+        const recoveryPayload={targetOrigin:prepared.data.targetOrigin,resumeUpdatedAt:autofillContext.resumeUpdatedAt,adapterId:autofillAdapter?.id,adapterVersion:autofillAdapter?.version};
+        await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:"DETECTED"});
+        const recovered=priorRecovery&&priorRecovery.stepIdentifier!=="NEW";
+        autofillResults=recovered?mapAutofillRecovery(autofillFields,priorRecovery.fields):[];
+        const reviewRequired=Boolean(autofillContext?.preferences?.requireReviewEveryField);
+        if (autofillFields.length&&!recovered&&!reviewRequired) {
+          await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:"FILLING"});
           const fields=autofillFields.map(field=>({fieldId:field.fieldId,key:field.key,answerKey:field.answerKey,answerType:field.answerType,value:autofillValue(autofillContext,field)}));
           const filled=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL,payload:{sessionId:response.data.id,applicationId:response.data.applicationId,adapterId:autofillAdapter?.id||"",fields}});
           if(!filled?.ok)throw Object.assign(new Error(filled?.error?.message||"The detected fields could not be filled."),{code:filled?.error?.code});
           autofillResults=filled.data.results||[];
           const verified=autofillResults.filter(result=>result.status==="VERIFIED").length;
+          await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:verified===autofillResults.length?"FILLED":"PARTIAL"});
           if(verified===autofillResults.length){await updateApplicationExtensionSession(client,backendBaseUrl,response.data.id,"COMPLETED");setStatus({message:`${verified} field${verified===1?"":"s"} filled and verified. Review the page before submitting.`,kind:"success"});}
           else setStatus({message:`${verified} of ${autofillResults.length} detected fields were verified. Complete failed or unsupported fields manually.`,kind:"warning"});
-        }
+        }else if(recovered)setStatus({message:"Autofill session recovered. The page was re-scanned; retry only the fields that still need work.",kind:"warning"});
+        else if(reviewRequired)setStatus({message:"Review is required by this Resume's Autofill preferences. Inspect the detected fields, then choose Fill selected fields.",kind:"warning"});
+        const telemetry=buildAutofillTelemetry({resumeUpdatedAt:autofillContext.resumeUpdatedAt,adapter:autofillAdapter,targetDomain:autofillTargetDomain,fields:autofillFields,selectedFieldIds:selectedAutofillFieldIds,results:autofillResults,unresolved:unresolvedAutofillQuestions});
+        await recordApplicationAutofillTelemetry(client,backendBaseUrl,response.data.id,telemetry).catch(()=>{});
       }
-      setActiveApplicationSession({ session: response.data, context, loadedResume, autofillContext, autofillFields, unresolvedAutofillQuestions, autofillAdapter, selectedAutofillFieldIds, autofillResults, autofillOverrides: {} });
+      setActiveApplicationSession({ session: response.data, context, loadedResume, autofillContext, autofillFields, unresolvedAutofillQuestions, autofillAdapter, autofillTargetDomain, autofillTargetOrigin, selectedAutofillFieldIds, autofillResults, autofillOverrides: {} });
       setCurrentView("applications");
     } catch (error) {
-      await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "FAILED", response.data.action === "AUTOFILL" ? "AUTOFILL_FAILED" : "RESUME_LOAD_FAILED").catch(() => {});
+      const safeCode=typeof error?.code==="string"&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:(response.data.action === "AUTOFILL" ? "AUTOFILL_FAILED" : "RESUME_LOAD_FAILED");
+      await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "FAILED", safeCode).catch(() => {});
       setActiveApplicationSession(null);
       handleError(error);
     }
@@ -249,6 +264,8 @@ export function App() {
     if (!active?.loadedResume?.ready || attachmentBusy) return;
     setAttachmentBusy(true);
     try {
+      const latest=await getApplicationExtensionContext(client,backendBaseUrl,active.session.applicationId);
+      if(!latest?.permissions?.canLoadResume||latest?.resume?.status!=="ACTIVE")throw Object.assign(new Error("The Resume is no longer eligible for attachment."),{code:"APPLICATION_RESUME_UNAVAILABLE"});
       const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_LOADED_RESUME, payload: { sessionId: active.session.id } });
       if (!response?.ok) throw new Error(response?.error?.message || "The Resume could not be attached.");
       const attachment = response.data;
@@ -290,10 +307,15 @@ export function App() {
       if(!selectedFields.length)return;
       if (!selectedScreeningAnswersUnchanged(active.autofillContext, current, selectedFields)) throw Object.assign(new Error("An approved screening answer changed after this preview. Start Autofill again."), { code: "AUTOFILL_CONTEXT_STALE" });
       const fields = selectedFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: Object.hasOwn(active.autofillOverrides||{},field.fieldId)?active.autofillOverrides[field.fieldId]:autofillValue(current, field) }));
+      const recoveryPayload={targetOrigin:active.autofillTargetOrigin||new URL(active.session.targetUrl).origin,resumeUpdatedAt:current.resumeUpdatedAt,adapterId:active.autofillAdapter?.id,adapterVersion:active.autofillAdapter?.version};
+      await updateApplicationAutofillRecovery(client,backendBaseUrl,active.session.id,{...recoveryPayload,stepIdentifier:"FILLING"});
       const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL, payload: { sessionId: active.session.id, applicationId: active.session.applicationId, adapterId:active.autofillAdapter?.id||"", fields } });
       if (!response?.ok) throw Object.assign(new Error(response?.error?.message || "The selected fields could not be filled."), { code: response?.error?.code });
-      const results = response.data.results || [], verified = results.filter((result) => result.status === "VERIFIED").length;
+      const results = mergeAutofillResults(active.autofillResults || [], response.data.results || []), verified = results.filter((result) => result.status === "VERIFIED").length;
       setActiveApplicationSession((previous) => previous ? { ...previous, autofillResults: results } : previous);
+      const telemetry=buildAutofillTelemetry({resumeUpdatedAt:current.resumeUpdatedAt,adapter:response.data.adapter||active.autofillAdapter,targetDomain:active.autofillTargetDomain,fields:active.autofillFields,selectedFieldIds:active.selectedAutofillFieldIds,results,unresolved:active.unresolvedAutofillQuestions});
+      await recordApplicationAutofillTelemetry(client,backendBaseUrl,active.session.id,telemetry).catch(()=>{});
+      await updateApplicationAutofillRecovery(client,backendBaseUrl,active.session.id,{...recoveryPayload,stepIdentifier:results.length&&verified===results.length?"FILLED":"PARTIAL"}).catch(()=>{});
       if (results.length && verified === results.length) {
         await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
         setStatus({ message: `${verified} field${verified === 1 ? "" : "s"} filled and verified. Review the page before submitting.`, kind: "success" });
@@ -461,7 +483,7 @@ export function App() {
       )}
       <Content className="sidepanel-content">
         {activeApplicationSession && <Alert type={activeApplicationSession.attachment?.status === "ATTACHED" ? "success" : activeApplicationSession.attachment?.status === "MANUAL_REQUIRED" || activeApplicationSession.attachment?.status === "UNSUPPORTED" ? "warning" : activeApplicationSession.loadedResume?.ready ? "success" : "info"} showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.attachment?.status === "ATTACHED" ? "Resume Attached" : activeApplicationSession.loadedResume?.ready ? "Resume Ready" : activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} — ${activeApplicationSession.context.job.jobTitle}`} description={activeApplicationSession.attachment?.status === "ATTACHED" ? `The standard file input was updated and verified for Application #${activeApplicationSession.context.application.applicationNumber ?? "—"}. Review the page before continuing; the extension will not submit it.` : activeApplicationSession.attachment?.message || (activeApplicationSession.loadedResume?.ready ? `${activeApplicationSession.loadedResume.filename} (${Math.ceil(activeApplicationSession.loadedResume.fileSizeBytes / 1024)} KiB) is held in extension memory. Attach it only after reviewing the tracked job page.` : `Application #${activeApplicationSession.context.application.applicationNumber ?? "—"} is connected.`)} action={activeApplicationSession.loadedResume?.ready && activeApplicationSession.attachment?.status !== "ATTACHED" ? <Button size="small" loading={attachmentBusy} onClick={attachActiveResume}>{activeApplicationSession.attachment ? "Retry Attachment" : "Attach Resume to Page"}</Button> : null} style={{ marginBottom: 12 }} />}
-        {activeApplicationSession?.session?.action === "AUTOFILL" && activeApplicationSession.autofillContext && <AutofillPreview active={activeApplicationSession} busy={autofillBusy} onSelectionChange={changeAutofillSelection} onValueChange={changeAutofillValue} onFill={fillActiveAutofill} />}
+        {activeApplicationSession?.session?.action === "AUTOFILL" && activeApplicationSession.autofillContext && <AutofillPreview active={activeApplicationSession} busy={autofillBusy} onSelectionChange={changeAutofillSelection} onValueChange={changeAutofillValue} onFill={fillActiveAutofill} onRescan={loadApplicationSession} />}
         {renderedViewKeys.map((key) => (
           <div key={key} hidden={key !== currentView}>
             {views[key]}

@@ -34,7 +34,6 @@ import {
   APPLICATION_PRIORITIES,
   APPLICATION_STATUSES,
   DUE_FILTERS,
-  WORK_STATUSES,
 } from "./constants.js";
 import { applicationActions, isApplicationManager } from "./validation.js";
 import {
@@ -137,8 +136,7 @@ function ApplicationFilters({
     activeCount = [
       value.search,
       manager ? value.assignedTo : "",
-      value.workStatus,
-      value.applicationStatus,
+      value.status,
       value.priority,
       value.company,
       value.categoryId,
@@ -181,23 +179,10 @@ function ApplicationFilters({
             </Col>
           )}
           <Col {...field}>
-            <Form.Item label="Work status" name="workStatus">
+            <Form.Item label="Status" name="status">
               <Select
                 options={[
-                  { value: "", label: "All work statuses" },
-                  ...WORK_STATUSES.map((value) => ({
-                    value,
-                    label: formatLabel(value),
-                  })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Application status" name="applicationStatus">
-              <Select
-                options={[
-                  { value: "", label: "All application statuses" },
+                  { value: "", label: "All statuses" },
                   ...APPLICATION_STATUSES.map((value) => ({
                     value,
                     label: formatLabel(value),
@@ -401,15 +386,9 @@ export function ApplicationsPage({
       render: (value, record) => value || record.assignee_email || "Unassigned",
     },
     {
-      title: "Work Status",
-      dataIndex: "work_status",
-      sortKey: "work",
-      render: (value) => <StatusTag value={value} />,
-    },
-    {
-      title: "Application Status",
-      dataIndex: "application_status",
-      sortKey: "application_status",
+      title: "Status",
+      dataIndex: "status",
+      sortKey: "status",
       render: (value) => <StatusTag value={value} />,
     },
     {
@@ -496,8 +475,8 @@ export function ApplicationsPage({
     },
     {
       title: "Status",
-      dataIndex: "application_status",
-      sortKey: "application_status",
+      dataIndex: "status",
+      sortKey: "status",
       render: (value) => <StatusTag value={value} />,
     },
     {
@@ -606,7 +585,7 @@ export function ApplicationsPage({
                     getCheckboxProps: (record) => ({
                       disabled:
                         record.assigned_to != null ||
-                        record.work_status !== "UNASSIGNED",
+                        record.status !== "UNASSIGNED",
                     }),
                   }
                 : undefined
@@ -774,8 +753,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
 
 function ProgressForm({ application, manager, onSave, busy }) {
   const initial = {
-    workStatus: application.work_status,
-    applicationStatus: application.application_status,
+    status: application.status,
     applicationUrl: application.application_url || "",
     appliedAt: toLocal(application.applied_at),
     notes: application.notes || "",
@@ -789,8 +767,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
       initialValues={initial}
       onFinish={(value) => {
         const progress = {
-          workStatus: value.workStatus,
-          applicationStatus: value.applicationStatus,
+          status: value.status,
           applicationUrl: value.applicationUrl,
         };
         if (manager) {
@@ -802,21 +779,13 @@ function ProgressForm({ application, manager, onSave, busy }) {
         onSave(progress);
       }}
     >
-      <Form.Item label="Work Status" name="workStatus">
+      <Form.Item label="Status" name="status">
         <Select
-          options={WORK_STATUSES.filter(
+          options={APPLICATION_STATUSES.filter(
             (x) =>
               (x !== "UNASSIGNED" || !application.assigned_to) &&
               (manager || x !== "CANCELLED"),
           ).map((value) => ({ value, label: formatLabel(value) }))}
-        />
-      </Form.Item>
-      <Form.Item label="Application Status" name="applicationStatus">
-        <Select
-          options={APPLICATION_STATUSES.map((value) => ({
-            value,
-            label: formatLabel(value),
-          }))}
         />
       </Form.Item>
       <Form.Item
@@ -1002,14 +971,9 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         children: name(detail.assignee),
                       },
                       {
-                        key: "work",
-                        label: "Work Status",
-                        children: <StatusTag value={a.work_status} />,
-                      },
-                      {
-                        key: "application",
-                        label: "Application Status",
-                        children: <StatusTag value={a.application_status} />,
+                        key: "status",
+                        label: "Status",
+                        children: <StatusTag value={a.status} />,
                       },
                       {
                         key: "priority",
@@ -1159,7 +1123,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     Save Assignment
                   </Button>
                 </Form>
-                {a.work_status !== "CANCELLED" && (
+                {a.status !== "CANCELLED" && (
                   <Button
                     danger
                     loading={busy}
@@ -1173,8 +1137,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                           run(
                             () =>
                               updateApplication(client, apiBaseUrl, id, {
-                                workStatus: "CANCELLED",
-                                applicationStatus: a.application_status,
+                                status: "CANCELLED",
                                 applicationUrl: a.application_url,
                                 appliedAt: a.applied_at,
                                 notes: a.notes,

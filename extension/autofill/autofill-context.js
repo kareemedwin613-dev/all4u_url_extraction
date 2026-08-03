@@ -1,5 +1,25 @@
 const screeningKey = (answerKey) => `screening.${answerKey}`;
 
+const component=(date,name)=>date&&typeof date==="object"?date[name]??"":String(date||"").match(name==="year"?/\b(?:19|20)\d{2}\b/:/\b(?:0?[1-9]|1[0-2])\b/)?.[0]||"";
+const dateText=(date)=>date&&typeof date==="object"?[date.month,date.year].filter(Boolean).join("/"):String(date||"");
+export function structuredAutofillValues(context){
+  const values={};
+  for(const [section,rows] of [["employment",context?.employment??context?.employmentHistory],["education",context?.education]]){
+    (Array.isArray(rows)?rows:[]).slice(0,10).forEach((row,index)=>{
+      const prefix=`${section}.${index}`;
+      const mapping=section==="employment"?{
+        company:row.company,jobTitle:row.jobTitle,location:row.location,startDate:dateText(row.startDate),startMonth:component(row.startDate,"month"),startYear:component(row.startDate,"year"),endDate:dateText(row.endDate),endMonth:component(row.endDate,"month"),endYear:component(row.endDate,"year"),isCurrent:row.isCurrent,
+      }:{
+        institution:row.institution,degree:row.degree,fieldOfStudy:row.fieldOfStudy,location:row.location,startDate:dateText(row.startDate),startMonth:component(row.startDate,"month"),startYear:component(row.startDate,"year"),endDate:dateText(row.endDate),endMonth:component(row.endDate,"month"),endYear:component(row.endDate,"year"),gpa:row.gpa,
+      };
+      for(const [key,value] of Object.entries(mapping))if(value!==null&&value!==undefined&&value!=="")values[`${prefix}.${key}`]=value;
+    });
+  }
+  return values;
+}
+
+export function autofillValues(context){return{...(context?.values||{}),...structuredAutofillValues(context)};}
+
 export function salaryMidpoint(job) {
   const minimum=Number(job?.salaryMin),maximum=Number(job?.salaryMax);
   if(!Number.isFinite(minimum)||!Number.isFinite(maximum)||minimum<0||maximum<minimum||job?.salaryMin==null||job?.salaryMax==null)return"";
@@ -17,7 +37,7 @@ export function screeningDefinitions(context) {
 }
 
 export function autofillValue(context, field) {
-  if (String(field?.key || "").startsWith("candidate.")) return context?.values?.[field.key] ?? "";
+  if (/^(candidate|employment|education)\./.test(String(field?.key||""))) return autofillValues(context)[field.key]??"";
   if(field?.answerKey==="desired_salary"){
     const midpoint=salaryMidpoint(context?.job);
     if(midpoint)return midpoint;
@@ -28,7 +48,7 @@ export function autofillValue(context, field) {
 
 export function autofillValueSource(context,field){
   if(field?.answerKey==="desired_salary"&&salaryMidpoint(context?.job))return"JD salary midpoint";
-  return String(field?.key||"").startsWith("screening.")?"Verified Answer Library":"Verified Resume metadata";
+  return String(field?.key||"").startsWith("screening.")?"Verified Answer Library":String(field?.key||"").startsWith("candidate.")?"Verified Resume metadata":"Structured Resume";
 }
 
 function snapshot(answer) {

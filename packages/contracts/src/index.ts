@@ -226,8 +226,9 @@ export interface AssignmentBatchResult extends BulkAssignmentRowResult {
 
 export type ApplicationExtensionAction = "LOAD_RESUME" | "AUTOFILL";
 export type ApplicationExtensionSessionStatus = "CREATED" | "RECEIVED" | "TARGET_READY" | "COMPLETED" | "CANCELLED" | "FAILED" | "EXPIRED";
+export type ApplicationStatus="UNASSIGNED"|"ASSIGNED"|"IN_PROGRESS"|"BLOCKED"|"APPLIED"|"SCREENING"|"INTERVIEW_SCHEDULED"|"OFFER_RECEIVED"|"REJECTED"|"WITHDRAWN"|"CLOSED"|"CANCELLED";
 export interface ApplicationExtensionContext {
-  application: { id: string; applicationNumber: number | null; workStatus: string; applicationStatus: string; assignedTo: string | null };
+  application: { id: string; applicationNumber: number | null; status: ApplicationStatus; assignedTo: string | null };
   job: { id: string; company: string; jobTitle: string; sourceUrl: string };
   candidate: { displayName: string; profileId: string | null; profileAvailable: boolean };
   resume: { id: string; resumeName: string; originalFilename: string; mimeType: string; fileSizeBytes: number; status: string };
@@ -235,6 +236,24 @@ export interface ApplicationExtensionContext {
 }
 export interface CreateApplicationExtensionSessionRequest { action: ApplicationExtensionAction; extensionVersion?: string; }
 export interface UpdateApplicationExtensionSessionRequest { status: Exclude<ApplicationExtensionSessionStatus, "CREATED" | "EXPIRED">; errorCode?: string; }
+export type ApplicationAutofillFieldOutcome = "DETECTED" | "VERIFIED" | "FAILED" | "SKIPPED";
+export interface ApplicationAutofillFieldTelemetry { fieldKey: string; fieldIndex: number; confidence: number; outcome: ApplicationAutofillFieldOutcome; errorCode?: string; }
+export interface RecordApplicationAutofillTelemetryRequest {
+  resumeUpdatedAt: string; adapterId: string; adapterVersion: string; targetDomain: string;
+  detectedCount: number; selectedCount: number; succeededCount: number; failedCount: number;
+  unresolvedCount: number; fields: ApplicationAutofillFieldTelemetry[];
+}
+export interface ApplicationAutofillTelemetry {
+  id: string; applicationId: string; adapterId: string; adapterVersion: string; targetDomain: string;
+  detectedCount: number; selectedCount: number; succeededCount: number; failedCount: number;
+  unresolvedCount: number; updatedAt: string;
+}
+export type ApplicationAutofillRecoveryStep = "NEW"|"DETECTED"|"FILLING"|"PARTIAL"|"FILLED";
+export interface ApplicationAutofillRecovery {
+  id:string;applicationId:string;targetOrigin:string|null;stepIdentifier:ApplicationAutofillRecoveryStep;
+  resumeUpdatedAt:string|null;adapterId:string|null;adapterVersion:string|null;expiresAt:string;
+  fields:ApplicationAutofillFieldTelemetry[];
+}
 export interface ApplicationExtensionSession {
   id: string; applicationId: string; action: ApplicationExtensionAction; status: ApplicationExtensionSessionStatus;
   targetUrl?: string | null; expiresAt: string; createdAt?: string; updatedAt?: string;
@@ -322,6 +341,7 @@ export interface ApplicationAutofillContext {
   resumeUpdatedAt: string;
   profileSchemaVersion: number;
   reviewedAt: string;
+  preferences:{allowAttachment:boolean;allowProfileFields:boolean;allowReviewedAnswers:boolean;requireReviewEveryField:boolean;prohibitSensitiveQuestions:boolean};
   values: Partial<Record<
     | "candidate.firstName" | "candidate.middleName" | "candidate.lastName" | "candidate.fullName"
     | "candidate.email" | "candidate.phone" | "candidate.addressLine1" | "candidate.addressLine2"
@@ -330,9 +350,15 @@ export interface ApplicationAutofillContext {
       | "candidate.currentLocation" | "candidate.currentCompany",
     string
   >>;
+  employment:Array<{company?:string;jobTitle?:string;location?:string;startDate?:unknown;endDate?:unknown;isCurrent?:boolean}>;
+  education:Array<{institution?:string;degree?:string;fieldOfStudy?:string;location?:string;startDate?:unknown;endDate?:unknown;gpa?:string}>;
   applicationAnswers: ResumeApplicationAnswerSnapshot[];
 }
 export interface ApplicationAutofillContextResponse extends RequestMetadata { data: ApplicationAutofillContext; }
+
+export interface AutofillQualityReportItem{adapter_id:string;adapter_version:string;target_domain:string;sessions:number;detected:number;verified:number;failed:number;unresolved:number;verification_rate:number;}
+export interface AutofillQualityReport{days:number;generatedAt:string;items:AutofillQualityReportItem[];}
+export interface ApplierPerformanceOverview{ id:string;applier_name:string;email:string;assigned_count:number;active_count:number;completed_count:number;applied_count:number;applied_today:number;applied_last_3_days:number;applied_this_week:number;applied_this_month:number;applied_last_30_days:number;completion_rate:number; }
 
 export type ResumeApplicationAnswerKey = "authorized_to_work"|"requires_sponsorship"|"willing_to_relocate"|"available_start_date"|"desired_salary"|"years_of_experience"|"remote_work_preference"|"gender_identity"|"race_ethnicity"|"veteran_status";
 export type ResumeApplicationAnswerType = "BOOLEAN"|"NUMBER"|"DATE"|"TEXT"|"SINGLE_SELECT";

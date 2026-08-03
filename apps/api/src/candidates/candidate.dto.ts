@@ -75,3 +75,11 @@ export class UpdateResumeStructuredContentDto {
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => StructuredEducationDto) education!: StructuredEducationDto[];
   @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StructuredCertificationDto) certifications!: StructuredCertificationDto[];
 }
+
+export class ResumeAutofillPreferencesDto {
+  @IsBoolean() allowAttachment!: boolean;
+  @IsBoolean() allowProfileFields!: boolean;
+  @IsBoolean() allowReviewedAnswers!: boolean;
+  @IsBoolean() requireReviewEveryField!: boolean;
+  @IsBoolean() prohibitSensitiveQuestions!: boolean;
+}

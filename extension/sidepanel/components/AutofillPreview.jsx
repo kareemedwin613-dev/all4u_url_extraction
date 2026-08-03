@@ -33,7 +33,7 @@ const RESULT_MESSAGES = {
 const REMOTE_OPTIONS=["REMOTE","HYBRID","ONSITE","FLEXIBLE","NO_PREFERENCE"].map(value=>({value,label:value.replaceAll("_"," ")}));
 function ScreeningEditor({field,value,onChange}){if(field.answerType==="BOOLEAN")return <Select size="small" value={value} onChange={onChange} options={[{value:true,label:"Yes"},{value:false,label:"No"}]} style={{width:"100%"}}/>;if(field.answerType==="NUMBER")return <InputNumber size="small" min={0} max={100} value={value} onChange={onChange} style={{width:"100%"}}/>;if(field.answerType==="DATE")return <Input size="small" type="date" value={value} onChange={event=>onChange(event.target.value)}/>;if(field.answerType==="SINGLE_SELECT")return <Select size="small" value={value} onChange={onChange} options={REMOTE_OPTIONS} style={{width:"100%"}}/>;return <Input size="small" value={value} maxLength={500} onChange={event=>onChange(event.target.value)}/>;}
 
-export function AutofillPreview({ active, busy, onValueChange, onFill }) {
+export function AutofillPreview({ active, busy, onValueChange, onFill, onRescan }) {
   const fields = active.autofillFields || [], results = active.autofillResults || [];
   const unresolved=active.unresolvedAutofillQuestions||[];
   const screeningFields=fields.filter(field=>String(field.key||"").startsWith("screening."));
@@ -59,7 +59,7 @@ export function AutofillPreview({ active, busy, onValueChange, onFill }) {
               </div>
             </Flex>;
           })}
-          {retryAvailable&&<Button type="primary" loading={busy} onClick={onFill}>Retry failed fields</Button>}
+          <Space><Button type="primary" loading={busy} onClick={onFill}>{results.length?"Retry failed fields":"Fill selected fields"}</Button><Button disabled={busy} onClick={onRescan}>Re-scan page</Button></Space>
         </Space>
       )}
       {unresolved.length>0&&(

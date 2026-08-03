@@ -1,6 +1,6 @@
 {
   "name": "resume-jd-capture",
-  "version": "0.7.2",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -20,7 +20,8 @@
     "test:api": "npm run build:contracts && npm --prefix apps/api test",
     "lint": "node scripts/lint.mjs",
     "typecheck": "node scripts/typecheck.mjs",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run test:api && npm run build && npm run build:api && node scripts/validate-builds.mjs"
+    "security:check": "node scripts/security-check.mjs",
+    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:api && npm run build && npm run build:api && node scripts/validate-builds.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",

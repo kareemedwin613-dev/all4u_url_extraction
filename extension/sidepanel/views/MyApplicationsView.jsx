@@ -8,7 +8,9 @@ import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
-  { value: "NOT_APPLIED", label: "Not Applied" },
+  { value: "ASSIGNED", label: "Assigned" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "BLOCKED", label: "Blocked" },
   { value: "APPLIED", label: "Applied" },
   { value: "SCREENING", label: "Screening" },
   { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
@@ -16,10 +18,11 @@ const STATUS_OPTIONS = [
   { value: "REJECTED", label: "Rejected" },
   { value: "WITHDRAWN", label: "Withdrawn" },
   { value: "CLOSED", label: "Closed" },
+  { value: "CANCELLED", label: "Cancelled" },
 ];
 
 export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }) {
-  const [applicationStatus, setApplicationStatus] = useState("");
+  const [status, setStatus] = useState("");
   const [resumeFilter, setResumeFilter] = useState("");
   const [items, setItems] = useState(null);
   const [editingApplication, setEditingApplication] = useState(null);
@@ -46,9 +49,9 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     } finally { setExtensionBusy(""); }
   }
 
-  async function reload(nextStatus = applicationStatus) {
+  async function reload(nextStatus = status) {
     try {
-      setItems(await listMyApplications(client, backendBaseUrl, { applicationStatus: nextStatus }));
+      setItems(await listMyApplications(client, backendBaseUrl, { status: nextStatus }));
     } catch (error) {
       onError(error);
     }
@@ -75,10 +78,10 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         <Space wrap>
           <Select
             style={{ width: 200 }}
-            value={applicationStatus}
+            value={status}
             options={STATUS_OPTIONS}
             onChange={(value) => {
-              setApplicationStatus(value);
+              setStatus(value);
               reload(value);
             }}
           />

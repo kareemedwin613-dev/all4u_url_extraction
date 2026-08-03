@@ -9,14 +9,10 @@ import {
   openApplicationScreenshot,
 } from "../../services/application-service.js";
 
-const WORK_STATUS_OPTIONS = [
+const STATUS_OPTIONS = [
   { value: "ASSIGNED", label: "Assigned" },
   { value: "IN_PROGRESS", label: "In Progress" },
   { value: "BLOCKED", label: "Blocked" },
-  { value: "COMPLETED", label: "Completed" },
-];
-const APPLICATION_STATUS_OPTIONS = [
-  { value: "NOT_APPLIED", label: "Not Applied" },
   { value: "APPLIED", label: "Applied" },
   { value: "SCREENING", label: "Screening" },
   { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
@@ -76,8 +72,8 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
 
   async function submit(values) {
     if (
-      values.applicationStatus === "APPLIED" &&
-      application.application_status !== "APPLIED" &&
+      values.status === "APPLIED" &&
+      application.status !== "APPLIED" &&
       (!(values.applicationUrl || application.application_url) || !screenshots.length)
     ) {
       onStatus({
@@ -104,17 +100,13 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         form={form}
         layout="vertical"
         initialValues={{
-          workStatus: application.work_status,
-          applicationStatus: application.application_status,
+          status: application.status,
           applicationUrl: application.application_url || "",
         }}
         onFinish={submit}
       >
-        <Form.Item label="Work Status" name="workStatus">
-          <Select options={WORK_STATUS_OPTIONS} />
-        </Form.Item>
-        <Form.Item label="Application Status" name="applicationStatus">
-          <Select options={APPLICATION_STATUS_OPTIONS} />
+        <Form.Item label="Status" name="status">
+          <Select options={STATUS_OPTIONS} />
         </Form.Item>
         <Form.Item
           label="Application URL"

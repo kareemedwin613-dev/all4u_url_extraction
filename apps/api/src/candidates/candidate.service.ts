@@ -2,7 +2,7 @@ import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { AuthenticatedUser } from "@resume-jd/contracts";
 import { ApiException } from "../common/errors/api.exception.js";
 import { SupabaseService } from "../supabase/supabase.service.js";
-import type { CandidateEducationDto, CandidateEmploymentDto, UpdateCandidateProfileDto, UpdateResumeStructuredContentDto } from "./candidate.dto.js";
+import type { CandidateEducationDto, CandidateEmploymentDto, ResumeAutofillPreferencesDto, UpdateCandidateProfileDto, UpdateResumeStructuredContentDto } from "./candidate.dto.js";
 import { extractProfessionalExperienceSection, parseLegacyEmployment } from "./legacy-employment-parser.js";
 
 function failure(error: any, fallback: string): never {
@@ -27,6 +27,8 @@ export class CandidateService {
     } finally { if (timer) clearTimeout(timer); }
   }
   get(user: AuthenticatedUser, id: string) { return this.rpc(user, "get_candidate_autofill_profile_v088", { p_resume_id: id }, "The Resume profile could not be loaded."); }
+  preferences(user: AuthenticatedUser, id: string) { return this.rpc(user, "get_resume_autofill_preferences_v095", { p_resume_id: id }, "Autofill preferences could not be loaded."); }
+  updatePreferences(user: AuthenticatedUser, id: string, value: ResumeAutofillPreferencesDto) { return this.rpc(user, "update_resume_autofill_preferences_v095", { p_resume_id: id, p_preferences: value }, "Autofill preferences could not be updated."); }
   async importEmployment(user: AuthenticatedUser, id: string) {
     const client = this.supabase.forUser(user.token);
     const { data, error }: any = await client.from("resumes").select("structured_content,resume_text").eq("id", id).single();

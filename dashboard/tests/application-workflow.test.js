@@ -12,8 +12,8 @@ const access=(roles,userId=id)=>({roles,userId,status:"ACTIVE",capabilities:capa
 test("application validation accepts a valid create and rejects unsafe fields",()=>{
   assert.equal(validateApplicationCreate({jobDescriptionId:id,resumeId:id2,priority:"NORMAL"}).valid,true);
   assert.equal(validateApplicationCreate({priority:"WRONG"}).valid,false);
-  assert.equal(validateApplicationProgress({workStatus:"IN_PROGRESS",applicationStatus:"APPLIED",applicationUrl:"https://example.test/app"}).valid,true);
-  assert.equal(validateApplicationProgress({workStatus:"WRONG",applicationStatus:"APPLIED",applicationUrl:"javascript:alert(1)"}).valid,false);
+  assert.equal(validateApplicationProgress({status:"APPLIED",applicationUrl:"https://example.test/app"}).valid,true);
+  assert.equal(validateApplicationProgress({status:"WRONG",applicationUrl:"javascript:alert(1)"}).valid,false);
 });
 
 test("application action visibility follows roles and assignment",()=>{
@@ -25,17 +25,17 @@ test("application action visibility follows roles and assignment",()=>{
 });
 
 test("application query state is allowlisted and serializable",()=>{
-  const value=parseApplicationQuery(`pageSize=50&workStatus=BLOCKED&priority=URGENT&search=Acme&creationMode=BULK&creationBatchId=${id}`);
+  const value=parseApplicationQuery(`pageSize=50&status=BLOCKED&priority=URGENT&search=Acme&creationMode=BULK&creationBatchId=${id}`);
   assert.equal(value.pageSize,50);assert.equal(value.priority,"URGENT");
   assert.equal(value.creationMode,"BULK");assert.equal(value.creationBatchId,id);
-  assert.match(serializeApplicationQuery(value),/workStatus=BLOCKED/);
-  assert.equal(parseApplicationQuery("workStatus=INJECTED").workStatus,"");
+  assert.match(serializeApplicationQuery(value),/status=BLOCKED/);
+  assert.equal(parseApplicationQuery("status=INJECTED").status,"");
 });
 
 test("application services use protected RPC contracts",async()=>{
   const calls=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};
   globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options,body:options.body?JSON.parse(options.body):null});return new Response(JSON.stringify({data:String(url).endsWith("pageSize=25")?{items:[{id}],hasMore:false,nextCursor:null}:{id}}),{status:200});};
-  try{const base="https://api.example.com",list=await listApplicationsCursor(client,base,{search:""},null,25);assert.equal(list.items.length,1);await createApplication(client,base,{jobDescriptionId:id,resumeId:id2,priority:"HIGH"});await updateApplication(client,base,id,{workStatus:"IN_PROGRESS",applicationStatus:"NOT_APPLIED",priority:"HIGH"});await updateApplication(client,base,id,{workStatus:"IN_PROGRESS",applicationStatus:"APPLIED",applicationUrl:"https://jobs.example.test/application"});await reassignApplication(client,base,id,id2,"Capacity");}
+  try{const base="https://api.example.com",list=await listApplicationsCursor(client,base,{search:""},null,25);assert.equal(list.items.length,1);await createApplication(client,base,{jobDescriptionId:id,resumeId:id2,priority:"HIGH"});await updateApplication(client,base,id,{status:"IN_PROGRESS",priority:"HIGH"});await updateApplication(client,base,id,{status:"APPLIED",applicationUrl:"https://jobs.example.test/application"});await reassignApplication(client,base,id,id2,"Capacity");}
   finally{globalThis.fetch=originalFetch;}
   assert.deepEqual(calls.map(x=>[x.options.method,x.url.pathname]),[["GET","/api/v1/applications"],["POST","/api/v1/applications"],["PATCH",`/api/v1/applications/${id}/progress`],["PATCH",`/api/v1/applications/${id}/progress`],["PATCH",`/api/v1/applications/${id}/assignment`]]);assert.equal(calls[0].url.searchParams.get("pageSize"),"25");assert.equal(calls[3].body.priority,undefined);
 });
@@ -57,7 +57,7 @@ test("Application pages expose list, create, detail, history, and empty/loading 
 
 test("manager Application page exposes persistent bulk assignment controls",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  for(const text of ["Assign Selected","applications/bulk-assign","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","assigned_to != null",'work_status !== "UNASSIGNED"'])assert.match(source,new RegExp(text));
+  for(const text of ["Assign Selected","applications/bulk-assign","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","assigned_to != null",'status !== "UNASSIGNED"'])assert.match(source,new RegExp(text));
 });
 
 test("Applier Application columns follow the operational priority order",async()=>{

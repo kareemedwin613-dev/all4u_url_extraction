@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Resume JD Capture",
-  "version": "0.9.3",
-  "description": "Capture job descriptions, manage resumes, and create a private Supabase tailoring queue.",
+  "version": "1.0.1",
+  "description": "Capture job descriptions and deterministically autofill assigned applications without AI.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "host_permissions": ["http://*/*", "https://*/*"],
