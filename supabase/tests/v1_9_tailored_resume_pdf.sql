@@ -1,0 +1,16 @@
+begin;
+select plan(12);
+select has_column('public','tailoring_jobs','render_format','tailoring jobs record the artifact format');
+select has_column('public','tailoring_jobs','format_selected_by','format selector is audited');
+select has_column('public','tailoring_jobs','format_selected_at','format selection time is audited');
+select has_column('public','resumes','render_format','tailored Resume records its artifact format');
+select has_function('public','select_tailoring_format_v19',array['uuid','text','timestamp with time zone'],'format selection RPC exists');
+select has_function('public','begin_tailoring_materialization_v19',array['uuid'],'v1.9 begin RPC exists');
+select has_function('public','finalize_tailoring_materialization_v19',array['uuid','uuid','text','text','text','bigint','text'],'v1.9 finalize RPC exists');
+select has_trigger('public','resumes','resumes_assign_format_v19','Resume format normalization trigger exists');
+select function_privs_are('public','select_tailoring_format_v19',array['uuid','text','timestamp with time zone'],'authenticated',array['EXECUTE'],'only authenticated users can select format');
+select function_privs_are('public','finalize_tailoring_materialization_v19',array['uuid','uuid','text','text','text','bigint','text'],'anon',array[]::text[],'anonymous users cannot finalize artifacts');
+select function_privs_are('public','begin_tailoring_materialization_v16',array['uuid'],'authenticated',array[]::text[],'legacy begin RPC is no longer directly callable');
+select function_privs_are('public','finalize_tailoring_materialization_v16',array['uuid','uuid','text','text','text','bigint','text'],'authenticated',array[]::text[],'legacy finalize RPC is no longer directly callable');
+select * from finish();
+rollback;

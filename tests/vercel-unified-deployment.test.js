@@ -8,7 +8,9 @@ test("Vercel routes API and health requests into one Nest function", async () =>
   assert.equal(config.outputDirectory, "dashboard/dist");
   assert.equal(config.functions["api/index.mjs"].maxDuration, 60);
   assert.equal(typeof config.functions["api/index.mjs"].includeFiles, "string");
-  assert.equal(config.functions["api/index.mjs"].includeFiles, "{apps/api/dist/**,packages/contracts/dist/**}");
+  assert.match(config.functions["api/index.mjs"].includeFiles, /apps\/api\/dist\/\*\*/);
+  assert.match(config.functions["api/index.mjs"].includeFiles, /apps\/api\/node_modules\/pdfkit\/js\/data\/\*\*/);
+  assert.match(config.functions["api/index.mjs"].includeFiles, /packages\/contracts\/dist\/\*\*/);
   assert.ok(config.rewrites.some((item) => item.source === "/api/v1/:path*" && item.destination.includes("/api/index")));
   assert.ok(config.rewrites.some((item) => item.source === "/health"));
   assert.equal(config.rewrites.at(-1).destination, "/index.html");
