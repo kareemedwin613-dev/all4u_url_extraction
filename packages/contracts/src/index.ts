@@ -226,6 +226,21 @@ export interface AssignmentBatchResult extends BulkAssignmentRowResult {
 
 export type ApplicationExtensionAction = "LOAD_RESUME" | "AUTOFILL";
 export type ResumeType = "ORIGINAL" | "TAILORED";
+
+export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";
+export interface TailoringSourceExperience { id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string; }
+export interface ApplicationTailoringInput {
+  contractVersion:"1.2";
+  application:{id:string;applicationNumber:number};
+  jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};
+  sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:TailoringSourceExperience[]};
+}
+export interface TailoredExperiencePreview { sourceExperienceId:string;tailoredDetails:string; }
+export interface TailoringPreviewResult { summary:string;professionalExperience:TailoredExperiencePreview[];skills:string[];changeSummary:string[];unsupportedRequirements:string[];warnings:string[]; }
+export interface ApplicationTailoringRequest { id:string;applicationId:string;applicationNumber:number;sourceResumeId:string;sourceResumeNumber:number;status:TailoringJobStatus;inputSchemaVersion:1; }
+export interface TailoringWorkerInput { jobId:string;input:ApplicationTailoringInput; }
+export interface SubmitTailoringPreviewRequest { generatedAt:string;result:TailoringPreviewResult; }
+export interface TailoringPreviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW";outputSchemaVersion:1;previewGeneratedAt:string; }
 export interface ResumeIdentity {
   id: string;
   resumeNumber: number;
