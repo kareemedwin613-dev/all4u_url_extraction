@@ -23,6 +23,9 @@ test("direct business and admin routes are capability protected",()=>{
   assert.equal(guardAccessRoute(parseRoute("#/applications/bulk-create"),session,access(["APPLYING_MANAGER"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/application-batches"),session,access(["ADMIN"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/application-batches"),session,access(["DEVELOPER"])),"#/access-denied");
+  assert.equal(guardAccessRoute(parseRoute("#/tailoring-jobs"),session,access(["APPLIER"])),"#/access-denied");
+  assert.equal(guardAccessRoute(parseRoute("#/tailoring-jobs/"+id),session,access(["APPLYING_MANAGER"])),null);
+  assert.equal(guardAccessRoute(parseRoute("#/tailoring-jobs/"+id),session,access(["ADMIN"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/applications"),session,access(["DEVELOPER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/resumes/upload"),session,access(["APPLIER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/resumes/upload"),session,access(["ADMIN"])),null);
@@ -32,6 +35,6 @@ test("navigation is exact for technical, business, admin, and multi-role users",
   assert.deepEqual(navigationForAccess(access(["DEVELOPER"])).map(x=>x.label),["Overview","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER","DEVELOPER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Job Descriptions","Resumes","Users","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Job Descriptions","Resumes","Upload Resume","Users","Roles","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Tailoring Reviews","Job Descriptions","Resumes","Users","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Tailoring Reviews","Job Descriptions","Resumes","Upload Resume","Users","Roles","My Profile"]);
 });

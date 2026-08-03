@@ -10,9 +10,11 @@ The final migration slice places profiles, Administration, business overview, an
 - `GET /api/v1/tailoring-jobs/:id/input` returns only the sanitized v1.2 worker contract and marks the job `PROCESSING`.
 - `PUT /api/v1/tailoring-jobs/:id/preview` revalidates and stores a preview as `NEEDS_REVIEW`.
 - `GET /api/v1/tailoring-jobs/:id` returns the review state and validated preview to authorized users.
+- `PATCH /api/v1/tailoring-jobs/:id/review` lets an Applying Manager or Admin save controlled edits, approve, or reject a review-ready preview with optimistic concurrency.
+- `GET /api/v1/tailoring-jobs/:id/reviews` returns the immutable human review history.
 
 Tailoring creation accepts a JD ID and up to 100 Resume match records. The backend deduplicates Resume IDs, resolves actual active Resume Storage paths, and derives `user_id` from the verified JWT. Browser-supplied owner IDs and Storage paths are ignored. Existing PostgreSQL RLS policies continue to authorize every query and mutation.
 
 No service-role key, database password, or privileged credential is used. Supabase Auth remains client-side solely to obtain and refresh the user's access token.
 
-The v1.3 endpoints do not create a tailored Resume, generate a file, write Storage, approve a preview, or replace an Application's Resume.
+The v1.4 endpoints approve structured preview content only. They do not create a tailored Resume, generate a file, write Storage, or replace an Application's Resume.
