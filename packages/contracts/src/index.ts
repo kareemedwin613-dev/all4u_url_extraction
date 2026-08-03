@@ -233,6 +233,10 @@ export interface AssignmentBatchResult extends BulkAssignmentRowResult {
 
 export type ApplicationExtensionAction = "LOAD_RESUME" | "AUTOFILL";
 export type ResumeType = "ORIGINAL" | "TAILORED";
+export interface ApplicationResumeDownload {
+  signedUrl:string;expiresInSeconds:number;filename:string;mimeType:string;fileSizeBytes:number;
+  resumeNumber:number;resumeType:ResumeType;
+}
 
 export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"MATERIALIZING"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";
 export interface TailoringSourceExperience { id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string; }

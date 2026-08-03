@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Select, Space } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { createApplicationExtensionSession, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { createApplicationExtensionSession, downloadApplicationResume, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
@@ -57,6 +57,16 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     }
   }
 
+  async function downloadResume(application) {
+    const key = `${application.id}:DOWNLOAD_RESUME`;
+    setExtensionBusy(key);
+    try {
+      const result = await downloadApplicationResume(client, backendBaseUrl, application.id);
+      onStatus({ message: `${result.resumeType === "TAILORED" ? "Tailored" : "Original"} Resume #${result.resumeNumber} download started.`, kind: "success" });
+    } catch (error) { onError(error); }
+    finally { setExtensionBusy(""); }
+  }
+
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +117,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         </Card>
       ) : (
         filteredItems.map((application) => (
-          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} extensionBusy={extensionBusy} />
+          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} extensionBusy={extensionBusy} />
         ))
       )}
       {editingApplication && (

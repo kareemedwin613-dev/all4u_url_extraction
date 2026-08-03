@@ -1,4 +1,4 @@
-# Resume JD Capture and Operations Platform v1.6
+# Resume JD Capture and Operations Platform v1.7
 
 This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, Supabase migrations, and a NestJS API. The dashboard and API can be deployed together as one Vercel project and public origin; the extension points to that same origin. See [unified Vercel deployment](docs/DEPLOYMENT_VERCEL.md), [API setup](apps/api/README.md), and [v0.8 architecture](docs/architecture/backend-api-v0.8.md).
 
@@ -6,7 +6,7 @@ Development uses protected `main` plus short-lived typed branches and squash-mer
 
 All business-data operations now use the NestJS API: access context, profiles, Admin users/roles, Job Descriptions, Resumes, Applications, bulk/batches, assignments, screenshots, business overview, controlled lookups, and tailoring jobs. Supabase Auth establishes and refreshes user sessions; access tokens are sent to NestJS, which uses the same token for RLS-protected Supabase access. The local tailoring worker talks only to NestJS and keeps its token outside the Codex subprocess.
 
-Resume tailoring now continues from a human-approved, Application-scoped structured preview to a private DOCX artifact. Applying Managers and Admins can edit only the summary, source-linked experience details, and source Resume skills, approve the content, and create one numbered `TAILORED` child. PostgreSQL atomically records the artifact and switches only that Application to the child; the original Resume and its metadata remain unchanged and stay primary in the Resume dashboard. See [Resume variants](docs/tailoring/v1.1-resume-variants.md), the [local worker](apps/tailoring-worker/README.md), the [v1.3 preview lifecycle](docs/tailoring/v1.3-preview-lifecycle.md), [v1.4 review and approval](docs/tailoring/v1.4-review-approval.md), the [v1.5 runner](docs/tailoring/v1.5-one-command-runner.md), and [v1.6 materialization](docs/tailoring/v1.6-tailored-resume-materialization.md).
+Resume tailoring now continues from a human-approved, Application-scoped structured preview to a private DOCX artifact. Applying Managers and Admins can edit only the summary, source-linked experience details, and source Resume skills, approve the content, and create one numbered `TAILORED` child. PostgreSQL atomically records the artifact and switches only that Application to the child; the original Resume and its metadata remain unchanged and stay primary in the Resume dashboard. Appliers see the attached Resume number/type and download that exact original or tailored file from the extension through a short-lived NestJS URL. See [Resume variants](docs/tailoring/v1.1-resume-variants.md), the [local worker](apps/tailoring-worker/README.md), the [v1.3 preview lifecycle](docs/tailoring/v1.3-preview-lifecycle.md), [v1.4 review and approval](docs/tailoring/v1.4-review-approval.md), the [v1.5 runner](docs/tailoring/v1.5-one-command-runner.md), [v1.6 materialization](docs/tailoring/v1.6-tailored-resume-materialization.md), and [v1.7 extension delivery](docs/tailoring/v1.7-extension-resume-download.md).
 
 The fixed `JD_FINDER` role provides least-privilege Chrome-extension capture access. An active JD Finder can load controlled category/industry lookups and save JDs attributed to their own authenticated user, including duplicate confirmation, but cannot read shared operational data, edit/delete saved JDs, or access Applications, Resumes, tailoring, or administration.
 
@@ -35,7 +35,7 @@ The role-aware sidebar follows Ant Design's collapsible-overlay pattern: a 64-pi
 
 ## Supabase
 
-Apply all migrations in filename order. The latest migration is `supabase/migrations/202608030042_v1_6_tailored_resume_materialization.sql`.
+Apply all migrations in filename order. The latest migration is `supabase/migrations/202608030045_v1_7_extension_resume_download.sql`.
 
 For a linked project, inspect before explicitly deploying:
 
@@ -52,4 +52,4 @@ Only the Supabase project URL and publishable/anon key belong in browser setting
 
 ## Boundaries
 
-AI workload optimization, scheduled assignment, bulk reassignment, teams, organizations, feature-permission tables, AI matching/scoring, job-site submission, Google Workspace integration, OpenAI API, and every other AI API are intentionally excluded. The local worker uses the locally authenticated Codex CLI only for an operator-triggered preview; the mandatory human decision remains separate. v1.6 renders approved content to DOCX only; PDF rendering and configurable templates remain later work.
+AI workload optimization, scheduled assignment, bulk reassignment, teams, organizations, feature-permission tables, AI matching/scoring, job-site submission, OpenAI API, and every other AI API are intentionally excluded. The optional Google Workspace integration is a one-way Google Sheets mirror only; it does not make Workspace authoritative. The local worker uses the locally authenticated Codex CLI only for an operator-triggered preview; the mandatory human decision remains separate. v1.6 renders approved content to DOCX only; PDF rendering and configurable templates remain later work.
