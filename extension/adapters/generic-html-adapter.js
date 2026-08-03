@@ -9,5 +9,5 @@ export class GenericHtmlAdapter extends BaseAtsAdapter{
  detectResumeField({root=document}={}){const candidate=detectResumeUploadInputs(root)[0];return candidate?{confidence:Math.min(100,candidate.score),controlType:"file"}:null;}
  detectFields({root=document,availableKeys=[],applicationAnswers=[]}={}){const fields=[...detectPersonalFields(root,availableKeys),...detectScreeningFields(root,applicationAnswers)],unresolved=detectUnresolvedQuestions(root,applicationAnswers);return{fields,unresolved};}
  attachResume({root=document,payload}={}){return attachResumePayload(payload,root);}
- async fillFields({root=document,fields=[]}={}){const personal=fillPersonalFields(fields.filter(field=>String(field?.key||"").startsWith("candidate.")),root),screening=await fillScreeningFields(fields.filter(field=>String(field?.key||"").startsWith("screening.")),root);return[...personal,...screening];}
+ async fillFields({root=document,fields=[]}={}){const personal=fillPersonalFields(fields.filter(field=>/^(candidate|employment|education)\./.test(String(field?.key||""))),root),screening=await fillScreeningFields(fields.filter(field=>String(field?.key||"").startsWith("screening.")),root);return[...personal,...screening];}
 }

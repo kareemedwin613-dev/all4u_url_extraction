@@ -1,15 +1,13 @@
 import { Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, Matches, MaxLength, Min, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
 
-const WORK_STATUSES=["UNASSIGNED","ASSIGNED","IN_PROGRESS","BLOCKED","COMPLETED","CANCELLED"];
-const APPLICATION_STATUSES=["NOT_APPLIED","APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED"];
+const APPLICATION_STATUSES=["UNASSIGNED","ASSIGNED","IN_PROGRESS","BLOCKED","APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"];
 const PRIORITIES=["LOW","NORMAL","HIGH","URGENT"];
 
 export class ApplicationListQueryDto{
   @IsOptional()@IsString()@MaxLength(100)search="";
   @IsOptional()@IsUUID("4")assignedTo?:string;
-  @IsOptional()@IsIn(["",...WORK_STATUSES])workStatus="";
-  @IsOptional()@IsIn(["",...APPLICATION_STATUSES])applicationStatus="";
+  @IsOptional()@IsIn(["",...APPLICATION_STATUSES])status="";
   @IsOptional()@IsIn(["",...PRIORITIES])priority="";
   @IsOptional()@IsString()@MaxLength(100)company="";
   @IsOptional()@IsUUID("4")categoryId?:string;
@@ -21,7 +19,7 @@ export class ApplicationListQueryDto{
   @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100])pageSize=25;
 }
 export class MyApplicationQueryDto{
-  @IsOptional()@IsIn(["",...APPLICATION_STATUSES])applicationStatus="";
+  @IsOptional()@IsIn(["",...APPLICATION_STATUSES])status="";
   @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","captured_asc","captured_desc"])sort="updated_desc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)limit=100;
 }
@@ -33,7 +31,7 @@ export class CreateApplicationDto{
   @IsOptional()@IsISO8601()dueAt?:string;@IsOptional()@IsString()@MaxLength(10000)notes?:string;
 }
 export class UpdateApplicationDto{
-  @IsIn(WORK_STATUSES)workStatus!:string;@IsIn(APPLICATION_STATUSES)applicationStatus!:string;
+  @IsIn(APPLICATION_STATUSES)status!:string;
   @IsOptional()@IsUrl({protocols:["http","https"],require_protocol:true,require_tld:false})@MaxLength(4000)applicationUrl?:string;
   @IsOptional()@IsISO8601()appliedAt?:string;@IsOptional()@IsString()@MaxLength(10000)notes?:string;
   @IsOptional()@IsIn(PRIORITIES)priority?:string;@IsOptional()@IsISO8601()dueAt?:string;
@@ -46,6 +44,32 @@ export class CreateApplicationExtensionSessionDto{
 export class UpdateApplicationExtensionSessionDto{
   @IsIn(["RECEIVED","TARGET_READY","COMPLETED","CANCELLED","FAILED"])status!:string;
   @IsOptional()@IsString()@MaxLength(80)@Matches(/^[A-Z][A-Z0-9_]{0,79}$/)errorCode?:string;
+}
+export class ApplicationAutofillFieldTelemetryDto{
+  @IsString()@MaxLength(100)@Matches(/^(candidate|screening|employment|education)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,96}$/)fieldKey!:string;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(99)fieldIndex!:number;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(100)confidence!:number;
+  @IsIn(["DETECTED","VERIFIED","FAILED","SKIPPED"])outcome!:string;
+  @IsOptional()@IsString()@MaxLength(80)@Matches(/^[A-Z][A-Z0-9_]{0,79}$/)errorCode?:string;
+}
+export class RecordApplicationAutofillTelemetryDto{
+  @IsISO8601({strict:true})resumeUpdatedAt!:string;
+  @IsString()@MaxLength(80)@Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)adapterId!:string;
+  @IsString()@MaxLength(40)@Matches(/^[0-9A-Za-z][0-9A-Za-z._-]{0,39}$/)adapterVersion!:string;
+  @IsString()@MaxLength(253)@Matches(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/)targetDomain!:string;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(100)detectedCount!:number;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(100)selectedCount!:number;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(100)succeededCount!:number;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(100)failedCount!:number;
+  @Type(()=>Number)@IsInt()@Min(0)@Max(100)unresolvedCount!:number;
+  @IsArray()@ArrayMaxSize(100)@ValidateNested({each:true})@Type(()=>ApplicationAutofillFieldTelemetryDto)fields!:ApplicationAutofillFieldTelemetryDto[];
+}
+export class UpdateApplicationAutofillRecoveryDto{
+  @IsUrl({protocols:["http","https"],require_protocol:true,require_tld:false})@MaxLength(300)targetOrigin!:string;
+  @IsIn(["NEW","DETECTED","FILLING","PARTIAL","FILLED"])stepIdentifier!:string;
+  @IsISO8601({strict:true})resumeUpdatedAt!:string;
+  @IsOptional()@IsString()@MaxLength(80)@Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)adapterId?:string;
+  @IsOptional()@IsString()@MaxLength(40)@Matches(/^[0-9A-Za-z][0-9A-Za-z._-]{0,39}$/)adapterVersion?:string;
 }
 export class ResumeAccessDto {}
 export class ApplicationAutofillContextQueryDto {

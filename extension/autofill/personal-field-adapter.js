@@ -1,5 +1,5 @@
 const FIELD_ATTRIBUTE = "data-resume-jd-autofill-id";
-const SUPPORTED_TYPES = new Set(["", "text", "email", "tel", "url", "search"]);
+const SUPPORTED_TYPES = new Set(["", "text", "email", "tel", "url", "search", "month", "date", "number", "checkbox"]);
 
 const FIELD_RULES = [
   { key: "candidate.firstName", autocomplete: ["given-name"], pattern: /\b(?:first\s*name|given\s*name|forename|fname)\b/i },
@@ -21,6 +21,20 @@ const FIELD_RULES = [
   { key: "candidate.currentLocation", autocomplete: [], pattern: /\b(current\s+location|candidate\s+location|location\s*\(\s*city\s*\))\b/i },
   { key: "candidate.currentCompany", autocomplete: ["organization"], pattern: /\b(current|present|most\s+recent)\s+(company|employer)|current\s+employed\s+company\b/i },
 ];
+
+const STRUCTURED_PATTERNS={
+  company:/\b(company|employer|organization)\b/i,jobTitle:/\b(job|position)\s*(title)?\b|\btitle\b/i,location:/\b(location|city)\b/i,
+  institution:/\b(school|institution|university|college)\b/i,degree:/\bdegree\b/i,fieldOfStudy:/\b(field|discipline|major)(\s+of\s+study)?\b/i,gpa:/\b(gpa|grade\s+point)\b/i,
+  startDate:/\bstart\s*date\b/i,startMonth:/\bstart\s*(date\s*)?month\b/i,startYear:/\bstart\s*(date\s*)?year\b/i,
+  endDate:/\bend\s*date\b/i,endMonth:/\bend\s*(date\s*)?month\b/i,endYear:/\bend\s*(date\s*)?year\b/i,isCurrent:/\b(current|present|currently)\b/i,
+};
+function rulesFor(availableKeys){
+  const structured=availableKeys.filter(key=>/^(employment|education)\.\d+\./.test(key)).map(key=>{
+    const leaf=key.split(".").at(-1),pattern=STRUCTURED_PATTERNS[leaf];
+    return pattern?{key,autocomplete:[],pattern}:null;
+  }).filter(Boolean);
+  return [...FIELD_RULES,...structured];
+}
 
 const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 const normalized = (value) => clean(value).normalize("NFKC").toLowerCase();
@@ -68,10 +82,10 @@ export function scorePersonalField(element, rule) {
 }
 
 export function detectPersonalFields(root = document, availableKeys = FIELD_RULES.map((rule) => rule.key)) {
-  const allowedKeys = new Set(availableKeys), candidates = [];
+  const allowedKeys = new Set(availableKeys), candidates = [],rules=rulesFor(availableKeys);
   for (const element of root.querySelectorAll("input,select,textarea")) {
     let best = null;
-    for (const rule of FIELD_RULES) {
+    for (const rule of rules) {
       if (!allowedKeys.has(rule.key)) continue;
       const confidence = scorePersonalField(element, rule);
       if (confidence >= 70 && (!best || confidence > best.confidence)) best = { rule, confidence };
@@ -99,6 +113,11 @@ export function detectPersonalFields(root = document, availableKeys = FIELD_RULE
 
 function setNativeValue(element, value) {
   const tag = String(element.tagName || "").toLowerCase();
+  if(tag==="input"&&String(element.type||"").toLowerCase()==="checkbox"){
+    const wanted=value===true||["true","yes","1","present","current"].includes(normalized(value));
+    if(element.checked!==wanted){const setter=globalThis.HTMLInputElement&&Object.getOwnPropertyDescriptor(globalThis.HTMLInputElement.prototype,"checked")?.set;if(setter)setter.call(element,wanted);else element.checked=wanted;for(const type of["input","change"])element.dispatchEvent(new Event(type,{bubbles:true,composed:true}));}
+    return element.checked===wanted;
+  }
   if (tag === "select") {
     const wanted = normalized(value);
     const option = [...element.options].find((item) => normalized(item.value) === wanted || normalized(item.textContent) === wanted);
@@ -114,6 +133,7 @@ function setNativeValue(element, value) {
 }
 
 function verified(element, value) {
+  if(String(element.type||"").toLowerCase()==="checkbox")return element.checked===(value===true||["true","yes","1","present","current"].includes(normalized(value)));
   const actual = normalized(element.value), expected = normalized(value);
   if (actual === expected) return true;
   if (String(element.type || "").toLowerCase() === "tel") {
@@ -130,8 +150,8 @@ export function fillPersonalFields(requests, root = document) {
   return requests.map(({ fieldId, key, value }) => {
     const element = [...root.querySelectorAll(`[${FIELD_ATTRIBUTE}]`)].find((item) => item.getAttribute(FIELD_ATTRIBUTE) === fieldId);
     if (!element || !allowed(element)) return { fieldId, key, status: "FAILED", code: "FIELD_NO_LONGER_AVAILABLE" };
-    const safeValue = clean(value);
-    if (!safeValue) return { fieldId, key, status: "SKIPPED", code: "VALUE_UNAVAILABLE" };
+    const safeValue = typeof value==="boolean"?value:clean(value);
+    if (safeValue==="") return { fieldId, key, status: "SKIPPED", code: "VALUE_UNAVAILABLE" };
     try {
       if (!setNativeValue(element, safeValue)) return { fieldId, key, status: "FAILED", code: "SELECT_OPTION_NOT_FOUND" };
       const ok = verified(element, safeValue);

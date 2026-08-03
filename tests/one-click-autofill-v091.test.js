@@ -10,5 +10,6 @@ test("v0.9.1 fills every detected field immediately and presents results instead
  assert.match(app,/selectedAutofillFieldIds = autofillFields\.map/);
  assert.match(app,/MESSAGE_TYPES\.FILL_PERSONAL_AUTOFILL/);
  assert.match(view,/Autofill Results/);assert.match(view,/filled automatically/);assert.match(view,/Retry failed fields/);
- assert.doesNotMatch(view,/Review before filling|Fill selected fields|<Checkbox/);
+ assert.doesNotMatch(view,/Review before filling|<Checkbox/);
+ assert.match(app,/requireReviewEveryField/);
 });

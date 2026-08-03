@@ -408,7 +408,7 @@ export function BulkCreatePage({
           <p>
             Defaults:{" "}
             <strong>
-              UNASSIGNED · NOT_APPLIED · NORMAL · No assigned Applier
+              UNASSIGNED · NORMAL · No assigned Applier
             </strong>
           </p>
         </div>

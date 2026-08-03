@@ -6,7 +6,9 @@ import { normalizeUrl } from "../../shared/normalization.js";
 const { Text } = Typography;
 
 const STATUS_COLORS = {
-  NOT_APPLIED: "default",
+  ASSIGNED: "default",
+  IN_PROGRESS: "processing",
+  BLOCKED: "warning",
   APPLIED: "blue",
   SCREENING: "gold",
   INTERVIEW_SCHEDULED: "purple",
@@ -14,12 +16,13 @@ const STATUS_COLORS = {
   REJECTED: "red",
   WITHDRAWN: "default",
   CLOSED: "default",
+  CANCELLED: "default",
 };
 
 export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, extensionBusy }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
-  const extensionEligible = Boolean(jobUrl && application.resume_id && !["COMPLETED","CANCELLED"].includes(application.work_status) && !["REJECTED","WITHDRAWN","CLOSED"].includes(application.application_status));
+  const extensionEligible = Boolean(jobUrl && application.resume_id && !["APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"].includes(application.status));
   return (
     <Card size="small" style={{ marginBottom: 8 }}>
       <Flex justify="space-between" align="start" gap={8}>
@@ -35,8 +38,8 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
         {application.candidate_name && <Text type="secondary"> · {application.candidate_name}</Text>}
       </div>
       <Space wrap style={{ margin: "4px 0" }}>
-        <Tag color={STATUS_COLORS[application.application_status] || "default"}>
-          {String(application.application_status || "").replaceAll("_", " ")}
+        <Tag color={STATUS_COLORS[application.status] || "default"}>
+          {String(application.status || "").replaceAll("_", " ")}
         </Tag>
         {application.category_name && <Tag>{application.category_name}</Tag>}
         {application.screenshot_count > 0 && (

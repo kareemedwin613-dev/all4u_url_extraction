@@ -1,6 +1,8 @@
 import {authenticatedApiRequest} from "../../services/api-client.js";
 const request=async(client,baseUrl,path,options={})=>(await authenticatedApiRequest(client,{baseUrl,path,...options})).payload.data;
 export const getCandidateProfile=(client,baseUrl,id)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-profile`);
+export const getResumeAutofillPreferences=(client,baseUrl,id)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-preferences`);
+export const updateResumeAutofillPreferences=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-preferences`,{method:"PATCH",body});
 export const importCandidateEmployment=(client,baseUrl,id)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-employment/import`,{method:"POST"});
 export const updateCandidateProfile=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/autofill-profile`,{method:"PATCH",body});
 export const updateResumeStructuredContent=(client,baseUrl,id,body)=>request(client,baseUrl,`/api/v1/resumes/${encodeURIComponent(id)}/structured-content`,{method:"PATCH",body});

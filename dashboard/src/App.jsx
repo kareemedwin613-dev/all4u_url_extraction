@@ -47,6 +47,7 @@ import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobs } from "./services/job-read-service.js";
 import { getResume, listResumes } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
+import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
 import { createResumeSignedUrl } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -562,7 +563,7 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
   );
 }
 
-function BusinessOverview({ client, apiBaseUrl, categories, reload }) {
+function BusinessOverview({ client, apiBaseUrl, categories, reload, access }) {
   const [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
@@ -581,7 +582,8 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload }) {
     resumes = result.resumeCounts.total,
     activeResumes = result.resumeCounts.active,
     recentJ = result.recentJobs,
-    recentR = result.recentResumes;
+    recentR = result.recentResumes || [],
+    showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE);
   return (
     <div className="page">
       <Title level={1} tabIndex={-1}>
@@ -637,7 +639,7 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload }) {
           </Text>
         )}
       </Card>
-      <Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>
+      {showApplierPerformance ? <ApplierPerformanceChart rows={result.applierPerformance || []}/> : <Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>
         {recentR.length ? (
           <Table
             headers={["Candidate", "Resume", "Category", "Status", "Updated"]}
@@ -659,7 +661,7 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload }) {
         ) : (
           <Text type="secondary">No resumes have been uploaded yet.</Text>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -1415,6 +1417,7 @@ export function App({ client, apiBaseUrl }) {
           apiBaseUrl={apiBaseUrl}
           categories={categories}
           reload={reload}
+          access={access}
         />
       </>
     ) : (
