@@ -1,10 +1,12 @@
-# Resume JD Operations API v0.8
+# Resume JD Operations API v1.6
 
 NestJS boundary for every authenticated business-data workflow. Browser Supabase usage is limited to Auth sign-in, token refresh/session restoration, and sign-out.
 
 Production can run together with the Vite dashboard in one Vercel project. See `../../docs/DEPLOYMENT_VERCEL.md`. Docker remains available when a separate long-running API is preferred.
 
 The v0.7.4 slice owns bulk Application creation. v0.8 adds capacity-aware bulk assignment, workload settings, assignment batches, and row outcomes. See `../../docs/api/bulk-assignment.md`, `../../docs/api/applier-workloads.md`, `../../docs/api/assignment-batches.md`, and `../../docs/api/idempotency.md`.
+
+The v1.6 tailoring slice renders a human-approved preview as an in-memory DOCX, uploads it through the request-scoped user Supabase client, and invokes protected PostgreSQL finalization. It never uses a service-role client. See `../../docs/tailoring/v1.6-tailored-resume-materialization.md`.
 
 ## Local setup
 

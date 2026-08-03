@@ -13,6 +13,8 @@ The final migration slice places profiles, Administration, business overview, an
 - `PATCH /api/v1/tailoring-jobs/:id/review` lets an Applying Manager or Admin save controlled edits, approve, or reject a review-ready preview with optimistic concurrency.
 - `GET /api/v1/tailoring-jobs/:id/reviews` returns the immutable human review history.
 - `POST /api/v1/tailoring-jobs/:id/runner-ticket` lets an Applying Manager or Admin issue one short-lived, job-scoped local runner capability.
+- `POST /api/v1/tailoring-jobs/:id/materialize` renders approved content to DOCX, writes the private artifact, and invokes one atomic database finalization.
+- `GET /api/v1/tailoring-jobs/:id/file-url` returns a 90-second link to the tailored artifact after completion, or the source file before completion.
 - `POST /api/v1/tailoring-runner/claim` exchanges that capability for sanitized input and a bounded run window.
 - `PUT /api/v1/tailoring-runner/preview` consumes the claimed capability by submitting one database-validated preview.
 - `POST /api/v1/tailoring-runner/failure` records one allowlisted failure code without accepting logs or Resume content.
@@ -21,4 +23,4 @@ Tailoring creation accepts a JD ID and up to 100 Resume match records. The backe
 
 No service-role key, database password, or privileged credential is used. Supabase Auth remains client-side solely to obtain and refresh the user's access token.
 
-The v1.5 endpoints simplify local generation and approve structured preview content only. They do not create a tailored Resume, generate a file, write Storage, or replace an Application's Resume.
+The public v1.5 runner capability still stops at preview submission. Only the authenticated manager/admin v1.6 endpoint can render and materialize approved content. The API uses the caller's Supabase token for Storage and RPC operations; it does not use a service-role client.
