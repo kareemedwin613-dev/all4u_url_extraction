@@ -27,7 +27,7 @@ select throws_ok($$delete from public.profiles where id='20202020-2020-4020-8020
 select throws_ok($$insert into public.roles(code,name) values('CUSTOM','Custom')$$,'42501',null,'browser user cannot create roles');
 select throws_ok($$insert into public.user_roles(user_id,role_id) select '20202020-2020-4020-8020-202020202020',id from public.roles where code='APPLIER'$$,'42501',null,'non-admin cannot directly assign roles');
 select throws_ok($$select public.admin_assign_role('20202020-2020-4020-8020-202020202020','APPLIER')$$,'42501','ACCESS_DENIED','non-admin Admin RPC is rejected');
-select is((select count(*)::integer from public.roles where active),5,'active authenticated user reads role catalog');
+select is((select count(*)::integer from public.roles where active),6,'active authenticated user reads role catalog');
 select throws_ok($$update public.roles set name='Changed' where code='APPLIER'$$,'42501',null,'browser user cannot update roles');
 select throws_ok($$delete from public.roles where code='APPLIER'$$,'42501',null,'browser user cannot delete roles');
 select is((select count(*)::integer from public.user_roles),0,'non-admin cannot list another user role assignment');

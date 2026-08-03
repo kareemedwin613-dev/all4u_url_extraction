@@ -7,6 +7,7 @@ test("each fixed role maps to the expected capabilities",()=>{
   assert.deepEqual([...capabilitiesForRoles(["APPLYING_MANAGER"])].sort(),[CAPABILITIES.APPLICATION_BULK_MANAGE,CAPABILITIES.APPLICATION_MANAGE,CAPABILITIES.APPLICATION_VIEW,CAPABILITIES.BUSINESS_DATA_READ,CAPABILITIES.EXTENSION_BUSINESS_WRITE,CAPABILITIES.PROFILE_VIEW_SELF,CAPABILITIES.USER_DIRECTORY_READ].sort());
   assert.deepEqual([...capabilitiesForRoles(["DEVELOPER"])],[CAPABILITIES.PROFILE_VIEW_SELF]);
   assert.deepEqual([...capabilitiesForRoles(["DEVELOPMENT_MANAGER"])],[CAPABILITIES.PROFILE_VIEW_SELF]);
+  assert.deepEqual([...capabilitiesForRoles(["JD_FINDER"])].sort(),[CAPABILITIES.EXTENSION_BUSINESS_WRITE,CAPABILITIES.PROFILE_VIEW_SELF].sort());
   assert.deepEqual([...capabilitiesForRoles(["ADMIN"])].sort(),[...ALL_CAPABILITIES].sort());
 });
 

@@ -8,7 +8,7 @@ React dashboard -- bearer JWT --> NestJS API -- same user JWT --> Supabase Data/
 Dashboard / extension -----> Supabase Auth (sign-in, refresh, sign-out only)
 ```
 
-The API verifies JWT signatures using the configured Supabase JWKS, issuer, expiration and optional audience. Identity always comes from `sub`. The role guard calls `get_my_access_context` through a user-scoped Supabase client configured with Supabase's `accessToken` callback and permits active Applying Managers and Admins for ingestion. The service inserts with the same access token and explicitly uses the verified subject as `user_id`; existing RLS remains effective.
+The API verifies JWT signatures using the configured Supabase JWKS, issuer, expiration and optional audience. Identity always comes from `sub`. The role guard calls `get_my_access_context` through a user-scoped Supabase client configured with Supabase's `accessToken` callback and permits active Applying Managers, JD Finders, and Admins for ingestion. The service inserts with the same access token and explicitly uses the verified subject as `user_id`; existing RLS remains effective.
 
 There is no privileged/system client and no direct PostgreSQL connection. Every business-data workflow now passes through NestJS, including access context, profiles, Admin users/roles, JD, Resume, Application, bulk/batch, assignment, screenshots, business overview, controlled lookups, and tailoring queue/files. Private uploads use multipart requests, Storage is accessed using the same user's JWT, and downloads return 90-second signed URLs. Browser Supabase usage is limited to authentication session lifecycle.
 

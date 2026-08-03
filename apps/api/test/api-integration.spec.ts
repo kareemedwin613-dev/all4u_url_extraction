@@ -123,6 +123,16 @@ test("ingestion rejects unauthenticated, inactive, and invalid requests", async 
   await request(app.getHttpServer()).post("/api/v1/extension/job-descriptions").set("Authorization","Bearer token").send({...validBody,descriptionText:"short"}).expect(400);
 });
 
+test("JD Finder can capture with lookups but cannot access shared operational APIs",async()=>{
+  roles=["JD_FINDER"];mode="create";
+  await request(app.getHttpServer()).get("/api/v1/lookups/categories").set("Authorization","Bearer token").expect(200);
+  await request(app.getHttpServer()).post("/api/v1/extension/job-descriptions").set("Authorization","Bearer token").send(validBody).expect(201).expect(({body})=>assert.equal(body.data.company,"Example"));
+  await request(app.getHttpServer()).get("/api/v1/job-descriptions").set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).get("/api/v1/applications").set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).get("/api/v1/resumes").set("Authorization","Bearer token").expect(403);
+  roles=["APPLYING_MANAGER"];
+});
+
 test("JD read and lookup routes require authentication and expose bounded API responses",async()=>{
   await request(app.getHttpServer()).get("/api/v1/access-context").expect(401);
   await request(app.getHttpServer()).get("/api/v1/access-context").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.status,"ACTIVE"));

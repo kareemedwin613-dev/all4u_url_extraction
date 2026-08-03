@@ -16,7 +16,7 @@ import { JdValidationPipe } from "./jd-validation.pipe.js";
 @ApiBearerAuth()
 @Controller("extension/job-descriptions")
 @UseGuards(AuthGuard, RolesGuard)
-@RequireRoles("APPLYING_MANAGER", "ADMIN")
+@RequireRoles("APPLYING_MANAGER", "JD_FINDER", "ADMIN")
 export class JobDescriptionController {
   constructor(@Inject(JobDescriptionService) private readonly jobs: JobDescriptionService) {}
   @Post()

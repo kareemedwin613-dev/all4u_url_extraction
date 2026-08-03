@@ -11,6 +11,6 @@ The React dashboard and Chrome extension use the NestJS API for the JD read doma
 - `GET /api/v1/lookups/categories` returns active primary and subcategories.
 - `GET /api/v1/lookups/industry-domains` returns active controlled industry domains.
 
-All endpoints require an active profile with at least one of the five fixed system roles. They return the standard request ID and error shape. The browser no longer reads `job_descriptions`, `categories`, or `industry_domain_categories` directly for these workflows.
+Read endpoints require an active business-data role. Capture accepts Applying Manager, JD Finder, or Admin; lookup endpoints also accept JD Finder. Every endpoint returns the standard request ID and error shape. The browser no longer reads `job_descriptions`, `categories`, or `industry_domain_categories` directly for these workflows.
 
 No privileged Supabase key is used. Supabase Auth remains browser-facing for session creation and refresh.

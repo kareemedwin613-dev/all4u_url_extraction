@@ -3,6 +3,7 @@ export const SYSTEM_ROLES = [
   "APPLYING_MANAGER",
   "DEVELOPER",
   "DEVELOPMENT_MANAGER",
+  "JD_FINDER",
   "ADMIN",
 ] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
