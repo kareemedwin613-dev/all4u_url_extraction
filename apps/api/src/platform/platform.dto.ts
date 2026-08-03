@@ -18,6 +18,7 @@ export class TailoringPreviewResultDto{
 }
 export class SubmitTailoringPreviewDto{@IsISO8601()generatedAt!:string;@ValidateNested()@Type(()=>TailoringPreviewResultDto)result!:TailoringPreviewResultDto;}
 export class ReviewTailoringPreviewDto{@IsIn(["SAVE_DRAFT","APPROVE","REJECT"])action!:"SAVE_DRAFT"|"APPROVE"|"REJECT";@ValidateNested()@Type(()=>TailoringPreviewResultDto)preview!:TailoringPreviewResultDto;@IsOptional()@IsString()@MaxLength(1000)notes="";@IsISO8601()expectedUpdatedAt!:string;}
+export class SelectTailoringTemplateDto{@IsIn(["CLASSIC_V1","MODERN_V1","COMPACT_V1"])renderTemplateKey!:"CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1";@IsISO8601()expectedUpdatedAt!:string;}
 export class TailoringRunnerTicketDto{@IsString()@Matches(/^trt_[A-Za-z0-9_-]{43}$/)ticket!:string;}
 export class SubmitTailoringRunnerPreviewDto extends TailoringRunnerTicketDto{@IsISO8601()generatedAt!:string;@ValidateNested()@Type(()=>TailoringPreviewResultDto)result!:TailoringPreviewResultDto;}
 export class FailTailoringRunnerDto extends TailoringRunnerTicketDto{@IsIn(["CODEX_FAILED","VALIDATION_FAILED","API_SUBMISSION_FAILED","WORKER_FAILED"])failureCode!:string;}
