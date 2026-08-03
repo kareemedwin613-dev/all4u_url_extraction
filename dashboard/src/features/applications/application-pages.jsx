@@ -54,6 +54,7 @@ import {
 } from "./application-service.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
+import { requestApplicationTailoring } from "../tailoring/tailoring-service.js";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -892,6 +893,19 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       setBusy(false);
     }
   }
+  async function requestTailoring() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const job = await requestApplicationTailoring(client, apiBaseUrl, id);
+      go(`#/tailoring-jobs/${job.id}`);
+    } catch (x) {
+      setIsError(true);
+      setMessage(x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const assignmentColumns = [
       { title: "When", dataIndex: "created_at", render: formatDate },
       {
@@ -1047,13 +1061,16 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                   <p>
                     {formatLabel(resume.seniority)} · {resume.original_filename}
                   </p>
-                  <Button
-                    onClick={openResume}
-                    loading={busy}
-                    disabled={!actions.canOpenResume}
-                  >
-                    Open Resume securely
-                  </Button>
+                  <Space wrap>
+                    <Button
+                      onClick={openResume}
+                      loading={busy}
+                      disabled={!actions.canOpenResume}
+                    >
+                      Open Resume securely
+                    </Button>
+                    {manager&&<Button type="primary" onClick={requestTailoring} loading={busy}>Request or View Tailoring</Button>}
+                  </Space>
                 </Card>
               </>
             ),

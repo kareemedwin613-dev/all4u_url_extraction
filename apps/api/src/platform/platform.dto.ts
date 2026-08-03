@@ -17,3 +17,4 @@ export class TailoringPreviewResultDto{
   @IsArray()@ArrayMaxSize(100)@IsString({each:true})@MaxLength(500,{each:true})warnings!:string[];
 }
 export class SubmitTailoringPreviewDto{@IsISO8601()generatedAt!:string;@ValidateNested()@Type(()=>TailoringPreviewResultDto)result!:TailoringPreviewResultDto;}
+export class ReviewTailoringPreviewDto{@IsIn(["SAVE_DRAFT","APPROVE","REJECT"])action!:"SAVE_DRAFT"|"APPROVE"|"REJECT";@ValidateNested()@Type(()=>TailoringPreviewResultDto)preview!:TailoringPreviewResultDto;@IsOptional()@IsString()@MaxLength(1000)notes="";@IsISO8601()expectedUpdatedAt!:string;}

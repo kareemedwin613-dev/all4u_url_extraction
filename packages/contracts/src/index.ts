@@ -241,6 +241,10 @@ export interface ApplicationTailoringRequest { id:string;applicationId:string;ap
 export interface TailoringWorkerInput { jobId:string;input:ApplicationTailoringInput; }
 export interface SubmitTailoringPreviewRequest { generatedAt:string;result:TailoringPreviewResult; }
 export interface TailoringPreviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW";outputSchemaVersion:1;previewGeneratedAt:string; }
+export type TailoringReviewAction="SAVE_DRAFT"|"APPROVE"|"REJECT";
+export interface ReviewTailoringPreviewRequest { action:TailoringReviewAction;preview:TailoringPreviewResult;notes?:string;expectedUpdatedAt:string; }
+export interface TailoringReviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW"|"APPROVED"|"REJECTED";action:TailoringReviewAction;reviewedBy:string|null;reviewedAt:string|null;updatedAt:string; }
+export interface TailoringReviewEvent { id:string;tailoringJobId:string;applicationId:string;action:TailoringReviewAction;previousStatus:TailoringJobStatus;newStatus:TailoringJobStatus;notes:string;reviewedBy:string;reviewerName:string;createdAt:string; }
 export interface ResumeIdentity {
   id: string;
   resumeNumber: number;

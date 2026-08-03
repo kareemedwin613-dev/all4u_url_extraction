@@ -96,7 +96,7 @@ before(async () => {
       archive:async()=>({id:"answer-1",active:false}),
     })
     .overrideProvider(PlatformService).useValue({roles:async()=>[{code:"ADMIN"}],users:async()=>({items:[],page:1,pageSize:25,total:0,totalPages:0}),user:async()=>({id:"user-1"}),role:async()=>["ADMIN"],status:async()=>({id:"user-1",status:"INACTIVE"}),profile:async()=>({id:"user-1",full_name:"Name"}),overview:async()=>({jobCounts:{total:1}})})
-    .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],requestApplication:async(_user:any,applicationId:string)=>({id:"123e4567-e89b-42d3-a456-426614174000",applicationId,status:"PENDING"}),input:async()=>({jobId:"123e4567-e89b-42d3-a456-426614174000",input:{contractVersion:"1.2"}}),preview:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),detail:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
+    .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],requestApplication:async(_user:any,applicationId:string)=>({id:"123e4567-e89b-42d3-a456-426614174000",applicationId,status:"PENDING"}),input:async()=>({jobId:"123e4567-e89b-42d3-a456-426614174000",input:{contractVersion:"1.2"}}),preview:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),review:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"APPROVED"}),reviews:async()=>[{id:"review-1",action:"APPROVE"}],detail:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
     .compile();
   app = module.createNestApplication();
   app.setGlobalPrefix("api/v1",{exclude:["health","ready"]});
@@ -251,6 +251,8 @@ test("Profile, Admin, overview, and tailoring routes enforce the final backend b
   await request(app.getHttpServer()).get("/api/v1/business-overview").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).get("/api/v1/tailoring-jobs?status=PENDING").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).post("/api/v1/tailoring-jobs").set("Authorization","Bearer token").send({jobDescriptionId:id,matches:[{resumeId,matchScore:80,matchDetails:{eligible:true}}]}).expect(403);
+  await request(app.getHttpServer()).patch(`/api/v1/tailoring-jobs/${id}/review`).set("Authorization","Bearer token").send({action:"APPROVE",expectedUpdatedAt:"2026-08-03T12:00:00.000Z",preview:{}}).expect(403);
+  await request(app.getHttpServer()).get(`/api/v1/tailoring-jobs/${id}/reviews`).set("Authorization","Bearer token").expect(403);
   roles=["ADMIN"];
   await request(app.getHttpServer()).get("/api/v1/admin/roles").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).get("/api/v1/admin/users?page=1&pageSize=25").set("Authorization","Bearer token").expect(200);
@@ -259,6 +261,8 @@ test("Profile, Admin, overview, and tailoring routes enforce the final backend b
   await request(app.getHttpServer()).post(`/api/v1/tailoring-jobs/application/${id}`).set("Authorization","Bearer token").expect(201);
   await request(app.getHttpServer()).get(`/api/v1/tailoring-jobs/${id}/input`).set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).put(`/api/v1/tailoring-jobs/${id}/preview`).set("Authorization","Bearer token").send({generatedAt:"2026-08-03T12:00:00.000Z",result:{summary:"A valid tailored summary.",professionalExperience:[{sourceExperienceId:"experience-1",tailoredDetails:"Supported source details."}],skills:["SQL"],changeSummary:[],unsupportedRequirements:[],warnings:[]}}).expect(200);
+  await request(app.getHttpServer()).patch(`/api/v1/tailoring-jobs/${id}/review`).set("Authorization","Bearer token").send({action:"APPROVE",expectedUpdatedAt:"2026-08-03T12:00:00.000Z",notes:"Reviewed",preview:{summary:"A valid tailored summary.",professionalExperience:[{sourceExperienceId:"experience-1",tailoredDetails:"Supported source details."}],skills:["SQL"],changeSummary:[],unsupportedRequirements:[],warnings:[]}}).expect(200);
+  await request(app.getHttpServer()).get(`/api/v1/tailoring-jobs/${id}/reviews`).set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).get(`/api/v1/tailoring-jobs/${id}`).set("Authorization","Bearer token").expect(200);
   roles=["APPLYING_MANAGER"];
 });

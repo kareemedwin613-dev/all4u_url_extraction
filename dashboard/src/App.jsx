@@ -116,6 +116,7 @@ import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage,
 import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
 import { CandidateProfilePage } from "./features/candidates/candidate-profile-page.jsx";
 import { ResumeAnswerLibrary } from "./features/resume-answers/resume-answer-library.jsx";
+import { TailoringQueuePage, TailoringReviewPage } from "./features/tailoring/tailoring-pages.jsx";
 import {
   DataPagination,
   EmptyState,
@@ -172,6 +173,7 @@ const NAV_ICONS = Object.freeze({
     "application-batches": <HistoryOutlined />,
     "assignment-batches": <HistoryOutlined />,
     "applier-workloads": <UserOutlined />,
+    "tailoring-jobs": <FileSearchOutlined />,
     jobs: <FileSearchOutlined />,
     resumes: <ProfileOutlined />,
     "resume-upload": <UploadOutlined />,
@@ -187,6 +189,7 @@ const NAV_ICONS = Object.freeze({
     "application-bulk-assign": "applications",
     "application-batch-detail": "application-batches",
     "assignment-batch-detail": "assignment-batches",
+    "tailoring-job-detail": "tailoring-jobs",
     "job-detail": "jobs",
     "resume-detail": "resumes",
     "candidate-profile": "resumes",
@@ -1478,6 +1481,10 @@ export function App({ client, apiBaseUrl }) {
     page = <AssignmentBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "applier-workloads")
     page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "tailoring-jobs")
+    page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
+  else if (route.name === "tailoring-job-detail")
+    page = <TailoringReviewPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} reload={reload} />;
   else if (route.name === "users-directory")
     page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "jobs")

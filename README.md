@@ -1,12 +1,12 @@
-# Resume JD Capture and Operations Platform v1.3
+# Resume JD Capture and Operations Platform v1.4
 
 This repository contains a Manifest V3 Chrome extension, a React/Vite/Ant Design operations dashboard, Supabase migrations, and a NestJS API. The dashboard and API can be deployed together as one Vercel project and public origin; the extension points to that same origin. See [unified Vercel deployment](docs/DEPLOYMENT_VERCEL.md), [API setup](apps/api/README.md), and [v0.8 architecture](docs/architecture/backend-api-v0.8.md).
 
 Development uses protected `main` plus short-lived typed branches and squash-merged pull requests. See the [branching and pull-request guide](CONTRIBUTING.md) before committing or opening a PR.
 
-All business-data operations now use the NestJS API: access context, profiles, Admin users/roles, Job Descriptions, Resumes, Applications, bulk/batches, assignments, screenshots, business overview, controlled lookups, and tailoring jobs. Supabase Auth establishes and refreshes user sessions; access tokens are sent to NestJS, which uses the same token for RLS-protected Supabase access. The v1.3 local tailoring worker talks only to NestJS and keeps its token outside the Codex subprocess.
+All business-data operations now use the NestJS API: access context, profiles, Admin users/roles, Job Descriptions, Resumes, Applications, bulk/batches, assignments, screenshots, business overview, controlled lookups, and tailoring jobs. Supabase Auth establishes and refreshes user sessions; access tokens are sent to NestJS, which uses the same token for RLS-protected Supabase access. The local tailoring worker talks only to NestJS and keeps its token outside the Codex subprocess.
 
-Resume tailoring currently stops at a validated, Application-scoped JSON preview. See [Resume variants](docs/tailoring/v1.1-resume-variants.md), the [local worker](apps/tailoring-worker/README.md), and the [v1.3 preview lifecycle](docs/tailoring/v1.3-preview-lifecycle.md). No tailored file or Resume row is created yet.
+Resume tailoring currently stops at a human-approved, Application-scoped structured preview. Applying Managers and Admins can edit only the summary, source-linked experience details, and source Resume skills, then save a draft, approve, or reject with immutable audit history. See [Resume variants](docs/tailoring/v1.1-resume-variants.md), the [local worker](apps/tailoring-worker/README.md), the [v1.3 preview lifecycle](docs/tailoring/v1.3-preview-lifecycle.md), and [v1.4 review and approval](docs/tailoring/v1.4-review-approval.md). No tailored file or Resume row is created yet.
 
 Applying Managers and Admins can select up to 100 Job Descriptions, preview every active same-category Resume combination, exclude existing Applications, keep selections across preview pages, and submit up to 2,000 reviewed pairs in one database call. Each request creates an auditable batch with per-pair outcomes. Bulk-created Applications are always unassigned with `UNASSIGNED`, `NOT_APPLIED`, and `NORMAL` defaults. Appliers, Developers, and Development Managers cannot use or query the bulk administration workflow.
 
@@ -31,7 +31,7 @@ The role-aware sidebar follows Ant Design's collapsible-overlay pattern: a 64-pi
 
 ## Supabase
 
-Apply all migrations in filename order. The v1.3 migration is `supabase/migrations/202608030039_v1_3_tailoring_preview_lifecycle.sql`.
+Apply all migrations in filename order. The latest migration is `supabase/migrations/202608030040_v1_4_tailoring_review_approval.sql`.
 
 For a linked project, inspect before explicitly deploying:
 
@@ -48,4 +48,4 @@ Only the Supabase project URL and publishable/anon key belong in browser setting
 
 ## Boundaries
 
-AI workload optimization, scheduled assignment, bulk reassignment, teams, organizations, feature-permission tables, AI matching/scoring, automatic tailored-file generation/approval, job-site submission, Google Workspace integration, OpenAI API, and every other AI API are intentionally excluded. v1.3 uses the locally authenticated Codex CLI only for an operator-triggered, review-required preview.
+AI workload optimization, scheduled assignment, bulk reassignment, teams, organizations, feature-permission tables, AI matching/scoring, automatic tailored-file generation, job-site submission, Google Workspace integration, OpenAI API, and every other AI API are intentionally excluded. The local worker uses the locally authenticated Codex CLI only for an operator-triggered preview; v1.4 adds a separate mandatory human decision.
