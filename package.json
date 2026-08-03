@@ -1,6 +1,6 @@
 {
   "name": "resume-jd-capture",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "build:dashboard": "vite build --config dashboard/vite.config.js",
     "build:contracts": "npm --prefix packages/contracts run build",
     "build:api": "npm run build:contracts && npm --prefix apps/api run build",
+    "build:tailoring": "npm --prefix apps/tailoring-worker run build",
     "build:vercel": "npm run build:dashboard && npm run build:api",
     "dev:api": "npm run build:contracts && npm --prefix apps/api run start:dev",
     "dev:dashboard": "vite --config dashboard/vite.config.js",
@@ -18,10 +19,12 @@
     "test": "node --test \"dashboard/tests/**/*.test.js\" \"tests/**/*.test.js\"",
     "test:db": "npx supabase test db",
     "test:api": "npm run build:contracts && npm --prefix apps/api test",
+    "test:tailoring": "npm --prefix apps/tailoring-worker test",
+    "proof:tailoring": "npm --prefix apps/tailoring-worker run proof --",
     "lint": "node scripts/lint.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "security:check": "node scripts/security-check.mjs",
-    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:api && npm run build && npm run build:api && node scripts/validate-builds.mjs"
+    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:api && npm run test:tailoring && npm run build && npm run build:api && npm run build:tailoring && node scripts/validate-builds.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",

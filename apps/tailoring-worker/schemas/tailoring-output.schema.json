@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Resume tailoring output v1.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "professionalExperience",
+    "skills",
+    "changeSummary",
+    "unsupportedRequirements",
+    "warnings"
+  ],
+  "properties": {
+    "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "professionalExperience": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceExperienceId", "tailoredDetails"],
+        "properties": {
+          "sourceExperienceId": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "tailoredDetails": { "type": "string", "minLength": 1, "maxLength": 12000 }
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "maxItems": 250,
+      "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+    },
+    "changeSummary": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "unsupportedRequirements": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    }
+  }
+}
