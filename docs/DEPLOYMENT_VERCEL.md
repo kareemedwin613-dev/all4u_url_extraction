@@ -44,6 +44,15 @@ LOG_LEVEL=info
 SWAGGER_ENABLED=false
 ```
 
+For the optional migration-time Google Sheets mirror, also configure these API-only variables after completing [the Apps Script setup](../google-workspace/README.md):
+
+```text
+GOOGLE_WORKSPACE_JD_SYNC_ENABLED=true
+GOOGLE_WORKSPACE_JD_SYNC_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
+GOOGLE_WORKSPACE_JD_SYNC_SECRET=YOUR_RANDOM_SECRET_WITH_AT_LEAST_32_CHARACTERS
+GOOGLE_WORKSPACE_JD_SYNC_TIMEOUT_MS=5000
+```
+
 Set these Vite build variables:
 
 ```text

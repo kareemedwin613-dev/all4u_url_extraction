@@ -108,6 +108,12 @@ export interface JobDescriptionIngestionData {
   createdAt: string;
   duplicate: boolean;
   duplicateReason: "SOURCE_URL" | "COMPANY_JOB_TITLE" | null;
+  workspaceSync: {
+    enabled: boolean;
+    status: "DISABLED" | "PENDING" | "SUCCEEDED" | "FAILED";
+    attemptCount?: number;
+    errorCode?: string;
+  };
   categoryId: string;
   subcategoryId: string | null;
   industryDomainCategoryId: string | null;

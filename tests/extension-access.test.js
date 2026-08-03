@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {canAccessMyApplications,canAccessResumeQueue,canReadBusiness,canWriteBusiness,extensionAccessMessage,normalizeExtensionAccess} from "../extension/access/capabilities.js";
+import {canAccessMyApplications,canAccessResumeQueue,canCreateTailoring,canReadBusiness,canWriteBusiness,extensionAccessMessage,normalizeExtensionAccess} from "../extension/access/capabilities.js";
 
 test("extension permits writes only for Applying Manager, JD Finder, and Admin",()=>{
   for(const role of ["APPLYING_MANAGER","JD_FINDER","ADMIN"])assert.equal(canWriteBusiness(normalizeExtensionAccess({status:"ACTIVE",roles:[role]})),true);
@@ -19,6 +19,12 @@ test("extension restricts Resumes and Tailoring Queue tabs to Admin",()=>{
 test("extension restricts the My Applications tab to Applier",()=>{
   assert.equal(canAccessMyApplications(normalizeExtensionAccess({status:"ACTIVE",roles:["APPLIER"]})),true);
   for(const role of ["APPLYING_MANAGER","DEVELOPER","DEVELOPMENT_MANAGER","JD_FINDER","ADMIN"])assert.equal(canAccessMyApplications(normalizeExtensionAccess({status:"ACTIVE",roles:[role]})),false);
+});
+
+test("JD Finder captures without Resume matching or tailoring authority",()=>{
+  assert.equal(canCreateTailoring(normalizeExtensionAccess({status:"ACTIVE",roles:["JD_FINDER"]})),false);
+  assert.equal(canCreateTailoring(normalizeExtensionAccess({status:"ACTIVE",roles:["APPLYING_MANAGER"]})),true);
+  assert.equal(canCreateTailoring(normalizeExtensionAccess({status:"ACTIVE",roles:["ADMIN"]})),true);
 });
 
 test("extension presents pending, inactive, and read-only messages",()=>{
