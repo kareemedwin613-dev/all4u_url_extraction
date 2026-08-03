@@ -3,6 +3,8 @@ node_modules/
 extension/dist/
 dashboard/dist/
 apps/api/dist/
+apps/tailoring-worker/dist/
+apps/tailoring-worker/artifacts/
 packages/contracts/dist/
 dashboard/.env.local
 dashboard/.env.*.local
