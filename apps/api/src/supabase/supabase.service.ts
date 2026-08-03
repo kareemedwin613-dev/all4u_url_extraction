@@ -4,6 +4,13 @@ import { environment } from "../config/environment.js";
 
 @Injectable()
 export class SupabaseService {
+  anonymous(): SupabaseClient {
+    const env = environment();
+    return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_OR_PUBLISHABLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  }
+
   forUser(token: string): SupabaseClient {
     const env = environment();
     return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_OR_PUBLISHABLE_KEY, {

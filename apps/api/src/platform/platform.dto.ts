@@ -1,4 +1,4 @@
-import{Type}from"class-transformer";import{ArrayMaxSize,ArrayMinSize,ArrayUnique,IsArray,IsIn,IsInt,IsISO8601,IsNumber,IsObject,IsOptional,IsString,IsUUID,Max,MaxLength,Min,ValidateNested}from"class-validator";
+import{Type}from"class-transformer";import{ArrayMaxSize,ArrayMinSize,ArrayUnique,IsArray,IsIn,IsInt,IsISO8601,IsNumber,IsObject,IsOptional,IsString,IsUUID,Matches,Max,MaxLength,Min,ValidateNested}from"class-validator";
 export const ROLE_CODES=["APPLIER","APPLYING_MANAGER","DEVELOPER","DEVELOPMENT_MANAGER","ADMIN"];
 export class UserListQueryDto{@IsOptional()@IsString()@MaxLength(100)search="";@IsOptional()@IsIn(["ACTIVE","INACTIVE"])status?:string;@IsOptional()@IsIn(ROLE_CODES)roleCode?:string;@IsOptional()@IsIn(["name_asc","name_desc","email_asc","email_desc","status_asc","status_desc","roles_asc","roles_desc","created_asc","created_desc"])sort="created_desc";@IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;@IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100])pageSize=25;}
 export class RoleMutationDto{@IsIn(ROLE_CODES)roleCode!:string;}
@@ -18,3 +18,6 @@ export class TailoringPreviewResultDto{
 }
 export class SubmitTailoringPreviewDto{@IsISO8601()generatedAt!:string;@ValidateNested()@Type(()=>TailoringPreviewResultDto)result!:TailoringPreviewResultDto;}
 export class ReviewTailoringPreviewDto{@IsIn(["SAVE_DRAFT","APPROVE","REJECT"])action!:"SAVE_DRAFT"|"APPROVE"|"REJECT";@ValidateNested()@Type(()=>TailoringPreviewResultDto)preview!:TailoringPreviewResultDto;@IsOptional()@IsString()@MaxLength(1000)notes="";@IsISO8601()expectedUpdatedAt!:string;}
+export class TailoringRunnerTicketDto{@IsString()@Matches(/^trt_[A-Za-z0-9_-]{43}$/)ticket!:string;}
+export class SubmitTailoringRunnerPreviewDto extends TailoringRunnerTicketDto{@IsISO8601()generatedAt!:string;@ValidateNested()@Type(()=>TailoringPreviewResultDto)result!:TailoringPreviewResultDto;}
+export class FailTailoringRunnerDto extends TailoringRunnerTicketDto{@IsIn(["CODEX_FAILED","VALIDATION_FAILED","API_SUBMISSION_FAILED","WORKER_FAILED"])failureCode!:string;}

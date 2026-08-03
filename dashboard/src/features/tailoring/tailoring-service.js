@@ -5,4 +5,5 @@ export const listTailoringJobs=(client,baseUrl,status="ALL")=>api(client,baseUrl
 export const getTailoringJob=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}`);
 export const getTailoringReviews=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/reviews`);
 export const requestApplicationTailoring=(client,baseUrl,applicationId)=>api(client,baseUrl,`/api/v1/tailoring-jobs/application/${encodeURIComponent(applicationId)}`,{method:"POST"});
+export const createTailoringRunnerTicket=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/runner-ticket`,{method:"POST"});
 export const reviewTailoringPreview=(client,baseUrl,id,{action,preview,notes,expectedUpdatedAt})=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/review`,{method:"PATCH",body:{action,preview,notes,expectedUpdatedAt}});

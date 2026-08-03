@@ -245,6 +245,9 @@ export type TailoringReviewAction="SAVE_DRAFT"|"APPROVE"|"REJECT";
 export interface ReviewTailoringPreviewRequest { action:TailoringReviewAction;preview:TailoringPreviewResult;notes?:string;expectedUpdatedAt:string; }
 export interface TailoringReviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW"|"APPROVED"|"REJECTED";action:TailoringReviewAction;reviewedBy:string|null;reviewedAt:string|null;updatedAt:string; }
 export interface TailoringReviewEvent { id:string;tailoringJobId:string;applicationId:string;action:TailoringReviewAction;previousStatus:TailoringJobStatus;newStatus:TailoringJobStatus;notes:string;reviewedBy:string;reviewerName:string;createdAt:string; }
+export interface TailoringRunnerTicketReceipt { ticketId:string;jobId:string;ticket:string;expiresAt:string; }
+export interface TailoringRunnerClaim { ticketId:string;jobId:string;runExpiresAt:string;input:TailoringInputContract; }
+export interface TailoringInputContract { contractVersion:"1.2";application:{id:string;applicationNumber:number};jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:Array<{id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string}>}; }
 export interface ResumeIdentity {
   id: string;
   resumeNumber: number;
