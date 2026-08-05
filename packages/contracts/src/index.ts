@@ -243,6 +243,9 @@ export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1";
 export interface TailoredResumeTemplateOption {key:TailoredResumeTemplateKey;name:string;description:string;}
 export interface SelectTailoringTemplateRequest {renderTemplateKey:TailoredResumeTemplateKey;expectedUpdatedAt:string;}
 export interface TailoringTemplateSelection {jobId:string;renderTemplateKey:TailoredResumeTemplateKey;selectedBy:string;selectedAt:string;updatedAt:string;}
+export type TailoredResumeRenderFormat="DOCX"|"PDF";
+export interface SelectTailoringFormatRequest {renderFormat:TailoredResumeRenderFormat;expectedUpdatedAt:string;}
+export interface TailoringFormatSelection {jobId:string;renderFormat:TailoredResumeRenderFormat;selectedBy:string;selectedAt:string;updatedAt:string;}
 export interface TailoringSourceExperience { id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string; }
 export interface ApplicationTailoringInput {
   contractVersion:"1.2";
@@ -263,7 +266,7 @@ export interface TailoringReviewEvent { id:string;tailoringJobId:string;applicat
 export interface TailoringRunnerTicketReceipt { ticketId:string;jobId:string;ticket:string;expiresAt:string; }
 export interface TailoringRunnerClaim { ticketId:string;jobId:string;runExpiresAt:string;input:TailoringInputContract; }
 export interface TailoringInputContract { contractVersion:"1.2";application:{id:string;applicationNumber:number};jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:Array<{id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string}>}; }
-export interface TailoringMaterializationReceipt { jobId:string;applicationId:string;status:"COMPLETED";sourceResumeId?:string;sourceResumeNumber?:number;tailoredResumeId:string;tailoredResumeNumber:number;filename?:string;renderTemplateKey:TailoredResumeTemplateKey;alreadyMaterialized:boolean; }
+export interface TailoringMaterializationReceipt { jobId:string;applicationId:string;status:"COMPLETED";sourceResumeId?:string;sourceResumeNumber?:number;tailoredResumeId:string;tailoredResumeNumber:number;filename?:string;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:TailoredResumeRenderFormat;alreadyMaterialized:boolean; }
 export interface ResumeIdentity {
   id: string;
   resumeNumber: number;

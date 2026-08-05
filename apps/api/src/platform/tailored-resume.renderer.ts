@@ -2,22 +2,22 @@ import { AlignmentType, BorderStyle, Document, HeadingLevel, Packer, Paragraph, 
 
 type JsonRecord = Record<string, any>;
 export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1";
-type TemplateSpec={key:TailoredResumeTemplateKey;name:string;description:string;font:string;fontSize:number;nameSize:number;accent:string;nameAlignment:typeof AlignmentType[keyof typeof AlignmentType];margin:number;line:number;compact:boolean;uppercaseHeadings:boolean};
+export type TailoredResumeTemplateSpec={key:TailoredResumeTemplateKey;name:string;description:string;font:string;fontSize:number;nameSize:number;accent:string;nameAlignment:typeof AlignmentType[keyof typeof AlignmentType];margin:number;line:number;compact:boolean;uppercaseHeadings:boolean};
 
-export const TAILORED_RESUME_TEMPLATES:ReadonlyArray<Readonly<TemplateSpec>>=Object.freeze([
+export const TAILORED_RESUME_TEMPLATES:ReadonlyArray<Readonly<TailoredResumeTemplateSpec>>=Object.freeze([
   Object.freeze({key:"CLASSIC_V1",name:"Classic",description:"Traditional centered header with blue section rules.",font:"Arial",fontSize:20,nameSize:32,accent:"2F75B5",nameAlignment:AlignmentType.CENTER,margin:720,line:276,compact:false,uppercaseHeadings:false}),
   Object.freeze({key:"MODERN_V1",name:"Modern",description:"Left-aligned header, navy typography, and teal section accents.",font:"Aptos",fontSize:20,nameSize:34,accent:"007C83",nameAlignment:AlignmentType.LEFT,margin:800,line:276,compact:false,uppercaseHeadings:true}),
   Object.freeze({key:"COMPACT_V1",name:"Compact",description:"Space-efficient layout for longer professional histories.",font:"Calibri",fontSize:18,nameSize:29,accent:"404040",nameAlignment:AlignmentType.CENTER,margin:500,line:240,compact:true,uppercaseHeadings:false}),
 ]);
 const TEMPLATE_BY_KEY=new Map(TAILORED_RESUME_TEMPLATES.map(item=>[item.key,item]));
-export function resolveTailoredResumeTemplate(value:unknown):Readonly<TemplateSpec>{const key=String(value||"CLASSIC_V1").toUpperCase() as TailoredResumeTemplateKey,spec=TEMPLATE_BY_KEY.get(key);if(!spec)throw new Error("TAILORING_TEMPLATE_INVALID");return spec;}
+export function resolveTailoredResumeTemplate(value:unknown):Readonly<TailoredResumeTemplateSpec>{const key=String(value||"CLASSIC_V1").toUpperCase() as TailoredResumeTemplateKey,spec=TEMPLATE_BY_KEY.get(key);if(!spec)throw new Error("TAILORING_TEMPLATE_INVALID");return spec;}
 
 const text=(value:unknown):string=>String(value??"").trim();
 const values=(value:unknown):any[]=>Array.isArray(value)?value:[];
 const datePart=(value:any):string=>{if(!value||typeof value!=="object"||!value.year)return"";const month=Number(value.month);return month>=1&&month<=12?`${String(month).padStart(2,"0")}/${value.year}`:String(value.year);};
 const dateRange=(item:JsonRecord):string=>{const start=datePart(item.start_date),end=item.is_current?"Present":datePart(item.end_date);return[start,end].filter(Boolean).join(" – ");};
-const detailParagraphs=(value:unknown,spec:TemplateSpec):Paragraph[]=>text(value).split(/\r?\n/).map(line=>line.replace(/^\s*[•*-]\s*/,"").trim()).filter(Boolean).map(line=>new Paragraph({text:line,bullet:{level:0},spacing:{after:spec.compact?25:60}}));
-const heading=(value:string,spec:TemplateSpec):Paragraph=>new Paragraph({children:[new TextRun({text:spec.uppercaseHeadings?value.toUpperCase():value,bold:true,color:spec.accent,size:spec.compact?22:25})],heading:HeadingLevel.HEADING_1,border:{bottom:{color:spec.accent,style:BorderStyle.SINGLE,size:spec.compact?3:6,space:2}},spacing:{before:spec.compact?120:220,after:spec.compact?45:100}});
+const detailParagraphs=(value:unknown,spec:TailoredResumeTemplateSpec):Paragraph[]=>text(value).split(/\r?\n/).map(line=>line.replace(/^\s*[•*-]\s*/,"").trim()).filter(Boolean).map(line=>new Paragraph({text:line,bullet:{level:0},spacing:{after:spec.compact?25:60}}));
+const heading=(value:string,spec:TailoredResumeTemplateSpec):Paragraph=>new Paragraph({children:[new TextRun({text:spec.uppercaseHeadings?value.toUpperCase():value,bold:true,color:spec.accent,size:spec.compact?22:25})],heading:HeadingLevel.HEADING_1,border:{bottom:{color:spec.accent,style:BorderStyle.SINGLE,size:spec.compact?3:6,space:2}},spacing:{before:spec.compact?120:220,after:spec.compact?45:100}});
 
 export async function renderTailoredResumeDocx(input:JsonRecord):Promise<Buffer>{
   const spec=resolveTailoredResumeTemplate(input.renderTemplateKey),candidate=input.candidate||{},structured=input.sourceStructuredContent||{},preview=input.approvedPreview||{};

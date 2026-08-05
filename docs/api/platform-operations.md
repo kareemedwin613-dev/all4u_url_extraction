@@ -13,7 +13,8 @@ The final migration slice places profiles, Administration, business overview, an
 - `PATCH /api/v1/tailoring-jobs/:id/review` lets an Applying Manager or Admin save controlled edits, approve, or reject a review-ready preview with optimistic concurrency.
 - `GET /api/v1/tailoring-jobs/:id/reviews` returns the immutable human review history.
 - `POST /api/v1/tailoring-jobs/:id/runner-ticket` lets an Applying Manager or Admin issue one short-lived, job-scoped local runner capability.
-- `POST /api/v1/tailoring-jobs/:id/materialize` renders approved content to DOCX, writes the private artifact, and invokes one atomic database finalization.
+- `PATCH /api/v1/tailoring-jobs/:id/format` selects audited `DOCX` or `PDF` output before rendering begins.
+- `POST /api/v1/tailoring-jobs/:id/materialize` renders approved content in the selected format, writes the private artifact, and invokes one atomic database finalization.
 - `GET /api/v1/tailoring-jobs/:id/file-url` returns a 90-second link to the tailored artifact after completion, or the source file before completion.
 - `POST /api/v1/tailoring-runner/claim` exchanges that capability for sanitized input and a bounded run window.
 - `PUT /api/v1/tailoring-runner/preview` consumes the claimed capability by submitting one database-validated preview.
