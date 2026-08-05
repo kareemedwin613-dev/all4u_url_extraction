@@ -54,7 +54,7 @@ import {
 } from "./application-service.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
-import { requestApplicationTailoring } from "../tailoring/tailoring-service.js";
+import { requestApplicationTailoring,requestBulkApplicationTailoring } from "../tailoring/tailoring-service.js";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -304,6 +304,8 @@ export function ApplicationsPage({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [selectedIds, setSelectedIds] = useState([]),
+    [selectionMode,setSelectionMode]=useState("TAILOR"),
+    [tailoringBusy,setTailoringBusy]=useState(false),
     [localReload, setLocalReload] = useState(0),
     [cursorStack, setCursorStack] = useState([null]),
     [pageIndex, setPageIndex] = useState(0),
@@ -502,6 +504,7 @@ export function ApplicationsPage({
   ];
   const columns = manager ? managerColumns : applierColumns,
     tooMany = selectedIds.length > 2000;
+  async function tailorSelected(){setTailoringBusy(true);setError("");try{const results=await requestBulkApplicationTailoring(client,apiBaseUrl,selectedIds),ready=results.filter(item=>item.outcome==="READY").length,skipped=results.length-ready;setSelectedIds([]);setNotice(`${ready} tailoring job${ready===1?"":"s"} ready${skipped?`; ${skipped} skipped`:""}.`);setTimeout(()=>go("#/tailoring-jobs"),500);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   return (
     <div className="page">
       <Flex justify="space-between" align="center" wrap>
@@ -510,6 +513,7 @@ export function ApplicationsPage({
         </Title>
         {manager && (
           <Space wrap>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select for tailoring"},{value:"ASSIGN",label:"Select for assignment"}]} style={{minWidth:180}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
@@ -518,12 +522,13 @@ export function ApplicationsPage({
               Clear selection
             </Button>
             <Button
-              disabled={!selectedIds.length || tooMany}
+              disabled={selectionMode!=="ASSIGN"||!selectedIds.length || tooMany}
               href="#/applications/bulk-assign"
               onClick={() => storeAssignmentIds(selectedIds)}
             >
               Assign Selected
             </Button>
+            <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>100} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
             <Button type="primary" href="#/applications/new">
               Create Application
             </Button>
@@ -584,9 +589,7 @@ export function ApplicationsPage({
                     preserveSelectedRowKeys: true,
                     onChange: setSelectedIds,
                     getCheckboxProps: (record) => ({
-                      disabled:
-                        record.assigned_to != null ||
-                        record.status !== "UNASSIGNED",
+                      disabled: selectionMode==="ASSIGN"&&(record.assigned_to != null || record.status !== "UNASSIGNED"),
                     }),
                   }
                 : undefined

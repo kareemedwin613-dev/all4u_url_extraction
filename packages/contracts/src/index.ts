@@ -265,6 +265,9 @@ export interface TailoringReviewReceipt { id:string;applicationId:string;status:
 export interface TailoringReviewEvent { id:string;tailoringJobId:string;applicationId:string;action:TailoringReviewAction;previousStatus:TailoringJobStatus;newStatus:TailoringJobStatus;notes:string;reviewedBy:string;reviewerName:string;createdAt:string; }
 export interface TailoringRunnerTicketReceipt { ticketId:string;jobId:string;ticket:string;expiresAt:string; }
 export interface TailoringRunnerClaim { ticketId:string;jobId:string;runExpiresAt:string;input:TailoringInputContract; }
+export interface BulkApplicationTailoringRequest {applicationIds:string[];}
+export interface BulkTailoringRunnerTicketsRequest {jobIds:string[];}
+export interface BulkTailoringRunnerTicketResult {ticketId?:string;jobId:string;ticket?:string;expiresAt?:string;error?:string;}
 export interface TailoringInputContract { contractVersion:"1.2";application:{id:string;applicationNumber:number};jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:Array<{id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string}>}; }
 export interface TailoringMaterializationReceipt { jobId:string;applicationId:string;status:"COMPLETED";sourceResumeId?:string;sourceResumeNumber?:number;tailoredResumeId:string;tailoredResumeNumber:number;filename?:string;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:TailoredResumeRenderFormat;alreadyMaterialized:boolean; }
 export interface ResumeIdentity {
