@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadFixture, runTailoringProof, type CodexExecutor } from "../src/codex-runner.js";
+import { loadFixture, resolveCodexInvocation, runTailoringProof, type CodexExecutor } from "../src/codex-runner.js";
 
 const applicationId="11111111-1111-4111-8111-111111111119";
 const fixturePath=fileURLToPath(new URL("../fixtures/application-19.json",import.meta.url));
@@ -47,4 +47,17 @@ test("preview output is create-only and cannot silently overwrite an earlier res
   await writeFile(outputPath,"existing");
   const execute:CodexExecutor=async request=>{await writeFile(request.outputPath,JSON.stringify({summary:"Valid summary",professionalExperience:input.sourceResume.professionalExperience.map(item=>({sourceExperienceId:item.id,tailoredDetails:item.details})),skills:input.sourceResume.skills,changeSummary:[],unsupportedRequirements:["Kubernetes"],warnings:[]}));return{stdout:"",stderr:""};};
   try{await assert.rejects(()=>runTailoringProof(input,{outputPath,execute}),/EEXIST/);}finally{await rm(directory,{recursive:true,force:true});}
+});
+
+test("Windows resolves the npm Codex command shim to its Node launcher without a shell",()=>{
+  const npm="C:\\Users\\example\\AppData\\Roaming\\npm",wrapper=`${npm}\\codex.cmd`,script=`${npm}\\node_modules\\@openai\\codex\\bin\\codex.js`,seen:string[]=[];
+  const invocation=resolveCodexInvocation("codex","win32",{Path:`C:\\Windows\\System32;${npm}`},path=>{seen.push(path);return path===wrapper||path===script;});
+  assert.equal(invocation.command,process.execPath);
+  assert.deepEqual(invocation.prefixArgs,[script]);
+  assert.ok(seen.includes(wrapper));
+});
+
+test("Windows keeps an explicit native Codex executable",()=>{
+  const executable="C:\\Tools\\Codex\\codex.exe";
+  assert.deepEqual(resolveCodexInvocation(executable,"win32",{},()=>true),{command:executable,prefixArgs:[]});
 });

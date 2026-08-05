@@ -55,3 +55,5 @@ npm run proof:tailoring -- `
 The token stays in the parent worker process and is excluded from the Codex subprocess environment. If API submission fails, the validated create-only local artifact remains available for deliberate recovery.
 
 Codex runs in an ephemeral, read-only, isolated temporary workspace with user/project configuration ignored. The subprocess receives a minimal environment and no Supabase settings, access token, database password, service-role key, or Resume contact metadata. The JD is explicitly treated as untrusted data. v1.3 stores validated preview JSON but creates no tailored Resume row and no DOCX or PDF.
+
+On Windows, the worker safely resolves the npm `codex.cmd` shim to `@openai/codex/bin/codex.js` and launches it with the current Node executable. This avoids `spawn codex.exe ENOENT` without invoking a command shell. `TAILORING_CODEX_BIN` remains available for an explicit native Codex executable path.
