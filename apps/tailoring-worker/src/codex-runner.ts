@@ -88,7 +88,8 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
       writeFile(schemaPath,`${JSON.stringify(schema,null,2)}\n`,"utf8")
     ]);
     await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
-    const result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input),preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:(options.now?.()||new Date()).toISOString(),result};
+    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input);}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
+    const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:(options.now?.()||new Date()).toISOString(),result};
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;
   }finally{
