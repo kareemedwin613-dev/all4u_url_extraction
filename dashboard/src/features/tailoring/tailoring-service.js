@@ -14,3 +14,9 @@ export const selectTailoringTemplate=(client,baseUrl,id,{renderTemplateKey,expec
 export const selectTailoringFormat=(client,baseUrl,id,{renderFormat,expectedUpdatedAt})=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/format`,{method:"PATCH",body:{renderFormat,expectedUpdatedAt}});
 export const materializeTailoredResume=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/materialize`,{method:"POST"});
 export const getTailoringResumeUrl=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/file-url`);
+export const createTailoringBatch=(client,baseUrl,applicationIds,name)=>api(client,baseUrl,"/api/v1/tailoring-batches",{method:"POST",body:{applicationIds,name:name||undefined}});
+export const listTailoringBatches=(client,baseUrl)=>api(client,baseUrl,"/api/v1/tailoring-batches");
+export const getTailoringBatch=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-batches/${encodeURIComponent(id)}`);
+export const createTailoringBatchRunnerTicket=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-batches/${encodeURIComponent(id)}/runner-ticket`,{method:"POST"});
+export const retryTailoringBatch=(client,baseUrl,id,itemIds)=>api(client,baseUrl,`/api/v1/tailoring-batches/${encodeURIComponent(id)}/retry`,{method:"POST",body:{itemIds:itemIds?.length?itemIds:undefined}});
+export const cancelTailoringBatch=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-batches/${encodeURIComponent(id)}/cancel`,{method:"POST"});

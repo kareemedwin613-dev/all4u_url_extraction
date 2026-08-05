@@ -270,6 +270,12 @@ export interface BulkTailoringRunnerTicketsRequest {jobIds:string[];}
 export interface BulkTailoringRunnerTicketResult {ticketId?:string;jobId:string;ticket?:string;expiresAt?:string;error?:string;}
 export interface TailoringInputContract { contractVersion:"1.2";application:{id:string;applicationNumber:number};jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:Array<{id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string}>}; }
 export interface TailoringMaterializationReceipt { jobId:string;applicationId:string;status:"COMPLETED";sourceResumeId?:string;sourceResumeNumber?:number;tailoredResumeId:string;tailoredResumeNumber:number;filename?:string;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:TailoredResumeRenderFormat;alreadyMaterialized:boolean; }
+export type TailoringBatchStatus="PENDING"|"RUNNING"|"PAUSED_RATE_LIMIT"|"COMPLETED"|"COMPLETED_WITH_FAILURES"|"CANCELLED";
+export type TailoringBatchItemStatus="PENDING"|"PROCESSING"|"WAITING_RETRY"|"NEEDS_REVIEW"|"FAILED"|"SKIPPED"|"CANCELLED";
+export interface CreateTailoringBatchRequest{applicationIds:string[];name?:string;}
+export interface TailoringBatchSummary{id:string;name:string|null;status:TailoringBatchStatus;selected_count:number;pending_count:number;processing_count:number;waiting_retry_count:number;review_count:number;failed_count:number;skipped_count:number;cancelled_count:number;rate_limit_count:number;next_retry_at:string|null;created_at:string;completed_at:string|null;}
+export interface TailoringBatchItem{id:string;batch_id:string;tailoring_job_id:string|null;application_id:string;ordinal:number;status:TailoringBatchItemStatus;attempt_count:number;rate_limit_count:number;failure_stage:string|null;failure_code:string|null;failure_message:string|null;retryable:boolean;duration_ms:number|null;}
+export interface TailoringBatchRunnerTicketReceipt{ticketId:string;batchId:string;ticket:string;expiresAt:string;}
 export interface ResumeIdentity {
   id: string;
   resumeNumber: number;

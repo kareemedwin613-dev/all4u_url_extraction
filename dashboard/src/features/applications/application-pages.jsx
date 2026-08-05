@@ -54,7 +54,7 @@ import {
 } from "./application-service.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
-import { requestApplicationTailoring,requestBulkApplicationTailoring } from "../tailoring/tailoring-service.js";
+import { createTailoringBatch,requestApplicationTailoring } from "../tailoring/tailoring-service.js";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -504,7 +504,7 @@ export function ApplicationsPage({
   ];
   const columns = manager ? managerColumns : applierColumns,
     tooMany = selectedIds.length > 2000;
-  async function tailorSelected(){setTailoringBusy(true);setError("");try{const results=await requestBulkApplicationTailoring(client,apiBaseUrl,selectedIds),ready=results.filter(item=>item.outcome==="READY").length,skipped=results.length-ready;setSelectedIds([]);setNotice(`${ready} tailoring job${ready===1?"":"s"} ready${skipped?`; ${skipped} skipped`:""}.`);setTimeout(()=>go("#/tailoring-jobs"),500);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
+  async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   return (
     <div className="page">
       <Flex justify="space-between" align="center" wrap>
@@ -528,7 +528,7 @@ export function ApplicationsPage({
             >
               Assign Selected
             </Button>
-            <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>100} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
+            <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>500} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
             <Button type="primary" href="#/applications/new">
               Create Application
             </Button>

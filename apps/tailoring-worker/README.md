@@ -59,3 +59,15 @@ Codex runs in an ephemeral, read-only, isolated temporary workspace with user/pr
 On Windows, the worker safely resolves the npm `codex.cmd` shim to `@openai/codex/bin/codex.js` and launches it with the current Node executable. This avoids `spawn codex.exe ENOENT` without invoking a command shell. `TAILORING_CODEX_BIN` remains available for an explicit native Codex executable path.
 
 For a bounded bulk run, select up to five pending jobs in **Tailoring Reviews**, create the bulk runner command, and run it once from the repository root. The command uses `--tickets "ticket-1,ticket-2"`, processes jobs sequentially, isolates failures, and saves every successful preview for individual human review. It never bulk-approves or materializes Resumes.
+
+## v2.1 resumable batch mode
+
+For operational batches, select up to 500 Applications on the Applications page and choose **Tailor Selected**. Open the resulting **Tailoring Batch**, create the runner command, and run it once:
+
+```powershell
+npm run tailoring:run -- --batch-ticket "trb_<short-lived-ticket>" --api-base-url "https://your-dashboard.example"
+```
+
+The worker leases and processes one item at a time. It stores an isolated recovery artifact for every successful preview and leaves every preview in `NEEDS_REVIEW`; approval and materialization remain individual human decisions. Provider rate-limit responses pause the batch with an exponential 30–900 second cooldown and resume automatically while the runner remains open. The dashboard shows each item's attempt count, failure stage/code, sanitized message, duration, and retry eligibility.
+
+If the terminal closes, create a replacement command from the same batch. The server revokes the old capability and safely requeues its leased item. Validation failures are not automatically retried; other transient worker/API failures can be selected for retry from the batch page.

@@ -25,6 +25,7 @@ const { BulkAssignmentService } = await import("../src/bulk-assignment/bulk-assi
 const { CandidateService } = await import("../src/candidates/candidate.service.js");
 const { ResumeAnswerService } = await import("../src/resume-answers/resume-answer.service.js");
 const { PlatformService, TailoringRunnerService, TailoringService } = await import("../src/platform/platform.service.js");
+const { TailoringBatchRunnerService, TailoringBatchService } = await import("../src/platform/tailoring-batch.service.js");
 
 let app: INestApplication, mode: "create"|"duplicate"|"identity"|"rls" = "create", active = true, roles = ["APPLYING_MANAGER"];
 const row = { id:"job-1",company:"Example",job_title:"Engineer",category_id:"123e4567-e89b-42d3-a456-426614174000",subcategory_id:null,industry_domain_category_id:null,seniority:"SENIOR",location_text:null,work_arrangement:"REMOTE",clearance_requirements:[],travel_required:null,travel_details:null,salary_min:null,salary_max:null,salary_currency:null,salary_period:null,salary_text:null,source_site:"example.com",source_url:"https://example.com/jobs/1",description_text:"x".repeat(100),detected_skills:["SQL"],capture_method:"dom",extraction_confidence:"high",created_at:"2026-07-27T00:00:00Z" };
@@ -98,6 +99,8 @@ before(async () => {
     .overrideProvider(PlatformService).useValue({roles:async()=>[{code:"ADMIN"}],users:async()=>({items:[],page:1,pageSize:25,total:0,totalPages:0}),user:async()=>({id:"user-1"}),role:async()=>["ADMIN"],status:async()=>({id:"user-1",status:"INACTIVE"}),profile:async()=>({id:"user-1",full_name:"Name"}),overview:async()=>({jobCounts:{total:1}})})
     .overrideProvider(TailoringService).useValue({create:async()=>[{status:"created",resumeId:"resume-1"}],list:async()=>[{id:"tailoring-1"}],templates:()=>[{key:"CLASSIC_V1",name:"Classic",description:"Traditional"}],selectTemplate:async()=>({renderTemplateKey:"CLASSIC_V1"}),selectFormat:async(_user:any,_id:string,body:any)=>({renderFormat:body.renderFormat}),requestApplication:async(_user:any,applicationId:string)=>({id:"123e4567-e89b-42d3-a456-426614174000",applicationId,status:"PENDING"}),bulkRequest:async(_user:any,applicationIds:string[])=>applicationIds.map(applicationId=>({applicationId,outcome:"READY"})),bulkTickets:async(_user:any,jobIds:string[])=>jobIds.map(jobId=>({jobId,ticket:`trt_${"b".repeat(43)}`})),input:async()=>({jobId:"123e4567-e89b-42d3-a456-426614174000",input:{contractVersion:"1.2"}}),preview:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),ticket:async()=>({ticketId:"223e4567-e89b-42d3-a456-426614174000",jobId:"123e4567-e89b-42d3-a456-426614174000",ticket:`trt_${"a".repeat(43)}`,expiresAt:"2026-08-03T12:10:00Z"}),review:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"APPROVED"}),materialize:async()=>({jobId:"123e4567-e89b-42d3-a456-426614174000",applicationId:"223e4567-e89b-42d3-a456-426614174000",status:"COMPLETED",tailoredResumeId:"323e4567-e89b-42d3-a456-426614174000",tailoredResumeNumber:42,renderFormat:"PDF",alreadyMaterialized:false}),reviews:async()=>[{id:"review-1",action:"APPROVE"}],detail:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),cancel:async()=>({id:"tailoring-1",status:"CANCELLED"}),fileUrl:async()=>({signedUrl:"https://storage.example/queue",expiresInSeconds:90})})
     .overrideProvider(TailoringRunnerService).useValue({claim:async()=>({jobId:"123e4567-e89b-42d3-a456-426614174000",runExpiresAt:"2026-08-03T12:30:00Z",input:{contractVersion:"1.2"}}),preview:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"NEEDS_REVIEW"}),fail:async()=>({jobId:"123e4567-e89b-42d3-a456-426614174000",status:"FAILED"})})
+    .overrideProvider(TailoringBatchService).useValue({create:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",status:"PENDING",selected_count:2}),list:async()=>[],detail:async()=>({batch:{id:"123e4567-e89b-42d3-a456-426614174000",status:"RUNNING"},items:[]}),ticket:async()=>({ticket:`trb_${"c".repeat(43)}`}),retry:async()=>({retriedCount:1}),cancel:async()=>({status:"CANCELLED"})})
+    .overrideProvider(TailoringBatchRunnerService).useValue({claim:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",selectedCount:2}),next:async()=>({state:"COMPLETED",reviewCount:2}),preview:async()=>({status:"NEEDS_REVIEW"}),fail:async()=>({status:"WAITING_RETRY"})})
     .compile();
   app = module.createNestApplication();
   app.setGlobalPrefix("api/v1",{exclude:["health","ready"]});
@@ -297,6 +300,22 @@ test("v1.5 runner endpoints accept only a bounded job capability and need no use
   await request(app.getHttpServer()).put("/api/v1/tailoring-runner/preview").send({ticket,generatedAt:"2026-08-03T12:00:00.000Z",result:preview}).expect(200);
   await request(app.getHttpServer()).post("/api/v1/tailoring-runner/failure").send({ticket,failureCode:"CODEX_FAILED"}).expect(201);
   await request(app.getHttpServer()).post("/api/v1/tailoring-runner/claim").send({ticket:"bad",unexpected:true}).expect(400);
+});
+
+test("v2.1 tailoring batches are manager-only while runner tickets are bounded public capabilities",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000",ticket=`trb_${"c".repeat(43)}`,lease="223e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get("/api/v1/tailoring-batches").set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batches").set("Authorization","Bearer token").send({applicationIds:[id]}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batches").set("Authorization","Bearer token").send({applicationIds:[id]}).expect(201).expect(({body})=>assert.equal(body.data.selected_count,2));
+  await request(app.getHttpServer()).get(`/api/v1/tailoring-batches/${id}`).set("Authorization","Bearer token").expect(200);
+  await request(app.getHttpServer()).post(`/api/v1/tailoring-batches/${id}/runner-ticket`).set("Authorization","Bearer token").expect(201);
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batches").set("Authorization","Bearer token").send({applicationIds:[]}).expect(400);
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batch-runner/claim").send({ticket}).expect(201);
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batch-runner/next").send({ticket}).expect(201).expect(({body})=>assert.equal(body.data.state,"COMPLETED"));
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batch-runner/failure").send({ticket,itemId:id,leaseToken:lease,stage:"CODEX_GENERATION",code:"PROVIDER_RATE_LIMIT",message:"429 retry after 60 seconds",retryable:true,rateLimited:true,retryAfterSeconds:60}).expect(201).expect(({body})=>assert.equal(body.data.status,"WAITING_RETRY"));
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batch-runner/claim").send({ticket:"bad"}).expect(400);
 });
 
 test("ingestion creates once, returns a duplicate safely, and exposes RLS denial", async () => {
