@@ -761,23 +761,15 @@ function Jobs({
             render: (value) => categoryName(categories, value),
           },
           {
-            title: "Subcategory",
-            dataIndex: "subcategory_id",
-            sortKey: "subcategory",
-            render: (value) =>
-              value ? categoryName(categories, value) : "None",
-          },
-          {
-            title: "Seniority",
-            dataIndex: "seniority",
-            sortKey: "seniority",
-            render: formatLabel,
-          },
-          {
-            title: "Source site",
-            dataIndex: "source_site",
+            title: "Source URL",
+            dataIndex: "source_url",
             sortKey: "source",
-            render: (value) => value || "—",
+            width: 360,
+            ellipsis: true,
+            render: (value) => {
+              const source = safeExternalUrl(value);
+              return source ? <a href={source} target="_blank" rel="noopener noreferrer" title={value}>{value}</a> : "—";
+            },
           },
           {
             title: "Captured by",
