@@ -150,13 +150,17 @@ test("JD read and lookup routes require authentication and expose bounded API re
   await request(app.getHttpServer()).get("/api/v1/lookups/industry-domains").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].name,"Technology"));
 });
 
-test("Resume reads use authenticated API routes and Admin-only operations remain protected",async()=>{
+test("Resume reads preserve history while archive actions require a manager or Admin",async()=>{
   const id="123e4567-e89b-42d3-a456-426614174000";
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).get("/api/v1/resumes").expect(401);
   await request(app.getHttpServer()).get("/api/v1/resumes?pageSize=25").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.total,1));
   await request(app.getHttpServer()).get(`/api/v1/resumes/${id}`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.candidate_name,"Candidate"));
   await request(app.getHttpServer()).get(`/api/v1/resumes/${id}/file-url`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.expiresInSeconds,90));
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED"}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED"}).expect(200).expect(({body})=>assert.equal(body.data.status,"ARCHIVED"));
   await request(app.getHttpServer()).post("/api/v1/resumes/identity-duplicates").set("Authorization","Bearer token").send({candidateName:"Candidate"}).expect(403);
   roles=["ADMIN"];
   await request(app.getHttpServer()).post("/api/v1/resumes/identity-duplicates").set("Authorization","Bearer token").send({candidateName:"Candidate"}).expect(201).expect(({body})=>assert.equal(body.data[0].id,"resume-1"));

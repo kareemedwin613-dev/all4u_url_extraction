@@ -15,6 +15,7 @@ import {
   Input,
   Layout,
   Menu,
+  Popconfirm,
   Row,
   Select,
   Space,
@@ -45,7 +46,7 @@ import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs } from "./services/job-read-service.js";
-import { getResume, listResumes } from "./services/resume-read-service.js";
+import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
 import { createResumeSignedUrl } from "./services/storage-read-service.js";
@@ -519,12 +520,13 @@ function FilterForm({ kind, value, categories, capturers = [], capturersLoading 
           <Col {...field}>
             <Form.Item label="Status" name="status">
               <Select
-                options={[
+                options={kind === "resumes" ? [
+                  { value: "ACTIVE", label: "Active resumes" },
+                  { value: "ARCHIVED", label: "Archived resumes (history)" },
+                  { value: "ALL", label: "All resumes" },
+                ] : [
                   { value: "", label: "All statuses" },
-                  ...STATUSES.map((item) => ({
-                    value: item,
-                    label: formatLabel(item),
-                  })),
+                  ...STATUSES.map((item) => ({ value: item, label: formatLabel(item) })),
                 ]}
               />
             </Form.Item>
@@ -897,7 +899,7 @@ function Jobs({
   );
 }
 
-function Resumes({ client, apiBaseUrl, categories, query, reload }) {
+function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
   const filters = parseResumeQuery(query),
     [data, setData] = useState(null),
     [error, setError] = useState("");
@@ -969,17 +971,22 @@ function Resumes({ client, apiBaseUrl, categories, query, reload }) {
               sortKey: "updated",
               render: formatDate,
             },
-            {
-              title: "",
-              key: "action",
-              render: (_, resume) => (
-                <a href={`#/resumes/${resume.id}`}>View</a>
+          {
+            title: "",
+            key: "action",
+            render: (_, resume) => (
+                <Space>
+                  <a href={`#/resumes/${resume.id}`}>View</a>
+                  {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
+                    <Text type="secondary">{resume.status === "ARCHIVED" ? "History" : "Current"}</Text>
+                  )}
+                </Space>
               ),
             },
           ],
           filters.sort,
         ),
-      [categories, filters.sort],
+      [access, categories, filters.sort],
     );
   return (
     <div className="page">
@@ -1000,7 +1007,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload }) {
       ) : !data.items.length ? (
         <Empty
           title="No resumes"
-          text="No resumes match the current view. Resumes are uploaded through the extension."
+          text={filters.status === "ARCHIVED" ? "No archived Resume history matches the current filters." : "No active Resumes match the current filters."}
           onClear={() => go("#/resumes")}
         />
       ) : (
@@ -1144,7 +1151,9 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
 function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
   const [resume, setResume] = useState(),
     [error, setError] = useState(""),
-    [fileMessage, setFileMessage] = useState("");
+    [fileMessage, setFileMessage] = useState(""),
+    [statusMessage, setStatusMessage] = useState(""),
+    [statusBusy, setStatusBusy] = useState(false);
   useEffect(() => {
     getResume(client, apiBaseUrl, id)
       .then(setResume)
@@ -1164,6 +1173,19 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       setFileMessage("Secure link opened. It expires shortly.");
     } catch (value) {
       setFileMessage(value.message);
+    }
+  }
+  async function changeStatus(status) {
+    setStatusBusy(true);
+    setStatusMessage("");
+    try {
+      const next = await setResumeStatus(client, apiBaseUrl, resume.id, status);
+      setResume((current) => ({ ...current, ...next }));
+      setStatusMessage(status === "ARCHIVED" ? "Resume archived. It is now retained as history and excluded from new work." : "Resume restored and available for new work.");
+    } catch (value) {
+      setStatusMessage(value.message);
+    } finally {
+      setStatusBusy(false);
     }
   }
   const structured = resume.structured_content || {},
@@ -1202,6 +1224,10 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                 ["File size", formatBytes(resume.file_size_bytes)],
                 ["Created at", formatDate(resume.created_at)],
                 ["Last updated", formatDate(resume.updated_at)],
+                ...(resume.status === "ARCHIVED" ? [
+                  ["Archived at", formatDate(resume.archived_at)],
+                  ["Archived by user ID", resume.archived_by || "Not recorded"],
+                ] : []),
               ]}
             />
             <Card size="small" title="Skills">
@@ -1251,10 +1277,25 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
         <Badge value={resume.status} />
       </div>
       {fileMessage && <Alert type="info" showIcon message={fileMessage} />}
+      {statusMessage && <Alert type="info" showIcon message={statusMessage} />}
       <TabbedSections
         items={tabs}
         extra={
-          <Space><Button type="primary" onClick={open}>Open Original Resume</Button>{hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}</Space>
+          <Space wrap>
+            <Button type="primary" onClick={open}>Open Original Resume</Button>
+            {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.status==="ACTIVE"&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}
+            {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.resume_type==="ORIGINAL"&&(
+              <Popconfirm
+                title={resume.status === "ARCHIVED" ? "Restore this Resume?" : "Archive this Resume?"}
+                description={resume.status === "ARCHIVED" ? "The Resume will become available for new Applications and tailoring." : "The file and existing Application history will remain, but the Resume will be excluded from new work."}
+                okText={resume.status === "ARCHIVED" ? "Restore" : "Archive"}
+                okButtonProps={{ danger: resume.status !== "ARCHIVED", loading: statusBusy }}
+                onConfirm={() => changeStatus(resume.status === "ARCHIVED" ? "ACTIVE" : "ARCHIVED")}
+              >
+                <Button danger={resume.status !== "ARCHIVED"} loading={statusBusy}>{resume.status === "ARCHIVED" ? "Restore Resume" : "Archive Resume"}</Button>
+              </Popconfirm>
+            )}
+          </Space>
         }
       />
     </div>
@@ -1581,6 +1622,7 @@ export function App({ client, apiBaseUrl }) {
         categories={categories}
         query={route.query}
         reload={reload}
+        access={access}
       />
     );
   else if (route.name === "resume-detail")
