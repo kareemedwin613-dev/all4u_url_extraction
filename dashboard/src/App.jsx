@@ -761,14 +761,13 @@ function Jobs({
             render: (value) => categoryName(categories, value),
           },
           {
-            title: "Source URL",
+            title: "Job Posting URL",
             dataIndex: "source_url",
             sortKey: "source",
-            width: 360,
-            ellipsis: true,
+            width: 520,
             render: (value) => {
               const source = safeExternalUrl(value);
-              return source ? <a href={source} target="_blank" rel="noopener noreferrer" title={value}>{value}</a> : "—";
+              return source ? <a href={source} target="_blank" rel="noopener noreferrer" style={{ overflowWrap: "anywhere" }}>{value}</a> : "—";
             },
           },
           {
