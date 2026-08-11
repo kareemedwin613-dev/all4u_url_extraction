@@ -17,3 +17,4 @@ export const getJob=(client,apiBaseUrl,id)=>request(client,apiBaseUrl,`/api/v1/j
 export const jobCount=(client,apiBaseUrl,status="")=>request(client,apiBaseUrl,`/api/v1/job-descriptions/count${params({status})}`);
 export const recentJobs=(client,apiBaseUrl,limit=5)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/recent${params({limit})}`);
 export const listJobCapturers=(client,apiBaseUrl)=>request(client,apiBaseUrl,"/api/v1/job-descriptions/capturers");
+export const setJobStatus=async(client,apiBaseUrl,id,status,reason)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/status`,method:"PATCH",body:{status,...(reason?{reason}:{})}})).payload.data;

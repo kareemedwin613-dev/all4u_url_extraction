@@ -45,7 +45,7 @@ import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, setJobStatus } from "./services/job-read-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
@@ -80,7 +80,6 @@ import {
   PAGE_SIZES,
   RESUME_SORTS,
   SENIORITIES,
-  STATUSES,
 } from "./shared/constants.js";
 import {
   serverSortColumns,
@@ -525,8 +524,9 @@ function FilterForm({ kind, value, categories, capturers = [], capturersLoading 
                   { value: "ARCHIVED", label: "Archived resumes (history)" },
                   { value: "ALL", label: "All resumes" },
                 ] : [
-                  { value: "", label: "All statuses" },
-                  ...STATUSES.map((item) => ({ value: item, label: formatLabel(item) })),
+                  { value: "ACTIVE", label: "Active URLs" },
+                  { value: "ARCHIVED", label: "Declined / archived URLs" },
+                  { value: "ALL", label: "All URLs" },
                 ]}
               />
             </Form.Item>
@@ -888,6 +888,7 @@ function Jobs({
                     selectedRowKeys: selectedJobIds,
                     preserveSelectedRowKeys: true,
                     onChange: (keys) => onSelectedJobIdsChange(keys),
+                    getCheckboxProps: (job) => ({ disabled: job.status !== "ACTIVE", title: job.status !== "ACTIVE" ? "Restore this URL before creating an Application." : undefined }),
                   }
                 : undefined
             }
@@ -1032,9 +1033,11 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
   );
 }
 
-function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
+function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
   const [job, setJob] = useState(),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [statusMessage, setStatusMessage] = useState(""),
+    [statusBusy, setStatusBusy] = useState(false);
   useEffect(() => {
     getJob(client, apiBaseUrl, id)
       .then(setJob)
@@ -1083,6 +1086,11 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
               ["Extraction confidence", formatLabel(job.extraction_confidence)],
               ["Captured at", formatDate(job.created_at)],
               ["Last updated", formatDate(job.updated_at)],
+              ...(job.status === "ARCHIVED" ? [
+                ["Declined / archived at", formatDate(job.archived_at)],
+                ["Reviewed by user ID", job.archived_by || "Not recorded"],
+                ["Review reason", formatLabel(job.archive_reason)],
+              ] : []),
             ]}
           />
         ),
@@ -1113,6 +1121,19 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
         children: <div className="long-text">{job.description_text}</div>,
       },
     ];
+  async function changeStatus(status) {
+    setStatusBusy(true);
+    setStatusMessage("");
+    try {
+      const next = await setJobStatus(client, apiBaseUrl, job.id, status, status === "ARCHIVED" ? "NOT_APPLICABLE" : undefined);
+      setJob((current) => ({ ...current, ...next }));
+      setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application workflows.");
+    } catch (value) {
+      setStatusMessage(value.message);
+    } finally {
+      setStatusBusy(false);
+    }
+  }
   return (
     <div className="page">
       <a className="back-link" href={back}>
@@ -1129,19 +1150,24 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload }) {
         </div>
         <Badge value={job.status} />
       </div>
+      {statusMessage && <Alert type="info" showIcon message={statusMessage} />}
       <TabbedSections
         items={tabs}
         extra={
-          source ? (
-            <Button
-              type="link"
-              href={source}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open original posting
-            </Button>
-          ) : null
+          <Space wrap>
+            {source ? <Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button> : null}
+            {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
+              <Popconfirm
+                title={job.status === "ARCHIVED" ? "Restore this URL?" : "Decline this URL as not applicable?"}
+                description={job.status === "ARCHIVED" ? "It will return to active review and can be used for new Applications." : "The JD, source URL, and capture history remain available, but no new Application can use it."}
+                okText={job.status === "ARCHIVED" ? "Restore" : "Decline URL"}
+                okButtonProps={{ danger: job.status !== "ARCHIVED", loading: statusBusy }}
+                onConfirm={() => changeStatus(job.status === "ARCHIVED" ? "ACTIVE" : "ARCHIVED")}
+              >
+                <Button danger={job.status !== "ARCHIVED"} loading={statusBusy}>{job.status === "ARCHIVED" ? "Restore URL" : "Decline / Archive URL"}</Button>
+              </Popconfirm>
+            )}
+          </Space>
         }
       />
     </div>
@@ -1612,6 +1638,7 @@ export function App({ client, apiBaseUrl }) {
         id={route.id}
         back={jobsBack.current}
         reload={reload}
+        access={access}
       />
     );
   else if (route.name === "resumes")
