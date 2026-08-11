@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, ParseUUIDPipe, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthGuard } from "../auth/auth.guard.js";
 import { RequireRoles } from "../auth/require-roles.decorator.js";
@@ -7,6 +7,7 @@ import type { ApiRequest } from "../common/types/request.js";
 import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
 import { JobCountQueryDto, JobDescriptionQueryDto, RecentJobsQueryDto } from "./job-description-query.dto.js";
 import { JobDescriptionReadService } from "./job-description-read.service.js";
+import { JobDescriptionStatusDto } from "./job-description-status.dto.js";
 
 const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "ADMIN"] as const;
 
@@ -29,6 +30,9 @@ export class JobDescriptionReadController {
 
   @Get("capturers") @ApiOperation({ summary: "List users who captured accessible job descriptions" })
   async capturers(@Req() request: ApiRequest) { return { data: await this.jobs.capturers(request.user!), requestId: request.requestId }; }
+
+  @Patch(":id/status") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Decline/archive or restore a captured job URL" })
+  async status(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionStatusDto)) body: JobDescriptionStatusDto) { return { data: await this.jobs.status(request.user!, id, body.status, body.reason), requestId: request.requestId }; }
 
   @Get(":id") @ApiOperation({ summary: "Get one accessible job description" })
   async detail(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return { data: await this.jobs.detail(request.user!, id), requestId: request.requestId }; }

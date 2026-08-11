@@ -44,7 +44,7 @@ before(async () => {
   const module = await Test.createTestingModule({ imports:[AppModule] })
     .overrideProvider(JwtVerifier).useValue({ verify: async (token:string) => ({id:"user-1",email:"user@example.com",token,claims:{}}) })
     .overrideProvider(SupabaseService).useValue(supabaseMock)
-    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}]})
+    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null})})
     .overrideProvider(LookupService).useValue({categories:async()=>[{id:"category-1",name:"Engineering"}],industryDomains:async()=>[{id:"industry-1",name:"Technology"}]})
     .overrideProvider(ResumeService).useValue({
       list:async()=>({items:[{id:"resume-1",candidate_name:"Candidate"}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),
@@ -150,13 +150,26 @@ test("JD read and lookup routes require authentication and expose bounded API re
   await request(app.getHttpServer()).get("/api/v1/lookups/industry-domains").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].name,"Technology"));
 });
 
-test("Resume reads use authenticated API routes and Admin-only operations remain protected",async()=>{
+test("captured URL review is restricted to Applying Managers and Admins",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED",reason:"NOT_APPLICABLE"}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED",reason:"NOT_APPLICABLE"}).expect(200).expect(({body})=>{assert.equal(body.data.status,"ARCHIVED");assert.equal(body.data.archive_reason,"NOT_APPLICABLE");});
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED",reason:"UNSAFE_REASON"}).expect(400);
+});
+
+test("Resume reads preserve history while archive actions require a manager or Admin",async()=>{
   const id="123e4567-e89b-42d3-a456-426614174000";
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).get("/api/v1/resumes").expect(401);
   await request(app.getHttpServer()).get("/api/v1/resumes?pageSize=25").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.total,1));
   await request(app.getHttpServer()).get(`/api/v1/resumes/${id}`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.candidate_name,"Candidate"));
   await request(app.getHttpServer()).get(`/api/v1/resumes/${id}/file-url`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.expiresInSeconds,90));
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED"}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED"}).expect(200).expect(({body})=>assert.equal(body.data.status,"ARCHIVED"));
   await request(app.getHttpServer()).post("/api/v1/resumes/identity-duplicates").set("Authorization","Bearer token").send({candidateName:"Candidate"}).expect(403);
   roles=["ADMIN"];
   await request(app.getHttpServer()).post("/api/v1/resumes/identity-duplicates").set("Authorization","Bearer token").send({candidateName:"Candidate"}).expect(201).expect(({body})=>assert.equal(body.data[0].id,"resume-1"));

@@ -9,7 +9,7 @@ export class JobDescriptionQueryDto {
   @Transform(trim) @IsOptional() @IsString() @MaxLength(100) search?: string;
   @IsOptional() @IsUUID() categoryId?: string;
   @IsOptional() @IsIn(SENIORITIES) seniority?: string;
-  @IsOptional() @IsIn(["ACTIVE", "ARCHIVED"]) status?: string;
+  @IsOptional() @IsIn(["ACTIVE", "ARCHIVED", "ALL"]) status?: string;
   @IsOptional() @IsUUID() capturedByUserId?: string;
   @IsOptional() @IsDateString() capturedFrom?: string;
   @IsOptional() @IsDateString() capturedTo?: string;
