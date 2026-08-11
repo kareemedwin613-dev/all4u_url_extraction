@@ -38,8 +38,8 @@ test("rejects invented skills, unknown experiences, missing experiences, and pro
   assert.throws(()=>validateTailoringOutput({...validOutput,candidateName:"Changed Name"},input),/unsupported fields: candidateName/);
 });
 
-test("rejects schema-valid refusals and requires unsupported JD skills without source evidence",()=>{
+test("rejects schema-valid refusals and deterministically reconciles unsupported JD skills",()=>{
   assert.throws(()=>validateTailoringOutput({...validOutput,summary:"Unable to tailor without the input file."},input),/refusal or placeholder/);
-  assert.throws(()=>validateTailoringOutput({...validOutput,unsupportedRequirements:[]},input),/Unsupported JD skills were not reported: Kubernetes/);
+  assert.deepEqual(validateTailoringOutput({...validOutput,unsupportedRequirements:[]},input).unsupportedRequirements,["Kubernetes"]);
   assert.throws(()=>validateTailoringOutput({...validOutput,skills:[]},input),/omitted every source skill/);
 });

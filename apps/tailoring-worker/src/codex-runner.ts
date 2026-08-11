@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, resolve } from "node:path";
+import { basename, delimiter, dirname, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TailoringInput, TailoringOutput, TailoringPreview } from "./types.js";
 import { buildTailoringPrompt } from "./prompt.js";
@@ -20,10 +21,28 @@ function codexEnvironment(){
   return Object.fromEntries(allowed.flatMap(key=>process.env[key]===undefined?[]:[[key,process.env[key] as string]]));
 }
 
+export interface CodexInvocation{command:string;prefixArgs:string[];}
+export function resolveCodexInvocation(requested=process.env.TAILORING_CODEX_BIN||"codex",platform=process.platform,environment:NodeJS.ProcessEnv=process.env,exists:(path:string)=>boolean=existsSync):CodexInvocation{
+  const executable=requested.trim()||"codex";
+  if(platform!=="win32")return{command:executable,prefixArgs:[]};
+  const npmWrapper=(commandPath:string):CodexInvocation|null=>{const script=win32.resolve(win32.dirname(commandPath),"node_modules","@openai","codex","bin","codex.js");return exists(script)?{command:process.execPath,prefixArgs:[script]}:null;};
+  if(/[\\/]/.test(executable)){
+    const absolute=win32.resolve(executable);
+    if(/\.cmd$/i.test(absolute))return npmWrapper(absolute)||{command:absolute,prefixArgs:[]};
+    return{command:absolute,prefixArgs:[]};
+  }
+  const searchPath=environment.Path||environment.PATH||"",separator=platform==="win32"?";":delimiter;
+  for(const directory of searchPath.split(separator).map(value=>value.trim().replace(/^"|"$/g,"")).filter(Boolean)){
+    const native=win32.join(directory,executable.replace(/\.exe$/i,"")+".exe");if(exists(native))return{command:native,prefixArgs:[]};
+    const command=win32.join(directory,executable.replace(/\.cmd$/i,"")+".cmd");if(exists(command)){const wrapper=npmWrapper(command);if(wrapper)return wrapper;}
+  }
+  return{command:executable,prefixArgs:[]};
+}
+
 export const executeCodex:CodexExecutor=async request=>new Promise((accept,reject)=>{
-  const executable=process.env.TAILORING_CODEX_BIN||(process.platform==="win32"?"codex.exe":"codex");
+  const invocation=resolveCodexInvocation();
   const args=["exec","--ephemeral","--sandbox","read-only","--ignore-user-config","--skip-git-repo-check","--output-schema",request.schemaPath,"-o",request.outputPath,"-"];
-  const child=spawn(executable,args,{cwd:request.workspace,env:codexEnvironment(),stdio:["pipe","pipe","pipe"],windowsHide:true});
+  const child=spawn(invocation.command,[...invocation.prefixArgs,...args],{cwd:request.workspace,env:codexEnvironment(),stdio:["pipe","pipe","pipe"],windowsHide:true});
   let stdout="",stderr="",settled=false;
   const append=(current:string,value:Buffer)=>`${current}${value.toString("utf8")}`.slice(-MAX_LOG_BYTES);
   child.stdout.on("data",value=>{stdout=append(stdout,value);});
@@ -69,7 +88,8 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
       writeFile(schemaPath,`${JSON.stringify(schema,null,2)}\n`,"utf8")
     ]);
     await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
-    const result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input),preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:(options.now?.()||new Date()).toISOString(),result};
+    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input);}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
+    const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:(options.now?.()||new Date()).toISOString(),result};
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;
   }finally{

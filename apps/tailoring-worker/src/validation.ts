@@ -84,6 +84,7 @@ export function validateTailoringOutput(value:unknown,input:TailoringInput):Tail
     return{sourceExperienceId,tailoredDetails};
   });
   const unsupportedRequirements=boundedStrings(value.unsupportedRequirements,"unsupportedRequirements",100,500),sourceCorpus=[input.sourceResume.summary,...input.sourceResume.skills,...input.sourceResume.professionalExperience.map(item=>item.details)].join("\n").toLocaleLowerCase(),unsubstantiatedSkills=input.jobDescription.skills.filter(skill=>!sourceCorpus.includes(skill.toLocaleLowerCase())),unsupportedCorpus=unsupportedRequirements.join("\n").toLocaleLowerCase(),unreported=unsubstantiatedSkills.filter(skill=>!unsupportedCorpus.includes(skill.toLocaleLowerCase()));
-  if(unreported.length)throw new Error(`Unsupported JD skills were not reported: ${unreported.join(", ")}.`);
-  return{summary,professionalExperience,skills,changeSummary:boundedStrings(value.changeSummary,"changeSummary",100,500),unsupportedRequirements,warnings:boundedStrings(value.warnings,"warnings",100,500)};
+  const normalizedUnsupported=[...unsupportedRequirements];for(const skill of unreported)if(!normalizedUnsupported.some(item=>item.toLocaleLowerCase()===skill.toLocaleLowerCase()))normalizedUnsupported.push(skill);
+  if(normalizedUnsupported.length>100)throw new Error("unsupportedRequirements exceeds 100 items after deterministic evidence reconciliation.");
+  return{summary,professionalExperience,skills,changeSummary:boundedStrings(value.changeSummary,"changeSummary",100,500),unsupportedRequirements:normalizedUnsupported,warnings:boundedStrings(value.warnings,"warnings",100,500)};
 }

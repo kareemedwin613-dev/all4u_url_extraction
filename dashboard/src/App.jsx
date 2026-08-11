@@ -44,7 +44,7 @@ import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobs } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs } from "./services/job-read-service.js";
 import { getResume, listResumes } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
@@ -117,6 +117,7 @@ import { StructuredResumeView } from "./features/resume-upload/structured-resume
 import { CandidateProfilePage } from "./features/candidates/candidate-profile-page.jsx";
 import { ResumeAnswerLibrary } from "./features/resume-answers/resume-answer-library.jsx";
 import { TailoringQueuePage, TailoringReviewPage } from "./features/tailoring/tailoring-pages.jsx";
+import { TailoringBatchDetailPage, TailoringBatchesPage } from "./features/tailoring/tailoring-batch-pages.jsx";
 import {
   DataPagination,
   EmptyState,
@@ -174,6 +175,7 @@ const NAV_ICONS = Object.freeze({
     "assignment-batches": <HistoryOutlined />,
     "applier-workloads": <UserOutlined />,
     "tailoring-jobs": <FileSearchOutlined />,
+    "tailoring-batches": <HistoryOutlined />,
     jobs: <FileSearchOutlined />,
     resumes: <ProfileOutlined />,
     "resume-upload": <UploadOutlined />,
@@ -439,11 +441,14 @@ function Login({ client, onSignedIn }) {
   );
 }
 
-function FilterForm({ kind, value, categories, onApply, onClear }) {
+function FilterForm({ kind, value, categories, capturers = [], capturersLoading = false, onApply, onClear }) {
   function submit(raw) {
     try {
+      const captured = kind === "jobs" ? raw.capturedWindow : "";
+      if (captured === "CUSTOM" && raw.capturedFrom > raw.capturedTo) throw new Error("The captured start date must not be after the end date.");
       onApply({
         ...raw,
+        ...(kind === "jobs" && captured !== "CUSTOM" ? { capturedFrom: "", capturedTo: "" } : {}),
         search: normalizeSearch(raw.search),
         page: 1,
         pageSize: Number(raw.pageSize),
@@ -464,6 +469,8 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
       value.categoryId,
       value.seniority,
       value.status,
+      kind === "jobs" ? value.capturedByUserId : "",
+      kind === "jobs" ? value.capturedWindow : "",
       kind === "resumes" ? value.mimeType : "",
     ].filter(Boolean).length;
   return (
@@ -537,6 +544,32 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
               </Form.Item>
             </Col>
           )}
+          {kind === "jobs" && (
+            <Col {...field}>
+              <Form.Item label="Captured by" name="capturedByUserId">
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  loading={capturersLoading}
+                  options={[
+                    { value: "", label: "All users" },
+                    ...capturers.map((item) => ({
+                      value: item.id,
+                      label: `${item.displayName}${item.email && item.email !== item.displayName ? ` — ${item.email}` : ""} (${item.capturedCount})`,
+                    })),
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          )}
+          {kind === "jobs" && (
+            <Col {...field}>
+              <Form.Item label="Captured time window" name="capturedWindow">
+                <Select options={[{value:"",label:"Any time"},{value:"TODAY",label:"Today"},{value:"THIS_WEEK",label:"This week"},{value:"THIS_MONTH",label:"This month"},{value:"CUSTOM",label:"Custom range"}]}/>
+              </Form.Item>
+            </Col>
+          )}
+          {kind === "jobs" && <Form.Item noStyle shouldUpdate={(before,after)=>before.capturedWindow!==after.capturedWindow}>{({getFieldValue})=>getFieldValue("capturedWindow")==="CUSTOM"?<><Col {...field}><Form.Item label="Captured from" name="capturedFrom" rules={[{required:true,message:"Select the first date."}]}><Input type="date"/></Form.Item></Col><Col {...field}><Form.Item label="Captured through" name="capturedTo" rules={[{required:true,message:"Select the last date."}]}><Input type="date"/></Form.Item></Col></>:null}</Form.Item>}
           <Col {...field}>
             <Form.Item label="Sort" name="sort">
               <Select options={sorts} />
@@ -682,6 +715,9 @@ function Jobs({
   const filters = parseJobQuery(query),
     [data, setData] = useState(null),
     [error, setError] = useState(""),
+    [capturers, setCapturers] = useState([]),
+    [capturersLoading, setCapturersLoading] = useState(true),
+    [capturerError, setCapturerError] = useState(""),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE);
   useEffect(() => {
     let live = true;
@@ -694,6 +730,18 @@ function Jobs({
       live = false;
     };
   }, [client, apiBaseUrl, query, reload]);
+  useEffect(() => {
+    let live = true;
+    setCapturersLoading(true);
+    setCapturerError("");
+    listJobCapturers(client, apiBaseUrl)
+      .then((value) => live && setCapturers(value))
+      .catch((value) => live && setCapturerError(value.message))
+      .finally(() => live && setCapturersLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [client, apiBaseUrl, reload]);
   const update = (patch) => {
     const value = serializeQuery({ ...filters, ...patch });
     go(`#/jobs${value ? `?${value}` : ""}`);
@@ -795,9 +843,19 @@ function Jobs({
         kind="jobs"
         value={filters}
         categories={categories}
+        capturers={capturers}
+        capturersLoading={capturersLoading}
         onApply={update}
         onClear={() => go("#/jobs")}
       />
+      {capturerError && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Captured-by options could not be loaded."
+          description={capturerError}
+        />
+      )}
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
@@ -1485,6 +1543,10 @@ export function App({ client, apiBaseUrl }) {
     page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "tailoring-job-detail")
     page = <TailoringReviewPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} reload={reload} />;
+  else if (route.name === "tailoring-batches")
+    page = <TailoringBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "tailoring-batch-detail")
+    page = <TailoringBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "users-directory")
     page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "jobs")
