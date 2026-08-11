@@ -16,3 +16,4 @@ export const listJobs=(client,apiBaseUrl,filters)=>{const{capturedWindow:_,captu
 export const getJob=(client,apiBaseUrl,id)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/${encodeURIComponent(id)}`);
 export const jobCount=(client,apiBaseUrl,status="")=>request(client,apiBaseUrl,`/api/v1/job-descriptions/count${params({status})}`);
 export const recentJobs=(client,apiBaseUrl,limit=5)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/recent${params({limit})}`);
+export const listJobCapturers=(client,apiBaseUrl)=>request(client,apiBaseUrl,"/api/v1/job-descriptions/capturers");

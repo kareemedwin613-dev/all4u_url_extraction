@@ -38,6 +38,7 @@ export interface JobDescriptionListQuery {
   categoryId?: string;
   seniority?: Seniority;
   status?: "ACTIVE" | "ARCHIVED";
+  capturedByUserId?: string;
   capturedFrom?: string;
   capturedTo?: string;
   sort?: string;
@@ -238,6 +239,13 @@ export type ResumeType = "ORIGINAL" | "TAILORED";
 export interface ApplicationResumeDownload {
   signedUrl:string;expiresInSeconds:number;filename:string;mimeType:string;fileSizeBytes:number;
   resumeNumber:number;resumeType:ResumeType;
+}
+
+export interface JobDescriptionCapturer {
+  id: string;
+  displayName: string;
+  email: string;
+  capturedCount: number;
 }
 
 export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"MATERIALIZING"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";

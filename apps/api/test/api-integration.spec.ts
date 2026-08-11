@@ -44,7 +44,7 @@ before(async () => {
   const module = await Test.createTestingModule({ imports:[AppModule] })
     .overrideProvider(JwtVerifier).useValue({ verify: async (token:string) => ({id:"user-1",email:"user@example.com",token,claims:{}}) })
     .overrideProvider(SupabaseService).useValue(supabaseMock)
-    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row]})
+    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}]})
     .overrideProvider(LookupService).useValue({categories:async()=>[{id:"category-1",name:"Engineering"}],industryDomains:async()=>[{id:"industry-1",name:"Technology"}]})
     .overrideProvider(ResumeService).useValue({
       list:async()=>({items:[{id:"resume-1",candidate_name:"Candidate"}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),
@@ -144,6 +144,7 @@ test("JD read and lookup routes require authentication and expose bounded API re
   await request(app.getHttpServer()).get("/api/v1/job-descriptions?status=ACTIVE&sort=created_desc&pageSize=25").set("Authorization","Bearer token").expect(200).expect(({body})=>{assert.equal(body.data.total,1);assert.equal(body.data.items[0].id,"job-1");});
   await request(app.getHttpServer()).get("/api/v1/job-descriptions/count?status=ACTIVE").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data,1));
   await request(app.getHttpServer()).get("/api/v1/job-descriptions/recent?limit=5").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.length,1));
+  await request(app.getHttpServer()).get("/api/v1/job-descriptions/capturers").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].capturedCount,3));
   await request(app.getHttpServer()).get("/api/v1/job-descriptions/123e4567-e89b-42d3-a456-426614174000").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.id,"job-1"));
   await request(app.getHttpServer()).get("/api/v1/lookups/categories").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].name,"Engineering"));
   await request(app.getHttpServer()).get("/api/v1/lookups/industry-domains").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].name,"Technology"));

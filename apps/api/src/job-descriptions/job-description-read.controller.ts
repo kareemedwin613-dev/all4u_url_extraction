@@ -27,6 +27,9 @@ export class JobDescriptionReadController {
   @Get("recent") @ApiOperation({ summary: "List recently captured job descriptions" })
   async recent(@Req() request: ApiRequest, @Query(new DtoValidationPipe(RecentJobsQueryDto)) query: RecentJobsQueryDto) { return { data: await this.jobs.recent(request.user!, query), requestId: request.requestId }; }
 
+  @Get("capturers") @ApiOperation({ summary: "List users who captured accessible job descriptions" })
+  async capturers(@Req() request: ApiRequest) { return { data: await this.jobs.capturers(request.user!), requestId: request.requestId }; }
+
   @Get(":id") @ApiOperation({ summary: "Get one accessible job description" })
   async detail(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return { data: await this.jobs.detail(request.user!, id), requestId: request.requestId }; }
 }

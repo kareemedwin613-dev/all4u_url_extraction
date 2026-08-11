@@ -33,12 +33,24 @@ export class JobDescriptionReadService {
     if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
     if (filters.seniority) query = query.eq("seniority", filters.seniority);
     if (filters.status) query = query.eq("status", filters.status);
+    if (filters.capturedByUserId) query = query.eq("user_id", filters.capturedByUserId);
     if (filters.capturedFrom) query = query.gte("created_at", filters.capturedFrom);
     if (filters.capturedTo) query = query.lt("created_at", filters.capturedTo);
     const { data, error, count } = await query.order(sort.column, { ascending: sort.ascending }).range(from, from + pageSize - 1);
     if (error) databaseError(error, "Job descriptions could not be loaded.");
     const total = Math.max(0, Number(count) || 0), pageCount = total ? Math.ceil(total / pageSize) : 0, safePage = pageCount ? Math.min(page, pageCount) : 1;
     return { items: (data || []).map(normalizeJob), total, page: safePage, pageSize, pageCount, from: total ? (safePage - 1) * pageSize + 1 : 0, to: total ? Math.min(safePage * pageSize, total) : 0, hasPrevious: safePage > 1, hasNext: safePage < pageCount };
+  }
+
+  async capturers(user: AuthenticatedUser) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("list_job_description_capturers");
+    if (error) databaseError(error, "The job-description capturer list could not be loaded.");
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      displayName: item.display_name,
+      email: item.email,
+      capturedCount: Number(item.captured_count) || 0,
+    }));
   }
 
   async detail(user: AuthenticatedUser, id: string) {

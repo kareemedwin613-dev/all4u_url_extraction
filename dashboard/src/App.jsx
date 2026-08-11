@@ -44,7 +44,7 @@ import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobs } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs } from "./services/job-read-service.js";
 import { getResume, listResumes } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
@@ -441,7 +441,7 @@ function Login({ client, onSignedIn }) {
   );
 }
 
-function FilterForm({ kind, value, categories, onApply, onClear }) {
+function FilterForm({ kind, value, categories, capturers = [], capturersLoading = false, onApply, onClear }) {
   function submit(raw) {
     try {
       const captured = kind === "jobs" ? raw.capturedWindow : "";
@@ -469,6 +469,7 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
       value.categoryId,
       value.seniority,
       value.status,
+      kind === "jobs" ? value.capturedByUserId : "",
       kind === "jobs" ? value.capturedWindow : "",
       kind === "resumes" ? value.mimeType : "",
     ].filter(Boolean).length;
@@ -537,6 +538,24 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
                     ...MIME_TYPES.map((item) => ({
                       value: item,
                       label: formatMime(item),
+                    })),
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          )}
+          {kind === "jobs" && (
+            <Col {...field}>
+              <Form.Item label="Captured by" name="capturedByUserId">
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  loading={capturersLoading}
+                  options={[
+                    { value: "", label: "All users" },
+                    ...capturers.map((item) => ({
+                      value: item.id,
+                      label: `${item.displayName}${item.email && item.email !== item.displayName ? ` — ${item.email}` : ""} (${item.capturedCount})`,
                     })),
                   ]}
                 />
@@ -696,6 +715,9 @@ function Jobs({
   const filters = parseJobQuery(query),
     [data, setData] = useState(null),
     [error, setError] = useState(""),
+    [capturers, setCapturers] = useState([]),
+    [capturersLoading, setCapturersLoading] = useState(true),
+    [capturerError, setCapturerError] = useState(""),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE);
   useEffect(() => {
     let live = true;
@@ -708,6 +730,18 @@ function Jobs({
       live = false;
     };
   }, [client, apiBaseUrl, query, reload]);
+  useEffect(() => {
+    let live = true;
+    setCapturersLoading(true);
+    setCapturerError("");
+    listJobCapturers(client, apiBaseUrl)
+      .then((value) => live && setCapturers(value))
+      .catch((value) => live && setCapturerError(value.message))
+      .finally(() => live && setCapturersLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [client, apiBaseUrl, reload]);
   const update = (patch) => {
     const value = serializeQuery({ ...filters, ...patch });
     go(`#/jobs${value ? `?${value}` : ""}`);
@@ -809,9 +843,19 @@ function Jobs({
         kind="jobs"
         value={filters}
         categories={categories}
+        capturers={capturers}
+        capturersLoading={capturersLoading}
         onApply={update}
         onClear={() => go("#/jobs")}
       />
+      {capturerError && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Captured-by options could not be loaded."
+          description={capturerError}
+        />
+      )}
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (

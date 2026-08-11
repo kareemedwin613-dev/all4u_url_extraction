@@ -43,9 +43,9 @@ test("JD DTO rejects unknown-quality input and accepts bounded ingestion fields"
 });
 
 test("JD read query DTO allowlists filters, sorting, and pagination", async () => {
-  const valid=plainToInstance(JobDescriptionQueryDto,{search:"data",categoryId:"123e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:"2",pageSize:"25"});
+  const valid=plainToInstance(JobDescriptionQueryDto,{search:"data",categoryId:"123e4567-e89b-42d3-a456-426614174000",capturedByUserId:"223e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:"2",pageSize:"25"});
   assert.equal((await validate(valid)).length,0);assert.equal(valid.page,2);
-  const invalid=plainToInstance(JobDescriptionQueryDto,{sort:"raw_sql",pageSize:"500",capturedFrom:"not-a-date"});
+  const invalid=plainToInstance(JobDescriptionQueryDto,{sort:"raw_sql",pageSize:"500",capturedFrom:"not-a-date",capturedByUserId:"not-a-user"});
   assert.ok((await validate(invalid)).length>=2);
 });
 
@@ -101,10 +101,11 @@ test("JD read service applies bounded server-side filters and preserves RLS iden
   const calls:any[]=[],row={id:"job",industry_domain:{name:"Healthcare"}};
   const query:any={select:()=>query,textSearch:(...args:any[])=>{calls.push(["textSearch",...args]);return query;},eq:(...args:any[])=>{calls.push(["eq",...args]);return query;},gte:(...args:any[])=>{calls.push(["gte",...args]);return query;},lt:(...args:any[])=>{calls.push(["lt",...args]);return query;},order:(...args:any[])=>{calls.push(["order",...args]);return query;},range:async(...args:any[])=>{calls.push(["range",...args]);return {data:[row],error:null,count:1};}};
   const service=new JobDescriptionReadService({forUser:(token:string)=>{assert.equal(token,"jwt");return {from:(table:string)=>{assert.equal(table,"job_descriptions");return query;}};}} as any);
-  const result=await service.list({id:"u",token:"jwt",claims:{}},{search:"data",categoryId:"123e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:1,pageSize:25});
+  const result=await service.list({id:"u",token:"jwt",claims:{}},{search:"data",categoryId:"123e4567-e89b-42d3-a456-426614174000",capturedByUserId:"223e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:1,pageSize:25});
   assert.equal(result.items[0].industry_domain,"Healthcare");assert.equal(result.total,1);
   assert.ok(calls.some(call=>call[0]==="textSearch"&&call[1]==="search_vector"));assert.deepEqual(calls.at(-1),["range",0,24]);
   assert.ok(calls.some(call=>call[0]==="gte"&&call[1]==="created_at"));assert.ok(calls.some(call=>call[0]==="lt"&&call[1]==="created_at"));
+  assert.ok(calls.some(call=>call[0]==="eq"&&call[1]==="user_id"&&call[2]==="223e4567-e89b-42d3-a456-426614174000"));
 });
 
 test("lookup service loads controlled values through the user-scoped client",async()=>{

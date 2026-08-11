@@ -10,6 +10,7 @@ export class JobDescriptionQueryDto {
   @IsOptional() @IsUUID() categoryId?: string;
   @IsOptional() @IsIn(SENIORITIES) seniority?: string;
   @IsOptional() @IsIn(["ACTIVE", "ARCHIVED"]) status?: string;
+  @IsOptional() @IsUUID() capturedByUserId?: string;
   @IsOptional() @IsDateString() capturedFrom?: string;
   @IsOptional() @IsDateString() capturedTo?: string;
   @IsOptional() @IsIn(JOB_SORTS) sort?: string;
