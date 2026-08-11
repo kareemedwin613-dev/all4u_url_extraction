@@ -38,6 +38,8 @@ export interface JobDescriptionListQuery {
   categoryId?: string;
   seniority?: Seniority;
   status?: "ACTIVE" | "ARCHIVED";
+  capturedFrom?: string;
+  capturedTo?: string;
   sort?: string;
   page?: number;
   pageSize?: 10 | 25 | 50;

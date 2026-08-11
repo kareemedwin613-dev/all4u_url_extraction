@@ -444,8 +444,11 @@ function Login({ client, onSignedIn }) {
 function FilterForm({ kind, value, categories, onApply, onClear }) {
   function submit(raw) {
     try {
+      const captured = kind === "jobs" ? raw.capturedWindow : "";
+      if (captured === "CUSTOM" && raw.capturedFrom > raw.capturedTo) throw new Error("The captured start date must not be after the end date.");
       onApply({
         ...raw,
+        ...(kind === "jobs" && captured !== "CUSTOM" ? { capturedFrom: "", capturedTo: "" } : {}),
         search: normalizeSearch(raw.search),
         page: 1,
         pageSize: Number(raw.pageSize),
@@ -466,6 +469,7 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
       value.categoryId,
       value.seniority,
       value.status,
+      kind === "jobs" ? value.capturedWindow : "",
       kind === "resumes" ? value.mimeType : "",
     ].filter(Boolean).length;
   return (
@@ -539,6 +543,14 @@ function FilterForm({ kind, value, categories, onApply, onClear }) {
               </Form.Item>
             </Col>
           )}
+          {kind === "jobs" && (
+            <Col {...field}>
+              <Form.Item label="Captured time window" name="capturedWindow">
+                <Select options={[{value:"",label:"Any time"},{value:"TODAY",label:"Today"},{value:"THIS_WEEK",label:"This week"},{value:"THIS_MONTH",label:"This month"},{value:"CUSTOM",label:"Custom range"}]}/>
+              </Form.Item>
+            </Col>
+          )}
+          {kind === "jobs" && <Form.Item noStyle shouldUpdate={(before,after)=>before.capturedWindow!==after.capturedWindow}>{({getFieldValue})=>getFieldValue("capturedWindow")==="CUSTOM"?<><Col {...field}><Form.Item label="Captured from" name="capturedFrom" rules={[{required:true,message:"Select the first date."}]}><Input type="date"/></Form.Item></Col><Col {...field}><Form.Item label="Captured through" name="capturedTo" rules={[{required:true,message:"Select the last date."}]}><Input type="date"/></Form.Item></Col></>:null}</Form.Item>}
           <Col {...field}>
             <Form.Item label="Sort" name="sort">
               <Select options={sorts} />

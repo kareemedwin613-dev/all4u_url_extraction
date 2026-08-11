@@ -10,3 +10,4 @@ export const normalizePageSize=value=>allowed(Number(value),PAGE_SIZES,25);
 export const normalizeStatus=value=>allowed(value,STATUSES,"");
 export const normalizeSeniority=value=>allowed(value,SENIORITIES,"");
 export const normalizeMime=value=>allowed(value,MIME_TYPES,"");
+export function normalizeDateInput(value){const text=String(value||""),match=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!match)return"";const[,year,month,day]=match,date=new Date(Number(year),Number(month)-1,Number(day));return date.getFullYear()===Number(year)&&date.getMonth()===Number(month)-1&&date.getDate()===Number(day)?text:"";}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {listJobs} from "../src/services/job-read-service.js";
+import {capturedDateBounds,listJobs} from "../src/services/job-read-service.js";
 
 test("JD list sends bearer-authenticated search, filters, sorting, and pagination to the backend",async()=>{
   let request;
@@ -16,4 +16,12 @@ test("JD list sends bearer-authenticated search, filters, sorting, and paginatio
     assert.equal(request.options.headers.Authorization,"Bearer dashboard-token");
     assert.equal(result.total,0);
   }finally{globalThis.fetch=originalFetch;}
+});
+
+test("JD captured windows use local calendar boundaries and custom ranges are inclusive",()=>{
+  const now=new Date(2026,7,11,15,30),today=capturedDateBounds({capturedWindow:"TODAY"},now),week=capturedDateBounds({capturedWindow:"THIS_WEEK"},now),month=capturedDateBounds({capturedWindow:"THIS_MONTH"},now),custom=capturedDateBounds({capturedWindow:"CUSTOM",capturedFrom:"2026-08-02",capturedTo:"2026-08-05"},now);
+  assert.equal(new Date(today.capturedFrom).getDate(),11);assert.equal(new Date(today.capturedTo).getDate(),12);
+  assert.equal(new Date(week.capturedFrom).getDay(),1);assert.equal((new Date(week.capturedTo)-new Date(week.capturedFrom))/(24*60*60*1000),7);
+  assert.equal(new Date(month.capturedFrom).getDate(),1);assert.equal(new Date(month.capturedTo).getMonth(),8);
+  assert.equal(new Date(custom.capturedFrom).getDate(),2);assert.equal(new Date(custom.capturedTo).getDate(),6);
 });
