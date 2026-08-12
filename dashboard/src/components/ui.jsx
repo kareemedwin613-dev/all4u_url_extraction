@@ -212,10 +212,21 @@ export const PageHeading = ({ title, eyebrow, extra }) => (
     {extra}
   </Flex>
 );
-export function TabbedSections({ items = [], defaultActiveKey, extra }) {
+export function TabbedSections({
+  items = [],
+  defaultActiveKey,
+  activeKey,
+  onChange,
+  extra,
+}) {
   const available = items.filter(Boolean),
     first = defaultActiveKey || available[0]?.key,
-    [active, setActive] = useState(first);
+    [uncontrolledActive, setUncontrolledActive] = useState(first),
+    active = activeKey ?? uncontrolledActive,
+    setActive = (key) => {
+      if (activeKey === undefined) setUncontrolledActive(key);
+      onChange?.(key);
+    };
   useEffect(() => {
     if (!available.some((item) => item.key === active))
       setActive(available[0]?.key);

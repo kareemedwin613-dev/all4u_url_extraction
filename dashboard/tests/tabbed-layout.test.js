@@ -4,6 +4,14 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
+test("upload resume save bypasses native constraint validation and shows nearby errors", async () => {
+  const source = await read("../src/features/resume-upload/resume-upload-page.jsx");
+  assert.match(source, /noValidate/);
+  assert.match(source, /activeKey=\{activeTab\}/);
+  assert.match(source, /setActiveTab\(nextTab\)/);
+  assert.match(source, /Reviewed and accurate/);
+});
+
 test("shared tabbed sections preserve content and provide keyboard navigation", async () => {
   const source = await read("../src/components/ui.jsx");
   assert.match(source, /export function TabbedSections/);
@@ -11,6 +19,8 @@ test("shared tabbed sections preserve content and provide keyboard navigation", 
   assert.match(source, /Number\(event\.key\)-1|Number\(event\.key\) - 1/);
   assert.match(source, /destroyOnHidden=\{false\}/);
   assert.match(source, /arrow keys/);
+  assert.match(source, /activeKey/);
+  assert.match(source, /onChange\?/);
 });
 
 test("long detail and workflow pages use compact tabbed layouts", async () => {
