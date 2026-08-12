@@ -10,7 +10,11 @@ export async function authenticatedApiRequest(client,{baseUrl,path,method="GET",
     if(idempotencyKey)headers["Idempotency-Key"]=idempotencyKey;
     const response=await fetch(`${String(baseUrl).replace(/\/+$/,"")}${path}`,{method,headers,body:body===undefined?undefined:multipart?body:JSON.stringify(body),signal:controller.signal});
     const payload=await response.json().catch(()=>({}));
-    if(!response.ok)throw appError(payload.code||"API_REQUEST_FAILED",`${payload.message||"The API request failed."}${payload.requestId?` Request ID: ${payload.requestId}`:""}`,false);
+    if(!response.ok){
+      const fieldErrors=payload.fieldErrors&&typeof payload.fieldErrors==="object"?Object.entries(payload.fieldErrors).flatMap(([field,messages])=>Array.isArray(messages)?messages.map((message)=>`${field}: ${message}`):[]):[];
+      const details=fieldErrors.length?` ${fieldErrors.join(" ")}`:"";
+      throw appError(payload.code||"API_REQUEST_FAILED",`${payload.message||"The API request failed."}${details}${payload.requestId?` Request ID: ${payload.requestId}`:""}`,false);
+    }
     return {payload,requestId:response.headers.get("x-request-id")||payload.requestId||requestId};
   } catch(error) {
     if(error?.name==="AbortError")throw appError("API_TIMEOUT","The API request timed out.",true);
