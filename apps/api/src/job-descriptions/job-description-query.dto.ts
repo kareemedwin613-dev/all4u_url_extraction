@@ -2,7 +2,7 @@ import { Transform, Type } from "class-transformer";
 import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
 
 const trim = ({ value }: { value: unknown }) => typeof value === "string" ? value.trim() : value;
-const JOB_SORTS = ["company_asc","company_desc","title_asc","title_desc","category_asc","category_desc","subcategory_asc","subcategory_desc","seniority_asc","seniority_desc","source_asc","source_desc","capturer_asc","capturer_desc","status_asc","status_desc","created_asc","created_desc"];
+const JOB_SORTS = ["company_asc","company_desc","title_asc","title_desc","category_asc","category_desc","subcategory_asc","subcategory_desc","seniority_asc","seniority_desc","source_asc","source_desc","capturer_asc","capturer_desc","status_asc","status_desc","review_asc","review_desc","created_asc","created_desc"];
 const SENIORITIES = ["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL","MANAGER","DIRECTOR","EXECUTIVE","UNSPECIFIED"];
 
 export class JobDescriptionQueryDto {
@@ -10,6 +10,7 @@ export class JobDescriptionQueryDto {
   @IsOptional() @IsUUID() categoryId?: string;
   @IsOptional() @IsIn(SENIORITIES) seniority?: string;
   @IsOptional() @IsIn(["ACTIVE", "ARCHIVED", "ALL"]) status?: string;
+  @IsOptional() @IsIn(["NEEDS_REVIEW", "APPROVED", "NEEDS_CORRECTION", "DECLINED", "ALL"]) reviewStatus?: string;
   @IsOptional() @IsUUID() capturedByUserId?: string;
   @IsOptional() @IsDateString() capturedFrom?: string;
   @IsOptional() @IsDateString() capturedTo?: string;

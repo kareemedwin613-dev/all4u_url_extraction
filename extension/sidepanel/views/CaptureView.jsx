@@ -384,26 +384,22 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       }
       const saved = await createJob(client, backendBaseUrl, job);
       setSavedJob(saved);
-      setDuplicateJob(null);
+      setDuplicateJob(saved.duplicate?saved:null);
+      if(saved.duplicate){
+        const duplicateMessage=saved.duplicate_reason === "COMPANY_JOB_TITLE"
+          ? "Not saved: a JD with the same company and job title already exists. The existing JD is shown."
+          : "Not saved: this source URL already exists. The existing JD is shown.";
+        onStatus({message:`${duplicateMessage}${saved.workspace_sync?.enabled?` Google Sheets sync: ${saved.workspace_sync.status}.`:""}`,kind:"warning"});
+        await loadMatches(saved);
+        return;
+      }
       const sync=saved.workspace_sync;
       onStatus(sync?.enabled&&sync.status!=="SUCCEEDED"
         ?{message:`JD saved to Supabase, but Google Sheets sync ${sync.status==="PENDING"?"is already in progress":"failed"}. Saving this JD again will retry safely.`,kind:"warning"}
-        :{message:`JD saved to ${sync?.status==="SUCCEEDED"?"Supabase and Google Sheets":"Supabase"}: ${saved.company} — ${saved.job_title}.`,kind:"success"});
+        :{message:`JD saved to ${sync?.status==="SUCCEEDED"?"Supabase and Google Sheets":"Supabase"}: ${saved.company} — ${saved.job_title}.${saved.review_status==="NEEDS_REVIEW"?" It is waiting for manager review.":""}`,kind:"success"});
       await loadMatches(saved);
     } catch (error) {
-      if (error.code === "JD_DUPLICATE") {
-        const duplicate = JSON.parse(error.details);
-        const existing = duplicate.existing;
-        setDuplicateJob(existing);
-        setSavedJob(existing);
-        const duplicateMessage=duplicate.duplicateReason === "COMPANY_JOB_TITLE"
-          ? "A JD with the same company and job title is already saved. The existing JD was returned."
-          : "This source URL is already saved. The existing JD was returned without creating a duplicate.";
-        onStatus({message:`${duplicateMessage}${existing.workspace_sync?.enabled?` Google Sheets sync: ${existing.workspace_sync.status}.`:""}`,kind:"warning"});
-        await loadMatches(existing);
-      } else {
-        onError(error);
-      }
+      onError(error);
     } finally {
       setSaving(false);
     }

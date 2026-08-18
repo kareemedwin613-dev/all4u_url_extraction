@@ -24,7 +24,9 @@ export class ApplicationBatchesService {
   constructor(@Inject(ApplicationBatchesRepository) private readonly repository: ApplicationBatchesRepository, @Inject(JsonLogger) private readonly logger: JsonLogger) {}
   async preview(user: AuthenticatedUser, body: any, requestId: string) {
     const ids = [...new Set(body.jobDescriptionIds)];
-    const data: any = await timeout(this.repository.rpc(user, "preview_bulk_applications", { p_selected_jd_ids: ids }, "The bulk preview could not be generated."), 10_000);
+    const raw: any = await timeout(this.repository.rpc(user, "preview_bulk_applications", { p_selected_jd_ids: ids }, "The bulk preview could not be generated."), 10_000);
+    const combinations = (raw?.combinations || []).filter((row: any) => row?.resumeType === "ORIGINAL");
+    const data = { ...raw, combinations, activeResumeCount: new Set(combinations.map((row: any) => row.resumeId)).size, proposedCount: combinations.length, eligibleCount: combinations.filter((row: any) => row.eligible).length, duplicateCount: combinations.filter((row: any) => !row.eligible).length, excludedCount: combinations.filter((row: any) => !row.eligible).length + Number(raw?.invalidJds?.length || 0) };
     this.logger.log("bulk.preview.completed", { requestId, userId: user.id, selectedJdCount: ids.length, proposedCount: data?.proposedCount || 0, duplicateCount: data?.duplicateCount || 0 });
     return data;
   }

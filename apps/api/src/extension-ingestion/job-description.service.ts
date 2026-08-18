@@ -5,7 +5,7 @@ import { ApiException } from "../common/errors/api.exception.js";
 import type { CreateJobDescriptionDto } from "./create-job-description.dto.js";
 import { GoogleWorkspaceJdSyncService } from "./google-workspace-jd-sync.service.js";
 
-const FIELDS = "id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,clearance_requirements,travel_required,travel_details,salary_min,salary_max,salary_currency,salary_period,salary_text,source_site,source_url,description_text,detected_skills,capture_method,extraction_confidence,created_at";
+const FIELDS = "id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,clearance_requirements,travel_required,travel_details,salary_min,salary_max,salary_currency,salary_period,salary_text,source_site,source_url,description_text,detected_skills,capture_method,extraction_confidence,review_status,created_at";
 const TRACKING = new Set(["utm_source","utm_medium","utm_campaign","utm_term","utm_content","trk","trackingid","ref"]);
 export function normalizeSourceUrl(value: string): string {
   const url = new URL(value); url.hash = "";
