@@ -6,9 +6,9 @@ import {createBulkApplications,getApplicationBatch,listApplicationBatchResults,l
 
 const jd1="f3a34ffd-d66a-49f7-815e-c7786857576b",jd2="b4d63a80-e306-4a2f-afca-29cd4b3951e0",resume1="8660f115-ce73-41ff-889b-b6d07202a3e4",resume2="a21c0738-2905-4733-8a1d-d6e0dddb0122";
 const rows=[
-  {key:pairKey(jd1,resume1),jobDescriptionId:jd1,resumeId:resume1,company:"Acme",jobTitle:"Engineer",jobCategoryId:"cat-1",candidateName:"Alex",resumeName:"Alex Main",eligible:true},
-  {key:pairKey(jd1,resume2),jobDescriptionId:jd1,resumeId:resume2,company:"Acme",jobTitle:"Engineer",jobCategoryId:"cat-1",candidateName:"Blair",resumeName:"Blair Main",eligible:false,existingApplicationId:"existing",exclusionCode:"EXISTING_APPLICATION"},
-  {key:pairKey(jd2,resume2),jobDescriptionId:jd2,resumeId:resume2,company:"Beta",jobTitle:"Analyst",jobCategoryId:"cat-2",candidateName:"Blair",resumeName:"Blair Main",eligible:true},
+  {key:pairKey(jd1,resume1),jobDescriptionId:jd1,resumeId:resume1,resumeType:"ORIGINAL",company:"Acme",jobTitle:"Engineer",jobCategoryId:"cat-1",candidateName:"Alex",resumeName:"Alex Main",eligible:true},
+  {key:pairKey(jd1,resume2),jobDescriptionId:jd1,resumeId:resume2,resumeType:"ORIGINAL",company:"Acme",jobTitle:"Engineer",jobCategoryId:"cat-1",candidateName:"Blair",resumeName:"Blair Main",eligible:false,existingApplicationId:"existing",exclusionCode:"EXISTING_APPLICATION"},
+  {key:pairKey(jd2,resume2),jobDescriptionId:jd2,resumeId:resume2,resumeType:"ORIGINAL",company:"Beta",jobTitle:"Analyst",jobCategoryId:"cat-2",candidateName:"Blair",resumeName:"Blair Main",eligible:true},
 ];
 const preview={combinations:rows,duplicateCount:1};
 
@@ -45,9 +45,9 @@ test("batch listing is one paginated, sorted API request",async()=>{let requeste
 
 test("batch detail and paginated outcomes use separate backend reads",async()=>{const paths=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})}};globalThis.fetch=async(url)=>{const path=new URL(url).pathname;paths.push(path);return new Response(JSON.stringify({data:path.endsWith("/results")?{items:[],total:0,page:1,pageSize:25}:{id:jd1,name:"Batch",applications:[]}}),{status:200});};try{await getApplicationBatch(client,"https://api.example.com",jd1);await listApplicationBatchResults(client,"https://api.example.com",jd1,{page:1,outcome:"CREATED"});}finally{globalThis.fetch=originalFetch;}assert.deepEqual(paths,[`/api/v1/application-batches/${jd1}`,`/api/v1/application-batches/${jd1}/results`]);});
 
-test("bulk pages use Ant Design, disabled exclusions, confirmation, and guarded double submission",async()=>{
+test("bulk pages use Ant Design, original Resume scope, disabled exclusions, confirmation, and guarded double submission",async()=>{
   const source=await readFile(new URL("../src/features/bulk-applications/bulk-pages.jsx",import.meta.url),"utf8");
-  for(const text of ["PreviewSummary","Select all eligible","Select visible eligible","Clear visible selection","Clear all selection","getCheckboxProps","disabled","modal.confirm","Defaults:","submitLock.current","ApplicationBatchesPage","ApplicationBatchDetailPage"])assert.match(source,new RegExp(text));
+  for(const text of ["PreviewSummary","Select Resumes","Only active original Resumes","selectedResumeIds","resumeType === \"ORIGINAL\"","Select all eligible","Select visible eligible","Clear visible selection","Clear all selection","getCheckboxProps","disabled","modal.confirm","Defaults:","submitLock.current","ApplicationBatchesPage","ApplicationBatchDetailPage"])assert.match(source,new RegExp(text));
 });
 
 test("JD page exposes selection only behind the bulk capability",async()=>{const source=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");assert.match(source,/APPLICATION_BULK_MANAGE/);assert.match(source,/rowSelection=\{\s*canBulk\s*\?/);assert.match(source,/preserveSelectedRowKeys\s*:\s*true/);assert.match(source,/Create Applications/);});

@@ -75,18 +75,20 @@ const Notice = ({ message, error = false }) =>
     />
   ) : null;
 
-export function ApplicationCountCards({ client, apiBaseUrl, access, reload }) {
+export function ApplicationCountCards({ client, apiBaseUrl, access, reload, dateRange, dateLabel = "Today" }) {
   const [data, setData] = useState(),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    getApplicationCounts(client, apiBaseUrl)
+    setData(undefined);
+    setError("");
+    getApplicationCounts(client, apiBaseUrl, dateRange)
       .then((x) => live && setData(x))
       .catch((x) => live && setError(x.message));
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, reload]);
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
   if (error) return <Notice message={error} error />;
   if (!data) return <LoadingState />;
   const manager = isApplicationManager(access),
@@ -97,7 +99,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload }) {
           ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
           ["Overdue", data.overdue],
-          ["Applied Today", data.applied_today],
+          [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ]
       : [
@@ -105,7 +107,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload }) {
           ["Due Today", data.due_today],
           ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
-          ["Applied Today", data.applied_today],
+          [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ];
   return (

@@ -7,7 +7,7 @@ function failure(error:any,fallback:string):never{const raw=String(error?.messag
   role=(u:AuthenticatedUser,id:string,code:string,assign:boolean)=>this.rpc(u,assign?"admin_assign_role":"admin_remove_role",{p_user_id:id,p_role_code:code},"The role assignment could not be changed.");
   status=(u:AuthenticatedUser,id:string,status:string)=>this.rpc(u,"admin_set_user_status",{p_user_id:id,p_status:status},"The account status could not be changed.");
   profile=(u:AuthenticatedUser,name:string)=>this.rpc(u,"update_my_profile",{p_full_name:String(name||"").trim()},"The profile could not be updated.");
-  overview=(u:AuthenticatedUser)=>this.rpc(u,"get_business_overview",{},"The business overview could not be loaded.");
+  overview=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_business_overview_v30",{p_from:from,p_to:to},"The business overview could not be loaded.");
 }
 @Injectable()export class TailoringService{constructor(@Inject(SupabaseService)private readonly supabase:SupabaseService){}
   private async rpc(u:AuthenticatedUser,name:string,args:any,fallback:string){const{data,error}=await this.supabase.forUser(u.token).rpc(name,args);if(error)failure(error,fallback);return data;}

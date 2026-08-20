@@ -44,7 +44,7 @@ before(async () => {
   const module = await Test.createTestingModule({ imports:[AppModule] })
     .overrideProvider(JwtVerifier).useValue({ verify: async (token:string) => ({id:"user-1",email:"user@example.com",token,claims:{}}) })
     .overrideProvider(SupabaseService).useValue(supabaseMock)
-    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null})})
+    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null}),review:async(_user:any,id:string,reviewStatus:string,declineReason?:string,comment?:string)=>({id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null})})
     .overrideProvider(LookupService).useValue({categories:async()=>[{id:"category-1",name:"Engineering"}],industryDomains:async()=>[{id:"industry-1",name:"Technology"}]})
     .overrideProvider(ResumeService).useValue({
       list:async()=>({items:[{id:"resume-1",candidate_name:"Candidate"}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),
@@ -126,11 +126,11 @@ test("ingestion rejects unauthenticated, inactive, and invalid requests", async 
   await request(app.getHttpServer()).post("/api/v1/extension/job-descriptions").set("Authorization","Bearer token").send({...validBody,descriptionText:"short"}).expect(400);
 });
 
-test("JD Finder can capture with lookups but cannot access shared operational APIs",async()=>{
+test("JD Finder can capture and read owned JDs but cannot access other operational APIs",async()=>{
   roles=["JD_FINDER"];mode="create";
   await request(app.getHttpServer()).get("/api/v1/lookups/categories").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).post("/api/v1/extension/job-descriptions").set("Authorization","Bearer token").send(validBody).expect(201).expect(({body})=>assert.equal(body.data.company,"Example"));
-  await request(app.getHttpServer()).get("/api/v1/job-descriptions").set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).get("/api/v1/job-descriptions").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).get("/api/v1/applications").set("Authorization","Bearer token").expect(403);
   await request(app.getHttpServer()).get("/api/v1/resumes").set("Authorization","Bearer token").expect(403);
   roles=["APPLYING_MANAGER"];
@@ -157,6 +157,15 @@ test("captured URL review is restricted to Applying Managers and Admins",async()
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED",reason:"NOT_APPLICABLE"}).expect(200).expect(({body})=>{assert.equal(body.data.status,"ARCHIVED");assert.equal(body.data.archive_reason,"NOT_APPLICABLE");});
   await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED",reason:"UNSAFE_REASON"}).expect(400);
+});
+
+test("simple JD decisions are restricted, validated, and returned",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  roles=["JD_FINDER"];
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/review`).set("Authorization","Bearer token").send({reviewStatus:"APPROVED"}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/review`).set("Authorization","Bearer token").send({reviewStatus:"DECLINED",declineReason:"EXPIRED",comment:"Posting closed"}).expect(200).expect(({body})=>assert.equal(body.data.review_status,"DECLINED"));
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/review`).set("Authorization","Bearer token").send({reviewStatus:"DECLINED",declineReason:"UNSAFE"}).expect(400);
 });
 
 test("Resume reads preserve history while archive actions require a manager or Admin",async()=>{
@@ -276,7 +285,7 @@ test("Profile, Admin, overview, and tailoring routes enforce the final backend b
   await request(app.getHttpServer()).patch("/api/v1/profile").set("Authorization","Bearer token").send({fullName:"Name"}).expect(200);
   await request(app.getHttpServer()).get("/api/v1/admin/roles").set("Authorization","Bearer token").expect(403);
   roles=["APPLIER"];
-  await request(app.getHttpServer()).get("/api/v1/business-overview").set("Authorization","Bearer token").expect(200);
+  await request(app.getHttpServer()).get("/api/v1/business-overview?from=2026-08-13T04:00:00.000Z&to=2026-08-14T04:00:00.000Z").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).get("/api/v1/tailoring-jobs?status=PENDING").set("Authorization","Bearer token").expect(200);
   await request(app.getHttpServer()).post("/api/v1/tailoring-jobs").set("Authorization","Bearer token").send({jobDescriptionId:id,matches:[{resumeId,matchScore:80,matchDetails:{eligible:true}}]}).expect(403);
   await request(app.getHttpServer()).patch(`/api/v1/tailoring-jobs/${id}/review`).set("Authorization","Bearer token").send({action:"APPROVE",expectedUpdatedAt:"2026-08-03T12:00:00.000Z",preview:{}}).expect(403);

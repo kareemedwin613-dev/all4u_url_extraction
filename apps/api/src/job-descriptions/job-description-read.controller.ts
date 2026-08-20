@@ -8,8 +8,10 @@ import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
 import { JobCountQueryDto, JobDescriptionQueryDto, RecentJobsQueryDto } from "./job-description-query.dto.js";
 import { JobDescriptionReadService } from "./job-description-read.service.js";
 import { JobDescriptionStatusDto } from "./job-description-status.dto.js";
+import { JobDescriptionReviewDto } from "./job-description-review.dto.js";
+import { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
 
-const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "ADMIN"] as const;
+const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "JD_FINDER", "ADMIN"] as const;
 
 @ApiTags("Job descriptions")
 @ApiBearerAuth()
@@ -33,6 +35,12 @@ export class JobDescriptionReadController {
 
   @Patch(":id/status") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Decline/archive or restore a captured job URL" })
   async status(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionStatusDto)) body: JobDescriptionStatusDto) { return { data: await this.jobs.status(request.user!, id, body.status, body.reason), requestId: request.requestId }; }
+
+  @Patch(":id/review") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Review a captured job description" })
+  async review(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionReviewDto)) body: JobDescriptionReviewDto) { return { data: await this.jobs.review(request.user!, id, body.reviewStatus, body.declineReason, body.comment), requestId: request.requestId }; }
+
+  @Patch(":id/correction") @RequireRoles("JD_FINDER") @ApiOperation({ summary: "Correct one of the caller's unapproved job descriptions" })
+  async correct(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionCorrectionDto)) body: JobDescriptionCorrectionDto) { return { data: await this.jobs.correct(request.user!, id, body), requestId: request.requestId }; }
 
   @Get(":id") @ApiOperation({ summary: "Get one accessible job description" })
   async detail(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return { data: await this.jobs.detail(request.user!, id), requestId: request.requestId }; }

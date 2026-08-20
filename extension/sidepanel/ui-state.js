@@ -1,5 +1,5 @@
 const VIEW_KEY_PREFIX = "sidepanel-current-view:";
-export const PERSISTABLE_VIEWS = Object.freeze(["capture", "applications", "resumes", "queue", "settings"]);
+export const PERSISTABLE_VIEWS = Object.freeze(["capture", "my-jds", "review", "applications", "resumes", "queue", "settings"]);
 
 const keyFor = (userId) => `${VIEW_KEY_PREFIX}${String(userId || "anonymous")}`;
 

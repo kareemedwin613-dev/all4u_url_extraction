@@ -45,6 +45,7 @@ export class UpdateApplicationExtensionSessionDto{
   @IsIn(["RECEIVED","TARGET_READY","COMPLETED","CANCELLED","FAILED"])status!:string;
   @IsOptional()@IsString()@MaxLength(80)@Matches(/^[A-Z][A-Z0-9_]{0,79}$/)errorCode?:string;
 }
+export class ApplicationCountQueryDto{@IsISO8601()from!:string;@IsISO8601()to!:string;}
 export class ApplicationAutofillFieldTelemetryDto{
   @IsString()@MaxLength(100)@Matches(/^(candidate|screening|employment|education)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,96}$/)fieldKey!:string;
   @Type(()=>Number)@IsInt()@Min(0)@Max(99)fieldIndex!:number;

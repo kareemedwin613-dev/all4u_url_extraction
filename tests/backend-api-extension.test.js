@@ -34,6 +34,18 @@ test("extension JD service uses the current session and never writes the table d
   assert.match(source,/\/api\/v1\/extension\/job-descriptions/);
 });
 
+test("extension JD service preserves the backend duplicate result instead of reporting a save",async()=>{
+  globalThis.chrome={runtime:{getManifest:()=>({version:"1.9.0"})}};
+  const client={auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})}},originalFetch=globalThis.fetch;
+  globalThis.fetch=async()=>new Response(JSON.stringify({data:{id:"existing-job",company:"Example",jobTitle:"Engineer",sourceUrl:"https://example.com/job",createdAt:"2026-08-14T00:00:00Z",duplicate:true,duplicateReason:"SOURCE_URL",workspaceSync:{enabled:false,status:"DISABLED"}}}),{status:200,headers:{"content-type":"application/json"}});
+  try{const result=await createJob(client,"https://api.example.com",{sourceUrl:"https://example.com/job",company:"Example",jobTitle:"Engineer"});assert.equal(result.id,"existing-job");assert.equal(result.duplicate,true);assert.equal(result.duplicate_reason,"SOURCE_URL");}
+  finally{globalThis.fetch=originalFetch;delete globalThis.chrome;}
+  const view=await readFile(new URL("../extension/sidepanel/views/CaptureView.jsx",import.meta.url),"utf8");
+  assert.match(view,/if\(saved\.duplicate\)/);
+  assert.match(view,/Not saved: this source URL already exists/);
+  assert.match(view,/kind:"warning"/);
+});
+
 test("extension JD lookups use the backend and never read controlled tables directly",async()=>{
   const client={auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})},from:()=>{throw new Error("Direct Supabase lookup attempted");}};
   const originalFetch=globalThis.fetch,calls=[];

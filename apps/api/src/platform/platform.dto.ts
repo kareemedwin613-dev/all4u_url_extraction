@@ -4,6 +4,7 @@ export class UserListQueryDto{@IsOptional()@IsString()@MaxLength(100)search="";@
 export class RoleMutationDto{@IsIn(ROLE_CODES)roleCode!:string;}
 export class UserStatusDto{@IsIn(["ACTIVE","INACTIVE"])status!:string;}
 export class ProfileUpdateDto{@IsString()@MaxLength(200)fullName!:string;}
+export class OverviewQueryDto{@IsISO8601()from!:string;@IsISO8601()to!:string;}
 export class TailoringMatchDto{@IsUUID("4")resumeId!:string;@IsNumber()@Min(0)@Max(100)matchScore!:number;@IsObject()matchDetails!:Record<string,unknown>;}
 export class TailoringCreateDto{@IsUUID("4")jobDescriptionId!:string;@IsArray()@ArrayMinSize(1)@ArrayMaxSize(100)@ValidateNested({each:true})@Type(()=>TailoringMatchDto)matches!:TailoringMatchDto[];}
 export class TailoringListQueryDto{@IsOptional()@IsIn(["ALL","PENDING","PROCESSING","NEEDS_REVIEW","APPROVED","MATERIALIZING","REJECTED","COMPLETED","FAILED","CANCELLED"])status="ALL";}
