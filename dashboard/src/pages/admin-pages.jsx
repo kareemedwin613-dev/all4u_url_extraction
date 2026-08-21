@@ -6,25 +6,24 @@ import {
   Card,
   Checkbox,
   Descriptions,
-  Empty,
-  Flex,
   Input,
-  Pagination,
   Select,
   Space,
   Table as AntTable,
   Typography,
 } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
 import {
   AccountStatusBadge,
   RoleBadges,
 } from "../components/access-components.jsx";
 import {
+  DataPagination,
   ErrorState,
-  FilterPanel,
   LoadingState,
   TabbedSections,
 } from "../components/ui.jsx";
+import { navigate } from "../router.js";
 import {
   assignRole,
   getUser,
@@ -32,48 +31,100 @@ import {
   removeRole,
   setStatus,
 } from "../services/admin-user-service.js";
+import { USER_PAGE_SIZES } from "../shared/constants.js";
 import { formatDate } from "../shared/formatters.js";
+import { parseUserQuery, serializeQuery } from "../shared/query-state.js";
 import {
   clientSortColumns,
   serverSortColumns,
   serverSortFromTable,
 } from "../shared/table-sorting.js";
-import { useDebouncedValue } from "../shared/use-debounced-value.js";
+import { normalizeSearch } from "../shared/validation.js";
 
-const { Text, Title } = Typography,
-  Table = (props) => (
-    <AntTable {...props} columns={clientSortColumns(props.columns)} />
-  ),
-  PAGE_SIZES = [25, 50, 100];
+const { Text, Title } = Typography;
 
-export function AdminUsersPage({ client, apiBaseUrl, roles, reload }) {
-  const [searchInput, setSearchInput] = useState(""),
-    debouncedSearch = useDebouncedValue(searchInput, 300),
-    [filters, setFilters] = useState({
-      search: "",
-      status: null,
-      roleCode: null,
-      sort: "created_desc",
-      page: 1,
-      pageSize: 25,
-    }),
+function textSearchFilterDropdown(placeholder) {
+  return ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+    <div style={{ padding: 8 }} onKeyDown={(event) => event.stopPropagation()}>
+      <Input
+        allowClear
+        placeholder={placeholder}
+        value={selectedKeys[0]}
+        onChange={(event) =>
+          setSelectedKeys(event.target.value ? [event.target.value] : [])
+        }
+        onPressEnter={() => confirm()}
+        style={{ marginBottom: 8, display: "block" }}
+      />
+      <Space>
+        <Button
+          type="primary"
+          size="small"
+          icon={<SearchOutlined />}
+          onClick={() => confirm()}
+        >
+          Search
+        </Button>
+        <Button
+          size="small"
+          onClick={() => {
+            clearFilters?.();
+            confirm();
+          }}
+        >
+          Reset
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
+  const current = currentSearch || "";
+  const values = keys.map((key) => {
+    const entry = tableFilters[key];
+    return entry == null ? undefined : String(entry[0] || "");
+  });
+  const changed = values.find(
+    (value) => value !== undefined && value !== current,
+  );
+  if (changed !== undefined) return changed;
+  const present = values.find((value) => value !== undefined);
+  return present !== undefined ? present : current;
+}
+
+/** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
+const serverSideColumnFilter = { onFilter: () => true };
+
+export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
+  const filters = parseUserQuery(query),
     [result, setResult] = useState(null),
+    [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   useEffect(() => {
-    setFilters((value) => ({ ...value, search: debouncedSearch.trim(), page: 1 }));
-  }, [debouncedSearch]);
-  useEffect(() => {
     let active = true;
-    setResult(null);
+    setLoading(true);
     setError("");
     listUsers(client, apiBaseUrl, filters)
-      .then((value) => active && setResult(value))
-      .catch((value) => active && setError(value.message));
+      .then((value) => {
+        if (!active) return;
+        setResult(value);
+        setLoading(false);
+      })
+      .catch((value) => {
+        if (!active) return;
+        setError(value.message);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, [client, apiBaseUrl, filters, reload]);
-  const change = (patch) => setFilters((value) => ({ ...value, ...patch })),
+  }, [client, apiBaseUrl, query, reload]);
+  const update = (patch) => {
+      const value = serializeQuery({ ...filters, ...patch });
+      navigate(`#/admin/users${value ? `?${value}` : ""}`);
+    },
+    searchFiltered = filters.search ? [filters.search] : null,
     columns = useMemo(
       () =>
         serverSortColumns(
@@ -82,19 +133,57 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, reload }) {
               title: "Name",
               dataIndex: "full_name",
               sortKey: "name",
+              filteredValue: searchFiltered,
+              ...serverSideColumnFilter,
+              filterDropdown: textSearchFilterDropdown(
+                "Search name or email",
+              ),
+              filterIcon: (filtered) => (
+                <SearchOutlined
+                  style={{ color: filtered ? "#1677ff" : undefined }}
+                />
+              ),
               render: (value) => value || "Name not provided",
             },
-            { title: "Email", dataIndex: "email", sortKey: "email" },
+            {
+              title: "Email",
+              dataIndex: "email",
+              sortKey: "email",
+              filteredValue: searchFiltered,
+              ...serverSideColumnFilter,
+              filterDropdown: textSearchFilterDropdown(
+                "Search name or email",
+              ),
+              filterIcon: (filtered) => (
+                <SearchOutlined
+                  style={{ color: filtered ? "#1677ff" : undefined }}
+                />
+              ),
+            },
             {
               title: "Status",
               dataIndex: "status",
               sortKey: "status",
+              filters: [
+                { text: "Active", value: "ACTIVE" },
+                { text: "Inactive", value: "INACTIVE" },
+              ],
+              filterMultiple: false,
+              filteredValue: filters.status ? [filters.status] : null,
+              ...serverSideColumnFilter,
               render: (value) => <AccountStatusBadge status={value} />,
             },
             {
               title: "Roles",
               dataIndex: "role_codes",
               sortKey: "roles",
+              filters: roles.map((role) => ({
+                text: role.name,
+                value: role.code,
+              })),
+              filterMultiple: false,
+              filteredValue: filters.roleCode ? [filters.roleCode] : null,
+              ...serverSideColumnFilter,
               render: (value) => <RoleBadges roles={value || []} />,
             },
             {
@@ -115,108 +204,116 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, reload }) {
           ],
           filters.sort,
         ),
-      [filters.sort],
-    );
+      [
+        filters.roleCode,
+        filters.search,
+        filters.sort,
+        filters.status,
+        roles,
+        searchFiltered,
+      ],
+    ),
+    paginationData = result
+      ? {
+          ...result,
+          from: result.total
+            ? (result.page - 1) * result.pageSize + 1
+            : 0,
+          to: result.total
+            ? Math.min(result.page * result.pageSize, result.total)
+            : 0,
+        }
+      : null;
   return (
     <div className="page">
       <Title level={1} tabIndex={-1}>
         Users
       </Title>
-      <FilterPanel
-        activeCount={[
-          filters.search,
-          filters.status,
-          filters.roleCode,
-        ].filter(Boolean).length}
-      >
-        <Flex gap="middle" wrap>
-          <Input.Search
-            aria-label="Search name or email"
-            placeholder="Search name or email"
-            value={searchInput}
-            maxLength={100}
-            allowClear
-            onChange={(event) => setSearchInput(event.target.value)}
-            style={{ width: 280 }}
-          />
-          <Select
-            aria-label="Status"
-            value={filters.status || ""}
-            onChange={(value) => change({ status: value || null, page: 1 })}
-            style={{ width: 170 }}
-            options={[
-              { value: "", label: "All statuses" },
-              { value: "ACTIVE", label: "Active" },
-              { value: "INACTIVE", label: "Inactive" },
-            ]}
-          />
-          <Select
-            aria-label="Role"
-            value={filters.roleCode || ""}
-            onChange={(value) => change({ roleCode: value || null, page: 1 })}
-            style={{ width: 210 }}
-            options={[
-              { value: "", label: "All roles" },
-              ...roles.map((role) => ({ value: role.code, label: role.name })),
-            ]}
-          />
-          <Select
-            aria-label="Page size"
-            value={filters.pageSize}
-            onChange={(value) => change({ pageSize: value, page: 1 })}
-            style={{ width: 130 }}
-            options={PAGE_SIZES.map((value) => ({
-              value,
-              label: `${value} rows`,
-            }))}
-          />
-        </Flex>
-      </FilterPanel>
-      {error ? (
+      {error && !result ? (
         <ErrorState title="Users could not be loaded" message={error} />
-      ) : !result ? (
+      ) : !result && loading ? (
         <LoadingState text="Loading users…" />
-      ) : !result.items.length ? (
-        <Card>
-          <Empty
-            description={
-              filters.search || filters.status || filters.roleCode
-                ? "No users match the current filters."
-                : "No registered profiles were found."
-            }
-          />
-        </Card>
+      ) : !result ? (
+        <ErrorState
+          title="Users could not be loaded"
+          message={error || "Users could not be loaded."}
+        />
       ) : (
         <Card>
-          <Table
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+          <AntTable
             rowKey="id"
+            loading={loading}
             columns={columns}
             dataSource={result.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 390px)" }}
-            onChange={(_pagination, _tableFilters, sorter) =>
-              change({
+            scroll={{ x: "max-content", y: "calc(100vh - 400px)" }}
+            locale={{
+              emptyText: (
+                <Space
+                  direction="vertical"
+                  size="small"
+                  style={{ padding: 24 }}
+                >
+                  <Text strong>No users</Text>
+                  <Text type="secondary">
+                    {filters.search || filters.status || filters.roleCode
+                      ? "No users match the current filters."
+                      : "No registered profiles were found."}
+                  </Text>
+                  {(filters.search || filters.status || filters.roleCode) && (
+                    <Button onClick={() => navigate("#/admin/users")}>
+                      Clear filters
+                    </Button>
+                  )}
+                </Space>
+              ),
+            }}
+            onChange={(_pagination, tableFilters, sorter, extra) => {
+              if (
+                extra?.action &&
+                extra.action !== "filter" &&
+                extra.action !== "sort"
+              )
+                return;
+              let search = filters.search;
+              try {
+                search = normalizeSearch(
+                  pickSharedColumnSearch(
+                    tableFilters,
+                    ["full_name", "email"],
+                    filters.search,
+                  ),
+                );
+              } catch {
+                search = filters.search;
+              }
+              update({
+                search,
+                status: tableFilters.status?.[0] || "",
+                roleCode: tableFilters.role_codes?.[0] || "",
                 sort: serverSortFromTable(sorter, "created_desc"),
                 page: 1,
+              });
+            }}
+          />
+          <DataPagination
+            data={paginationData}
+            pageSizeOptions={USER_PAGE_SIZES}
+            onPage={(page, pageSize) =>
+              update({
+                page,
+                ...(pageSize ? { pageSize } : {}),
               })
             }
           />
-          <Flex
-            justify="space-between"
-            align="center"
-            wrap
-            gap="middle"
-            style={{ marginTop: 16 }}
-          >
-            <Text>{result.total} users</Text>
-            <Pagination
-              current={result.page}
-              pageSize={result.pageSize}
-              total={result.total}
-              showSizeChanger={false}
-              onChange={(page) => change({ page })}
-            />
-          </Flex>
         </Card>
       )}
     </div>
@@ -487,7 +584,7 @@ export function AdminRolesPage({ roles }) {
       </Title>
       <Text>These roles are fixed and read-only.</Text>
       <Card>
-        <Table
+        <AntTable
           rowKey="code"
           columns={columns}
           dataSource={roles}

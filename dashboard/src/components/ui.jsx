@@ -12,6 +12,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { formatLabel } from "../shared/formatters.js";
@@ -44,6 +45,33 @@ const tagColor = (value) =>
 export const StatusTag = ({ value }) => (
   <Tag color={tagColor(value)}>{formatLabel(value)}</Tag>
 );
+
+/** Single-line truncated cell with full value on hover. */
+export function EllipsisCell({ children, href }) {
+  const text =
+    children == null || children === "" ? "" : String(children);
+  if (!text) return "—";
+  const external = Boolean(href && /^https?:\/\//i.test(href));
+  return (
+    <Tooltip title={text} placement="topLeft">
+      <div className="table-cell-ellipsis">
+        {href ? (
+          <a
+            href={href}
+            {...(external
+              ? { target: "_blank", rel: "noopener noreferrer" }
+              : {})}
+            className="table-cell-ellipsis__link"
+          >
+            {text}
+          </a>
+        ) : (
+          text
+        )}
+      </div>
+    </Tooltip>
+  );
+}
 export const TagList = ({ values = [], empty = "None" }) =>
   values.length ? (
     <Flex gap="small" wrap>
