@@ -22,6 +22,22 @@ function normalizeJob(job: any) {
   return { ...rest, category_name: category?.name || null, industry_domain: industry?.name || null };
 }
 
+function applyCapturerNames(items: any[], capturers: Array<{ id: string; displayName: string; email: string }>) {
+  if (!items?.length || !capturers?.length) return items || [];
+  const byId = new Map(capturers.map((item) => [item.id, item]));
+  return items.map((job) => {
+    const capturer = byId.get(job?.user_id);
+    if (!capturer) return job;
+    return {
+      ...job,
+      captured_by: {
+        display_name: capturer.displayName || job?.captured_by?.display_name || "",
+        email: capturer.email || job?.captured_by?.email || "",
+      },
+    };
+  });
+}
+
 function databaseError(error: any, fallback: string): never {
   if (/JOB_EDIT_LOCKED/i.test(String(error?.message || ""))) throw new ApiException("JOB_EDIT_LOCKED", "Approved and declined job descriptions are locked. Ask a reviewer to request a correction.", HttpStatus.CONFLICT);
   if (/JOB_DUPLICATE/i.test(String(error?.message || ""))) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
@@ -49,7 +65,8 @@ export class JobDescriptionReadService {
     const { data, error, count } = await query.order(sort.column, { ascending: sort.ascending }).range(from, from + pageSize - 1);
     if (error) databaseError(error, "Job descriptions could not be loaded.");
     const total = Math.max(0, Number(count) || 0), pageCount = total ? Math.ceil(total / pageSize) : 0, safePage = pageCount ? Math.min(page, pageCount) : 1;
-    return { items: (data || []).map(normalizeJob), total, page: safePage, pageSize, pageCount, from: total ? (safePage - 1) * pageSize + 1 : 0, to: total ? Math.min(safePage * pageSize, total) : 0, hasPrevious: safePage > 1, hasNext: safePage < pageCount };
+    const capturers = await this.capturers(user).catch(() => []);
+    return { items: applyCapturerNames((data || []).map(normalizeJob), capturers), total, page: safePage, pageSize, pageCount, from: total ? (safePage - 1) * pageSize + 1 : 0, to: total ? Math.min(safePage * pageSize, total) : 0, hasPrevious: safePage > 1, hasNext: safePage < pageCount };
   }
 
   async capturers(user: AuthenticatedUser) {
@@ -66,7 +83,9 @@ export class JobDescriptionReadService {
   async detail(user: AuthenticatedUser, id: string) {
     const { data, error } = await this.supabase.forUser(user.token).from("job_descriptions").select(JOB_DETAIL_FIELDS).eq("id", id).maybeSingle();
     if (error) databaseError(error, "The job description could not be loaded.");
-    return normalizeJob(data);
+    const capturers = await this.capturers(user).catch(() => []);
+    const [job] = applyCapturerNames([normalizeJob(data)].filter(Boolean), capturers);
+    return job || null;
   }
 
   async status(user: AuthenticatedUser, id: string, status: string, reason?: string) {
@@ -127,6 +146,7 @@ export class JobDescriptionReadService {
   async recent(user: AuthenticatedUser, filters: RecentJobsQueryDto) {
     const { data, error } = await this.supabase.forUser(user.token).from("job_descriptions").select(JOB_LIST_FIELDS).eq("status", "ACTIVE").order("created_at", { ascending: false }).limit(filters.limit || 5);
     if (error) databaseError(error, "Recent job descriptions could not be loaded.");
-    return (data || []).map(normalizeJob);
+    const capturers = await this.capturers(user).catch(() => []);
+    return applyCapturerNames((data || []).map(normalizeJob), capturers);
   }
 }

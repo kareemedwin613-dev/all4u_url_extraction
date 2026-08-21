@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   Alert,
+  Avatar,
   Button,
   Card,
   Col,
@@ -22,6 +23,7 @@ import {
   Space,
   Statistic,
   Table as AntTable,
+  Tooltip,
   Typography,
 } from "antd";
 import {
@@ -46,7 +48,7 @@ import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
@@ -79,10 +81,8 @@ import {
 import { normalizeSearch, validateLogin } from "./shared/validation.js";
 import { safeExternalUrl } from "./shared/url.js";
 import {
-  JOB_SORTS,
   MIME_TYPES,
   PAGE_SIZES,
-  RESUME_SORTS,
   SENIORITIES,
 } from "./shared/constants.js";
 import {
@@ -126,7 +126,6 @@ import {
   DataPagination,
   EmptyState,
   ErrorState as UiErrorState,
-  FilterPanel,
   LegacyTable,
   LoadingState,
   Metadata,
@@ -146,11 +145,44 @@ const Tags = ({ values, empty }) => (
   <TagList values={cleanTags(values)} empty={empty} />
 );
 const Meta = Metadata;
+const emailLocalPart = (email) => {
+  const value = String(email || "").trim();
+  if (!value.includes("@")) return value;
+  return value.slice(0, value.indexOf("@")) || value;
+};
+const isEmailLike = (value, email) => {
+  const text = String(value || "").trim().toLowerCase();
+  const mail = String(email || "").trim().toLowerCase();
+  return Boolean(text) && (text === mail || text.includes("@"));
+};
+/** Prefer a real person name; avoid showing a raw email as the primary label. */
+const personDisplayName = ({ fullName, displayName, email, userId } = {}) => {
+  const mail = String(email || "").trim();
+  for (const candidate of [fullName, displayName]) {
+    const name = String(candidate || "").trim();
+    if (name && !isEmailLike(name, mail)) return name;
+  }
+  if (mail) return emailLocalPart(mail);
+  return userId || "Unknown user";
+};
+const personInitials = (name) => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "?";
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+};
 const capturedBy = (job) =>
-  job?.captured_by?.display_name?.trim() ||
-  job?.captured_by?.email ||
-  job?.user_id ||
-  "Unknown user";
+  personDisplayName({
+    displayName: job?.captured_by?.display_name,
+    email: job?.captured_by?.email,
+    userId: job?.user_id,
+  });
 const salaryRange = (job) => {
   if (job?.salary_min == null && job?.salary_max == null)
     return job?.salary_text || "Not specified";
@@ -224,6 +256,12 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
         : [],
     selected = PARENT_NAVIGATION[route.name] || route.name,
     profileName = access?.fullName?.trim(),
+    headerName = personDisplayName({
+      fullName: profileName,
+      email: access?.email,
+      userId: access?.userId,
+    }),
+    headerInitials = personInitials(headerName),
     sectionLabel =
       NAVIGATION.find((item) => item.name === selected)?.label ||
       "Resume JD Operations",
@@ -360,16 +398,29 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
               <Text strong>{title}</Text>
             </div>
           </Flex>
-          <Space wrap className="dashboard-header-actions">
+          <Space wrap className="dashboard-header-actions" align="center">
             {headerExtra}
-            <Space orientation="vertical" size={0} className="user-identity">
-              <Text strong>{profileName || access?.email}</Text>
-              {profileName && (
-                <Text type="secondary" className="user-email">
-                  {access?.email}
-                </Text>
-              )}
-            </Space>
+            <Tooltip title={access?.email || undefined}>
+              <Space align="center" size="small" className="user-identity">
+                <Avatar
+                  className="user-avatar"
+                  size={36}
+                  style={{ backgroundColor: "#1677ff", flex: "none" }}
+                >
+                  {headerInitials}
+                </Avatar>
+                <Space orientation="vertical" size={0}>
+                  <Text strong className="user-name">
+                    {headerName}
+                  </Text>
+                  {profileName && access?.email ? (
+                    <Text type="secondary" className="user-email">
+                      {access.email}
+                    </Text>
+                  ) : null}
+                </Space>
+              </Space>
+            </Tooltip>
             <Button icon={<LogoutOutlined />} onClick={logout}>
               Sign Out
             </Button>
@@ -441,173 +492,82 @@ function Login({ client, onSignedIn }) {
   );
 }
 
-function FilterForm({ kind, value, categories, capturers = [], capturersLoading = false, onApply, onClear }) {
-  function submit(raw) {
-    try {
-      const captured = kind === "jobs" ? raw.capturedWindow : "";
-      if (captured === "CUSTOM" && raw.capturedFrom > raw.capturedTo) throw new Error("The captured start date must not be after the end date.");
-      onApply({
-        ...raw,
-        ...(kind === "jobs" && captured !== "CUSTOM" ? { capturedFrom: "", capturedTo: "" } : {}),
-        search: normalizeSearch(raw.search),
-        page: 1,
-        pageSize: Number(raw.pageSize),
-      });
-    } catch (error) {
-      window.alert(error.message);
-    }
-  }
-  const sortMap = kind === "jobs" ? JOB_SORTS : RESUME_SORTS,
-    sorts = Object.keys(sortMap).map((option) => ({
-      value: option,
-      label: option.split("_").map(formatLabel).join(" · "),
-    })),
-    formKey = serializeQuery(value),
-    field = { xs: 24, sm: 12, lg: 6 },
-    activeCount = [
-      value.search,
-      value.categoryId,
-      value.seniority,
-      value.status,
-      kind === "jobs" ? value.capturedByUserId : "",
-      kind === "jobs" ? value.capturedWindow : "",
-      kind === "jobs" ? value.reviewStatus : "",
-      kind === "resumes" ? value.mimeType : "",
-    ].filter(Boolean).length;
+function textSearchFilterDropdown(placeholder) {
+  return ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+    <div style={{ padding: 8 }} onKeyDown={(event) => event.stopPropagation()}>
+      <Input
+        allowClear
+        placeholder={placeholder}
+        value={selectedKeys[0]}
+        onChange={(event) =>
+          setSelectedKeys(event.target.value ? [event.target.value] : [])
+        }
+        onPressEnter={() => confirm()}
+        style={{ marginBottom: 8, display: "block" }}
+      />
+      <Space>
+        <Button
+          type="primary"
+          size="small"
+          icon={<SearchOutlined />}
+          onClick={() => confirm()}
+        >
+          Search
+        </Button>
+        <Button
+          size="small"
+          onClick={() => {
+            clearFilters?.();
+            confirm();
+          }}
+        >
+          Reset
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
+  const current = currentSearch || "";
+  const values = keys.map((key) => {
+    const entry = tableFilters[key];
+    return entry == null ? undefined : String(entry[0] || "");
+  });
+  const changed = values.find(
+    (value) => value !== undefined && value !== current,
+  );
+  if (changed !== undefined) return changed;
+  const present = values.find((value) => value !== undefined);
+  return present !== undefined ? present : current;
+}
+
+/** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
+const serverSideColumnFilter = { onFilter: () => true };
+
+function EllipsisCell({ children, href }) {
+  const text =
+    children == null || children === "" ? "" : String(children);
+  if (!text) return "—";
+  const external = Boolean(href && /^https?:\/\//i.test(href));
   return (
-    <FilterPanel activeCount={activeCount}>
-      <Form
-        key={formKey}
-        layout="vertical"
-        initialValues={value}
-        onFinish={submit}
-      >
-        <Row gutter={12}>
-          <Col {...field}>
-            <Form.Item
-              label={`Search ${kind === "jobs" ? "company or job title" : "candidate or resume name"}`}
-              name="search"
-            >
-              <Input.Search maxLength={100} allowClear />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Primary category" name="categoryId">
-              <Select
-                options={[
-                  { value: "", label: "All categories" },
-                  ...categories.primary.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Seniority" name="seniority">
-              <Select
-                options={[
-                  { value: "", label: "All seniority" },
-                  ...SENIORITIES.map((item) => ({
-                    value: item,
-                    label: formatLabel(item),
-                  })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Status" name="status">
-              <Select
-                options={kind === "resumes" ? [
-                  { value: "ACTIVE", label: "Active resumes" },
-                  { value: "ARCHIVED", label: "Archived resumes (history)" },
-                  { value: "ALL", label: "All resumes" },
-                ] : [
-                  { value: "ACTIVE", label: "Active URLs" },
-                  { value: "ARCHIVED", label: "Declined / archived URLs" },
-                  { value: "ALL", label: "All URLs" },
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          {kind === "resumes" && (
-            <Col {...field}>
-              <Form.Item label="File type" name="mimeType">
-                <Select
-                  options={[
-                    { value: "", label: "All file types" },
-                    ...MIME_TYPES.map((item) => ({
-                      value: item,
-                      label: formatMime(item),
-                    })),
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-          )}
-          {kind === "jobs" && (
-            <Col {...field}>
-              <Form.Item label="Review status" name="reviewStatus">
-                <Select options={[{value:"ALL",label:"All review statuses"},{value:"NEEDS_REVIEW",label:"Needs review"},{value:"APPROVED",label:"Approved"},{value:"NEEDS_CORRECTION",label:"Needs correction"},{value:"DECLINED",label:"Declined"}]}/>
-              </Form.Item>
-            </Col>
-          )}
-          {kind === "jobs" && (
-            <Col {...field}>
-              <Form.Item label="Captured by" name="capturedByUserId">
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  loading={capturersLoading}
-                  options={[
-                    { value: "", label: "All users" },
-                    ...capturers.map((item) => ({
-                      value: item.id,
-                      label: `${item.displayName}${item.email && item.email !== item.displayName ? ` — ${item.email}` : ""} (${item.capturedCount})`,
-                    })),
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-          )}
-          {kind === "jobs" && (
-            <Col {...field}>
-              <Form.Item label="Captured time window" name="capturedWindow">
-                <Select options={[{value:"",label:"Any time"},{value:"TODAY",label:"Today"},{value:"THIS_WEEK",label:"This week"},{value:"THIS_MONTH",label:"This month"},{value:"CUSTOM",label:"Custom range"}]}/>
-              </Form.Item>
-            </Col>
-          )}
-          {kind === "jobs" && <Form.Item noStyle shouldUpdate={(before,after)=>before.capturedWindow!==after.capturedWindow}>{({getFieldValue})=>getFieldValue("capturedWindow")==="CUSTOM"?<><Col {...field}><Form.Item label="Captured from" name="capturedFrom" rules={[{required:true,message:"Select the first date."}]}><Input type="date"/></Form.Item></Col><Col {...field}><Form.Item label="Captured through" name="capturedTo" rules={[{required:true,message:"Select the last date."}]}><Input type="date"/></Form.Item></Col></>:null}</Form.Item>}
-          <Col {...field}>
-            <Form.Item label="Sort" name="sort">
-              <Select options={sorts} />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Page size" name="pageSize">
-              <Select
-                options={PAGE_SIZES.map((item) => ({
-                  value: item,
-                  label: String(item),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label=" " colon={false} className="filter-actions">
-              <Space>
-                <Button type="primary" htmlType="submit">
-                  Apply
-                </Button>
-                <Button onClick={onClear}>Clear filters</Button>
-              </Space>
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-    </FilterPanel>
+    <Tooltip title={text} placement="topLeft">
+      <div className="table-cell-ellipsis">
+        {href ? (
+          <a
+            href={href}
+            {...(external
+              ? { target: "_blank", rel: "noopener noreferrer" }
+              : {})}
+            className="table-cell-ellipsis__link"
+          >
+            {text}
+          </a>
+        ) : (
+          text
+        )}
+      </div>
+    </Tooltip>
   );
 }
 
@@ -740,90 +700,236 @@ function Jobs({
 }) {
   const filters = parseJobQuery(query),
     [data, setData] = useState(null),
+    [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [capturers, setCapturers] = useState([]),
-    [capturersLoading, setCapturersLoading] = useState(true),
     [capturerError, setCapturerError] = useState(""),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE);
   useEffect(() => {
     let live = true;
-    setData(null);
+    setLoading(true);
     setError("");
     listJobs(client, apiBaseUrl, filters)
-      .then((value) => live && setData(value))
-      .catch((value) => live && setError(value.message));
+      .then((value) => {
+        if (!live) return;
+        setData(value);
+        setLoading(false);
+      })
+      .catch((value) => {
+        if (!live) return;
+        setError(value.message);
+        setLoading(false);
+      });
     return () => {
       live = false;
     };
   }, [client, apiBaseUrl, query, reload]);
   useEffect(() => {
     let live = true;
-    setCapturersLoading(true);
     setCapturerError("");
     listJobCapturers(client, apiBaseUrl)
       .then((value) => live && setCapturers(value))
-      .catch((value) => live && setCapturerError(value.message))
-      .finally(() => live && setCapturersLoading(false));
+      .catch((value) => live && setCapturerError(value.message));
     return () => {
       live = false;
     };
   }, [client, apiBaseUrl, reload]);
   const update = (patch) => {
-    const value = serializeQuery({ ...filters, ...patch });
-    go(`#/jobs${value ? `?${value}` : ""}`);
-  };
-  const columns = useMemo(
-    () =>
-      serverSortColumns(
-        [
-          { title: "Company", dataIndex: "company", sortKey: "company" },
-          { title: "Job title", dataIndex: "job_title", sortKey: "title" },
-          {
-            title: "Primary category",
-            dataIndex: "category_id",
-            sortKey: "category",
-            render: (value) => categoryName(categories, value),
-          },
-          {
-            title: "Job Posting URL",
-            dataIndex: "source_url",
-            sortKey: "source",
-            width: 520,
-            render: (value) => {
-              const source = safeExternalUrl(value);
-              return source ? <a href={source} target="_blank" rel="noopener noreferrer" style={{ overflowWrap: "anywhere" }}>{value}</a> : "—";
+      const next = { ...filters, ...patch };
+      if (patch.capturedWindow !== undefined && patch.capturedWindow !== "CUSTOM") {
+        next.capturedFrom = "";
+        next.capturedTo = "";
+      }
+      const value = serializeQuery(next);
+      go(`#/jobs${value ? `?${value}` : ""}`);
+    },
+    searchFiltered = filters.search ? [filters.search] : null,
+    columns = useMemo(
+      () =>
+        serverSortColumns(
+          [
+            {
+              title: "Company",
+              dataIndex: "company",
+              sortKey: "company",
+              width: 160,
+              ellipsis: { showTitle: false },
+              filteredValue: searchFiltered,
+              ...serverSideColumnFilter,
+              filterDropdown: textSearchFilterDropdown(
+                "Search company or job title",
+              ),
+              filterIcon: (filtered) => (
+                <SearchOutlined style={{ color: filtered ? "#1677ff" : undefined }} />
+              ),
+              render: (value) => <EllipsisCell>{value}</EllipsisCell>,
             },
-          },
-          {
-            title: "Captured by",
-            key: "captured_by",
-            sortKey: "capturer",
-            render: (_, job) => capturedBy(job),
-          },
-          {
-            title: "Status",
-            dataIndex: "review_status",
-            sortKey: "review",
-            render: (value) => <Badge value={value} />,
-          },
-          {
-            title: "Captured",
-            dataIndex: "created_at",
-            sortKey: "created",
-            render: formatDate,
-          },
-          {
-            title: "",
-            key: "action",
-            render: (_, job) => <a href={`#/jobs/${job.id}`}>View</a>,
-          },
-        ],
+            {
+              title: "Job title",
+              dataIndex: "job_title",
+              sortKey: "title",
+              width: 220,
+              ellipsis: { showTitle: false },
+              filteredValue: searchFiltered,
+              ...serverSideColumnFilter,
+              filterDropdown: textSearchFilterDropdown(
+                "Search company or job title",
+              ),
+              filterIcon: (filtered) => (
+                <SearchOutlined style={{ color: filtered ? "#1677ff" : undefined }} />
+              ),
+              render: (value, job) => (
+                <EllipsisCell href={`#/jobs/${job.id}`}>{value}</EllipsisCell>
+              ),
+            },
+            {
+              title: "Primary category",
+              dataIndex: "category_id",
+              sortKey: "category",
+              width: 170,
+              ellipsis: { showTitle: false },
+              filters: categories.primary.map((item) => ({
+                text: item.name,
+                value: item.id,
+              })),
+              filterMultiple: false,
+              filteredValue: filters.categoryId ? [filters.categoryId] : null,
+              ...serverSideColumnFilter,
+              render: (value) => (
+                <EllipsisCell>{categoryName(categories, value)}</EllipsisCell>
+              ),
+            },
+            {
+              title: "Seniority",
+              dataIndex: "seniority",
+              sortKey: "seniority",
+              width: 120,
+              ellipsis: { showTitle: false },
+              filters: SENIORITIES.map((item) => ({
+                text: formatLabel(item),
+                value: item,
+              })),
+              filterMultiple: false,
+              filteredValue: filters.seniority ? [filters.seniority] : null,
+              ...serverSideColumnFilter,
+              render: formatLabel,
+            },
+            {
+              title: "Job Posting URL",
+              dataIndex: "source_url",
+              sortKey: "source",
+              width: 280,
+              ellipsis: { showTitle: false },
+              filters: [
+                { text: "Active URLs", value: "ACTIVE" },
+                { text: "Declined / archived URLs", value: "ARCHIVED" },
+                { text: "All URLs", value: "ALL" },
+              ],
+              filterMultiple: false,
+              filteredValue: [filters.status || "ACTIVE"],
+              ...serverSideColumnFilter,
+              render: (value) => {
+                const source = safeExternalUrl(value);
+                return source ? (
+                  <EllipsisCell href={source}>{value}</EllipsisCell>
+                ) : (
+                  "—"
+                );
+              },
+            },
+            {
+              title: "Captured by",
+              dataIndex: "user_id",
+              sortKey: "capturer",
+              width: 160,
+              ellipsis: { showTitle: false },
+              filters: capturers.map((item) => {
+                const name = personDisplayName({
+                  displayName: item.displayName,
+                  email: item.email,
+                  userId: item.id,
+                });
+                const emailSuffix =
+                  item.email && !isEmailLike(name, item.email)
+                    ? ` — ${item.email}`
+                    : "";
+                return {
+                  text: `${name}${emailSuffix} (${item.capturedCount})`,
+                  value: item.id,
+                };
+              }),
+              filterMultiple: false,
+              filteredValue: filters.capturedByUserId
+                ? [filters.capturedByUserId]
+                : null,
+              filterSearch: true,
+              ...serverSideColumnFilter,
+              render: (_, job) => (
+                <EllipsisCell>{capturedBy(job)}</EllipsisCell>
+              ),
+            },
+            {
+              title: "Status",
+              dataIndex: "review_status",
+              sortKey: "review",
+              width: 140,
+              filters: [
+                { text: "All review statuses", value: "ALL" },
+                { text: "Needs review", value: "NEEDS_REVIEW" },
+                { text: "Approved", value: "APPROVED" },
+                { text: "Needs correction", value: "NEEDS_CORRECTION" },
+                { text: "Declined", value: "DECLINED" },
+              ],
+              filterMultiple: false,
+              filteredValue: [filters.reviewStatus || "ALL"],
+              ...serverSideColumnFilter,
+              render: (value) => <Badge value={value} />,
+            },
+            {
+              title: "Captured",
+              dataIndex: "created_at",
+              sortKey: "created",
+              width: 170,
+              filters: [
+                { text: "Today", value: "TODAY" },
+                { text: "This week", value: "THIS_WEEK" },
+                { text: "This month", value: "THIS_MONTH" },
+              ],
+              filterMultiple: false,
+              filteredValue:
+                filters.capturedWindow && filters.capturedWindow !== "CUSTOM"
+                  ? [filters.capturedWindow]
+                  : null,
+              ...serverSideColumnFilter,
+              render: formatDate,
+            },
+            {
+              title: "",
+              key: "action",
+              width: 72,
+              fixed: "right",
+              render: (_, job) => <a href={`#/jobs/${job.id}`}>View</a>,
+            },
+          ],
+          filters.sort,
+        ),
+      [
+        capturers,
+        categories,
+        filters.capturedByUserId,
+        filters.capturedWindow,
+        filters.categoryId,
+        filters.reviewStatus,
+        filters.search,
+        filters.seniority,
         filters.sort,
-      ),
-    [categories, filters.sort],
-  );
+        filters.status,
+        searchFiltered,
+      ],
+    );
   const selectedCount = selectedJobIds.length,
-    tooMany = selectedCount > MAX_BULK_JDS;
+    tooMany = selectedCount > MAX_BULK_JDS,
+    jobsTableScrollX = 1540;
   return (
     <div className="page">
       <Flex justify="space-between" align="center" wrap>
@@ -856,15 +962,6 @@ function Jobs({
           message={`Select no more than ${MAX_BULK_JDS} job descriptions.`}
         />
       )}
-      <FilterForm
-        kind="jobs"
-        value={filters}
-        categories={categories}
-        capturers={capturers}
-        capturersLoading={capturersLoading}
-        onApply={update}
-        onClear={() => go("#/jobs")}
-      />
       {capturerError && (
         <Alert
           type="warning"
@@ -873,42 +970,104 @@ function Jobs({
           description={capturerError}
         />
       )}
-      {error ? (
+      {error && !data ? (
         <ErrorState message={error} />
-      ) : !data ? (
+      ) : !data && loading ? (
         <Loading text="Loading job descriptions…" />
-      ) : !data.items.length ? (
-        <Empty
-          title="No job descriptions"
-          text="No job descriptions match the current view."
-          onClear={() => go("#/jobs")}
-        />
+      ) : !data ? (
+        <ErrorState message={error || "Job descriptions could not be loaded."} />
       ) : (
         <Card>
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              style={{ marginBottom: 12 }}
+            />
+          )}
           <AntTable
+            className="jobs-table"
             rowKey="id"
+            loading={loading}
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
-            onChange={(_pagination, _tableFilters, sorter) =>
+            tableLayout="fixed"
+            scroll={{ x: jobsTableScrollX, y: "calc(100vh - 400px)" }}
+            locale={{
+              emptyText: (
+                <Space direction="vertical" size="small" style={{ padding: 24 }}>
+                  <Text strong>No job descriptions</Text>
+                  <Text type="secondary">
+                    No job descriptions match the current view.
+                  </Text>
+                  <Button onClick={() => go("#/jobs")}>Clear filters</Button>
+                </Space>
+              ),
+            }}
+            onChange={(_pagination, tableFilters, sorter, extra) => {
+              if (extra?.action && extra.action !== "filter" && extra.action !== "sort")
+                return;
+              let search = filters.search;
+              try {
+                search = normalizeSearch(
+                  pickSharedColumnSearch(
+                    tableFilters,
+                    ["company", "job_title"],
+                    filters.search,
+                  ),
+                );
+              } catch {
+                search = filters.search;
+              }
+              const capturedWindow = tableFilters.created_at?.[0] || "";
               update({
+                search,
+                categoryId: tableFilters.category_id?.[0] || "",
+                seniority: tableFilters.seniority?.[0] || "",
+                status: tableFilters.source_url?.[0] || "ACTIVE",
+                reviewStatus: tableFilters.review_status?.[0] || "ALL",
+                capturedByUserId: tableFilters.user_id?.[0] || "",
+                capturedWindow,
                 sort: serverSortFromTable(sorter, "created_desc"),
                 page: 1,
-              })
-            }
+              });
+            }}
             rowSelection={
               canBulk
                 ? {
+                    columnWidth: 48,
+                    fixed: true,
                     selectedRowKeys: selectedJobIds,
                     preserveSelectedRowKeys: true,
                     onChange: (keys) => onSelectedJobIdsChange(keys),
-                    getCheckboxProps: (job) => ({ disabled: job.status !== "ACTIVE" || job.review_status !== "APPROVED", title: job.review_status !== "APPROVED" ? "Approve this JD before creating an Application." : job.status !== "ACTIVE" ? "Restore this URL before creating an Application." : undefined }),
+                    getCheckboxProps: (job) => ({
+                      disabled:
+                        job.status !== "ACTIVE" ||
+                        job.review_status !== "APPROVED",
+                      title:
+                        job.review_status !== "APPROVED"
+                          ? "Approve this JD before creating an Application."
+                          : job.status !== "ACTIVE"
+                            ? "Restore this URL before creating an Application."
+                            : undefined,
+                    }),
                   }
                 : undefined
             }
           />
-          <Pagination data={data} onPage={(page) => update({ page })} />
+          <Pagination
+            data={data}
+            pageSizeOptions={PAGE_SIZES}
+            onPage={(page, pageSize) => {
+              const nextSize = pageSize || filters.pageSize;
+              update({
+                page: nextSize !== filters.pageSize ? 1 : page,
+                pageSize: nextSize,
+              });
+            }}
+          />
         </Card>
       )}
     </div>
@@ -916,54 +1075,15 @@ function Jobs({
 }
 
 function resumeSearchFilterDropdown(placeholder) {
-  return ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
-    <div style={{ padding: 8 }} onKeyDown={(event) => event.stopPropagation()}>
-      <Input
-        allowClear
-        placeholder={placeholder}
-        value={selectedKeys[0]}
-        onChange={(event) =>
-          setSelectedKeys(event.target.value ? [event.target.value] : [])
-        }
-        onPressEnter={() => confirm()}
-        style={{ marginBottom: 8, display: "block" }}
-      />
-      <Space>
-        <Button
-          type="primary"
-          size="small"
-          icon={<SearchOutlined />}
-          onClick={() => confirm()}
-        >
-          Search
-        </Button>
-        <Button
-          size="small"
-          onClick={() => {
-            clearFilters?.();
-            confirm();
-          }}
-        >
-          Reset
-        </Button>
-      </Space>
-    </div>
-  );
+  return textSearchFilterDropdown(placeholder);
 }
 
 function pickResumeSearch(tableFilters, currentSearch) {
-  const current = currentSearch || "";
-  const candidate = tableFilters.candidate_name;
-  const resume = tableFilters.resume_name;
-  const candidateValue =
-    candidate == null ? undefined : String(candidate[0] || "");
-  const resumeValue = resume == null ? undefined : String(resume[0] || "");
-  if (candidateValue !== undefined && candidateValue !== current)
-    return candidateValue;
-  if (resumeValue !== undefined && resumeValue !== current) return resumeValue;
-  if (candidateValue !== undefined) return candidateValue;
-  if (resumeValue !== undefined) return resumeValue;
-  return current;
+  return pickSharedColumnSearch(
+    tableFilters,
+    ["candidate_name", "resume_name"],
+    currentSearch,
+  );
 }
 
 function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
@@ -1001,6 +1121,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               dataIndex: "candidate_name",
               sortKey: "candidate",
               filteredValue: searchFiltered,
+              ...serverSideColumnFilter,
               filterDropdown: resumeSearchFilterDropdown(
                 "Search candidate or resume name",
               ),
@@ -1013,6 +1134,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               dataIndex: "resume_name",
               sortKey: "name",
               filteredValue: searchFiltered,
+              ...serverSideColumnFilter,
               filterDropdown: resumeSearchFilterDropdown(
                 "Search candidate or resume name",
               ),
@@ -1030,6 +1152,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               })),
               filterMultiple: false,
               filteredValue: filters.categoryId ? [filters.categoryId] : null,
+              ...serverSideColumnFilter,
               render: (value) => categoryName(categories, value),
             },
             {
@@ -1049,6 +1172,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               })),
               filterMultiple: false,
               filteredValue: filters.seniority ? [filters.seniority] : null,
+              ...serverSideColumnFilter,
               render: formatLabel,
             },
             {
@@ -1061,6 +1185,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               })),
               filterMultiple: false,
               filteredValue: filters.mimeType ? [filters.mimeType] : null,
+              ...serverSideColumnFilter,
               render: formatMime,
             },
             {
@@ -1080,6 +1205,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               ],
               filterMultiple: false,
               filteredValue: [filters.status || "ACTIVE"],
+              ...serverSideColumnFilter,
               render: (value) => <Badge value={value} />,
             },
             {
@@ -1187,7 +1313,11 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     [statusBusy, setStatusBusy] = useState(false),
     [editOpen, setEditOpen] = useState(false),
     [editBusy, setEditBusy] = useState(false),
-    [editCategoryId, setEditCategoryId] = useState("");
+    [editCategoryId, setEditCategoryId] = useState(""),
+    [reviewDialog, setReviewDialog] = useState(null),
+    [reviewComment, setReviewComment] = useState(""),
+    [declineReason, setDeclineReason] = useState("EXPIRED"),
+    [reviewBusy, setReviewBusy] = useState(false);
   useEffect(() => {
     getJob(client, apiBaseUrl, id)
       .then(setJob)
@@ -1200,6 +1330,9 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       <ErrorState message="Job description not found or you do not have access to it." />
     );
   const source = safeExternalUrl(job.source_url),
+    canReview =
+      hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) &&
+      job.status === "ACTIVE",
     tabs = [
       {
         key: "overview",
@@ -1289,6 +1422,36 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       setStatusBusy(false);
     }
   }
+  async function submitReview(nextStatus, reason = null, comment = "") {
+    setReviewBusy(true);
+    setStatusMessage("");
+    try {
+      const next = await reviewJob(client, apiBaseUrl, job.id, {
+        reviewStatus: nextStatus,
+        ...(reason ? { declineReason: reason } : {}),
+        ...(comment.trim() ? { comment: comment.trim() } : {}),
+      });
+      setJob((current) => ({ ...current, ...next }));
+      setReviewDialog(null);
+      setReviewComment("");
+      setDeclineReason("EXPIRED");
+      setStatusMessageType("success");
+      setStatusMessage(
+        nextStatus === "APPROVED"
+          ? "JD approved. It can be selected for new Applications."
+          : nextStatus === "DECLINED"
+            ? "JD declined in review."
+            : nextStatus === "NEEDS_CORRECTION"
+              ? "Correction requested from the JD Finder."
+              : "Review status updated.",
+      );
+    } catch (value) {
+      setStatusMessageType("error");
+      setStatusMessage(value.message);
+    } finally {
+      setReviewBusy(false);
+    }
+  }
   const finderCanEdit = hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_EDIT_OWN) && job.user_id === access.userId && ["NEEDS_REVIEW", "NEEDS_CORRECTION"].includes(job.review_status);
   function openEdit() {
     const skills = Array.isArray(job.detected_skills) ? job.detected_skills.join(", ") : "";
@@ -1355,6 +1518,39 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
           <Space wrap align="center" className="detail-action-group">
             {source ? <Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button> : null}
             {finderCanEdit && <Button type="primary" onClick={openEdit}>Edit my JD</Button>}
+            {canReview && (
+              <>
+                <Button
+                  type="primary"
+                  loading={reviewBusy}
+                  disabled={job.review_status === "APPROVED"}
+                  onClick={() => submitReview("APPROVED")}
+                >
+                  Approve
+                </Button>
+                <Button
+                  loading={reviewBusy}
+                  onClick={() => {
+                    setReviewComment(job.review_comment || "");
+                    setReviewDialog("CORRECTION");
+                  }}
+                >
+                  Needs correction
+                </Button>
+                <Button
+                  danger
+                  loading={reviewBusy}
+                  disabled={job.review_status === "DECLINED"}
+                  onClick={() => {
+                    setReviewComment(job.review_comment || "");
+                    setDeclineReason(job.review_decline_reason || "EXPIRED");
+                    setReviewDialog("DECLINE");
+                  }}
+                >
+                  Decline review
+                </Button>
+              </>
+            )}
             {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
               <Popconfirm
                 title={job.status === "ARCHIVED" ? "Restore this URL?" : "Decline this URL as not applicable?"}
@@ -1369,6 +1565,57 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
           </Space>
         }
       />
+      <Modal
+        open={reviewDialog === "CORRECTION"}
+        title="Request correction"
+        okText="Save"
+        confirmLoading={reviewBusy}
+        onCancel={() => !reviewBusy && setReviewDialog(null)}
+        onOk={() => submitReview("NEEDS_CORRECTION", null, reviewComment)}
+        destroyOnHidden
+      >
+        <Input.TextArea
+          value={reviewComment}
+          onChange={(event) => setReviewComment(event.target.value)}
+          maxLength={1000}
+          rows={4}
+          placeholder="Optional note for the JD Finder"
+        />
+      </Modal>
+      <Modal
+        open={reviewDialog === "DECLINE"}
+        title="Decline JD in review"
+        okText="Decline"
+        okButtonProps={{ danger: true }}
+        confirmLoading={reviewBusy}
+        onCancel={() => !reviewBusy && setReviewDialog(null)}
+        onOk={() => submitReview("DECLINED", declineReason, reviewComment)}
+        destroyOnHidden
+      >
+        <div className="review-dialog-stack">
+          <label>
+            Decline reason
+            <Select
+              value={declineReason}
+              onChange={setDeclineReason}
+              options={[
+                { value: "EXPIRED", label: "Expired" },
+                { value: "NOT_ELIGIBLE", label: "Not eligible" },
+                { value: "DUPLICATE", label: "Duplicate" },
+                { value: "INVALID_URL", label: "Invalid URL" },
+                { value: "OTHER", label: "Other" },
+              ]}
+            />
+          </label>
+          <Input.TextArea
+            value={reviewComment}
+            onChange={(event) => setReviewComment(event.target.value)}
+            maxLength={1000}
+            rows={4}
+            placeholder="Optional comment"
+          />
+        </div>
+      </Modal>
       <Modal open={editOpen} title="Edit captured job description" width={760} okText="Save changes" confirmLoading={editBusy} onOk={saveEdit} onCancel={() => !editBusy && setEditOpen(false)}>
         <Alert type="info" showIcon message={job.review_status === "NEEDS_CORRECTION" ? "Correct the requested details. The manager's review comment and audit history will be preserved." : "You can edit this JD until it is approved or declined."} style={{ marginBottom: 16 }} />
         <Form form={editForm} layout="vertical">
