@@ -13,6 +13,16 @@ test("Resume dashboard identifies original Resumes by decimal number",()=>{
   assert.match(app,/\["Resume type", formatLabel\(resume\.resume_type/);
 });
 
+test("Resume list places Status after Updated",()=>{
+  const start=app.indexOf('title: "Resume #"');
+  const end=app.indexOf("filters.sort", start);
+  assert.ok(start>=0 && end>start, "Resume list columns are defined");
+  const list=app.slice(start, end);
+  const order=["Seniority","File type","Updated","Status"].map((title)=>list.indexOf(`title: "${title}"`));
+  assert.ok(order.every((index)=>index>=0), "expected Resume list columns are present");
+  assert.deepEqual(order, [...order].sort((a,b)=>a-b));
+});
+
 test("general Resume API reads, counts, and recent cards are original-only",()=>{
   assert.match(service,/\.eq\("resume_type","ORIGINAL"\)/);
   assert.match(service,/RESUME_LIST_FIELDS="id,resume_number,resume_type,parent_resume_id/);

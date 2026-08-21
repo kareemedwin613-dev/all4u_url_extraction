@@ -946,12 +946,6 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               render: formatLabel,
             },
             {
-              title: "Status",
-              dataIndex: "status",
-              sortKey: "status",
-              render: (value) => <Badge value={value} />,
-            },
-            {
               title: "File type",
               dataIndex: "mime_type",
               sortKey: "mime",
@@ -963,10 +957,16 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               sortKey: "updated",
               render: formatDate,
             },
-          {
-            title: "",
-            key: "action",
-            render: (_, resume) => (
+            {
+              title: "Status",
+              dataIndex: "status",
+              sortKey: "status",
+              render: (value) => <Badge value={value} />,
+            },
+            {
+              title: "",
+              key: "action",
+              render: (_, resume) => (
                 <Space>
                   <a href={`#/resumes/${resume.id}`}>View</a>
                   {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
@@ -1145,7 +1145,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       <TabbedSections
         items={tabs}
         extra={
-          <Space wrap>
+          <Space wrap align="center" className="detail-action-group">
             {source ? <Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button> : null}
             {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
               <Popconfirm
@@ -1298,7 +1298,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       <TabbedSections
         items={tabs}
         extra={
-          <Space wrap>
+          <Space wrap align="center" className="detail-action-group">
             <Button type="primary" onClick={open}>Open Original Resume</Button>
             {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.status==="ACTIVE"&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}
             {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.resume_type==="ORIGINAL"&&(

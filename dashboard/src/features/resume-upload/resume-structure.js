@@ -1,7 +1,8 @@
 const MONTHS={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
 const MONTH_NAME="(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
-const DATE_TOKEN=`(?:${MONTH_NAME}\\s+)?(?:19|20)\\d{2}`;
-const DATE_RANGE=new RegExp(`\\b(${DATE_TOKEN})\\s*(?:-|–|—|to)\\s*(${DATE_TOKEN}|Present|Current|Now)\\b`,"i");
+const NUMERIC_MONTH_YEAR="(?:0?[1-9]|1[0-2])/(?:19|20)\\d{2}";
+const DATE_TOKEN=`(?:${MONTH_NAME}\\s+)?(?:19|20)\\d{2}|${NUMERIC_MONTH_YEAR}`;
+const DATE_RANGE=new RegExp(`(?:^|[^\\d/])(${DATE_TOKEN})\\s*(?:-|–|—|to)\\s*(${DATE_TOKEN}|Present|Current|Now)\\b`,"i");
 const BULLET=/^\s*(?:[•●▪◦‣∙]|[-*])\s*/;
 let fallbackId=0;
 
@@ -11,10 +12,18 @@ const text=value=>String(value||"").replace(/\0/g,"").replace(/\r\n?/g,"\n").tri
 export const newExperience=()=>({id:makeId(),company:"",job_title:"",location:"",start_date:null,end_date:null,is_current:false,experience_details:""});
 
 export function parsePartialDate(value){
-  const match=text(value).match(/^(?:([A-Za-z]+)\s+)?((?:19|20)\d{2})$/);if(!match)return null;
+  const raw=text(value);
+  const numeric=raw.match(/^(0?[1-9]|1[0-2])\/((?:19|20)\d{2})$/);
+  if(numeric)return{year:Number(numeric[2]),month:Number(numeric[1])};
+  const match=raw.match(/^(?:([A-Za-z]+)\s+)?((?:19|20)\d{2})$/);if(!match)return null;
   const month=match[1]?MONTHS[match[1].toLowerCase()]:null;
   if(match[1]&&!month)return null;
   return {year:Number(match[2]),month};
+}
+
+/** Resolve subcategory id only when both category rows exist and the parent matches. */
+export function resolveSubcategoryId(primary,subcategory){
+  return primary&&subcategory?.parent_id===primary.id?subcategory.id:"";
 }
 
 export function partialDateInput(value){return value?.year?`${value.year}-${String(value.month||1).padStart(2,"0")}`:"";}
@@ -32,7 +41,12 @@ function splitTitleLocation(value,initialLocation=""){
 
 export function parseProfessionalExperiences(value=""){
   const lines=text(value).split("\n").map(line=>line.trim()).filter(Boolean),markers=[];
-  lines.forEach((line,index)=>{const match=line.match(DATE_RANGE);if(match)markers.push({index,match,before:text(line.slice(0,match.index)),after:text(line.slice((match.index||0)+match[0].length))});});
+  lines.forEach((line,index)=>{
+    const match=line.match(DATE_RANGE);if(!match)return;
+    // DATE_RANGE may consume a non-digit/slash prefix char before the first date token.
+    const rangeStart=match.index+(match[0].startsWith(match[1])?0:1);
+    markers.push({index,match,before:text(line.slice(0,rangeStart)),after:text(line.slice(match.index+match[0].length))});
+  });
   if(!markers.length){const details=experienceDetails(lines);return details?[{...newExperience(),experience_details:details}]:[];}
   return markers.map((marker,position)=>{
     const next=markers[position+1],company=marker.before||text(lines[marker.index-1]),start=marker.index+1,end=next?next.index-(next.before?0:1):lines.length,segment=lines.slice(start,Math.max(start,end));
