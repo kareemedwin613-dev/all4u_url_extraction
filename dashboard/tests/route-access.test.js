@@ -14,7 +14,9 @@ test("route guard handles signed-out pending and inactive states",()=>{
 test("direct business and admin routes are capability protected",()=>{
   assert.equal(guardAccessRoute(parseRoute("#/jobs"),session,access(["APPLIER"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/jobs"),session,access(["DEVELOPER"])),"#/access-denied");
-  assert.equal(guardAccessRoute(parseRoute("#/jobs"),session,access(["JD_FINDER"])),"#/access-denied");
+  assert.equal(guardAccessRoute(parseRoute("#/jobs"),session,access(["JD_FINDER"])),null);
+  assert.equal(guardAccessRoute(parseRoute("#/jobs/"+id),session,access(["JD_FINDER"])),null);
+  assert.equal(guardAccessRoute(parseRoute("#/resumes"),session,access(["JD_FINDER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/admin/users"),session,access(["APPLIER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/admin/users"),session,access(["ADMIN"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/applications"),session,access(["APPLIER"])),null);
@@ -34,7 +36,7 @@ test("direct business and admin routes are capability protected",()=>{
 
 test("navigation is exact for technical, business, admin, and multi-role users",()=>{
   assert.deepEqual(navigationForAccess(access(["DEVELOPER"])).map(x=>x.label),["Overview","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["JD_FINDER"])).map(x=>x.label),["Overview","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["JD_FINDER"])).map(x=>x.label),["Overview","Job Descriptions","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER","DEVELOPER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Assignment Batches","Applier Workloads","Tailoring Reviews","Tailoring Batches","Job Descriptions","Resumes","Users","My Profile"]);

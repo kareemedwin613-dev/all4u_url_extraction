@@ -3,6 +3,7 @@ import { Alert, App as AntdApp, Button, Flex, Layout, Space, Spin, Tabs, Typogra
 import {
   FileSearchOutlined,
   HistoryOutlined,
+  AuditOutlined,
   LogoutOutlined,
   ProfileOutlined,
   SettingOutlined,
@@ -19,6 +20,8 @@ import {
   canAccessMyApplications,
   canAccessResumeQueue,
   canCreateTailoring,
+  canReviewJobs,
+  canListOwnJobs,
   canReadBusiness,
   canWriteBusiness,
   extensionAccessMessage,
@@ -33,6 +36,8 @@ import { CaptureView } from "./views/CaptureView.jsx";
 import { MyApplicationsView } from "./views/MyApplicationsView.jsx";
 import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
+import { JobReviewView } from "./views/JobReviewView.jsx";
+import { MyJobDescriptionsView } from "./views/MyJobDescriptionsView.jsx";
 import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, recordApplicationAutofillTelemetry, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
@@ -45,6 +50,8 @@ const { Text, Title } = Typography;
 
 const TAB_ICONS = {
   capture: <FileSearchOutlined />,
+  review: <AuditOutlined />,
+  "my-jds": <AuditOutlined />,
   applications: <SolutionOutlined />,
   resumes: <ProfileOutlined />,
   queue: <HistoryOutlined />,
@@ -52,6 +59,8 @@ const TAB_ICONS = {
 };
 const TAB_LABELS = {
   capture: "Capture JD",
+  review: "Review JDs",
+  "my-jds": "My JDs",
   applications: "My Applications",
   resumes: "Resumes",
   queue: "Tailoring Queue",
@@ -63,6 +72,8 @@ const TOAST_TYPES = { success: "success", warning: "warning", error: "error" };
 function availableViews(accessContext) {
   return [
     ...(canReadBusiness(accessContext) ? ["capture"] : []),
+    ...(canListOwnJobs(accessContext) ? ["my-jds"] : []),
+    ...(canReviewJobs(accessContext) ? ["review"] : []),
     ...(canAccessMyApplications(accessContext) ? ["applications"] : []),
     ...(canAccessResumeQueue(accessContext) ? ["resumes", "queue"] : []),
     "settings",
@@ -431,6 +442,8 @@ export function App() {
         onError={handleError}
       />
     ),
+    review: <JobReviewView client={client} backendBaseUrl={backendBaseUrl} onStatus={setStatus} onError={handleError} />,
+    "my-jds": <MyJobDescriptionsView client={client} backendBaseUrl={backendBaseUrl} categories={categories} onStatus={setStatus} onError={handleError} />,
     applications: <MyApplicationsView client={client} backendBaseUrl={backendBaseUrl} onStatus={setStatus} onError={handleError} />,
     resumes: (
       <ResumesView

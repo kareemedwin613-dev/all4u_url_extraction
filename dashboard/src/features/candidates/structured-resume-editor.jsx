@@ -79,13 +79,10 @@ export function StructuredResumeEditor({
   resumeId,
   profile,
   onSaved,
-  onNotify,
 }) {
   const [draft, setDraft] = useState(),
-    [busy, setBusy] = useState(false);
-  const notify = (type, message, description) => {
-    if (typeof onNotify === "function") onNotify(type, message, description);
-  };
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
   useEffect(
     () =>
       setDraft({
@@ -121,9 +118,9 @@ export function StructuredResumeEditor({
       [section]: [...value[section], item()],
     }));
   async function save() {
+    setError("");
     const invalidEmployment = draft.employment.find(
-        (x) =>
-          !String(x.company || "").trim() || !String(x.jobTitle || "").trim(),
+        (x) => !String(x.company || "").trim() || !String(x.jobTitle || "").trim(),
       ),
       invalidEducation = draft.education.find(
         (x) => !String(x.institution || "").trim(),
@@ -132,8 +129,7 @@ export function StructuredResumeEditor({
         (x) => !String(x.name || "").trim(),
       );
     if (invalidEmployment || invalidEducation || invalidCertification) {
-      notify(
-        "warning",
+      setError(
         invalidEmployment
           ? "Every employment record needs a company and job title."
           : invalidEducation
@@ -153,14 +149,13 @@ export function StructuredResumeEditor({
       );
       onSaved(next);
     } catch (x) {
-      notify("error", "Structured Resume could not be saved", x.message);
+      setError(x.message);
     } finally {
       setBusy(false);
     }
   }
   return (
     <Card
-      className="structured-resume-editor-card"
       title="Structured Resume editor"
       extra={
         <Button type="primary" loading={busy} onClick={save}>
@@ -168,406 +163,378 @@ export function StructuredResumeEditor({
         </Button>
       }
     >
-      <div className="structured-resume-editor">
-        <section className="structured-resume-section">
-          <Title level={3}>Summary</Title>
-          <Input.TextArea
-            value={draft.summary}
-            onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
-            autoSize={{ minRows: 5, maxRows: 14 }}
-            maxLength={30000}
-            showCount
-          />
-        </section>
-        <section className="structured-resume-section">
-          <Title level={3}>Skills</Title>
-          <Text type="secondary">
-            Keep the skill section as editable text; commas or line breaks are
-            both supported.
-          </Text>
-          <Input.TextArea
-            value={draft.skills}
-            onChange={(e) => setDraft({ ...draft, skills: e.target.value })}
-            autoSize={{ minRows: 3, maxRows: 10 }}
-            maxLength={30000}
-            showCount
-          />
-        </section>
-        <section className="structured-resume-section">
-          <Flex
-            className="structured-resume-section-header"
-            justify="space-between"
-            align="center"
-            gap="middle"
-            wrap
-          >
-            <Title level={3}>Professional Experience</Title>
-            <Button onClick={() => add("employment", emptyEmployment)}>
-              Add experience
-            </Button>
-          </Flex>
-          {draft.employment.map((x, i) => (
-            <Card
-              size="small"
-              key={x.id}
-              title={`Experience ${i + 1}`}
-              extra={
-                <Actions
-                  index={i}
-                  count={draft.employment.length}
-                  onMove={(n) => reorder("employment", i, n)}
-                  onRemove={() => remove("employment", i)}
-                />
-              }
-            >
-              <Row gutter={[12, 12]}>
-                <Col xs={24} md={12}>
-                  <label>
-                    Company
-                    <Input
-                      value={x.company}
-                      onChange={(e) =>
-                        replace("employment", i, { company: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={12}>
-                  <label>
-                    Job title
-                    <Input
-                      value={x.jobTitle}
-                      onChange={(e) =>
-                        replace("employment", i, { jobTitle: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={8}>
-                  <label>
-                    Location
-                    <Input
-                      value={x.location || ""}
-                      onChange={(e) =>
-                        replace("employment", i, { location: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={12} md={8}>
-                  <label>
-                    Start date
-                    <Input
-                      type="date"
-                      value={date(x.startDate)}
-                      onChange={(e) =>
-                        replace("employment", i, {
-                          startDate: e.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={12} md={8}>
-                  <label>
-                    End date
-                    <Input
-                      type="date"
-                      disabled={x.isCurrent}
-                      value={date(x.endDate)}
-                      onChange={(e) =>
-                        replace("employment", i, {
-                          endDate: e.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col span={24}>
-                  <Checkbox
-                    checked={x.isCurrent}
-                    onChange={(e) =>
-                      replace("employment", i, {
-                        isCurrent: e.target.checked,
-                        endDate: e.target.checked ? null : x.endDate,
-                      })
-                    }
-                  >
-                    Currently employed here
-                  </Checkbox>
-                </Col>
-                <Col span={24}>
-                  <label>
-                    Achievements and responsibilities
-                    <Input.TextArea
-                      value={x.experienceDetails || ""}
-                      onChange={(e) =>
-                        replace("employment", i, {
-                          experienceDetails: e.target.value,
-                        })
-                      }
-                      autoSize={{ minRows: 5, maxRows: 15 }}
-                      maxLength={30000}
-                      showCount
-                    />
-                  </label>
-                </Col>
-              </Row>
-            </Card>
-          ))}
-        </section>
-        <section className="structured-resume-section">
-          <Flex
-            className="structured-resume-section-header"
-            justify="space-between"
-            align="center"
-            gap="middle"
-            wrap
-          >
-            <Title level={3}>Education</Title>
-            <Button onClick={() => add("education", emptyEducation)}>
-              Add education
-            </Button>
-          </Flex>
-          {profile.educationLegacyText && (
-            <Alert
-              type="info"
-              message="Legacy education text"
-              description={
-                <span className="long-text">{profile.educationLegacyText}</span>
-              }
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          closable
+          onClose={() => setError("")}
+          message={error}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      <Title level={3}>Summary</Title>
+      <Input.TextArea
+        value={draft.summary}
+        onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
+        autoSize={{ minRows: 5, maxRows: 14 }}
+        maxLength={30000}
+        showCount
+      />
+      <Title level={3}>Skills</Title>
+      <Text type="secondary">
+        Keep the skill section as editable text; commas or line breaks are both
+        supported.
+      </Text>
+      <Input.TextArea
+        value={draft.skills}
+        onChange={(e) => setDraft({ ...draft, skills: e.target.value })}
+        autoSize={{ minRows: 3, maxRows: 10 }}
+        maxLength={30000}
+        showCount
+      />
+      <Flex justify="space-between" align="center">
+        <Title level={3}>Professional Experience</Title>
+        <Button onClick={() => add("employment", emptyEmployment)}>
+          Add experience
+        </Button>
+      </Flex>
+      {draft.employment.map((x, i) => (
+        <Card
+          size="small"
+          key={x.id}
+          title={`Experience ${i + 1}`}
+          extra={
+            <Actions
+              index={i}
+              count={draft.employment.length}
+              onMove={(n) => reorder("employment", i, n)}
+              onRemove={() => remove("employment", i)}
             />
-          )}
-          {draft.education.map((x, i) => (
-            <Card
-              size="small"
-              key={x.id}
-              title={`Education ${i + 1}`}
-              extra={
-                <Actions
-                  index={i}
-                  count={draft.education.length}
-                  onMove={(n) => reorder("education", i, n)}
-                  onRemove={() => remove("education", i)}
+          }
+        >
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={12}>
+              <label>
+                Company
+                <Input
+                  value={x.company}
+                  onChange={(e) =>
+                    replace("employment", i, { company: e.target.value })
+                  }
                 />
-              }
-            >
-              <Row gutter={[12, 12]}>
-                <Col xs={24} md={12}>
-                  <label>
-                    Institution
-                    <Input
-                      value={x.institution}
-                      onChange={(e) =>
-                        replace("education", i, { institution: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={12}>
-                  <label>
-                    Degree
-                    <Input
-                      value={x.degree || ""}
-                      onChange={(e) =>
-                        replace("education", i, { degree: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={12}>
-                  <label>
-                    Field of study
-                    <Input
-                      value={x.fieldOfStudy || ""}
-                      onChange={(e) =>
-                        replace("education", i, {
-                          fieldOfStudy: e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={12}>
-                  <label>
-                    Location
-                    <Input
-                      value={x.location || ""}
-                      onChange={(e) =>
-                        replace("education", i, { location: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={12} md={8}>
-                  <label>
-                    Start date
-                    <Input
-                      type="date"
-                      value={date(x.startDate)}
-                      onChange={(e) =>
-                        replace("education", i, {
-                          startDate: e.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={12} md={8}>
-                  <label>
-                    End date
-                    <Input
-                      type="date"
-                      value={date(x.endDate)}
-                      onChange={(e) =>
-                        replace("education", i, {
-                          endDate: e.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={8}>
-                  <label>
-                    GPA
-                    <Input
-                      value={x.gpa || ""}
-                      onChange={(e) =>
-                        replace("education", i, { gpa: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col span={24}>
-                  <label>
-                    Details
-                    <Input.TextArea
-                      value={x.details || ""}
-                      onChange={(e) =>
-                        replace("education", i, { details: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-              </Row>
-            </Card>
-          ))}
-        </section>
-        <section className="structured-resume-section">
-          <Flex
-            className="structured-resume-section-header"
-            justify="space-between"
-            align="center"
-            gap="middle"
-            wrap
-          >
-            <Title level={3}>Certifications</Title>
-            <Button onClick={() => add("certifications", emptyCertification)}>
-              Add certification
-            </Button>
-          </Flex>
-          {draft.certifications.map((x, i) => (
-            <Card
-              size="small"
-              key={x.id}
-              title={`Certification ${i + 1}`}
-              extra={
-                <Actions
-                  index={i}
-                  count={draft.certifications.length}
-                  onMove={(n) => reorder("certifications", i, n)}
-                  onRemove={() => remove("certifications", i)}
+              </label>
+            </Col>
+            <Col xs={24} md={12}>
+              <label>
+                Job title
+                <Input
+                  value={x.jobTitle}
+                  onChange={(e) =>
+                    replace("employment", i, { jobTitle: e.target.value })
+                  }
                 />
-              }
-            >
-              <Row gutter={[12, 12]}>
-                <Col xs={24} md={12}>
-                  <label>
-                    Name
-                    <Input
-                      value={x.name}
-                      onChange={(e) =>
-                        replace("certifications", i, { name: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={12}>
-                  <label>
-                    Issuer
-                    <Input
-                      value={x.issuer || ""}
-                      onChange={(e) =>
-                        replace("certifications", i, { issuer: e.target.value })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={12} md={6}>
-                  <label>
-                    Issued date
-                    <Input
-                      type="date"
-                      value={date(x.issuedDate)}
-                      onChange={(e) =>
-                        replace("certifications", i, {
-                          issuedDate: e.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={12} md={6}>
-                  <label>
-                    Expiration date
-                    <Input
-                      type="date"
-                      value={date(x.expirationDate)}
-                      onChange={(e) =>
-                        replace("certifications", i, {
-                          expirationDate: e.target.value || null,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={6}>
-                  <label>
-                    Credential ID
-                    <Input
-                      value={x.credentialId || ""}
-                      onChange={(e) =>
-                        replace("certifications", i, {
-                          credentialId: e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-                <Col xs={24} md={6}>
-                  <label>
-                    Credential URL
-                    <Input
-                      type="url"
-                      value={x.credentialUrl || ""}
-                      onChange={(e) =>
-                        replace("certifications", i, {
-                          credentialUrl: e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                </Col>
-              </Row>
-            </Card>
-          ))}
-        </section>
-        <div className="structured-resume-actions">
-          <Button type="primary" size="large" loading={busy} onClick={save}>
-            Save Structured Resume
-          </Button>
-        </div>
-      </div>
+              </label>
+            </Col>
+            <Col xs={24} md={8}>
+              <label>
+                Location
+                <Input
+                  value={x.location || ""}
+                  onChange={(e) =>
+                    replace("employment", i, { location: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={12} md={8}>
+              <label>
+                Start date
+                <Input
+                  type="date"
+                  value={date(x.startDate)}
+                  onChange={(e) =>
+                    replace("employment", i, {
+                      startDate: e.target.value || null,
+                    })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={12} md={8}>
+              <label>
+                End date
+                <Input
+                  type="date"
+                  disabled={x.isCurrent}
+                  value={date(x.endDate)}
+                  onChange={(e) =>
+                    replace("employment", i, { endDate: e.target.value || null })
+                  }
+                />
+              </label>
+            </Col>
+            <Col span={24}>
+              <Checkbox
+                checked={x.isCurrent}
+                onChange={(e) =>
+                  replace("employment", i, {
+                    isCurrent: e.target.checked,
+                    endDate: e.target.checked ? null : x.endDate,
+                  })
+                }
+              >
+                Currently employed here
+              </Checkbox>
+            </Col>
+            <Col span={24}>
+              <label>
+                Achievements and responsibilities
+                <Input.TextArea
+                  value={x.experienceDetails || ""}
+                  onChange={(e) =>
+                    replace("employment", i, {
+                      experienceDetails: e.target.value,
+                    })
+                  }
+                  autoSize={{ minRows: 5, maxRows: 15 }}
+                  maxLength={30000}
+                  showCount
+                />
+              </label>
+            </Col>
+          </Row>
+        </Card>
+      ))}
+      <Flex justify="space-between" align="center">
+        <Title level={3}>Education</Title>
+        <Button onClick={() => add("education", emptyEducation)}>
+          Add education
+        </Button>
+      </Flex>
+      {profile.educationLegacyText && (
+        <Alert
+          type="info"
+          message="Legacy education text"
+          description={
+            <span className="long-text">{profile.educationLegacyText}</span>
+          }
+        />
+      )}{" "}
+      {draft.education.map((x, i) => (
+        <Card
+          size="small"
+          key={x.id}
+          title={`Education ${i + 1}`}
+          extra={
+            <Actions
+              index={i}
+              count={draft.education.length}
+              onMove={(n) => reorder("education", i, n)}
+              onRemove={() => remove("education", i)}
+            />
+          }
+        >
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={12}>
+              <label>
+                Institution
+                <Input
+                  value={x.institution}
+                  onChange={(e) =>
+                    replace("education", i, { institution: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={12}>
+              <label>
+                Degree
+                <Input
+                  value={x.degree || ""}
+                  onChange={(e) =>
+                    replace("education", i, { degree: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={12}>
+              <label>
+                Field of study
+                <Input
+                  value={x.fieldOfStudy || ""}
+                  onChange={(e) =>
+                    replace("education", i, { fieldOfStudy: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={12}>
+              <label>
+                Location
+                <Input
+                  value={x.location || ""}
+                  onChange={(e) =>
+                    replace("education", i, { location: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={12} md={8}>
+              <label>
+                Start date
+                <Input
+                  type="date"
+                  value={date(x.startDate)}
+                  onChange={(e) =>
+                    replace("education", i, {
+                      startDate: e.target.value || null,
+                    })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={12} md={8}>
+              <label>
+                End date
+                <Input
+                  type="date"
+                  value={date(x.endDate)}
+                  onChange={(e) =>
+                    replace("education", i, { endDate: e.target.value || null })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={8}>
+              <label>
+                GPA
+                <Input
+                  value={x.gpa || ""}
+                  onChange={(e) =>
+                    replace("education", i, { gpa: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col span={24}>
+              <label>
+                Details
+                <Input.TextArea
+                  value={x.details || ""}
+                  onChange={(e) =>
+                    replace("education", i, { details: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+          </Row>
+        </Card>
+      ))}
+      <Flex justify="space-between" align="center">
+        <Title level={3}>Certifications</Title>
+        <Button onClick={() => add("certifications", emptyCertification)}>
+          Add certification
+        </Button>
+      </Flex>
+      {draft.certifications.map((x, i) => (
+        <Card
+          size="small"
+          key={x.id}
+          title={`Certification ${i + 1}`}
+          extra={
+            <Actions
+              index={i}
+              count={draft.certifications.length}
+              onMove={(n) => reorder("certifications", i, n)}
+              onRemove={() => remove("certifications", i)}
+            />
+          }
+        >
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={12}>
+              <label>
+                Name
+                <Input
+                  value={x.name}
+                  onChange={(e) =>
+                    replace("certifications", i, { name: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={12}>
+              <label>
+                Issuer
+                <Input
+                  value={x.issuer || ""}
+                  onChange={(e) =>
+                    replace("certifications", i, { issuer: e.target.value })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={12} md={6}>
+              <label>
+                Issued date
+                <Input
+                  type="date"
+                  value={date(x.issuedDate)}
+                  onChange={(e) =>
+                    replace("certifications", i, {
+                      issuedDate: e.target.value || null,
+                    })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={12} md={6}>
+              <label>
+                Expiration date
+                <Input
+                  type="date"
+                  value={date(x.expirationDate)}
+                  onChange={(e) =>
+                    replace("certifications", i, {
+                      expirationDate: e.target.value || null,
+                    })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={6}>
+              <label>
+                Credential ID
+                <Input
+                  value={x.credentialId || ""}
+                  onChange={(e) =>
+                    replace("certifications", i, {
+                      credentialId: e.target.value,
+                    })
+                  }
+                />
+              </label>
+            </Col>
+            <Col xs={24} md={6}>
+              <label>
+                Credential URL
+                <Input
+                  type="url"
+                  value={x.credentialUrl || ""}
+                  onChange={(e) =>
+                    replace("certifications", i, {
+                      credentialUrl: e.target.value,
+                    })
+                  }
+                />
+              </label>
+            </Col>
+          </Row>
+        </Card>
+      ))}
+      <Button type="primary" size="large" loading={busy} onClick={save}>
+        Save Structured Resume
+      </Button>
     </Card>
   );
 }

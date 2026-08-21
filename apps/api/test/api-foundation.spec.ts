@@ -124,7 +124,7 @@ test("Application service forwards only allowlisted RPC arguments with the calle
 
 test("Application service maps database authorization errors without exposing raw details",async()=>{
   const service=new ApplicationService({forUser:()=>({rpc:async()=>({data:null,error:{code:"42501",message:"secret policy details"}})})}as any);
-  await assert.rejects(()=>service.counts({id:"u",token:"jwt",claims:{}}),(error:any)=>error.code==="APPLICATION_ACCESS_DENIED"&&error.getStatus()===403&&!error.message.includes("secret"));
+  await assert.rejects(()=>service.counts({id:"u",token:"jwt",claims:{}},"2026-08-13T04:00:00.000Z","2026-08-14T04:00:00.000Z"),(error:any)=>error.code==="APPLICATION_ACCESS_DENIED"&&error.getStatus()===403&&!error.message.includes("secret"));
 });
 
 test("Platform service keeps Admin RPCs on the caller-scoped client",async()=>{let call:any;const service=new PlatformService({forUser:(token:string)=>{assert.equal(token,"jwt");return{rpc:async(name:string,args:any)=>{call={name,args};return{data:{id:"user"},error:null};}};}}as any);await service.status({id:"actor",token:"jwt",claims:{}},"123e4567-e89b-42d3-a456-426614174000","INACTIVE");assert.equal(call.name,"admin_set_user_status");assert.equal(call.args.p_status,"INACTIVE");});

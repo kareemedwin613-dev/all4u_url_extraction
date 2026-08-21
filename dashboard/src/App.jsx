@@ -15,6 +15,7 @@ import {
   Input,
   Layout,
   Menu,
+  Modal,
   Popconfirm,
   Row,
   Select,
@@ -45,10 +46,13 @@ import { parseRoute } from "./router.js";
 import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, setJobStatus } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
+import { JdFinderPerformanceChart } from "./features/overview/jd-finder-performance-chart.jsx";
+import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
+import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
 import { createResumeSignedUrl } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -198,7 +202,7 @@ const NAV_ICONS = Object.freeze({
     "admin-user-detail": "admin-users",
   });
 
-function Shell({ route, title, access, refresh, logout, children }) {
+function Shell({ route, title, access, refresh, logout, headerExtra, children }) {
   const [collapsed, setCollapsed] = useState(() => {
       try {
         return localStorage.getItem("dashboard-sider") !== "expanded";
@@ -357,6 +361,7 @@ function Shell({ route, title, access, refresh, logout, children }) {
             </div>
           </Flex>
           <Space wrap className="dashboard-header-actions">
+            {headerExtra}
             {refresh && (
               <Button icon={<ReloadOutlined />} onClick={refresh}>
                 Refresh
@@ -471,6 +476,7 @@ function FilterForm({ kind, value, categories, capturers = [], capturersLoading 
       value.status,
       kind === "jobs" ? value.capturedByUserId : "",
       kind === "jobs" ? value.capturedWindow : "",
+      kind === "jobs" ? value.reviewStatus : "",
       kind === "resumes" ? value.mimeType : "",
     ].filter(Boolean).length;
   return (
@@ -548,6 +554,13 @@ function FilterForm({ kind, value, categories, capturers = [], capturersLoading 
           )}
           {kind === "jobs" && (
             <Col {...field}>
+              <Form.Item label="Review status" name="reviewStatus">
+                <Select options={[{value:"ALL",label:"All review statuses"},{value:"NEEDS_REVIEW",label:"Needs review"},{value:"APPROVED",label:"Approved"},{value:"NEEDS_CORRECTION",label:"Needs correction"},{value:"DECLINED",label:"Declined"}]}/>
+              </Form.Item>
+            </Col>
+          )}
+          {kind === "jobs" && (
+            <Col {...field}>
               <Form.Item label="Captured by" name="capturedByUserId">
                 <Select
                   showSearch
@@ -601,18 +614,20 @@ function FilterForm({ kind, value, categories, capturers = [], capturersLoading 
   );
 }
 
-function BusinessOverview({ client, apiBaseUrl, categories, reload, access }) {
+function BusinessOverview({ client, apiBaseUrl, categories, reload, access, dateRange, dateLabel }) {
   const [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    getBusinessOverview(client, apiBaseUrl)
+    setResult(null);
+    setError("");
+    getBusinessOverview(client, apiBaseUrl, dateRange)
       .then((value) => live && setResult(value))
       .catch((value) => live && setError(value.message));
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, reload]);
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
   if (error) return <ErrorState message={error} />;
   if (!result) return <Loading text="Loading dashboard…" />;
   const jobs = result.jobCounts.total,
@@ -624,8 +639,8 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access }) {
     showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE);
   return (
     <div className="page">
-      <Title level={1} tabIndex={-1}>
-        Overview
+      <Title level={2}>
+        Business records
       </Title>
       <Row gutter={[16, 16]} className="summary-grid">
         {[
@@ -641,7 +656,7 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access }) {
           </Col>
         ))}
       </Row>
-      <Card
+      {!showApplierPerformance && <Card
         title="Recent job descriptions"
         extra={<a href="#/jobs">View all</a>}
       >
@@ -676,8 +691,8 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access }) {
             No job descriptions have been captured yet.
           </Text>
         )}
-      </Card>
-      {showApplierPerformance ? <ApplierPerformanceChart rows={result.applierPerformance || []}/> : <Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>
+      </Card>}
+      {showApplierPerformance ? <Row gutter={[16,16]}><Col xs={24} xl={12}><ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel}/></Col><Col xs={24} xl={12}><JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel}/></Col></Row> : <Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>
         {recentR.length ? (
           <Table
             headers={["Candidate", "Resume", "Category", "Status", "Updated"]}
@@ -701,6 +716,18 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access }) {
         )}
       </Card>}
     </div>
+  );
+}
+
+function BusinessDashboard({ client, apiBaseUrl, categories, reload, access, period, dateRange }) {
+  return (
+    <>
+      <div className="page application-overview">
+        <Title level={1} tabIndex={-1}>Overview</Title>
+        <ApplicationCountCards client={client} apiBaseUrl={apiBaseUrl} access={access} reload={reload} dateRange={dateRange} dateLabel={period.label} />
+      </div>
+      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} categories={categories} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
+    </>
   );
 }
 
@@ -778,8 +805,8 @@ function Jobs({
           },
           {
             title: "Status",
-            dataIndex: "status",
-            sortKey: "status",
+            dataIndex: "review_status",
+            sortKey: "review",
             render: (value) => <Badge value={value} />,
           },
           {
@@ -879,7 +906,7 @@ function Jobs({
                     selectedRowKeys: selectedJobIds,
                     preserveSelectedRowKeys: true,
                     onChange: (keys) => onSelectedJobIdsChange(keys),
-                    getCheckboxProps: (job) => ({ disabled: job.status !== "ACTIVE", title: job.status !== "ACTIVE" ? "Restore this URL before creating an Application." : undefined }),
+                    getCheckboxProps: (job) => ({ disabled: job.status !== "ACTIVE" || job.review_status !== "APPROVED", title: job.review_status !== "APPROVED" ? "Approve this JD before creating an Application." : job.status !== "ACTIVE" ? "Restore this URL before creating an Application." : undefined }),
                   }
                 : undefined
             }
@@ -1025,10 +1052,15 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
 }
 
 function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
+  const [editForm] = Form.useForm();
   const [job, setJob] = useState(),
     [error, setError] = useState(""),
     [statusMessage, setStatusMessage] = useState(""),
-    [statusBusy, setStatusBusy] = useState(false);
+    [statusMessageType, setStatusMessageType] = useState("info"),
+    [statusBusy, setStatusBusy] = useState(false),
+    [editOpen, setEditOpen] = useState(false),
+    [editBusy, setEditBusy] = useState(false),
+    [editCategoryId, setEditCategoryId] = useState("");
   useEffect(() => {
     getJob(client, apiBaseUrl, id)
       .then(setJob)
@@ -1073,6 +1105,9 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
               ["Source site", job.source_site],
               ["Captured by", capturedBy(job)],
               ["Capturer user ID", job.user_id],
+              ["Review status", formatLabel(job.review_status)],
+              ["Reviewer comment", job.review_comment || "No comment"],
+              ...(job.review_decline_reason ? [["Decline reason", formatLabel(job.review_decline_reason)]] : []),
               ["Capture method", formatLabel(job.capture_method)],
               ["Extraction confidence", formatLabel(job.extraction_confidence)],
               ["Captured at", formatDate(job.created_at)],
@@ -1118,11 +1153,56 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     try {
       const next = await setJobStatus(client, apiBaseUrl, job.id, status, status === "ARCHIVED" ? "NOT_APPLICABLE" : undefined);
       setJob((current) => ({ ...current, ...next }));
+      setStatusMessageType("success");
       setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application workflows.");
     } catch (value) {
+      setStatusMessageType("error");
       setStatusMessage(value.message);
     } finally {
       setStatusBusy(false);
+    }
+  }
+  const finderCanEdit = hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_EDIT_OWN) && job.user_id === access.userId && ["NEEDS_REVIEW", "NEEDS_CORRECTION"].includes(job.review_status);
+  function openEdit() {
+    const skills = Array.isArray(job.detected_skills) ? job.detected_skills.join(", ") : "";
+    editForm.setFieldsValue({
+      company: job.company, jobTitle: job.job_title, categoryId: job.category_id,
+      subcategoryId: job.subcategory_id || undefined, seniority: job.seniority || "UNSPECIFIED",
+      locationText: job.location_text || "", workArrangement: job.work_arrangement || "UNSPECIFIED",
+      sourceUrl: job.source_url, descriptionText: job.description_text, detectedSkills: skills,
+      salaryText: job.salary_text || "",
+    });
+    setEditCategoryId(job.category_id);
+    setEditOpen(true);
+  }
+  async function saveEdit() {
+    try {
+      const values = await editForm.validateFields();
+      setEditBusy(true);
+      const next = await updateOwnJob(client, apiBaseUrl, job.id, {
+        ...values,
+        subcategoryId: values.subcategoryId || null,
+        locationText: values.locationText || null,
+        detectedSkills: cleanTags(String(values.detectedSkills || "").split(",")),
+        clearanceRequirements: job.clearance_requirements || [],
+        travelRequired: job.travel_required,
+        travelDetails: job.travel_details,
+        salaryMin: job.salary_min,
+        salaryMax: job.salary_max,
+        salaryCurrency: job.salary_currency,
+        salaryPeriod: job.salary_period,
+        salaryText: values.salaryText || null,
+      });
+      setJob((current) => ({ ...current, ...next }));
+      setEditOpen(false);
+      setStatusMessageType("success");
+      setStatusMessage(job.review_status === "NEEDS_CORRECTION" ? "Correction saved. The JD remains in Needs Correction until a manager reviews it again." : "Changes saved. The JD remains in the review queue.");
+    } catch (value) {
+      if (value?.errorFields) return;
+      setStatusMessageType("error");
+      setStatusMessage(value?.message || "The correction could not be saved.");
+    } finally {
+      setEditBusy(false);
     }
   }
   return (
@@ -1139,14 +1219,15 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
             {job.job_title}
           </Title>
         </div>
-        <Badge value={job.status} />
+        <Space><Badge value={job.review_status} />{job.status === "ARCHIVED" && <Badge value={job.status} />}</Space>
       </div>
-      {statusMessage && <Alert type="info" showIcon message={statusMessage} />}
+      {statusMessage && <Alert type={statusMessageType} showIcon message={statusMessage} />}
       <TabbedSections
         items={tabs}
         extra={
           <Space wrap align="center" className="detail-action-group">
             {source ? <Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button> : null}
+            {finderCanEdit && <Button type="primary" onClick={openEdit}>Edit my JD</Button>}
             {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
               <Popconfirm
                 title={job.status === "ARCHIVED" ? "Restore this URL?" : "Decline this URL as not applicable?"}
@@ -1161,6 +1242,24 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
           </Space>
         }
       />
+      <Modal open={editOpen} title="Edit captured job description" width={760} okText="Save changes" confirmLoading={editBusy} onOk={saveEdit} onCancel={() => !editBusy && setEditOpen(false)}>
+        <Alert type="info" showIcon message={job.review_status === "NEEDS_CORRECTION" ? "Correct the requested details. The manager's review comment and audit history will be preserved." : "You can edit this JD until it is approved or declined."} style={{ marginBottom: 16 }} />
+        <Form form={editForm} layout="vertical">
+          <Row gutter={16}>
+            <Col xs={24} md={12}><Form.Item name="company" label="Company" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="jobTitle" label="Job title" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="categoryId" label="Primary category" rules={[{ required: true }]}><Select options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { setEditCategoryId(value); editForm.setFieldValue("subcategoryId", undefined); }} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="subcategoryId" label="Subcategory (optional)"><Select allowClear options={(categories?.childrenByParent?.get(editCategoryId) || []).map((item) => ({ value: item.id, label: item.name }))} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="seniority" label="Seniority"><Select options={SENIORITIES.map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="workArrangement" label="Work arrangement"><Select options={["REMOTE","HYBRID","ONSITE","UNSPECIFIED"].map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="locationText" label="Location"><Input maxLength={300} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="salaryText" label="Salary text"><Input maxLength={500} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="sourceUrl" label="Job posting URL" rules={[{ required: true }, { type: "url" }, { max: 4000 }]}><Input /></Form.Item>
+          <Form.Item name="detectedSkills" label="Technical skills (comma-separated)"><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
+          <Form.Item name="descriptionText" label="Job description" rules={[{ required: true }, { min: 100 }, { max: 200000 }]}><Input.TextArea rows={10} /></Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
@@ -1347,10 +1446,12 @@ export function App({ client, apiBaseUrl }) {
     [categories, setCategories] = useState(null),
     [roles, setRoles] = useState([]),
     [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
+    [overviewPeriod, setOverviewPeriod] = useState(DEFAULT_OVERVIEW_WINDOW),
     [reload, setReload] = useState(0),
     sessionRef = useRef(undefined),
     jobsBack = useRef("#/jobs"),
-    resumesBack = useRef("#/resumes");
+    resumesBack = useRef("#/resumes"),
+    overviewDateRange = useMemo(() => overviewDateBounds(overviewPeriod), [overviewPeriod]);
   const reloadAccess = useCallback(async () => {
     if (!session) return;
     setAccessError(null);
@@ -1403,13 +1504,13 @@ export function App({ client, apiBaseUrl }) {
     let live = true;
     if (
       access &&
-      hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) &&
+      hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_READ) &&
       !categories
     )
       loadCategories(client, apiBaseUrl)
         .then((value) => live && setCategories(value))
         .catch(setAccessError);
-    if (access && !hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ))
+    if (access && !hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_READ))
       setCategories(null);
     if (access && hasCapability(access, CAPABILITIES.USER_ADMIN))
       listSystemRoles(client, apiBaseUrl)
@@ -1496,7 +1597,7 @@ export function App({ client, apiBaseUrl }) {
       </Shell>
     );
   const needsCategories =
-    hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) &&
+    hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_READ) &&
     [
       "overview",
       "jobs",
@@ -1531,23 +1632,7 @@ export function App({ client, apiBaseUrl }) {
     );
   else if (route.name === "overview")
     page = hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? (
-      <>
-        <div className="page application-overview">
-          <ApplicationCountCards
-            client={client}
-            apiBaseUrl={apiBaseUrl}
-            access={access}
-            reload={reload}
-          />
-        </div>
-        <BusinessOverview
-          client={client}
-          apiBaseUrl={apiBaseUrl}
-          categories={categories}
-          reload={reload}
-          access={access}
-        />
-      </>
+      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} categories={categories} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} />
     ) : (
       <TechnicalOverview access={access} />
     );
@@ -1706,6 +1791,7 @@ export function App({ client, apiBaseUrl }) {
       access={access}
       refresh={() => setReload((value) => value + 1)}
       logout={logout}
+      headerExtra={route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} /> : null}
     >
       {page}
     </Shell>

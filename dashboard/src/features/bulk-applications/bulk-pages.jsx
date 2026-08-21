@@ -296,6 +296,7 @@ export function BulkCreatePage({
     idempotencyAttempt = useRef({ key: "", fingerprint: "" }),
     [preview, setPreview] = useState(),
     [selected, setSelected] = useState(new Set()),
+    [selectedResumeIds, setSelectedResumeIds] = useState([]),
     [filters, setFilters] = useState(emptyFilters),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25),
@@ -317,7 +318,9 @@ export function BulkCreatePage({
       .then((value) => {
         if (live) {
           setPreview(value);
-          setSelected(defaultEligibleSelection(value));
+          const resumeIds = [...new Set((value.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => row.resumeId))];
+          setSelectedResumeIds(resumeIds);
+          setSelected(defaultEligibleSelection({ ...value, combinations: (value.combinations || []).filter((row) => resumeIds.includes(row.resumeId)) }));
         }
       })
       .catch((cause) => live && setError(cause.message))
@@ -326,12 +329,17 @@ export function BulkCreatePage({
       live = false;
     };
   }, [client, apiBaseUrl, ids.join("|")]);
-  const filtered = useMemo(
-      () => filterBulkCombinations(preview?.combinations, filters),
-      [preview, filters],
+  const scopedRows = useMemo(
+      () => (preview?.combinations || []).filter((row) => selectedResumeIds.includes(row.resumeId) && row.resumeType === "ORIGINAL"),
+      [preview, selectedResumeIds],
+    ),
+    scopedPreview = useMemo(() => preview ? { ...preview, combinations: scopedRows, duplicateCount: scopedRows.filter((row) => !row.eligible).length } : preview, [preview, scopedRows]),
+    filtered = useMemo(
+      () => filterBulkCombinations(scopedRows, filters),
+      [scopedRows, filters],
     ),
     visible = filtered.slice((page - 1) * pageSize, page * pageSize),
-    counts = bulkConfirmationCounts(preview, selected);
+    counts = bulkConfirmationCounts(scopedPreview, selected);
   useEffect(() => setPage(1), [filters]);
   if (result)
     return (
@@ -359,7 +367,7 @@ export function BulkCreatePage({
     );
   async function submit() {
     if (submitLock.current) return;
-    const payload = creationPayload(preview, selected);
+    const payload = creationPayload(scopedPreview, selected);
     if (!payload.length) {
       setError("Select at least one eligible combination.");
       return;
@@ -455,6 +463,25 @@ export function BulkCreatePage({
         preview && (
           <>
             <PreviewSummary preview={preview} />
+            <Card title="Select Resumes" style={{ marginTop: 16, marginBottom: 16 }}>
+              <Text type="secondary">Only active original Resumes are available. Choose the Resumes that should be paired with the selected Job Descriptions.</Text>
+              <Select
+                mode="multiple"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                value={selectedResumeIds}
+                style={{ width: "100%", marginTop: 12 }}
+                placeholder="Select one or more original Resumes"
+                options={[...new Map((preview.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => [row.resumeId, { value: row.resumeId, label: `${row.candidateName} - ${row.resumeName}${row.resumeNumber ? ` #${row.resumeNumber}` : ""}` }])).values()]}
+                onChange={(resumeIds) => {
+                  setSelectedResumeIds(resumeIds);
+                  const rows = (preview.combinations || []).filter((row) => resumeIds.includes(row.resumeId) && row.resumeType === "ORIGINAL");
+                  setSelected(defaultEligibleSelection({ ...preview, combinations: rows }));
+                }}
+              />
+              {!selectedResumeIds.length && <Alert type="warning" showIcon message="Select at least one original Resume to create Applications." style={{ marginTop: 12 }} />}
+            </Card>
             <TabbedSections
               items={[
                 {
@@ -495,7 +522,7 @@ export function BulkCreatePage({
                               onClick={() =>
                                 setSelected(
                                   selectEligible(
-                                    preview.combinations,
+                                    scopedRows,
                                     new Set(),
                                   ),
                                 )

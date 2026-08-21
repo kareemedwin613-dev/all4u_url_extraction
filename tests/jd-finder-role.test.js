@@ -12,12 +12,13 @@ test("JD Finder is a fixed assignable role across shared and Admin contracts",as
   assert.match(migration,/active,is_system\)[\s\S]*true,true\)/);
 });
 
-test("JD Finder can use only the capture and lookup API surface",async()=>{
-  const[ingestion,lookups,applications,resumes]=await Promise.all([
-    read("../apps/api/src/extension-ingestion/job-description.controller.ts"),read("../apps/api/src/lookups/lookup.controller.ts"),read("../apps/api/src/applications/application.controller.ts"),read("../apps/api/src/resumes/resume.controller.ts")
+test("JD Finder can capture and read owned JDs without broader operational access",async()=>{
+  const[ingestion,lookups,jobs,applications,resumes]=await Promise.all([
+    read("../apps/api/src/extension-ingestion/job-description.controller.ts"),read("../apps/api/src/lookups/lookup.controller.ts"),read("../apps/api/src/job-descriptions/job-description-read.controller.ts"),read("../apps/api/src/applications/application.controller.ts"),read("../apps/api/src/resumes/resume.controller.ts")
   ]);
   assert.match(ingestion,/RequireRoles\("APPLYING_MANAGER", "JD_FINDER", "ADMIN"\)/);
   assert.match(lookups,/"JD_FINDER"/);
+  assert.match(jobs,/"JD_FINDER"/);
   assert.doesNotMatch(applications,/JD_FINDER/);
   assert.doesNotMatch(resumes,/JD_FINDER/);
 });

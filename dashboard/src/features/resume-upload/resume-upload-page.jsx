@@ -73,6 +73,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
     [progress, setProgress] = useState(""),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
+    [activeTab, setActiveTab] = useState("identity"),
     [details, setDetails] = useState();
   const subcategories = useMemo(
       () => categories.childrenByParent.get(draft.primaryCategoryId) || [],
@@ -183,6 +184,29 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
     setMessage("");
     const check = validateResumeUpload(draft, file);
     if (!check.valid) {
+      const identityFields = [
+        "candidateName",
+        "candidateFirstName",
+        "candidateLastName",
+        "candidateEmail",
+        "candidatePhone",
+        "resumeName",
+        "primaryCategoryId",
+        "subcategoryId",
+        "seniority",
+        "linkedInUrl",
+        "githubUrl",
+        "portfolioUrl",
+        "reviewConfirmed",
+        "file",
+        "checksum",
+      ];
+      const nextTab = Object.keys(check.errors).some((key) => identityFields.includes(key))
+        ? "identity"
+        : Object.keys(check.errors).some((key) => key === "structuredContent")
+          ? "structured"
+          : "identity";
+      setActiveTab(nextTab);
       setError(Object.values(check.errors).join(" "));
       return;
     }
@@ -244,17 +268,15 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
       <Button type="link" className="back-link" href="#/resumes">
         ← Back to Resumes
       </Button>
-      <div className="page-heading">
-        <Title level={1} tabIndex={-1}>
-          Upload Resume
-        </Title>
-        <Text>
-          Admin-only upload. Select a text-based PDF; extraction happens locally
-          in the browser and can be reviewed before anything is saved. No AI
-          service is used.
-        </Text>
-      </div>
-      {error && <Alert type="error" showIcon message={error} />}
+      <Title level={1} tabIndex={-1}>
+        Upload Resume
+      </Title>
+      <Text>
+        Admin-only upload. Select a text-based PDF; extraction happens locally
+        in the browser and can be reviewed before anything is saved. No AI
+        service is used.
+      </Text>
+      {!draft.resumeText && error && <Alert type="error" showIcon message={error} />}
       {message && <Alert type="success" showIcon message={message} />}
       <form className="resume-upload-form" noValidate onSubmit={submit}>
         <Card title="PDF Resume">
@@ -287,13 +309,18 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         </Card>
         {draft.resumeText && (
           <TabbedSections
+            activeKey={activeTab}
+            onChange={setActiveTab}
             extra={
-              <Space wrap align="center" className="detail-action-group">
-                <Checkbox checked={draft.reviewConfirmed} onChange={(event)=>setField("reviewConfirmed",event.target.checked)}>Reviewed and accurate</Checkbox>
-                <Button type="primary" htmlType="submit" loading={busy}>
-                  Save Resume
-                </Button>
-                <Button href="#/resumes">Cancel</Button>
+              <Space direction="vertical" size="small" style={{ alignItems: "flex-end" }}>
+                {error && <Alert type="error" showIcon message={error} style={{ maxWidth: 420 }} />}
+                <Space wrap>
+                  <Checkbox checked={draft.reviewConfirmed} onChange={(event)=>setField("reviewConfirmed",event.target.checked)}>Reviewed and accurate</Checkbox>
+                  <Button type="primary" htmlType="submit" loading={busy}>
+                    Save Resume
+                  </Button>
+                  <Button href="#/resumes">Cancel</Button>
+                </Space>
               </Space>
             }
             items={[

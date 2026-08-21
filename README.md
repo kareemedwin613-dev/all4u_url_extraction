@@ -8,7 +8,9 @@ All business-data operations now use the NestJS API: access context, profiles, A
 
 Resume tailoring now continues from a human-approved, Application-scoped structured preview to a private DOCX or PDF artifact. Applying Managers and Admins can edit only the summary, source-linked experience details, and source Resume skills, approve the content, select one fixed versioned layout and output format, and create one numbered `TAILORED` child. PostgreSQL atomically records the artifact and switches only that Application to the child; the original Resume and its metadata remain unchanged and stay primary in the Resume dashboard. Appliers see the attached Resume number/type and download that exact original or tailored file from the extension through a short-lived NestJS URL. See [Resume variants](docs/tailoring/v1.1-resume-variants.md), the [local worker](apps/tailoring-worker/README.md), the [v1.3 preview lifecycle](docs/tailoring/v1.3-preview-lifecycle.md), [v1.4 review and approval](docs/tailoring/v1.4-review-approval.md), the [v1.5 runner](docs/tailoring/v1.5-one-command-runner.md), [v1.6 materialization](docs/tailoring/v1.6-tailored-resume-materialization.md), [v1.7 extension delivery](docs/tailoring/v1.7-extension-resume-download.md), [v1.8 templates](docs/tailoring/v1.8-versioned-docx-templates.md), and [v1.9 PDF materialization](docs/tailoring/v1.9-pdf-materialization.md).
 
-The fixed `JD_FINDER` role provides least-privilege Chrome-extension capture access. An active JD Finder can load controlled category/industry lookups and save JDs attributed to their own authenticated user, including duplicate confirmation, but cannot read shared operational data, edit/delete saved JDs, or access Applications, Resumes, tailoring, or administration.
+The fixed `JD_FINDER` role provides least-privilege capture access. An active JD Finder can load controlled category/industry lookups, save JDs attributed to their own authenticated user, and view the review state and comments on their own captures, but cannot read other users' operational data, review JDs, or access Applications, Resumes, tailoring, or administration.
+
+New JD Finder captures enter the four-state review workflow as `NEEDS_REVIEW`. Applying Managers and Admins use the extension's compact **Review JDs** queue to filter by time, finder, or status, open the posting in the main tab, and choose `APPROVED`, `NEEDS_CORRECTION`, or `DECLINED` with an optional comment. Declines require a controlled reason. Every decision is audited, and only active `APPROVED` JDs are eligible for individual or bulk Application creation.
 
 During migration, JD ingestion can optionally mirror each Supabase-authoritative record to Google Sheets. The NestJS API uses a signed Apps Script delivery, durable retry state, and explicit extension feedback; Google failure never rolls back the Supabase record. See [Google Workspace mirror setup](google-workspace/README.md).
 
@@ -35,7 +37,7 @@ The role-aware sidebar follows Ant Design's collapsible-overlay pattern: a 64-pi
 
 ## Supabase
 
-Apply all migrations in filename order. The latest migration is `supabase/migrations/202608030047_v1_9_tailored_resume_pdf.sql`.
+Apply all migrations in filename order. The latest migration is `supabase/migrations/202608130056_v2_8_reset_existing_jds_for_review.sql`. It performs a one-time reset of every existing JD to `NEEDS_REVIEW`; only a later explicit manager/admin approval makes an active JD eligible for Application creation.
 
 For a linked project, inspect before explicitly deploying:
 

@@ -31,6 +31,19 @@ test("bulk service deduplicates pairs and hashes normalized payload for one idem
   assert.equal(call.name,"create_applications_bulk_api");assert.equal(call.args.p_combinations.length,1);assert.match(call.args.p_request_hash,/^[0-9a-f]{64}$/);assert.equal(result.createdCount,1);
 });
 
+test("bulk preview exposes only ORIGINAL Resume combinations",async()=>{
+  const repository={rpc:async()=>({selectedJdCount:1,invalidJds:[],combinations:[
+    {key:`${jd}:${resume}`,resumeId:resume,resumeType:"ORIGINAL",eligible:true},
+    {key:`${jd}:tailored`,resumeId:"tailored",resumeType:"TAILORED",eligible:true},
+  ]})};
+  const service=new ApplicationBatchesService(repository as any,{log:()=>{}} as any);
+  const result=await service.preview(user as any,{jobDescriptionIds:[jd]},"req_preview");
+  assert.equal(result.combinations.length,1);
+  assert.equal(result.combinations[0].resumeType,"ORIGINAL");
+  assert.equal(result.activeResumeCount,1);
+  assert.equal(result.proposedCount,1);
+});
+
 test("opaque cursor validation rejects tampering before a database call",async()=>{
   const service=new ApplicationBatchesService({rpc:async()=>{throw new Error("should not run");}} as any,{log:()=>{}} as any);
   await assert.rejects(()=>service.list(user as any,{cursor:"not-a-cursor",limit:25,page:1}),(error:any)=>error.code==="VALIDATION_ERROR");
