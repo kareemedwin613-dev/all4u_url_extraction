@@ -73,6 +73,7 @@ import {
   formatMime,
   cleanTags,
 } from "./shared/formatters.js";
+import { isEmailLike, personDisplayName } from "./shared/person-name.js";
 import {
   parseJobQuery,
   parseResumeQuery,
@@ -146,26 +147,6 @@ const Tags = ({ values, empty }) => (
   <TagList values={cleanTags(values)} empty={empty} />
 );
 const Meta = Metadata;
-const emailLocalPart = (email) => {
-  const value = String(email || "").trim();
-  if (!value.includes("@")) return value;
-  return value.slice(0, value.indexOf("@")) || value;
-};
-const isEmailLike = (value, email) => {
-  const text = String(value || "").trim().toLowerCase();
-  const mail = String(email || "").trim().toLowerCase();
-  return Boolean(text) && (text === mail || text.includes("@"));
-};
-/** Prefer a real person name; avoid showing a raw email as the primary label. */
-const personDisplayName = ({ fullName, displayName, email, userId } = {}) => {
-  const mail = String(email || "").trim();
-  for (const candidate of [fullName, displayName]) {
-    const name = String(candidate || "").trim();
-    if (name && !isEmailLike(name, mail)) return name;
-  }
-  if (mail) return emailLocalPart(mail);
-  return userId || "Unknown user";
-};
 const personInitials = (name) => {
   const parts = String(name || "")
     .trim()

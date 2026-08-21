@@ -34,7 +34,8 @@
     "mammoth": "^1.9.1",
     "pdfjs-dist": "^5.3.31",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.2.0",
