@@ -36,8 +36,8 @@ import {
   ProfileOutlined,
   PushpinFilled,
   PushpinOutlined,
-  ReloadOutlined,
   SafetyCertificateOutlined,
+  SearchOutlined,
   SettingOutlined,
   UploadOutlined,
   UserOutlined,
@@ -202,7 +202,7 @@ const NAV_ICONS = Object.freeze({
     "admin-user-detail": "admin-users",
   });
 
-function Shell({ route, title, access, refresh, logout, headerExtra, children }) {
+function Shell({ route, title, access, logout, headerExtra, children }) {
   const [collapsed, setCollapsed] = useState(() => {
       try {
         return localStorage.getItem("dashboard-sider") !== "expanded";
@@ -362,11 +362,6 @@ function Shell({ route, title, access, refresh, logout, headerExtra, children })
           </Flex>
           <Space wrap className="dashboard-header-actions">
             {headerExtra}
-            {refresh && (
-              <Button icon={<ReloadOutlined />} onClick={refresh}>
-                Refresh
-              </Button>
-            )}
             <Space orientation="vertical" size={0} className="user-identity">
               <Text strong>{profileName || access?.email}</Text>
               {profileName && (
@@ -600,13 +595,15 @@ function FilterForm({ kind, value, categories, capturers = [], capturersLoading 
               />
             </Form.Item>
           </Col>
-          <Col {...field} className="filter-actions">
-            <Space>
-              <Button type="primary" htmlType="submit">
-                Apply
-              </Button>
-              <Button onClick={onClear}>Clear filters</Button>
-            </Space>
+          <Col {...field}>
+            <Form.Item label=" " colon={false} className="filter-actions">
+              <Space>
+                <Button type="primary" htmlType="submit">
+                  Apply
+                </Button>
+                <Button onClick={onClear}>Clear filters</Button>
+              </Space>
+            </Form.Item>
           </Col>
         </Row>
       </Form>
@@ -918,6 +915,57 @@ function Jobs({
   );
 }
 
+function resumeSearchFilterDropdown(placeholder) {
+  return ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+    <div style={{ padding: 8 }} onKeyDown={(event) => event.stopPropagation()}>
+      <Input
+        allowClear
+        placeholder={placeholder}
+        value={selectedKeys[0]}
+        onChange={(event) =>
+          setSelectedKeys(event.target.value ? [event.target.value] : [])
+        }
+        onPressEnter={() => confirm()}
+        style={{ marginBottom: 8, display: "block" }}
+      />
+      <Space>
+        <Button
+          type="primary"
+          size="small"
+          icon={<SearchOutlined />}
+          onClick={() => confirm()}
+        >
+          Search
+        </Button>
+        <Button
+          size="small"
+          onClick={() => {
+            clearFilters?.();
+            confirm();
+          }}
+        >
+          Reset
+        </Button>
+      </Space>
+    </div>
+  );
+}
+
+function pickResumeSearch(tableFilters, currentSearch) {
+  const current = currentSearch || "";
+  const candidate = tableFilters.candidate_name;
+  const resume = tableFilters.resume_name;
+  const candidateValue =
+    candidate == null ? undefined : String(candidate[0] || "");
+  const resumeValue = resume == null ? undefined : String(resume[0] || "");
+  if (candidateValue !== undefined && candidateValue !== current)
+    return candidateValue;
+  if (resumeValue !== undefined && resumeValue !== current) return resumeValue;
+  if (candidateValue !== undefined) return candidateValue;
+  if (resumeValue !== undefined) return resumeValue;
+  return current;
+}
+
 function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
   const filters = parseResumeQuery(query),
     [data, setData] = useState(null),
@@ -937,6 +985,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
       const value = serializeQuery({ ...filters, ...patch });
       go(`#/resumes${value ? `?${value}` : ""}`);
     },
+    searchFiltered = filters.search ? [filters.search] : null,
     columns = useMemo(
       () =>
         serverSortColumns(
@@ -951,12 +1000,36 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               title: "Candidate",
               dataIndex: "candidate_name",
               sortKey: "candidate",
+              filteredValue: searchFiltered,
+              filterDropdown: resumeSearchFilterDropdown(
+                "Search candidate or resume name",
+              ),
+              filterIcon: (filtered) => (
+                <SearchOutlined style={{ color: filtered ? "#1677ff" : undefined }} />
+              ),
             },
-            { title: "Resume", dataIndex: "resume_name", sortKey: "name" },
+            {
+              title: "Resume",
+              dataIndex: "resume_name",
+              sortKey: "name",
+              filteredValue: searchFiltered,
+              filterDropdown: resumeSearchFilterDropdown(
+                "Search candidate or resume name",
+              ),
+              filterIcon: (filtered) => (
+                <SearchOutlined style={{ color: filtered ? "#1677ff" : undefined }} />
+              ),
+            },
             {
               title: "Primary category",
               dataIndex: "primary_category_id",
               sortKey: "category",
+              filters: categories.primary.map((item) => ({
+                text: item.name,
+                value: item.id,
+              })),
+              filterMultiple: false,
+              filteredValue: filters.categoryId ? [filters.categoryId] : null,
               render: (value) => categoryName(categories, value),
             },
             {
@@ -970,18 +1043,24 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               title: "Seniority",
               dataIndex: "seniority",
               sortKey: "seniority",
+              filters: SENIORITIES.map((item) => ({
+                text: formatLabel(item),
+                value: item,
+              })),
+              filterMultiple: false,
+              filteredValue: filters.seniority ? [filters.seniority] : null,
               render: formatLabel,
-            },
-            {
-              title: "Status",
-              dataIndex: "status",
-              sortKey: "status",
-              render: (value) => <Badge value={value} />,
             },
             {
               title: "File type",
               dataIndex: "mime_type",
               sortKey: "mime",
+              filters: MIME_TYPES.map((item) => ({
+                text: formatMime(item),
+                value: item,
+              })),
+              filterMultiple: false,
+              filteredValue: filters.mimeType ? [filters.mimeType] : null,
               render: formatMime,
             },
             {
@@ -990,14 +1069,29 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               sortKey: "updated",
               render: formatDate,
             },
-          {
-            title: "",
-            key: "action",
-            render: (_, resume) => (
+            {
+              title: "Status",
+              dataIndex: "status",
+              sortKey: "status",
+              filters: [
+                { text: "Active resumes", value: "ACTIVE" },
+                { text: "Archived resumes (history)", value: "ARCHIVED" },
+                { text: "All resumes", value: "ALL" },
+              ],
+              filterMultiple: false,
+              filteredValue: [filters.status || "ACTIVE"],
+              render: (value) => <Badge value={value} />,
+            },
+            {
+              title: "",
+              key: "action",
+              render: (_, resume) => (
                 <Space>
                   <a href={`#/resumes/${resume.id}`}>View</a>
                   {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
-                    <Text type="secondary">{resume.status === "ARCHIVED" ? "History" : "Current"}</Text>
+                    <Text type="secondary">
+                      {resume.status === "ARCHIVED" ? "History" : "Current"}
+                    </Text>
                   )}
                 </Space>
               ),
@@ -1005,30 +1099,27 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
           ],
           filters.sort,
         ),
-      [access, categories, filters.sort],
+      [
+        access,
+        categories,
+        filters.categoryId,
+        filters.mimeType,
+        filters.search,
+        filters.seniority,
+        filters.sort,
+        filters.status,
+        searchFiltered,
+      ],
     );
   return (
     <div className="page">
       <Title level={1} tabIndex={-1}>
         Resumes
       </Title>
-      <FilterForm
-        kind="resumes"
-        value={filters}
-        categories={categories}
-        onApply={update}
-        onClear={() => go("#/resumes")}
-      />
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
         <Loading text="Loading resumes…" />
-      ) : !data.items.length ? (
-        <Empty
-          title="No resumes"
-          text={filters.status === "ARCHIVED" ? "No archived Resume history matches the current filters." : "No active Resumes match the current filters."}
-          onClear={() => go("#/resumes")}
-        />
       ) : (
         <Card>
           <AntTable
@@ -1036,15 +1127,51 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
-            onChange={(_pagination, _tableFilters, sorter) =>
+            scroll={{ x: "max-content", y: "calc(100vh - 400px)" }}
+            locale={{
+              emptyText: (
+                <Space direction="vertical" size="small" style={{ padding: 24 }}>
+                  <Text strong>No resumes</Text>
+                  <Text type="secondary">
+                    {filters.status === "ARCHIVED"
+                      ? "No archived Resume history matches the current filters."
+                      : "No active Resumes match the current filters."}
+                  </Text>
+                  <Button onClick={() => go("#/resumes")}>Clear filters</Button>
+                </Space>
+              ),
+            }}
+            onChange={(_pagination, tableFilters, sorter) => {
+              let search = filters.search;
+              try {
+                search = normalizeSearch(
+                  pickResumeSearch(tableFilters, filters.search),
+                );
+              } catch {
+                search = filters.search;
+              }
               update({
+                search,
+                categoryId: tableFilters.primary_category_id?.[0] || "",
+                seniority: tableFilters.seniority?.[0] || "",
+                mimeType: tableFilters.mime_type?.[0] || "",
+                status: tableFilters.status?.[0] || "ACTIVE",
                 sort: serverSortFromTable(sorter, "updated_desc"),
                 page: 1,
-              })
-            }
+              });
+            }}
           />
-          <Pagination data={data} onPage={(page) => update({ page })} />
+          <Pagination
+            data={data}
+            pageSizeOptions={PAGE_SIZES}
+            onPage={(page, pageSize) => {
+              const nextSize = pageSize || filters.pageSize;
+              update({
+                page: nextSize !== filters.pageSize ? 1 : page,
+                pageSize: nextSize,
+              });
+            }}
+          />
         </Card>
       )}
     </div>
@@ -1225,7 +1352,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       <TabbedSections
         items={tabs}
         extra={
-          <Space wrap>
+          <Space wrap align="center" className="detail-action-group">
             {source ? <Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button> : null}
             {finderCanEdit && <Button type="primary" onClick={openEdit}>Edit my JD</Button>}
             {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
@@ -1397,7 +1524,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       <TabbedSections
         items={tabs}
         extra={
-          <Space wrap>
+          <Space wrap align="center" className="detail-action-group">
             <Button type="primary" onClick={open}>Open Original Resume</Button>
             {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.status==="ACTIVE"&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}
             {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.resume_type==="ORIGINAL"&&(
@@ -1447,7 +1574,7 @@ export function App({ client, apiBaseUrl }) {
     [roles, setRoles] = useState([]),
     [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
     [overviewPeriod, setOverviewPeriod] = useState(DEFAULT_OVERVIEW_WINDOW),
-    [reload, setReload] = useState(0),
+    [reload] = useState(0),
     sessionRef = useRef(undefined),
     jobsBack = useRef("#/jobs"),
     resumesBack = useRef("#/resumes"),
@@ -1789,7 +1916,6 @@ export function App({ client, apiBaseUrl }) {
       route={route}
       title={formatLabel(route.name)}
       access={access}
-      refresh={() => setReload((value) => value + 1)}
       logout={logout}
       headerExtra={route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} /> : null}
     >

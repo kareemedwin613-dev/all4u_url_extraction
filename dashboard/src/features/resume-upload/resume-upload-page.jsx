@@ -25,6 +25,7 @@ import {
 } from "./resume-upload-service.js";
 import { ExperienceEditor } from "./experience-editor.jsx";
 import { CertificationEditor, EducationEditor } from "./education-editor.jsx";
+import { resolveSubcategoryId } from "./resume-structure.js";
 import { TabbedSections } from "../../components/ui.jsx";
 
 const { Text, Title } = Typography,
@@ -124,8 +125,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         portfolioUrl: "",
         resumeName: parsed.resumeName,
         primaryCategoryId: primary?.id || "",
-        subcategoryId:
-          subcategory?.parent_id === primary?.id ? subcategory.id : "",
+        subcategoryId: resolveSubcategoryId(primary, subcategory),
         seniority: parsed.seniority,
         skills: parsed.skills.join(", "),
         industries: parsed.industries.join(", "),
@@ -264,8 +264,8 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         ". Select the correct category before saving."
       : "";
   return (
-    <div className="page narrow-page">
-      <Button type="link" href="#/resumes">
+    <div className="page narrow-page resume-upload-page">
+      <Button type="link" className="back-link" href="#/resumes">
         ← Back to Resumes
       </Button>
       <Title level={1} tabIndex={-1}>
@@ -301,7 +301,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
             <p className="ant-upload-hint">Text-based PDF, maximum 5 MiB</p>
           </Dragger>
           {fileDetails && (
-            <p>
+            <p className="upload-file-meta">
               <Text type="secondary">{fileDetails}</Text>
             </p>
           )}
@@ -328,8 +328,12 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                 key: "identity",
                 label: "Personal & classification",
                 children: (
-                  <Card title="Review extracted Resume information">
-                    <Row gutter={[16, 12]}>
+                  <Card
+                    className="resume-upload-section"
+                    bordered={false}
+                    title="Review extracted Resume information"
+                  >
+                    <Row gutter={[16, 16]}>
                       <Col xs={24} md={12}>
                         <label>
                           Candidate name
@@ -486,7 +490,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                 key: "structured",
                 label: "Structured Resume",
                 children: (
-                  <Card title="Structured Resume">
+                  <Card className="resume-upload-section" bordered={false} title="Structured Resume">
                     <Text type="secondary">
                       Correct the extraction and add anything missing before
                       saving.
@@ -540,7 +544,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                 key: "original",
                 label: "Original text",
                 children: (
-                  <Card>
+                  <Card className="resume-upload-section" bordered={false}>
                     <Collapse
                       ghost
                       items={[
