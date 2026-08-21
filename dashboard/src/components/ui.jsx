@@ -177,7 +177,11 @@ export function LegacyTable({ headers, children }) {
     />
   );
 }
-export const DataPagination = ({ data, onPage }) => (
+export const DataPagination = ({
+  data,
+  onPage,
+  pageSizeOptions,
+}) => (
   <Flex className="ui-pagination" justify="space-between" align="center" wrap>
     <Text>
       Showing {data.from}–{data.to} of {data.total}
@@ -186,8 +190,9 @@ export const DataPagination = ({ data, onPage }) => (
       current={data.page}
       pageSize={data.pageSize || Math.max(1, data.to - data.from + 1)}
       total={data.total}
-      showSizeChanger={false}
-      onChange={onPage}
+      showSizeChanger={Boolean(pageSizeOptions?.length)}
+      pageSizeOptions={(pageSizeOptions || []).map(String)}
+      onChange={(page, pageSize) => onPage(page, pageSize)}
     />
   </Flex>
 );

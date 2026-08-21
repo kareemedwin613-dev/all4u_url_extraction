@@ -275,13 +275,15 @@ function ApplicationFilters({
               />
             </Form.Item>
           </Col>
-          <Col {...field} className="filter-actions">
-            <Space>
-              <Button type="primary" htmlType="submit">
-                Apply
-              </Button>
-              <Button onClick={onClear}>Clear</Button>
-            </Space>
+          <Col {...field}>
+            <Form.Item label=" " colon={false} className="filter-actions">
+              <Space>
+                <Button type="primary" htmlType="submit">
+                  Apply
+                </Button>
+                <Button onClick={onClear}>Clear</Button>
+              </Space>
+            </Form.Item>
           </Col>
         </Row>
       </Form>
