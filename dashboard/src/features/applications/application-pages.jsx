@@ -113,7 +113,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
         ];
   return (
     <section>
-      <Title level={2}>Application workflow</Title>
+      <Title level={2}>Application Workflow</Title>
       <Row gutter={[16, 16]} className="summary-grid application-counts">
         {cards.map(([label, value]) => (
           <Col xs={24} sm={12} lg={8} xl={6} key={label}>
@@ -186,7 +186,7 @@ function ApplicationFilters({
             <Form.Item label="Status" name="status">
               <Select
                 options={[
-                  { value: "", label: "All statuses" },
+                  { value: "", label: "All Statuses" },
                   ...APPLICATION_STATUSES.map((value) => ({
                     value,
                     label: formatLabel(value),

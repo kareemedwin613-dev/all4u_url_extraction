@@ -5,8 +5,8 @@ import { getJobReview, listJobReviews, updateOwnJob } from "../../services/job-r
 
 const { Text, Title } = Typography;
 const REVIEW_OPTIONS=[
-  {value:"ALL",label:"All statuses"},{value:"NEEDS_REVIEW",label:"Needs review"},
-  {value:"NEEDS_CORRECTION",label:"Needs correction"},{value:"APPROVED",label:"Approved"},{value:"DECLINED",label:"Declined"},
+  {value:"ALL",label:"All Statuses"},{value:"NEEDS_REVIEW",label:"Needs Review"},
+  {value:"NEEDS_CORRECTION",label:"Needs Correction"},{value:"APPROVED",label:"Approved"},{value:"DECLINED",label:"Declined"},
 ];
 const SENIORITIES=["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL","MANAGER","DIRECTOR","EXECUTIVE","UNSPECIFIED"];
 const label=value=>String(value||"Not specified").toLowerCase().split("_").map(item=>item.charAt(0).toUpperCase()+item.slice(1)).join(" ");

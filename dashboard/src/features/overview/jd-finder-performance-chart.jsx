@@ -2,7 +2,7 @@ import React,{useMemo,useState}from"react";
 import{Card,Empty,Flex,Input,Tag,Typography}from"antd";
 import{SearchOutlined}from"@ant-design/icons";
 const{Text}=Typography;
-const METRICS=[{key:"captured",label:"Captured",color:"#8c8c8c"},{key:"approved",label:"Approved",color:"#52c41a"},{key:"needsReview",label:"Needs review",color:"#faad14"},{key:"needsCorrection",label:"Correction",color:"#fa8c16"},{key:"declined",label:"Declined",color:"#ff4d4f"}];
+const METRICS=[{key:"captured",label:"Captured",color:"#8c8c8c"},{key:"approved",label:"Approved",color:"#52c41a"},{key:"needsReview",label:"Needs Review",color:"#faad14"},{key:"needsCorrection",label:"Correction",color:"#fa8c16"},{key:"declined",label:"Declined",color:"#ff4d4f"}];
 const count=value=>Math.max(0,Number(value)||0);
 export function normalizeJdFinderPerformance(rows=[]){return(Array.isArray(rows)?rows:[]).map(row=>({id:String(row.id||""),name:String(row.finder_name||row.email||"Unknown JD Finder"),email:String(row.email||""),captured:count(row.captured_count),approved:count(row.approved_count),needsReview:count(row.needs_review_count),needsCorrection:count(row.needs_correction_count),declined:count(row.declined_count),approvalRate:Math.max(0,Math.min(100,Number(row.approval_rate)||0))}));}
 export function JdFinderPerformanceChart({rows=[],dateLabel="Today"}){

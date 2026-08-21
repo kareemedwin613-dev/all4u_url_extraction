@@ -737,7 +737,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
             }}
             style={{ width: 240 }}
             options={[
-              { value: "", label: "All statuses" },
+              { value: "", label: "All Statuses" },
               ...[
                 "PROCESSING",
                 "COMPLETED",

@@ -14,9 +14,9 @@ test("manager Overview presents matching Applier and JD Finder performance panel
   assert.match(app, /<Col xs=\{24\} xl=\{12\}><ApplierPerformanceChart/);
   assert.match(app, /<Col xs=\{24\} xl=\{12\}><JdFinderPerformanceChart/);
   assert.match(app, /dateLabel=\{dateLabel\}/);
-  assert.match(applier, /role="img" aria-label="Applier performance graph"/);
+  assert.match(applier, /role="img" aria-label="Applier Performance graph"/);
   assert.match(finder, /role="img" aria-label="JD Finder performance graph"/);
-  assert.match(applier, /aria-label="Search Applier performance by name or email"/);
+  assert.match(applier, /aria-label="Search Applier Performance by name or email"/);
   assert.match(finder, /aria-label="Search JD Finder performance by name or email"/);
   assert.match(applier, /item\.name} \$\{item\.email/);
   assert.match(finder, /item\.name} \$\{item\.email/);
@@ -25,7 +25,7 @@ test("manager Overview presents matching Applier and JD Finder performance panel
   for (const label of ["Assigned", "Active", "Completed", "Applied", "completionRate"]) {
     assert.match(applier, new RegExp(label));
   }
-  for (const label of ["Captured", "Approved", "Needs review", "Correction", "Declined", "approvalRate"]) {
+  for (const label of ["Captured", "Approved", "Needs Review", "Correction", "Declined", "approvalRate"]) {
     assert.match(finder, new RegExp(label));
   }
   assert.doesNotMatch(applier, /Segmented|Last 3 Days/);

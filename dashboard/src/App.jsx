@@ -572,7 +572,7 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
   return (
     <div className="page">
       <Title level={2}>
-        Business records
+        Business Records
       </Title>
       <Row gutter={[16, 16]} className="summary-grid">
         {[
@@ -849,10 +849,10 @@ function Jobs({
               sortKey: "review",
               width: 140,
               filters: [
-                { text: "All review statuses", value: "ALL" },
-                { text: "Needs review", value: "NEEDS_REVIEW" },
+                { text: "All Review Statuses", value: "ALL" },
+                { text: "Needs Review", value: "NEEDS_REVIEW" },
                 { text: "Approved", value: "APPROVED" },
-                { text: "Needs correction", value: "NEEDS_CORRECTION" },
+                { text: "Needs Correction", value: "NEEDS_CORRECTION" },
                 { text: "Declined", value: "DECLINED" },
               ],
               filterMultiple: false,
@@ -1389,7 +1389,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       const next = await setJobStatus(client, apiBaseUrl, job.id, status, status === "ARCHIVED" ? "NOT_APPLICABLE" : undefined);
       setJob((current) => ({ ...current, ...next }));
       setStatusMessageType("success");
-      setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application workflows.");
+      setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application Workflows.");
     } catch (value) {
       setStatusMessageType("error");
       setStatusMessage(value.message);
@@ -1510,7 +1510,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
                     setReviewDialog("CORRECTION");
                   }}
                 >
-                  Needs correction
+                  Needs Correction
                 </Button>
                 <Button
                   danger

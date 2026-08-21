@@ -1,4 +1,4 @@
--- v0.6: individual application workflow. No data is deleted or backfilled.
+-- v0.6: individual application Workflow. No data is deleted or backfilled.
 
 create table public.applications (
   id uuid primary key default gen_random_uuid(),
