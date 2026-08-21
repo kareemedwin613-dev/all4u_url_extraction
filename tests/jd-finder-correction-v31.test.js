@@ -34,3 +34,11 @@ test("JD Finder correction is exposed through the authenticated backend and edit
   assert.match(dashboard, /NEEDS_REVIEW[\s\S]*NEEDS_CORRECTION/);
   assert.match(dashboard, /updateOwnJob/);
 });
+
+test("dashboard job detail exposes manager review decisions", () => {
+  assert.match(dashboard, /reviewJob/);
+  assert.match(dashboard, /submitReview\("APPROVED"\)/);
+  assert.match(dashboard, /Needs correction/);
+  assert.match(dashboard, /Decline review/);
+  assert.match(controller, /@Patch\(":id\/review"\)/);
+});
