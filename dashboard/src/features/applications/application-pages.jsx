@@ -25,6 +25,7 @@ import { safeExternalUrl } from "../../shared/url.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";
 import {
   ErrorState,
+  EllipsisCell,
   FilterPanel,
   LoadingState,
   StatusTag,
@@ -358,6 +359,7 @@ export function ApplicationsPage({
   const actionColumn = {
     title: "Actions",
     key: "action",
+    width: 80,
     fixed: "right",
     render: (_, record) => <Button type="link" href={`#/applications/${record.id}`}>View</Button>,
   };
@@ -365,55 +367,78 @@ export function ApplicationsPage({
     title: "Application #",
     dataIndex: "application_number",
     sortKey: "number",
+    width: 120,
     render: (value) => <Text code>{value ?? "—"}</Text>,
+  };
+  const companyColumn = {
+    title: "Company",
+    dataIndex: "company",
+    sortKey: "company",
+    width: 160,
+    ellipsis: { showTitle: false },
+    render: (value) => <EllipsisCell>{value}</EllipsisCell>,
+  };
+  const jobTitleColumn = {
+    title: "Job title",
+    dataIndex: "job_title",
+    sortKey: "title",
+    width: 200,
+    ellipsis: { showTitle: false },
+    render: (value) => <EllipsisCell>{value}</EllipsisCell>,
+  };
+  const resumeColumn = {
+    title: "Resume",
+    dataIndex: "resume_name",
+    sortKey: "resume",
+    width: 200,
+    ellipsis: { showTitle: false },
+    render: (value, record) => (
+      <EllipsisCell>
+        {`${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`}
+      </EllipsisCell>
+    ),
   };
   const managerColumns = [
     numberColumn,
-    { title: "Company", dataIndex: "company", sortKey: "company" },
-    { title: "Job title", dataIndex: "job_title", sortKey: "title" },
-    {
-      title: "Resume",
-      dataIndex: "resume_name",
-      sortKey: "resume",
-      render: (value, record) => (
-        <div>
-          <Text strong>{value || "Unnamed Resume"}</Text>
-          {record.candidate_name && (
-            <div>
-              <Text type="secondary">{record.candidate_name}</Text>
-            </div>
-          )}
-        </div>
-      ),
-    },
+    companyColumn,
+    jobTitleColumn,
+    resumeColumn,
     {
       title: "Applier profile",
       dataIndex: "assignee_name",
       sortKey: "assignee",
-      render: (value, record) => value || record.assignee_email || "Unassigned",
+      width: 140,
+      ellipsis: { showTitle: false },
+      render: (value, record) => (
+        <EllipsisCell>{value || record.assignee_email || "Unassigned"}</EllipsisCell>
+      ),
     },
     {
       title: "Status",
       dataIndex: "status",
       sortKey: "status",
+      width: 120,
       render: (value) => <StatusTag value={value} />,
     },
     {
       title: "Priority",
       dataIndex: "priority",
       sortKey: "priority",
+      width: 100,
       render: (value) => <StatusTag value={value} />,
     },
-    { title: "Due", dataIndex: "due_at", sortKey: "due", render: formatDate },
+    { title: "Due", dataIndex: "due_at", sortKey: "due", width: 150, render: formatDate },
     {
       title: "Creation",
       dataIndex: "creation_batch_id",
       sortKey: "batch",
+      width: 140,
+      ellipsis: { showTitle: false },
       render: (value, record) =>
         value ? (
-          <a href={`#/application-batches/${value}`}>
+          <EllipsisCell href={`#/application-batches/${value}`}>
             {record.creation_batch_name || `Batch ${String(value).slice(0, 8)}`}
-          </a>
+          </EllipsisCell>
         ) : (
           "Individual"
         ),
@@ -422,39 +447,28 @@ export function ApplicationsPage({
       title: "Captured at",
       dataIndex: "captured_at",
       sortKey: "captured",
+      width: 150,
       render: formatDate,
     },
     {
       title: "Last updated",
       dataIndex: "updated_at",
       sortKey: "updated",
+      width: 150,
       render: formatDate,
     },
     actionColumn,
   ];
   const applierColumns = [
     numberColumn,
-    { title: "Company", dataIndex: "company", sortKey: "company" },
-    { title: "Job title", dataIndex: "job_title", sortKey: "title" },
-    {
-      title: "Resume",
-      dataIndex: "resume_name",
-      sortKey: "resume",
-      render: (value, record) => (
-        <div>
-          <Text strong>{value || "Unnamed Resume"}</Text>
-          {record.candidate_name && (
-            <div>
-              <Text type="secondary">{record.candidate_name}</Text>
-            </div>
-          )}
-        </div>
-      ),
-    },
+    companyColumn,
+    jobTitleColumn,
+    resumeColumn,
     {
       title: "Link",
       key: "links",
       sortKey: "link",
+      width: 120,
       render: (_, record) => {
         const jobUrl = safeExternalUrl(record.source_url),
           applicationUrl = safeExternalUrl(record.application_url);
@@ -484,29 +498,35 @@ export function ApplicationsPage({
       title: "Status",
       dataIndex: "status",
       sortKey: "status",
+      width: 120,
       render: (value) => <StatusTag value={value} />,
     },
     {
       title: "Captured at",
       dataIndex: "captured_at",
       sortKey: "captured",
+      width: 150,
       render: formatDate,
     },
     {
       title: "Last updated",
       dataIndex: "updated_at",
       sortKey: "updated",
+      width: 150,
       render: formatDate,
     },
     {
       title: "Primary category",
       dataIndex: "category_name",
       sortKey: "category",
-      render: (value) => value || "Uncategorized",
+      width: 160,
+      ellipsis: { showTitle: false },
+      render: (value) => <EllipsisCell>{value || "Uncategorized"}</EllipsisCell>,
     },
     actionColumn,
   ];
   const columns = manager ? managerColumns : applierColumns,
+    applicationsScrollX = manager ? 1758 : 1548,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   return (
@@ -581,14 +601,18 @@ export function ApplicationsPage({
       ) : (
         <Card>
           <Table
+            className="dashboard-ellipsis-table"
             rowKey="id"
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 430px)" }}
+            tableLayout="fixed"
+            scroll={{ x: applicationsScrollX, y: "calc(100vh - 430px)" }}
             rowSelection={
               manager
                 ? {
+                    columnWidth: 48,
+                    fixed: true,
                     selectedRowKeys: selectedIds,
                     preserveSelectedRowKeys: true,
                     onChange: setSelectedIds,

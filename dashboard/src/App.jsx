@@ -124,6 +124,7 @@ import { TailoringQueuePage, TailoringReviewPage } from "./features/tailoring/ta
 import { TailoringBatchDetailPage, TailoringBatchesPage } from "./features/tailoring/tailoring-batch-pages.jsx";
 import {
   DataPagination,
+  EllipsisCell,
   EmptyState,
   ErrorState as UiErrorState,
   LegacyTable,
@@ -545,32 +546,6 @@ function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
 /** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
 const serverSideColumnFilter = { onFilter: () => true };
 
-function EllipsisCell({ children, href }) {
-  const text =
-    children == null || children === "" ? "" : String(children);
-  if (!text) return "—";
-  const external = Boolean(href && /^https?:\/\//i.test(href));
-  return (
-    <Tooltip title={text} placement="topLeft">
-      <div className="table-cell-ellipsis">
-        {href ? (
-          <a
-            href={href}
-            {...(external
-              ? { target: "_blank", rel: "noopener noreferrer" }
-              : {})}
-            className="table-cell-ellipsis__link"
-          >
-            {text}
-          </a>
-        ) : (
-          text
-        )}
-      </div>
-    </Tooltip>
-  );
-}
-
 function BusinessOverview({ client, apiBaseUrl, categories, reload, access, dateRange, dateLabel }) {
   const [result, setResult] = useState(null),
     [error, setError] = useState("");
@@ -987,7 +962,7 @@ function Jobs({
             />
           )}
           <AntTable
-            className="jobs-table"
+            className="dashboard-ellipsis-table"
             rowKey="id"
             loading={loading}
             columns={columns}
@@ -1282,7 +1257,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
                 seniority: tableFilters.seniority?.[0] || "",
                 mimeType: tableFilters.mime_type?.[0] || "",
                 status: tableFilters.status?.[0] || "ACTIVE",
-                sort: serverSortFromTable(sorter, "updated_desc"),
+                sort: serverSortFromTable(sorter, "candidate_asc"),
                 page: 1,
               });
             }}
@@ -2124,7 +2099,15 @@ export function App({ client, apiBaseUrl }) {
       />
     );
   else if (route.name === "admin-users")
-    page = <AdminUsersPage client={client} apiBaseUrl={apiBaseUrl} roles={roles} reload={reload} />;
+    page = (
+      <AdminUsersPage
+        client={client}
+        apiBaseUrl={apiBaseUrl}
+        roles={roles}
+        query={route.query}
+        reload={reload}
+      />
+    );
   else if (route.name === "admin-user-detail")
     page = (
       <AdminUserDetailPage

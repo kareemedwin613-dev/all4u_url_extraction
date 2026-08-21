@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useState}from"react";
 import{Alert,App as AntApp,Button,Card,Descriptions,Empty,Flex,Form,Input,Select,Space,Table,Tag,Typography}from"antd";
 import{formatDate,formatLabel}from"../../shared/formatters.js";
-import{LoadingState,StatusTag}from"../../components/ui.jsx";
+import{EllipsisCell,LoadingState,StatusTag}from"../../components/ui.jsx";
 import{createBulkTailoringRunnerTickets,createTailoringRunnerTicket,getTailoringJob,getTailoringResumeUrl,getTailoringReviews,listTailoringJobs,listTailoringTemplates,materializeTailoredResume,reviewTailoringPreview,selectTailoringFormat,selectTailoringTemplate}from"./tailoring-service.js";
 import{TailoringComparison}from"./tailoring-comparison.jsx";
 
@@ -9,20 +9,21 @@ const{Text,Title,Paragraph}=Typography;
 const STATUSES=["ALL","PENDING","PROCESSING","NEEDS_REVIEW","APPROVED","MATERIALIZING","COMPLETED","REJECTED","FAILED","CANCELLED"];
 const one=value=>Array.isArray(value)?value[0]:value||{};
 const go=hash=>location.assign(hash);
+const QUEUE_SCROLL_X=1258;
 
 export function TailoringQueuePage({client,apiBaseUrl,reload}){
   const[status,setStatus]=useState("ALL"),[items,setItems]=useState(),[error,setError]=useState(""),[selected,setSelected]=useState([]),[tickets,setTickets]=useState([]),[busy,setBusy]=useState(false);
   useEffect(()=>{let live=true;setItems();setError("");listTailoringJobs(client,apiBaseUrl,status).then(value=>live&&setItems(value)).catch(x=>live&&setError(x.message));return()=>{live=false;};},[client,apiBaseUrl,status,reload]);
   const columns=useMemo(()=>[
-    {title:"Application",render:(_,row)=>one(row.applications).application_number?`#${one(row.applications).application_number}`:"Legacy queue"},
-    {title:"Company",render:(_,row)=>one(row.job_descriptions).company||"—"},
-    {title:"Job title",render:(_,row)=>one(row.job_descriptions).job_title||"—"},
-    {title:"Resume",render:(_,row)=>{const original=one(row.resumes),tailored=one(row.tailored_resume),resume=tailored.id?tailored:original;return`${resume.resume_name||"Resume"}${resume.resume_number?` #${resume.resume_number}`:""}${tailored.id?" (Tailored)":""}`;}},
-    {title:"Template",dataIndex:"render_template_key",render:value=>formatLabel(value||"CLASSIC_V1")},
-    {title:"Format",dataIndex:"render_format",render:value=><Tag>{value||"DOCX"}</Tag>},
-    {title:"Status",dataIndex:"status",render:value=><StatusTag value={value}/>},
-    {title:"Updated",dataIndex:"updated_at",render:formatDate},
-    {title:"Action",render:(_,row)=>row.application_id?<Button type="link" onClick={()=>go(`#/tailoring-jobs/${row.id}`)}>{row.status==="NEEDS_REVIEW"?"Review":"View"}</Button>:<Text type="secondary">Not Application-linked</Text>}
+    {title:"Application",width:100,ellipsis:{showTitle:false},render:(_,row)=><EllipsisCell>{one(row.applications).application_number?`#${one(row.applications).application_number}`:"Legacy queue"}</EllipsisCell>},
+    {title:"Company",width:140,ellipsis:{showTitle:false},render:(_,row)=><EllipsisCell>{one(row.job_descriptions).company||"—"}</EllipsisCell>},
+    {title:"Job title",width:200,ellipsis:{showTitle:false},render:(_,row)=><EllipsisCell>{one(row.job_descriptions).job_title||"—"}</EllipsisCell>},
+    {title:"Resume",width:220,ellipsis:{showTitle:false},render:(_,row)=>{const original=one(row.resumes),tailored=one(row.tailored_resume),resume=tailored.id?tailored:original;return <EllipsisCell>{`${resume.resume_name||"Resume"}${resume.resume_number?` #${resume.resume_number}`:""}${tailored.id?" (Tailored)":""}`}</EllipsisCell>;}},
+    {title:"Template",width:110,ellipsis:{showTitle:false},dataIndex:"render_template_key",render:value=><EllipsisCell>{formatLabel(value||"CLASSIC_V1")}</EllipsisCell>},
+    {title:"Format",width:80,dataIndex:"render_format",render:value=><Tag>{value||"DOCX"}</Tag>},
+    {title:"Status",width:120,dataIndex:"status",render:value=><StatusTag value={value}/>},
+    {title:"Updated",width:150,dataIndex:"updated_at",render:formatDate},
+    {title:"Action",width:90,fixed:"right",render:(_,row)=>row.application_id?<Button type="link" onClick={()=>go(`#/tailoring-jobs/${row.id}`)}>{row.status==="NEEDS_REVIEW"?"Review":"View"}</Button>:<Text type="secondary">—</Text>}
   ],[]);
   async function prepareBulk(){setBusy(true);setError("");try{const result=await createBulkTailoringRunnerTickets(client,apiBaseUrl,selected),valid=result.filter(item=>item.ticket);setTickets(valid);setSelected([]);}catch(x){setError(x.message);}finally{setBusy(false);}}
   const bulkCommand=tickets.length?`npm run tailoring:run -- --tickets "${tickets.map(item=>item.ticket).join(",")}" --api-base-url "${apiBaseUrl||location.origin}"`:"";
@@ -33,7 +34,7 @@ export function TailoringQueuePage({client,apiBaseUrl,reload}){
     {tickets.length>0&&(
       <Alert className="ui-alert" showIcon type="success" message={`Bulk command ready for ${tickets.length} tailoring jobs`} description={<><Paragraph copyable={{text:bulkCommand}} code>{bulkCommand}</Paragraph><Text type="secondary">Run once from the repository root. Each preview is saved independently for review.</Text></>}/>
     )}
-    {error&&<Alert className="ui-alert" showIcon type="error" message={error}/>} {!items&&!error?<LoadingState/>:<Card><Table rowKey="id" columns={columns} dataSource={items||[]} pagination={{pageSize:25,showSizeChanger:false}} scroll={{x:"max-content"}} rowSelection={{selectedRowKeys:selected,onChange:setSelected,preserveSelectedRowKeys:true,getCheckboxProps:row=>({disabled:!row.application_id||Boolean(row.output_preview)||!["PENDING","PROCESSING"].includes(row.status)})}} locale={{emptyText:<Empty description="No tailoring jobs match this status."/>}}/></Card>}
+    {error&&<Alert className="ui-alert" showIcon type="error" message={error}/>} {!items&&!error?<LoadingState/>:<Card><Table className="dashboard-ellipsis-table" rowKey="id" columns={columns} dataSource={items||[]} pagination={{pageSize:25,showSizeChanger:false}} tableLayout="fixed" scroll={{x:QUEUE_SCROLL_X,y:"calc(100vh - 450px)"}} rowSelection={{columnWidth:48,fixed:true,selectedRowKeys:selected,onChange:setSelected,preserveSelectedRowKeys:true,getCheckboxProps:row=>({disabled:!row.application_id||Boolean(row.output_preview)||!["PENDING","PROCESSING"].includes(row.status)})}} locale={{emptyText:<Empty description="No tailoring jobs match this status."/>}}/></Card>}
   </div>;
 }
 
