@@ -7,7 +7,7 @@ import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
 
 const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
+  { value: "", label: "All Statuses" },
   { value: "ASSIGNED", label: "Assigned" },
   { value: "IN_PROGRESS", label: "In Progress" },
   { value: "BLOCKED", label: "Blocked" },

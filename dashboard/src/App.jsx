@@ -73,6 +73,7 @@ import {
   formatMime,
   cleanTags,
 } from "./shared/formatters.js";
+import { isEmailLike, personDisplayName } from "./shared/person-name.js";
 import {
   parseJobQuery,
   parseResumeQuery,
@@ -146,26 +147,6 @@ const Tags = ({ values, empty }) => (
   <TagList values={cleanTags(values)} empty={empty} />
 );
 const Meta = Metadata;
-const emailLocalPart = (email) => {
-  const value = String(email || "").trim();
-  if (!value.includes("@")) return value;
-  return value.slice(0, value.indexOf("@")) || value;
-};
-const isEmailLike = (value, email) => {
-  const text = String(value || "").trim().toLowerCase();
-  const mail = String(email || "").trim().toLowerCase();
-  return Boolean(text) && (text === mail || text.includes("@"));
-};
-/** Prefer a real person name; avoid showing a raw email as the primary label. */
-const personDisplayName = ({ fullName, displayName, email, userId } = {}) => {
-  const mail = String(email || "").trim();
-  for (const candidate of [fullName, displayName]) {
-    const name = String(candidate || "").trim();
-    if (name && !isEmailLike(name, mail)) return name;
-  }
-  if (mail) return emailLocalPart(mail);
-  return userId || "Unknown user";
-};
 const personInitials = (name) => {
   const parts = String(name || "")
     .trim()
@@ -572,7 +553,7 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
   return (
     <div className="page">
       <Title level={2}>
-        Business records
+        Business Records
       </Title>
       <Row gutter={[16, 16]} className="summary-grid">
         {[
@@ -849,10 +830,10 @@ function Jobs({
               sortKey: "review",
               width: 140,
               filters: [
-                { text: "All review statuses", value: "ALL" },
-                { text: "Needs review", value: "NEEDS_REVIEW" },
+                { text: "All Review Statuses", value: "ALL" },
+                { text: "Needs Review", value: "NEEDS_REVIEW" },
                 { text: "Approved", value: "APPROVED" },
-                { text: "Needs correction", value: "NEEDS_CORRECTION" },
+                { text: "Needs Correction", value: "NEEDS_CORRECTION" },
                 { text: "Declined", value: "DECLINED" },
               ],
               filterMultiple: false,
@@ -1389,7 +1370,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       const next = await setJobStatus(client, apiBaseUrl, job.id, status, status === "ARCHIVED" ? "NOT_APPLICABLE" : undefined);
       setJob((current) => ({ ...current, ...next }));
       setStatusMessageType("success");
-      setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application workflows.");
+      setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application Workflows.");
     } catch (value) {
       setStatusMessageType("error");
       setStatusMessage(value.message);
@@ -1510,7 +1491,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
                     setReviewDialog("CORRECTION");
                   }}
                 >
-                  Needs correction
+                  Needs Correction
                 </Button>
                 <Button
                   danger

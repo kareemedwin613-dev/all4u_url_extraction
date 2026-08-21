@@ -1,4 +1,4 @@
--- Manager-only, privacy-minimized Applier performance aggregates for Overview.
+-- Manager-only, privacy-minimized Applier Performance aggregates for Overview.
 -- Replaces Recent Resumes for managers while preserving it for Appliers.
 create or replace function public.get_business_overview()
 returns jsonb language plpgsql stable security definer set search_path=public,pg_temp as $$

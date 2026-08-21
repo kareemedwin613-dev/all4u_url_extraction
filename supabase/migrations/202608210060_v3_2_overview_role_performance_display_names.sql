@@ -1,4 +1,4 @@
--- Side-by-side, date-windowed Applier and JD Finder Performance for managers.
+-- Prefer real person names over email on Overview role performance charts.
 create or replace function public.get_business_overview_v30(p_from timestamptz,p_to timestamptz)
 returns jsonb language plpgsql stable security definer set search_path=public,pg_temp as $$
 declare v_result jsonb;v_manager boolean:=public.has_role('APPLYING_MANAGER')or public.has_role('ADMIN');v_appliers jsonb:='[]'::jsonb;v_finders jsonb:='[]'::jsonb;
@@ -10,8 +10,28 @@ begin
   if v_manager then
     select coalesce(jsonb_agg(to_jsonb(x)order by x.completed_count desc,x.applied_count desc,x.applier_name),'[]'::jsonb)into v_appliers from(
       with actors as(
-        select distinct p.id,coalesce(nullif(btrim(p.full_name),''),p.email)applier_name,p.email
-        from public.profiles p join public.user_roles ur on ur.user_id=p.id join public.roles r on r.id=ur.role_id
+        select distinct p.id,
+          coalesce(
+            case
+              when nullif(btrim(p.full_name),'') is not null
+                and position('@' in btrim(p.full_name))=0
+                and lower(btrim(p.full_name)) is distinct from lower(btrim(coalesce(p.email,'')))
+              then btrim(p.full_name)
+            end,
+            case
+              when nullif(btrim(up.display_name),'') is not null
+                and position('@' in btrim(up.display_name))=0
+                and lower(btrim(up.display_name)) is distinct from lower(btrim(coalesce(p.email,'')))
+              then btrim(up.display_name)
+            end,
+            nullif(split_part(coalesce(p.email,''),'@',1),''),
+            'Unknown Applier'
+          )applier_name,
+          p.email
+        from public.profiles p
+        join public.user_roles ur on ur.user_id=p.id
+        join public.roles r on r.id=ur.role_id
+        left join public.user_profiles up on up.id=p.id
         where p.status='ACTIVE'and r.active and r.code='APPLIER'
       )
       select p.id,p.applier_name,p.email,
@@ -24,8 +44,28 @@ begin
     )x;
     select coalesce(jsonb_agg(to_jsonb(x)order by x.approved_count desc,x.captured_count desc,x.finder_name),'[]'::jsonb)into v_finders from(
       with actors as(
-        select distinct p.id,coalesce(nullif(btrim(p.full_name),''),p.email)finder_name,p.email
-        from public.profiles p join public.user_roles ur on ur.user_id=p.id join public.roles r on r.id=ur.role_id
+        select distinct p.id,
+          coalesce(
+            case
+              when nullif(btrim(p.full_name),'') is not null
+                and position('@' in btrim(p.full_name))=0
+                and lower(btrim(p.full_name)) is distinct from lower(btrim(coalesce(p.email,'')))
+              then btrim(p.full_name)
+            end,
+            case
+              when nullif(btrim(up.display_name),'') is not null
+                and position('@' in btrim(up.display_name))=0
+                and lower(btrim(up.display_name)) is distinct from lower(btrim(coalesce(p.email,'')))
+              then btrim(up.display_name)
+            end,
+            nullif(split_part(coalesce(p.email,''),'@',1),''),
+            'Unknown JD Finder'
+          )finder_name,
+          p.email
+        from public.profiles p
+        join public.user_roles ur on ur.user_id=p.id
+        join public.roles r on r.id=ur.role_id
+        left join public.user_profiles up on up.id=p.id
         where p.status='ACTIVE'and r.active and r.code='JD_FINDER'
       )
       select p.id,p.finder_name,p.email,

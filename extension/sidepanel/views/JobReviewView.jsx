@@ -5,11 +5,11 @@ import { listJobCapturers, listJobReviews, reviewJob } from "../../services/job-
 
 const { Text, Title } = Typography;
 const REVIEW_OPTIONS = [
-  { value: "NEEDS_REVIEW", label: "Needs review" },
-  { value: "NEEDS_CORRECTION", label: "Needs correction" },
+  { value: "NEEDS_REVIEW", label: "Needs Review" },
+  { value: "NEEDS_CORRECTION", label: "Needs Correction" },
   { value: "APPROVED", label: "Approved" },
   { value: "DECLINED", label: "Declined" },
-  { value: "ALL", label: "All statuses" },
+  { value: "ALL", label: "All Statuses" },
 ];
 const DECLINE_OPTIONS = [
   { value: "EXPIRED", label: "Expired" }, { value: "NOT_ELIGIBLE", label: "Not eligible" },
@@ -87,7 +87,7 @@ export function JobReviewView({ client, backendBaseUrl, onStatus, onError }) {
         {current.review_comment && <Alert type="warning" message={current.review_comment} />}
         <Button block icon={<ExportOutlined />} onClick={() => openPosting(current.source_url).catch(onError)}>Open job posting</Button>
         <Button block type="primary" icon={<CheckOutlined />} onClick={() => decide("APPROVED", null, "")}>Approve & next</Button>
-        <Flex gap={8}><Button style={{ flex: 1 }} icon={<EditOutlined />} onClick={() => setDialog("CORRECTION")}>Needs correction</Button><Button danger style={{ flex: 1 }} icon={<CloseOutlined />} onClick={() => setDialog("DECLINE")}>Decline</Button></Flex>
+        <Flex gap={8}><Button style={{ flex: 1 }} icon={<EditOutlined />} onClick={() => setDialog("CORRECTION")}>Needs Correction</Button><Button danger style={{ flex: 1 }} icon={<CloseOutlined />} onClick={() => setDialog("DECLINE")}>Decline</Button></Flex>
         <Flex justify="space-between" align="center"><Button icon={<LeftOutlined />} disabled={index === 0} onClick={() => setIndex((value) => value - 1)}>Previous</Button><Text>{index + 1} of {items.length}</Text><Button icon={<RightOutlined />} disabled={index >= items.length - 1} onClick={() => setIndex((value) => value + 1)}>Next</Button></Flex>
       </Space>
     </Card>}

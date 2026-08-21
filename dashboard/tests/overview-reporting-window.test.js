@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "../src/features/overview/overview-date.js";
+import { DEFAULT_OVERVIEW_WINDOW, formatOverviewDate, formatOverviewRangeLabel, overviewDateBounds } from "../src/features/overview/overview-date.js";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -16,6 +16,11 @@ test("Overview defaults to today and supports bounded calendar windows", () => {
   assert.equal(new Date(week.from).getDay(), 1);
   assert.equal(new Date(month.from).getDate(), 1);
   assert.equal((new Date(custom.to) - new Date(custom.from)) / 86400000, 4);
+});
+
+test("custom Overview range labels use readable month-day-year spelling", () => {
+  assert.equal(formatOverviewDate("2026-07-29"), "Jul 29, 2026");
+  assert.equal(formatOverviewRangeLabel("2026-07-29", "2026-08-11"), "Jul 29, 2026 - Aug 11, 2026");
 });
 
 test("the sticky top bar owns the shared Overview reporting period", async () => {

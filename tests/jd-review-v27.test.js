@@ -26,7 +26,7 @@ test("new finder captures need review and only approved active JDs can create Ap
 });
 
 test("extension review UI uses one-card decisions and queue filters",()=>{
-  for(const text of ["Approve & next","Needs correction","Decline","Captured by","Today","This week","This month"])assert.match(view,new RegExp(text));
+  for(const text of ["Approve & next","Needs Correction","Decline","Captured by","Today","This week","This month"])assert.match(view,new RegExp(text));
   assert.match(view,/Open job posting/);
   assert.match(view,/reviewJob/);
   assert.match(view,/current\.category_name \|\| "Uncategorized"/);

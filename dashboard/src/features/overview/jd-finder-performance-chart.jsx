@@ -1,20 +1,169 @@
-import React,{useMemo,useState}from"react";
-import{Card,Empty,Flex,Input,Tag,Typography}from"antd";
-import{SearchOutlined}from"@ant-design/icons";
-const{Text}=Typography;
-const METRICS=[{key:"captured",label:"Captured",color:"#8c8c8c"},{key:"approved",label:"Approved",color:"#52c41a"},{key:"needsReview",label:"Needs review",color:"#faad14"},{key:"needsCorrection",label:"Correction",color:"#fa8c16"},{key:"declined",label:"Declined",color:"#ff4d4f"}];
-const count=value=>Math.max(0,Number(value)||0);
-export function normalizeJdFinderPerformance(rows=[]){return(Array.isArray(rows)?rows:[]).map(row=>({id:String(row.id||""),name:String(row.finder_name||row.email||"Unknown JD Finder"),email:String(row.email||""),captured:count(row.captured_count),approved:count(row.approved_count),needsReview:count(row.needs_review_count),needsCorrection:count(row.needs_correction_count),declined:count(row.declined_count),approvalRate:Math.max(0,Math.min(100,Number(row.approval_rate)||0))}));}
-export function JdFinderPerformanceChart({rows=[],dateLabel="Today"}){
- const[search,setSearch]=useState(""),data=useMemo(()=>normalizeJdFinderPerformance(rows),[rows]),needle=search.trim().toLocaleLowerCase(),visible=useMemo(()=>needle?data.filter(item=>`${item.name} ${item.email}`.toLocaleLowerCase().includes(needle)):data,[data,needle]),maximum=Math.max(1,...visible.flatMap(item=>METRICS.map(metric=>item[metric.key])));
- return <Card title="JD Finder performance" extra={<Text type="secondary">{dateLabel}</Text>} style={{height:"100%"}}>
-  <Input allowClear prefix={<SearchOutlined/>} value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search JD Finder name or email" aria-label="Search JD Finder performance by name or email" style={{marginBottom:16}}/>
-  {!data.length?<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No active JD Finders are available."/>:!visible.length?<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No JD Finders match this search."/>:<>
-   <Flex gap={12} wrap="wrap" style={{marginBottom:16}}>{METRICS.map(metric=><Flex key={metric.key} align="center" gap={6}><span aria-hidden="true" style={{width:12,height:12,borderRadius:2,background:metric.color}}/><Text>{metric.label}</Text></Flex>)}</Flex>
-   <div role="img" aria-label="JD Finder performance graph" style={{display:"grid",gap:18,maxHeight:480,overflowY:"auto",paddingRight:8}}>{visible.map(item=><div key={item.id||item.email}>
-    <Flex justify="space-between" align="center" gap={12} wrap="wrap" style={{marginBottom:6}}><div><Text strong>{item.name}</Text>{item.email&&item.email!==item.name?<Text type="secondary" style={{display:"block",fontSize:12}}>{item.email}</Text>:null}</div><Flex gap={6} wrap="wrap"><Tag>{item.captured} captured</Tag><Tag color="green">{item.approvalRate}% approved</Tag><Tag color="gold">{item.needsReview} pending</Tag></Flex></Flex>
-    <div style={{display:"grid",gap:5}}>{METRICS.map(metric=><Flex key={metric.key} align="center" gap={8}><Text type="secondary" style={{width:92,fontSize:12}}>{metric.label}</Text><div style={{height:14,flex:1,background:"#f0f2f5",borderRadius:7,overflow:"hidden"}}><div title={`${item.name}: ${item[metric.key]} ${metric.label.toLowerCase()}`} style={{height:"100%",width:`${item[metric.key]/maximum*100}%`,minWidth:item[metric.key]?4:0,background:metric.color,borderRadius:7}}/></div><Text style={{width:28,textAlign:"right"}}>{item[metric.key]}</Text></Flex>)}</div>
-   </div>)}</div>
-  </>}
- </Card>;
+import React, { useMemo, useState } from "react";
+import { Card, Empty, Flex, Input, Typography } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  JD_FINDER_PERFORMANCE_METRICS,
+  normalizeJdFinderPerformance,
+} from "./jd-finder-performance.js";
+
+const { Text } = Typography;
+
+export { JD_FINDER_PERFORMANCE_METRICS, normalizeJdFinderPerformance };
+
+const shortName = (value, max = 12) => {
+  const text = String(value || "").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(1, max - 1))}…`;
+};
+
+function JdFinderPerformanceTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <div className="overview-chart-tooltip">
+      <Text strong style={{ display: "block", marginBottom: 8 }}>
+        {row.name}
+      </Text>
+      {JD_FINDER_PERFORMANCE_METRICS.map((metric) => (
+        <div key={metric.key} className="overview-chart-tooltip__row">
+          <span
+            aria-hidden="true"
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              background: metric.color,
+              flex: "none",
+            }}
+          />
+          <Text style={{ flex: 1 }}>{metric.label}</Text>
+          <Text strong>{row[metric.key]}</Text>
+        </div>
+      ))}
+      <Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+        {row.approvalRate}% approved
+      </Text>
+    </div>
+  );
+}
+
+export function JdFinderPerformanceChart({ rows = [], dateLabel = "Today" }) {
+  const [search, setSearch] = useState(""),
+    data = useMemo(() => normalizeJdFinderPerformance(rows), [rows]),
+    needle = search.trim().toLocaleLowerCase(),
+    visible = useMemo(
+      () =>
+        needle
+          ? data.filter((item) =>
+              `${item.name} ${item.email}`.toLocaleLowerCase().includes(needle),
+            )
+          : data,
+      [data, needle],
+    ),
+    chartData = useMemo(
+      () =>
+        visible.map((item) => ({
+          ...item,
+          axisLabel: shortName(item.name),
+        })),
+      [visible],
+    ),
+    chartMinWidth = Math.max(420, chartData.length * 96);
+
+  return (
+    <Card
+      title="JD Finder Performance"
+      extra={<Text type="secondary">{dateLabel}</Text>}
+      style={{ height: "100%" }}
+    >
+      <Input
+        allowClear
+        prefix={<SearchOutlined />}
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search JD Finder name or email"
+        aria-label="Search JD Finder Performance by name or email"
+        style={{ marginBottom: 16 }}
+      />
+      {!data.length ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="No active JD Finders are available."
+        />
+      ) : !visible.length ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="No JD Finders match this search."
+        />
+      ) : (
+        <>
+          <Flex gap={12} wrap="wrap" style={{ marginBottom: 12 }}>
+            {JD_FINDER_PERFORMANCE_METRICS.map((metric) => (
+              <Flex key={metric.key} align="center" gap={6}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 2,
+                    background: metric.color,
+                  }}
+                />
+                <Text>{metric.label}</Text>
+              </Flex>
+            ))}
+          </Flex>
+          <div
+            className="overview-chart-scroll"
+            role="img"
+            aria-label="JD Finder Performance graph"
+          >
+            <div style={{ minWidth: chartMinWidth, height: 320 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                  barCategoryGap="18%"
+                  barGap={2}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="axisLabel"
+                    interval={0}
+                    tick={{ fontSize: 12 }}
+                    tickMargin={8}
+                  />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={36} />
+                  <Tooltip
+                    cursor={{ fill: "rgba(22, 119, 255, 0.06)" }}
+                    content={<JdFinderPerformanceTooltip />}
+                  />
+                  {JD_FINDER_PERFORMANCE_METRICS.map((metric) => (
+                    <Bar
+                      key={metric.key}
+                      dataKey={metric.key}
+                      name={metric.label}
+                      fill={metric.color}
+                      radius={[3, 3, 0, 0]}
+                      maxBarSize={28}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+    </Card>
+  );
 }
