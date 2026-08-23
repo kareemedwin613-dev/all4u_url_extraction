@@ -30,6 +30,7 @@ import {
   listUsers,
   removeRole,
   setStatus,
+  updateUserProfile,
 } from "../services/admin-user-service.js";
 import { USER_PAGE_SIZES } from "../shared/constants.js";
 import { formatDate } from "../shared/formatters.js";
@@ -299,7 +300,7 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
                 search,
                 status: tableFilters.status?.[0] || "",
                 roleCode: tableFilters.role_codes?.[0] || "",
-                sort: serverSortFromTable(sorter, "created_desc"),
+                sort: serverSortFromTable(sorter, "name_asc"),
                 page: 1,
               });
             }}
@@ -332,6 +333,7 @@ export function AdminUserDetailPage({
     [user, setUser] = useState(),
     [selected, setSelected] = useState(new Set()),
     [statusValue, setStatusValue] = useState("ACTIVE"),
+    [fullNameValue, setFullNameValue] = useState(""),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -342,6 +344,7 @@ export function AdminUserDetailPage({
       setUser(value);
       setSelected(new Set(value.roles || []));
       setStatusValue(value.status);
+      setFullNameValue(value.fullName || "");
     } catch (value) {
       setError(value.message);
     }
@@ -419,6 +422,21 @@ export function AdminUserDetailPage({
       });
     else applyStatus();
   }
+  async function saveFullName() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await updateUserProfile(client, apiBaseUrl, id, fullNameValue);
+      await load();
+      if (id === currentUserId) await onCurrentUserChanged();
+      setMessage("Full name updated successfully.");
+    } catch (value) {
+      setMessage(value.message);
+      setFullNameValue(user.fullName || "");
+    } finally {
+      setBusy(false);
+    }
+  }
   if (error)
     return (
       <div className="page">
@@ -429,37 +447,61 @@ export function AdminUserDetailPage({
       </div>
     );
   if (!user) return <LoadingState text="Loading user…" />;
+  const nameDirty =
+    String(fullNameValue || "").trim() !== String(user.fullName || "").trim();
   const tabs = [
     {
       key: "identity",
       label: "Identity",
       children: (
-        <Descriptions
-          bordered
-          column={{ xs: 1, md: 2 }}
-          items={[
-            {
-              key: "name",
-              label: "Full name",
-              children: user.fullName || "Name not provided",
-            },
-            { key: "email", label: "Email", children: user.email },
-            {
-              key: "id",
-              label: "User ID",
-              children: (
-                <Text code copyable>
-                  {user.id}
-                </Text>
-              ),
-            },
-            {
-              key: "created",
-              label: "Created",
-              children: formatDate(user.createdAt),
-            },
-          ]}
-        />
+        <>
+          <Descriptions
+            bordered
+            column={{ xs: 1, md: 2 }}
+            items={[
+              {
+                key: "name",
+                label: "Full name",
+                children: (
+                  <Space wrap style={{ width: "100%" }}>
+                    <Input
+                      value={fullNameValue}
+                      maxLength={200}
+                      disabled={busy}
+                      onChange={(event) => setFullNameValue(event.target.value)}
+                      placeholder="Enter full name"
+                      aria-label="Full name"
+                      style={{ minWidth: 240 }}
+                    />
+                    <Button
+                      type="primary"
+                      disabled={busy || !nameDirty}
+                      loading={busy}
+                      onClick={saveFullName}
+                    >
+                      Save name
+                    </Button>
+                  </Space>
+                ),
+              },
+              { key: "email", label: "Email", children: user.email },
+              {
+                key: "id",
+                label: "User ID",
+                children: (
+                  <Text code copyable>
+                    {user.id}
+                  </Text>
+                ),
+              },
+              {
+                key: "created",
+                label: "Created",
+                children: formatDate(user.createdAt),
+              },
+            ]}
+          />
+        </>
       ),
     },
     {

@@ -359,7 +359,7 @@ export function ApplicationsPage({
   const actionColumn = {
     title: "Actions",
     key: "action",
-    width: 80,
+    width: 88,
     fixed: "right",
     render: (_, record) => <Button type="link" href={`#/applications/${record.id}`}>View</Button>,
   };
@@ -367,7 +367,7 @@ export function ApplicationsPage({
     title: "Application #",
     dataIndex: "application_number",
     sortKey: "number",
-    width: 120,
+    width: 148,
     render: (value) => <Text code>{value ?? "—"}</Text>,
   };
   const companyColumn = {
@@ -390,13 +390,9 @@ export function ApplicationsPage({
     title: "Resume",
     dataIndex: "resume_name",
     sortKey: "resume",
-    width: 200,
-    ellipsis: { showTitle: false },
-    render: (value, record) => (
-      <EllipsisCell>
-        {`${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`}
-      </EllipsisCell>
-    ),
+    width: 320,
+    render: (value, record) =>
+      `${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`,
   };
   const managerColumns = [
     numberColumn,
@@ -407,38 +403,34 @@ export function ApplicationsPage({
       title: "Applier profile",
       dataIndex: "assignee_name",
       sortKey: "assignee",
-      width: 140,
-      ellipsis: { showTitle: false },
-      render: (value, record) => (
-        <EllipsisCell>{value || record.assignee_email || "Unassigned"}</EllipsisCell>
-      ),
+      width: 180,
+      render: (value, record) => value || record.assignee_email || "Unassigned",
     },
     {
       title: "Status",
       dataIndex: "status",
       sortKey: "status",
-      width: 120,
+      width: 140,
       render: (value) => <StatusTag value={value} />,
     },
     {
       title: "Priority",
       dataIndex: "priority",
       sortKey: "priority",
-      width: 100,
+      width: 110,
       render: (value) => <StatusTag value={value} />,
     },
-    { title: "Due", dataIndex: "due_at", sortKey: "due", width: 150, render: formatDate },
+    { title: "Due", dataIndex: "due_at", sortKey: "due", width: 180, render: formatDate },
     {
       title: "Creation",
       dataIndex: "creation_batch_id",
       sortKey: "batch",
-      width: 140,
-      ellipsis: { showTitle: false },
+      width: 168,
       render: (value, record) =>
         value ? (
-          <EllipsisCell href={`#/application-batches/${value}`}>
+          <a href={`#/application-batches/${value}`}>
             {record.creation_batch_name || `Batch ${String(value).slice(0, 8)}`}
-          </EllipsisCell>
+          </a>
         ) : (
           "Individual"
         ),
@@ -447,14 +439,14 @@ export function ApplicationsPage({
       title: "Captured at",
       dataIndex: "captured_at",
       sortKey: "captured",
-      width: 150,
+      width: 190,
       render: formatDate,
     },
     {
       title: "Last updated",
       dataIndex: "updated_at",
       sortKey: "updated",
-      width: 150,
+      width: 190,
       render: formatDate,
     },
     actionColumn,
@@ -468,7 +460,7 @@ export function ApplicationsPage({
       title: "Link",
       key: "links",
       sortKey: "link",
-      width: 120,
+      width: 140,
       render: (_, record) => {
         const jobUrl = safeExternalUrl(record.source_url),
           applicationUrl = safeExternalUrl(record.application_url);
@@ -498,35 +490,34 @@ export function ApplicationsPage({
       title: "Status",
       dataIndex: "status",
       sortKey: "status",
-      width: 120,
+      width: 140,
       render: (value) => <StatusTag value={value} />,
     },
     {
       title: "Captured at",
       dataIndex: "captured_at",
       sortKey: "captured",
-      width: 150,
+      width: 190,
       render: formatDate,
     },
     {
       title: "Last updated",
       dataIndex: "updated_at",
       sortKey: "updated",
-      width: 150,
+      width: 190,
       render: formatDate,
     },
     {
       title: "Primary category",
       dataIndex: "category_name",
       sortKey: "category",
-      width: 160,
-      ellipsis: { showTitle: false },
-      render: (value) => <EllipsisCell>{value || "Uncategorized"}</EllipsisCell>,
+      width: 200,
+      render: (value) => value || "Uncategorized",
     },
     actionColumn,
   ];
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 1758 : 1548,
+    applicationsScrollX = manager ? 2262 : 1916,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   return (
