@@ -63,21 +63,42 @@ test("manager Application page exposes persistent bulk assignment controls",asyn
 test("Applier Application columns follow the operational priority order",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   const section=source.slice(source.indexOf("const applierColumns ="),source.indexOf("const columns = manager"));
-  const labels=["Company","Job title","Resume","Link","Status","Captured at","Last updated","Primary category"];
+  const labels=["Link","Status","Captured at","Last updated","Primary category"];
   let position=-1;
   for(const label of labels){const match=new RegExp(`title:\\s*\"${label}\"`).exec(section),next=match?.index??-1;assert.ok(next>position,`${label} follows the requested order`);position=next;}
   assert.match(section,/source_url/);
   assert.match(section,/application_url/);
-  assert.ok(section.indexOf("numberColumn")<section.search(/title:\s*"Company"/));
+  assert.ok(section.indexOf("numberColumn")<section.indexOf("companyColumn"));
+  assert.ok(section.indexOf("companyColumn")<section.indexOf("jobTitleColumn"));
+  assert.ok(section.indexOf("jobTitleColumn")<section.indexOf("resumeColumn"));
+  assert.ok(section.indexOf("resumeColumn")<section.search(/title:\s*"Link"/));
 });
 
 test("manager Application list identifies both sides of the JD and Resume pair",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
+  const shared=source.slice(source.indexOf("const numberColumn ="),source.indexOf("const managerColumns ="));
   const section=source.slice(source.indexOf("const managerColumns ="),source.indexOf("const applierColumns ="));
-  for(const field of ["company","job_title","resume_name","candidate_name","assignee_name"])assert.match(section,new RegExp(field));
+  for(const field of ["company","job_title","resume_name","candidate_name"])assert.match(shared,new RegExp(field));
+  assert.match(section,/assignee_name/);
   assert.match(section,/numberColumn/);
+  assert.match(section,/companyColumn/);
+  assert.match(section,/jobTitleColumn/);
+  assert.match(section,/resumeColumn/);
   assert.match(section,/title:\s*"Captured at"/);
   assert.match(section,/title:\s*"Last updated"/);
+});
+
+test("Application list truncates only Company and Job title with ellipsis", async () => {
+  const source = await readFile(new URL("../src/features/applications/application-pages.jsx", import.meta.url), "utf8");
+  const company = source.slice(source.indexOf("const companyColumn ="), source.indexOf("const jobTitleColumn ="));
+  const jobTitle = source.slice(source.indexOf("const jobTitleColumn ="), source.indexOf("const resumeColumn ="));
+  const resume = source.slice(source.indexOf("const resumeColumn ="), source.indexOf("const managerColumns ="));
+  const manager = source.slice(source.indexOf("const managerColumns ="), source.indexOf("const applierColumns ="));
+  assert.match(company, /EllipsisCell/);
+  assert.match(jobTitle, /EllipsisCell/);
+  assert.doesNotMatch(resume, /EllipsisCell/);
+  assert.doesNotMatch(manager, /title:\s*"Applier profile"[\s\S]*?EllipsisCell/);
+  assert.match(source, /applicationsScrollX = manager \? 2262 : 1916/);
 });
 
 test("Application number is visible on the list, detail heading, and search",async()=>{

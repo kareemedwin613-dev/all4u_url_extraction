@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {assignRole,getUser,listUsers,normalizeAccessError,normalizeListOptions,removeRole,setStatus} from "../src/services/admin-user-service.js";
+import {readFile} from "node:fs/promises";
+import {assignRole,getUser,listUsers,normalizeAccessError,normalizeListOptions,removeRole,setStatus,updateUserProfile} from "../src/services/admin-user-service.js";
 
 const id="f3a34ffd-d66a-49f7-815e-c7786857576b";
 test("admin list input is bounded and calculates server offset",()=>{
   assert.deepEqual(normalizeListOptions({search:" x ",status:"active",roleCode:"admin",sort:"name_asc",page:3,pageSize:50}),{search:"x",status:"ACTIVE",roleCode:"ADMIN",sort:"name_asc",page:3,pageSize:50,offset:100});
   assert.equal(normalizeListOptions({page:-2,pageSize:999}).pageSize,25);
-  assert.equal(normalizeListOptions({sort:"unsafe"}).sort,"created_desc");
+  assert.equal(normalizeListOptions({sort:"unsafe"}).sort,"name_asc");
 });
 
 test("admin list sends normalized filters and returns pagination",async()=>{
@@ -15,13 +16,41 @@ test("admin list sends normalized filters and returns pagination",async()=>{
 });
 
 test("admin mutations use secured API contracts",async()=>{
-  const calls=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options});const path=new URL(url).pathname,data=path.endsWith("/status")?{id,status:"INACTIVE"}:path.includes("/roles")?["ADMIN"]:{id};return new Response(JSON.stringify({data}),{status:200});};
-  try{const base="https://api.example.com";assert.equal((await getUser(client,base,id)).id,id);assert.deepEqual(await assignRole(client,base,id,"admin"),["ADMIN"]);assert.deepEqual(await removeRole(client,base,id,"admin"),["ADMIN"]);assert.equal((await setStatus(client,base,id,"inactive")).status,"INACTIVE");}finally{globalThis.fetch=originalFetch;}
-  assert.deepEqual(calls.map(x=>x.options.method||"GET"),["GET","POST","DELETE","PATCH"]);
+  const calls=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options});const path=new URL(url).pathname,data=path.endsWith("/status")?{id,status:"INACTIVE"}:path.endsWith("/profile")?{id,fullName:"Alex Applier"}:path.includes("/roles")?["ADMIN"]:{id};return new Response(JSON.stringify({data}),{status:200});};
+  try{
+    const base="https://api.example.com";
+    assert.equal((await getUser(client,base,id)).id,id);
+    assert.deepEqual(await assignRole(client,base,id,"admin"),["ADMIN"]);
+    assert.deepEqual(await removeRole(client,base,id,"admin"),["ADMIN"]);
+    assert.equal((await setStatus(client,base,id,"inactive")).status,"INACTIVE");
+    assert.equal((await updateUserProfile(client,base,id," Alex Applier ")).fullName,"Alex Applier");
+  }finally{globalThis.fetch=originalFetch;}
+  assert.deepEqual(calls.map(x=>x.options.method||"GET"),["GET","POST","DELETE","PATCH","PATCH"]);
+  const profileCall=calls.find(x=>x.url.pathname.endsWith("/profile"));
+  assert.equal(profileCall.url.pathname,`/api/v1/admin/users/${id}/profile`);
+  assert.equal(profileCall.options.method,"PATCH");
+  assert.deepEqual(JSON.parse(profileCall.options.body),{fullName:"Alex Applier"});
 });
 
 test("known database errors are safe and actionable",()=>{
   assert.equal(normalizeAccessError(new Error("LAST_ACTIVE_ADMIN_REQUIRED: detail")).code,"LAST_ACTIVE_ADMIN_REQUIRED");
   assert.equal(normalizeAccessError({code:"42501",message:"internal policy"}).code,"ACCESS_DENIED");
   assert.equal(normalizeAccessError(new Error("USER_NOT_FOUND")).message,"The selected user no longer exists.");
+});
+
+test("admin_update_user_profile is admin-gated and syncs display_name",async()=>{
+  const sql=await readFile(new URL("../../supabase/migrations/202608230061_v3_3_admin_update_user_profile.sql",import.meta.url),"utf8");
+  assert.match(sql,/admin_update_user_profile\(p_user_id uuid, p_full_name text\)/);
+  assert.match(sql,/assert_active_admin\(\)/);
+  assert.match(sql,/update public\.profiles/);
+  assert.match(sql,/update public\.user_profiles[\s\S]*display_name = v_full_name/);
+  assert.match(sql,/grant execute on function public\.admin_update_user_profile\(uuid, text\) to authenticated/);
+});
+
+test("Admin user detail exposes Save name on the Identity tab",async()=>{
+  const source=await readFile(new URL("../src/pages/admin-pages.jsx",import.meta.url),"utf8");
+  assert.match(source,/updateUserProfile/);
+  assert.match(source,/Save name/);
+  assert.match(source,/saveFullName/);
+  assert.match(source,/maxLength=\{200\}/);
 });

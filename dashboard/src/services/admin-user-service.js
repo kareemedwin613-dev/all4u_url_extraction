@@ -26,7 +26,7 @@ export function normalizeListOptions(options = {}) {
   const roleCode = String(options.roleCode || "").trim().toUpperCase() || null;
   const search = String(options.search || "").trim().slice(0, 100);
   const allowedSorts=["name_asc","name_desc","email_asc","email_desc","status_asc","status_desc","roles_asc","roles_desc","created_asc","created_desc"];
-  const sort=allowedSorts.includes(String(options.sort||""))?String(options.sort):"created_desc";
+  const sort=allowedSorts.includes(String(options.sort||""))?String(options.sort):"name_asc";
   return {search, status, roleCode, sort, page, pageSize, offset: (page - 1) * pageSize};
 }
 
@@ -58,4 +58,13 @@ export async function setStatus(client,baseUrl,userId, status) {
   const normalized = String(status || "").toUpperCase();
   if (!["ACTIVE", "INACTIVE"].includes(normalized)) throw {code: "VALIDATION_ERROR", message: "Select Active or Inactive.", retryable: false};
   return api(client,baseUrl,`/api/v1/admin/users/${requireUuid(userId)}/status`,{method:"PATCH",body:{status:normalized}});
+}
+
+export async function updateUserProfile(client, baseUrl, userId, fullName) {
+  const name = String(fullName || "").trim();
+  if (name.length > 200) throw {code: "VALIDATION_ERROR", message: "Full name must be at most 200 characters.", retryable: false};
+  return api(client, baseUrl, `/api/v1/admin/users/${requireUuid(userId)}/profile`, {
+    method: "PATCH",
+    body: {fullName: name},
+  });
 }

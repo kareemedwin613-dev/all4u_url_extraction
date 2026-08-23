@@ -10,7 +10,7 @@ export function parseUserQuery(search=""){
     search:text,
     status:allowed(params.get("status")||"",["ACTIVE","INACTIVE"],""),
     roleCode:allowed(String(params.get("roleCode")||"").trim().toUpperCase(),USER_ROLE_CODES,""),
-    sort:allowed(params.get("sort"),Object.keys(USER_SORTS),"created_desc"),
+    sort:allowed(params.get("sort"),Object.keys(USER_SORTS),"name_asc"),
     page:normalizePage(params.get("page")),
     pageSize:allowed(Number(params.get("pageSize")),USER_PAGE_SIZES,25),
   };
