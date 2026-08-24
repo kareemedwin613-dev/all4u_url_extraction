@@ -82,9 +82,20 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
       });
       return;
     }
+    if (values.status === "BLOCKED" && !String(values.notes || "").trim()) {
+      onStatus({
+        message: "Add a note explaining why this Application is blocked.",
+        kind: "error",
+      });
+      return;
+    }
     setSaving(true);
     try {
-      await updateApplicationProgress(client, backendBaseUrl, application.id, values);
+      await updateApplicationProgress(client, backendBaseUrl, application.id, {
+        status: values.status,
+        applicationUrl: values.applicationUrl,
+        notes: values.notes,
+      });
       onStatus({ message: "Application updated.", kind: "success" });
       onSaved();
     } catch (error) {
@@ -102,11 +113,25 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         initialValues={{
           status: application.status,
           applicationUrl: application.application_url || "",
+          notes: application.notes || "",
         }}
         onFinish={submit}
       >
         <Form.Item label="Status" name="status">
           <Select options={STATUS_OPTIONS} />
+        </Form.Item>
+        <Form.Item
+          label="Notes"
+          name="notes"
+          extra="Required when status is Blocked (e.g. expired posting, site error)."
+          rules={[{ max: 10000, message: "Notes cannot exceed 10000 characters." }]}
+        >
+          <Input.TextArea
+            rows={4}
+            maxLength={10000}
+            showCount
+            placeholder="Explain blockers, expired JD, missing info, etc."
+          />
         </Form.Item>
         <Form.Item
           label="Application URL"

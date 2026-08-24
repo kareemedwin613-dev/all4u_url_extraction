@@ -9,7 +9,7 @@ export const updateApplicationExtensionSession=(client,baseUrl,sessionId,status,
 export const recordApplicationAutofillTelemetry=(client,baseUrl,sessionId,telemetry)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-telemetry`,{method:"PATCH",body:telemetry});
 export const getApplicationAutofillRecovery=(client,baseUrl,sessionId)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`);
 export const updateApplicationAutofillRecovery=(client,baseUrl,sessionId,recovery)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`,{method:"PATCH",body:recovery});
-export const updateApplicationProgress=(client,baseUrl,id,{status,applicationUrl})=>call(client,baseUrl,`/api/v1/applications/${id}/progress`,{method:"PATCH",body:{status,applicationUrl:applicationUrl||undefined}});
+export const updateApplicationProgress=(client,baseUrl,id,{status,applicationUrl,notes})=>call(client,baseUrl,`/api/v1/applications/${id}/progress`,{method:"PATCH",body:{status,applicationUrl:applicationUrl||undefined,notes:notes==null?undefined:String(notes)}});
 const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
 export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`),url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");

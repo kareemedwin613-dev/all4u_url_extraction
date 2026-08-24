@@ -34,14 +34,16 @@ values('aaaaaaaa-0000-4000-8000-000000000001','33333333-3333-4333-8333-333333333
 insert into public.resumes(id,user_id,candidate_name,resume_name,primary_category_id,seniority,resume_text,storage_path,original_filename,mime_type,file_size_bytes,file_sha256)
 values('aaaaaaaa-0000-4000-8000-000000000002','33333333-3333-4333-8333-333333333333','Candidate A','Data Resume','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','SENIOR',repeat('resume text ',12),'33333333-3333-4333-8333-333333333333/aaaaaaaa-0000-4000-8000-000000000002/file.txt','file.txt','text/plain',100,repeat('a',64));
 insert into storage.objects(bucket_id,name) values('original-resumes','33333333-3333-4333-8333-333333333333/aaaaaaaa-0000-4000-8000-000000000002/file.txt');
+insert into public.applications(id,job_description_id,resume_id,assigned_to,assigned_by,work_status,created_by)
+values('aaaaaaaa-0000-4000-8000-000000000003','aaaaaaaa-0000-4000-8000-000000000001','aaaaaaaa-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','33333333-3333-4333-8333-333333333333','ASSIGNED','33333333-3333-4333-8333-333333333333');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
-select is((select count(*)::integer from public.job_descriptions),1,'Applier reads shared jobs');
-select is((select count(*)::integer from public.resumes),1,'Applier reads shared resumes');
+select is((select count(*)::integer from public.job_descriptions),1,'Applier reads jobs for assigned Applications');
+select is((select count(*)::integer from public.resumes),1,'Applier reads resumes for assigned Applications');
 select throws_ok($$insert into public.job_descriptions(company,job_title,category_id,description_text) values('Denied','Denied','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',repeat('description ',12))$$,'42501',null,'Applier cannot insert jobs');
 with changed as (update public.job_descriptions set company='Denied' returning 1) select is((select count(*)::integer from changed),0,'Applier cannot update jobs');
-select is((select count(*)::integer from storage.objects where bucket_id='original-resumes'),1,'Applier reads original resume objects');
+select is((select count(*)::integer from storage.objects where bucket_id='original-resumes'),1,'Applier reads original resume objects for assigned Applications');
 select throws_ok($$insert into storage.objects(bucket_id,name) values('original-resumes','22222222-2222-4222-8222-222222222222/new.txt')$$,'42501',null,'Applier cannot upload objects');
 
 select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333333',true);

@@ -528,7 +528,7 @@ export function ApplicationsPage({
         </Title>
         {manager && (
           <Space wrap>
-            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select for tailoring"},{value:"ASSIGN",label:"Select for assignment"}]} style={{minWidth:180}}/>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select for tailoring"},{value:"ASSIGN",label:"Select for assignment / reassignment"}]} style={{minWidth:220}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
@@ -541,7 +541,7 @@ export function ApplicationsPage({
               href="#/applications/bulk-assign"
               onClick={() => storeAssignmentIds(selectedIds)}
             >
-              Assign Selected
+              Assign / Reassign Selected
             </Button>
             <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>500} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
             <Button type="primary" href="#/applications/new">
@@ -608,7 +608,7 @@ export function ApplicationsPage({
                     preserveSelectedRowKeys: true,
                     onChange: setSelectedIds,
                     getCheckboxProps: (record) => ({
-                      disabled: selectionMode==="ASSIGN"&&(record.assigned_to != null || record.status !== "UNASSIGNED"),
+                      disabled: selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status),
                     }),
                   }
                 : undefined
@@ -1036,6 +1036,16 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         label: "Created",
                         children: formatDate(a.created_at),
                       },
+                      {
+                        key: "notes",
+                        label: "Notes",
+                        span: 2,
+                        children: a.notes ? (
+                          <Text className="long-text">{a.notes}</Text>
+                        ) : (
+                          "—"
+                        ),
+                      },
                     ]}
                   />
                 </Card>
@@ -1158,39 +1168,42 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                   <Form.Item label="Reason" name="reason">
                     <Input maxLength={2000} />
                   </Form.Item>
-                  <Button type="primary" htmlType="submit" loading={busy}>
-                    Save Assignment
-                  </Button>
+                  <Space wrap size="middle">
+                    <Button type="primary" htmlType="submit" loading={busy}>
+                      Save Assignment
+                    </Button>
+                    {a.status !== "CANCELLED" && (
+                      <Button
+                        danger
+                        htmlType="button"
+                        loading={busy}
+                        onClick={() =>
+                          modal.confirm({
+                            title: "Cancel this Application?",
+                            content: "The record and history will be retained.",
+                            okText: "Cancel Application",
+                            okButtonProps: { danger: true },
+                            onOk: () =>
+                              run(
+                                () =>
+                                  updateApplication(client, apiBaseUrl, id, {
+                                    status: "CANCELLED",
+                                    applicationUrl: a.application_url,
+                                    appliedAt: a.applied_at,
+                                    notes: a.notes,
+                                    priority: a.priority,
+                                    dueAt: a.due_at,
+                                  }),
+                                "Application was cancelled.",
+                              ),
+                          })
+                        }
+                      >
+                        Cancel Application
+                      </Button>
+                    )}
+                  </Space>
                 </Form>
-                {a.status !== "CANCELLED" && (
-                  <Button
-                    danger
-                    loading={busy}
-                    onClick={() =>
-                      modal.confirm({
-                        title: "Cancel this Application?",
-                        content: "The record and history will be retained.",
-                        okText: "Cancel Application",
-                        okButtonProps: { danger: true },
-                        onOk: () =>
-                          run(
-                            () =>
-                              updateApplication(client, apiBaseUrl, id, {
-                                status: "CANCELLED",
-                                applicationUrl: a.application_url,
-                                appliedAt: a.applied_at,
-                                notes: a.notes,
-                                priority: a.priority,
-                                dueAt: a.due_at,
-                              }),
-                            "Application was cancelled.",
-                          ),
-                      })
-                    }
-                  >
-                    Cancel Application
-                  </Button>
-                )}
               </Card>
             ),
           },
