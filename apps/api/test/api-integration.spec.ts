@@ -53,6 +53,9 @@ before(async () => {
       coverLetterSignedUrl:async()=>({signedUrl:"https://storage.example/cover",expiresInSeconds:90,filename:"cover.pdf"}),
       uploadCoverLetter:async()=>({id:"resume-1",cover_letter_storage_path:"owner/resume-1/cover-cover.pdf",cover_letter_original_filename:"cover.pdf"}),
       removeCoverLetter:async()=>({id:"resume-1",cover_letter_storage_path:null}),
+      listBannedCompanies:async()=>[{id:"ban-1",companyName:"Google"}],
+      addBannedCompany:async(_user:any,_id:string,companyName:string)=>({id:"ban-2",companyName}),
+      removeBannedCompany:async()=>({id:"ban-1",companyName:"Google"}),
       identity:async()=>[{id:"resume-1"}],checksum:async()=>({id:"resume-1"}),upload:async()=>({id:"resume-1"}),
       update:async()=>({id:"resume-1"}),status:async()=>({id:"resume-1",status:"ARCHIVED"}),
     })
@@ -200,6 +203,18 @@ test("Resume cover letter open is readable while upload and delete require a man
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).post(`/api/v1/resumes/${id}/cover-letter`).set("Authorization","Bearer token").attach("file",Buffer.from("%PDF-1.4"),"cover.pdf").expect(201).expect(({body})=>assert.equal(body.data.cover_letter_original_filename,"cover.pdf"));
   await request(app.getHttpServer()).delete(`/api/v1/resumes/${id}/cover-letter`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.cover_letter_storage_path,null));
+  roles=["APPLYING_MANAGER"];
+});
+
+test("Resume banned companies are readable while add and delete require a manager or Admin",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000",entryId="223e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${id}/banned-companies`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].companyName,"Google"));
+  await request(app.getHttpServer()).post(`/api/v1/resumes/${id}/banned-companies`).set("Authorization","Bearer token").send({companyName:"Amazon"}).expect(403);
+  await request(app.getHttpServer()).delete(`/api/v1/resumes/${id}/banned-companies/${entryId}`).set("Authorization","Bearer token").expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).post(`/api/v1/resumes/${id}/banned-companies`).set("Authorization","Bearer token").send({companyName:"Amazon"}).expect(201).expect(({body})=>assert.equal(body.data.companyName,"Amazon"));
+  await request(app.getHttpServer()).delete(`/api/v1/resumes/${id}/banned-companies/${entryId}`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.companyName,"Google"));
   roles=["APPLYING_MANAGER"];
 });
 

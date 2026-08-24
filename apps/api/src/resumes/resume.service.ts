@@ -102,4 +102,24 @@ export class ResumeService{
     if(previousPath)await client.storage.from(previousBucket).remove([previousPath]);
     return data?.resume||await this.detail(user,id);
   }
+
+  async listBannedCompanies(user:AuthenticatedUser,id:string){
+    const{data,error}=await this.supabase.forUser(user.token).rpc("list_resume_banned_companies_v38",{p_resume_id:id});
+    if(error)fail(error,"Banned companies could not be loaded.");
+    return data||[];
+  }
+
+  async addBannedCompany(user:AuthenticatedUser,id:string,companyName:string){
+    const name=clean(companyName);
+    if(!name||name.length>200)throw new ApiException("VALIDATION_ERROR","Enter a company name between 1 and 200 characters.",HttpStatus.BAD_REQUEST);
+    const{data,error}=await this.supabase.forUser(user.token).rpc("add_resume_banned_company_v38",{p_resume_id:id,p_company_name:name});
+    if(error)fail(error,"The banned company could not be added.");
+    return data;
+  }
+
+  async removeBannedCompany(user:AuthenticatedUser,id:string,entryId:string){
+    const{data,error}=await this.supabase.forUser(user.token).rpc("remove_resume_banned_company_v38",{p_resume_id:id,p_id:entryId});
+    if(error)fail(error,"The banned company could not be removed.");
+    return data;
+  }
 }

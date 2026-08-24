@@ -23,6 +23,7 @@ import {
   Space,
   Statistic,
   Table as AntTable,
+  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -51,6 +52,11 @@ import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
+import {
+  addResumeBannedCompany,
+  listResumeBannedCompanies,
+  removeResumeBannedCompany,
+} from "./services/resume-banned-companies-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
 import { JdFinderPerformanceChart } from "./features/overview/jd-finder-performance-chart.jsx";
@@ -1658,6 +1664,105 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
   );
 }
 
+function ResumeBannedCompaniesCard({ client, apiBaseUrl, resumeId, canManage, isOriginal }) {
+  const [items, setItems] = useState(null),
+    [error, setError] = useState(""),
+    [message, setMessage] = useState(""),
+    [companyName, setCompanyName] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setItems(null);
+    setError("");
+    listResumeBannedCompanies(client, apiBaseUrl, resumeId)
+      .then((value) => live && setItems(value))
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, apiBaseUrl, resumeId]);
+  async function addCompany() {
+    const name = companyName.trim();
+    if (!name) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const row = await addResumeBannedCompany(client, apiBaseUrl, resumeId, name);
+      setItems((current) => [...(current || []), row].sort((a, b) => String(a.companyName).localeCompare(String(b.companyName))));
+      setCompanyName("");
+      setMessage("Company added to the ban list.");
+    } catch (value) {
+      setMessage(value.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function removeCompany(entryId) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await removeResumeBannedCompany(client, apiBaseUrl, resumeId, entryId);
+      setItems((current) => (current || []).filter((item) => item.id !== entryId));
+      setMessage("Company removed from the ban list.");
+    } catch (value) {
+      setMessage(value.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card size="small" title="Banned companies">
+      {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
+      {message && <Alert type="info" showIcon message={message} style={{ marginBottom: 12 }} />}
+      {items === null ? (
+        <Loading text="Loading banned companies…" />
+      ) : items.length ? (
+        <Space wrap size={[8, 8]} style={{ marginBottom: canManage && isOriginal ? 12 : 0 }}>
+          {items.map((item) =>
+            canManage && isOriginal ? (
+              <Popconfirm
+                key={item.id}
+                title="Remove this company from the ban list?"
+                okText="Remove"
+                okButtonProps={{ danger: true, loading: busy }}
+                onConfirm={() => removeCompany(item.id)}
+              >
+                <Tag style={{ cursor: "pointer" }}>{item.companyName}</Tag>
+              </Popconfirm>
+            ) : (
+              <Tag key={item.id}>{item.companyName}</Tag>
+            ),
+          )}
+        </Space>
+      ) : (
+        <Text type="secondary" style={{ display: "block", marginBottom: canManage && isOriginal ? 12 : 0 }}>
+          None
+        </Text>
+      )}
+      {canManage && isOriginal && (
+        <Space.Compact style={{ width: "100%", maxWidth: 420 }}>
+          <Input
+            value={companyName}
+            placeholder="Company name"
+            maxLength={200}
+            disabled={busy}
+            onChange={(event) => setCompanyName(event.target.value)}
+            onPressEnter={addCompany}
+          />
+          <Button type="primary" loading={busy} disabled={!companyName.trim()} onClick={addCompany}>
+            Add
+          </Button>
+        </Space.Compact>
+      )}
+      {canManage && isOriginal && (
+        <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+          Applications cannot be created for Job Descriptions from these companies with this Resume.
+        </Text>
+      )}
+    </Card>
+  );
+}
+
 function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
   const [resume, setResume] = useState(),
     [error, setError] = useState(""),
@@ -1796,6 +1901,13 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
             <Card size="small" title="Industries">
               <Tags values={resume.industries} empty="No industries recorded" />
             </Card>
+            <ResumeBannedCompaniesCard
+              client={client}
+              apiBaseUrl={apiBaseUrl}
+              resumeId={resume.id}
+              canManage={canManage}
+              isOriginal={isOriginal}
+            />
           </>
         ),
       },
