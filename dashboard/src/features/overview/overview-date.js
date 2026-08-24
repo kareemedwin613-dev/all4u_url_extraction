@@ -1,4 +1,4 @@
-export const OVERVIEW_WINDOWS=[{value:"TODAY",label:"Today"},{value:"THIS_WEEK",label:"This week"},{value:"THIS_MONTH",label:"This month"},{value:"CUSTOM",label:"Custom range"}];
+export const OVERVIEW_WINDOWS=[{value:"TODAY",label:"Today"},{value:"THIS_WEEK",label:"This Week"},{value:"THIS_MONTH",label:"This Month"},{value:"CUSTOM",label:"Custom Range"}];
 export const DEFAULT_OVERVIEW_WINDOW=Object.freeze({window:"TODAY",from:"",to:"",label:"Today"});
 const midnight=value=>new Date(value.getFullYear(),value.getMonth(),value.getDate());
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];

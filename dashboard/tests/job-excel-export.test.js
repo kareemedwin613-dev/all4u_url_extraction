@@ -11,11 +11,11 @@ import {
 
 test("job export workbook rows use the locked column order", () => {
   assert.deepEqual(JOB_EXPORT_HEADERS, [
-    "Company name",
-    "Role name",
-    "Job description URL",
-    "Founded by",
-    "Founded date",
+    "Company Name",
+    "Role Name",
+    "Job Description URL",
+    "Founded By",
+    "Founded Date",
     "Status",
   ]);
   const [row] = jobsToWorkbookRows([

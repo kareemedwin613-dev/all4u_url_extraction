@@ -156,7 +156,7 @@ export function StructuredResumeEditor({
   }
   return (
     <Card
-      title="Structured Resume editor"
+      title="Structured Resume Editor"
       extra={
         <Button type="primary" loading={busy} onClick={save}>
           Save Structured Resume
@@ -196,7 +196,7 @@ export function StructuredResumeEditor({
       <Flex justify="space-between" align="center">
         <Title level={3}>Professional Experience</Title>
         <Button onClick={() => add("employment", emptyEmployment)}>
-          Add experience
+          Add Experience
         </Button>
       </Flex>
       {draft.employment.map((x, i) => (
@@ -227,7 +227,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={24} md={12}>
               <label>
-                Job title
+                Job Title
                 <Input
                   value={x.jobTitle}
                   onChange={(e) =>
@@ -249,7 +249,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={12} md={8}>
               <label>
-                Start date
+                Start Date
                 <Input
                   type="date"
                   value={date(x.startDate)}
@@ -263,7 +263,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={12} md={8}>
               <label>
-                End date
+                End Date
                 <Input
                   type="date"
                   disabled={x.isCurrent}
@@ -284,12 +284,12 @@ export function StructuredResumeEditor({
                   })
                 }
               >
-                Currently employed here
+                Currently Employed Here
               </Checkbox>
             </Col>
             <Col span={24}>
               <label>
-                Achievements and responsibilities
+                Achievements And Responsibilities
                 <Input.TextArea
                   value={x.experienceDetails || ""}
                   onChange={(e) =>
@@ -309,7 +309,7 @@ export function StructuredResumeEditor({
       <Flex justify="space-between" align="center">
         <Title level={3}>Education</Title>
         <Button onClick={() => add("education", emptyEducation)}>
-          Add education
+          Add Education
         </Button>
       </Flex>
       {profile.educationLegacyText && (
@@ -360,7 +360,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={24} md={12}>
               <label>
-                Field of study
+                Field Of Study
                 <Input
                   value={x.fieldOfStudy || ""}
                   onChange={(e) =>
@@ -382,7 +382,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={12} md={8}>
               <label>
-                Start date
+                Start Date
                 <Input
                   type="date"
                   value={date(x.startDate)}
@@ -396,7 +396,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={12} md={8}>
               <label>
-                End date
+                End Date
                 <Input
                   type="date"
                   value={date(x.endDate)}
@@ -434,7 +434,7 @@ export function StructuredResumeEditor({
       <Flex justify="space-between" align="center">
         <Title level={3}>Certifications</Title>
         <Button onClick={() => add("certifications", emptyCertification)}>
-          Add certification
+          Add Certification
         </Button>
       </Flex>
       {draft.certifications.map((x, i) => (
@@ -476,7 +476,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={12} md={6}>
               <label>
-                Issued date
+                Issued Date
                 <Input
                   type="date"
                   value={date(x.issuedDate)}
@@ -490,7 +490,7 @@ export function StructuredResumeEditor({
             </Col>
             <Col xs={12} md={6}>
               <label>
-                Expiration date
+                Expiration Date
                 <Input
                   type="date"
                   value={date(x.expirationDate)}

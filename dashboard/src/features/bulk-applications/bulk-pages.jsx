@@ -74,10 +74,10 @@ function PreviewSummary({ preview }) {
   const cards = [
     ["Selected JDs", preview.selectedJdCount],
     ["Valid JDs", preview.validJdCount],
-    ["Active matching Resumes", preview.activeResumeCount],
+    ["Active Matching Resumes", preview.activeResumeCount],
     ["Proposed Applications", preview.proposedCount],
-    ["Existing duplicates", preview.duplicateCount],
-    ["Invalid or excluded", preview.excludedCount],
+    ["Existing Duplicates", preview.duplicateCount],
+    ["Invalid Or Excluded", preview.excludedCount],
   ];
   return (
     <Row gutter={[12, 12]}>
@@ -125,7 +125,7 @@ function PreviewFilters({ rows, value, onChange }) {
               value={value.company}
               onChange={(company) => onChange({ ...value, company })}
               options={[
-                { value: "", label: "All companies" },
+                { value: "", label: "All Companies" },
                 ...uniqueOptions(rows, "company"),
               ]}
               style={{ width: "100%" }}
@@ -138,7 +138,7 @@ function PreviewFilters({ rows, value, onChange }) {
             <Select
               value={value.categoryId}
               onChange={(categoryId) => onChange({ ...value, categoryId })}
-              options={[{ value: "", label: "All categories" }, ...categories]}
+              options={[{ value: "", label: "All Categories" }, ...categories]}
               style={{ width: "100%" }}
             />
           </label>
@@ -151,7 +151,7 @@ function PreviewFilters({ rows, value, onChange }) {
               value={value.candidate}
               onChange={(candidate) => onChange({ ...value, candidate })}
               options={[
-                { value: "", label: "All candidates" },
+                { value: "", label: "All Candidates" },
                 ...uniqueOptions(rows, "candidateName"),
               ]}
               style={{ width: "100%" }}
@@ -180,7 +180,7 @@ function PreviewFilters({ rows, value, onChange }) {
               value={value.eligibility}
               onChange={(eligibility) => onChange({ ...value, eligibility })}
               options={[
-                { value: "", label: "All rows" },
+                { value: "", label: "All Rows" },
                 { value: "ELIGIBLE", label: "Eligible" },
                 { value: "EXCLUDED", label: "Excluded" },
               ]}
@@ -197,7 +197,7 @@ function PreviewFilters({ rows, value, onChange }) {
                 onChange({ ...value, exclusionCode })
               }
               options={[
-                { value: "", label: "All reasons" },
+                { value: "", label: "All Reasons" },
                 ...uniqueOptions(rows, "exclusionCode").map((option) => ({
                   ...option,
                   label: formatLabel(option.label),
@@ -225,7 +225,7 @@ function BulkResult({ result, onAnother }) {
         render: (value) => value || "Unavailable",
       },
       {
-        title: "Job title",
+        title: "Job Title",
         dataIndex: "jobTitle",
         render: (value) => value || "Unavailable",
       },
@@ -272,13 +272,13 @@ function BulkResult({ result, onAnother }) {
           </Button>,
         ]}
       />
-      <Card title="Per-row outcomes">
+      <Card title="Per-Row Outcomes">
         <Table
           rowKey="key"
           columns={columns}
           dataSource={result.results || []}
           pagination={{ pageSize: 25 }}
-          scroll={{ x: "max-content", y: "calc(100vh - 390px)" }}
+          scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
         />
       </Card>
     </div>
@@ -410,7 +410,7 @@ export function BulkCreatePage({
             Applications to create: <strong>{counts.applicationCount}</strong>
           </p>
           <p>
-            Existing duplicates skipped:{" "}
+            Existing Duplicates skipped:{" "}
             <strong>{counts.duplicateCount}</strong>
           </p>
           <p>
@@ -428,11 +428,11 @@ export function BulkCreatePage({
   }
   const columns = clientSortColumns([
     { title: "Company", dataIndex: "company" },
-    { title: "Job title", dataIndex: "jobTitle" },
-    { title: "JD category", dataIndex: "jobCategoryName" },
+    { title: "Job Title", dataIndex: "jobTitle" },
+    { title: "JD Category", dataIndex: "jobCategoryName" },
     { title: "Candidate", dataIndex: "candidateName" },
     { title: "Resume", dataIndex: "resumeName" },
-    { title: "Resume category", dataIndex: "resumeCategoryName" },
+    { title: "Resume Category", dataIndex: "resumeCategoryName" },
     {
       title: "Eligibility",
       dataIndex: "eligible",
@@ -444,7 +444,7 @@ export function BulkCreatePage({
         ),
     },
     {
-      title: "Exclusion reason",
+      title: "Exclusion Reason",
       dataIndex: "exclusionReason",
       render: (value) => value || "—",
     },
@@ -490,7 +490,7 @@ export function BulkCreatePage({
                   children: (
                     <>
                       {preview.invalidJds?.length > 0 && (
-                        <Card title="Invalid or skipped Job Descriptions">
+                        <Card title="Invalid Or Skipped Job Descriptions">
                           <Alert
                             type="warning"
                             showIcon
@@ -502,7 +502,7 @@ export function BulkCreatePage({
                             pagination={false}
                             columns={[
                               { title: "Company", dataIndex: "company" },
-                              { title: "Job title", dataIndex: "jobTitle" },
+                              { title: "Job Title", dataIndex: "jobTitle" },
                               { title: "Reason", dataIndex: "reason" },
                             ]}
                             scroll={{ x: "max-content" }}
@@ -606,10 +606,10 @@ export function BulkCreatePage({
                   key: "create",
                   label: `Create selected (${selected.size})`,
                   children: (
-                    <Card title="Create selected Applications">
+                    <Card title="Create Selected Applications">
                       <Form layout="vertical">
                         <Form.Item
-                          label="Batch name (optional)"
+                          label="Batch Name (Optional)"
                           extra="Maximum 120 characters. A timestamped name is generated when blank."
                         >
                           <Input
@@ -672,16 +672,16 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
   const columns = serverSortColumns(
     [
       {
-        title: "Batch name",
+        title: "Batch Name",
         dataIndex: "name",
         sortKey: "name",
         render: (value, row) => (
           <a href={`#/application-batches/${row.id}`}>{value}</a>
         ),
       },
-      { title: "Created by", dataIndex: "creatorName", sortKey: "creator" },
+      { title: "Created By", dataIndex: "creatorName", sortKey: "creator" },
       {
-        title: "Created at",
+        title: "Created At",
         dataIndex: "createdAt",
         sortKey: "created",
         render: formatDate,
@@ -719,7 +719,6 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
   );
   return (
     <div className="page">
-      <PageHeading title="Application Batches" />
       <FilterPanel activeCount={[search, status].filter(Boolean).length}>
         <Space wrap>
           <Input.Search
@@ -763,7 +762,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 450px)" }}
+            scroll={{ x: "max-content", y: "calc(100vh - 280px)" }}
             onChange={(_pagination, _filters, sorter) => {
               setSort(serverSortFromTable(sorter, "created_desc"));
               setPage(1);
@@ -822,7 +821,7 @@ export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
         render: (value) => value || "Unavailable",
       },
       {
-        title: "Job title",
+        title: "Job Title",
         dataIndex: "jobTitle",
         render: (value) => value || "Unavailable",
       },
@@ -873,7 +872,7 @@ export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
               ))}
             </Row>
             <p>
-              Created by: <strong>{batch.creatorName}</strong>
+              Created By: <strong>{batch.creatorName}</strong>
             </p>
             <p>
               Started: {formatDate(batch.createdAt)} · Completed:{" "}
@@ -892,7 +891,7 @@ export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
                 value={outcome}
                 style={{ width: 240 }}
                 onChange={(value) => { setOutcome(value); setResultPage(1); }}
-                options={[{ value: "", label: "All outcomes" }, ...["CREATED", "DUPLICATE", "SKIPPED", "FAILED"].map((value) => ({ value, label: formatLabel(value) }))]}
+                options={[{ value: "", label: "All Outcomes" }, ...["CREATED", "DUPLICATE", "SKIPPED", "FAILED"].map((value) => ({ value, label: formatLabel(value) }))]}
               />
             </FilterPanel>
             {!results ? <LoadingState /> : (

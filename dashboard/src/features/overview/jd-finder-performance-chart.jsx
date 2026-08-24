@@ -126,7 +126,7 @@ export function JdFinderPerformanceChart({ rows = [], dateLabel = "Today" }) {
           <div
             className="overview-chart-scroll"
             role="img"
-            aria-label="JD Finder Performance graph"
+            aria-label="JD Finder Performance Graph"
           >
             <div style={{ minWidth: chartMinWidth, height: 320 }}>
               <ResponsiveContainer width="100%" height="100%">

@@ -137,10 +137,13 @@ import {
   ErrorState as UiErrorState,
   LegacyTable,
   LoadingState,
+  MetaTag,
   Metadata,
+  SeniorityTag,
   StatusTag,
   TabbedSections,
   TagList,
+  categoryTagColor,
 } from "./components/ui.jsx";
 
 const go = (hash, replace = false) =>
@@ -299,7 +302,7 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
         <button
           type="button"
           className="dashboard-sider-mask"
-          aria-label="Close navigation"
+          aria-label="Close Navigation"
           onClick={() => updateCollapsed(true)}
         />
       )}
@@ -453,7 +456,7 @@ function Login({ client, onSignedIn }) {
         <Text>
           Use the same Supabase email and password as the Chrome extension.
         </Text>
-        {message && <UiErrorState title="Sign in failed" message={message} />}
+        {message && <UiErrorState title="Sign In Failed" message={message} />}
         <Form layout="vertical" onFinish={submit} requiredMark={false}>
           <Form.Item
             label="Email"
@@ -577,16 +580,16 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
         ))}
       </Row>
       {!showApplierPerformance && <Card
-        title="Recent job descriptions"
+        title="Recent Job Descriptions"
         extra={<a href="#/jobs">View all</a>}
       >
         {recentJ.length ? (
           <Table
             headers={[
               "Company",
-              "Job title",
+              "Job Title",
               "Category",
-              "Captured by",
+              "Captured By",
               "Status",
               "Captured",
             ]}
@@ -612,7 +615,7 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
           </Text>
         )}
       </Card>}
-      {showApplierPerformance ? <Row gutter={[16,16]}><Col xs={24} xl={12}><ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel}/></Col><Col xs={24} xl={12}><JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel}/></Col></Row> : <Card title="Recent resumes" extra={<a href="#/resumes">View all</a>}>
+      {showApplierPerformance ? <Row gutter={[16,16]}><Col xs={24} xl={12}><ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel}/></Col><Col xs={24} xl={12}><JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel}/></Col></Row> : <Card title="Recent Resumes" extra={<a href="#/resumes">View all</a>}>
         {recentR.length ? (
           <Table
             headers={["Candidate", "Resume", "Category", "Status", "Updated"]}
@@ -718,7 +721,6 @@ function Jobs({
               dataIndex: "company",
               sortKey: "company",
               width: 160,
-              ellipsis: { showTitle: false },
               filteredValue: searchFiltered,
               ...serverSideColumnFilter,
               filterDropdown: textSearchFilterDropdown(
@@ -730,11 +732,10 @@ function Jobs({
               render: (value) => <EllipsisCell>{value}</EllipsisCell>,
             },
             {
-              title: "Job title",
+              title: "Job Title",
               dataIndex: "job_title",
               sortKey: "title",
               width: 220,
-              ellipsis: { showTitle: false },
               filteredValue: searchFiltered,
               ...serverSideColumnFilter,
               filterDropdown: textSearchFilterDropdown(
@@ -748,11 +749,10 @@ function Jobs({
               ),
             },
             {
-              title: "Primary category",
+              title: "Primary Category",
               dataIndex: "category_id",
               sortKey: "category",
-              width: 170,
-              ellipsis: { showTitle: false },
+              width: 200,
               filters: categories.primary.map((item) => ({
                 text: item.name,
                 value: item.id,
@@ -761,15 +761,16 @@ function Jobs({
               filteredValue: filters.categoryId ? [filters.categoryId] : null,
               ...serverSideColumnFilter,
               render: (value) => (
-                <EllipsisCell>{categoryName(categories, value)}</EllipsisCell>
+                <MetaTag color={categoryTagColor(categories, value)}>
+                  {categoryName(categories, value)}
+                </MetaTag>
               ),
             },
             {
               title: "Seniority",
               dataIndex: "seniority",
               sortKey: "seniority",
-              width: 120,
-              ellipsis: { showTitle: false },
+              width: 130,
               filters: SENIORITIES.map((item) => ({
                 text: formatLabel(item),
                 value: item,
@@ -777,14 +778,13 @@ function Jobs({
               filterMultiple: false,
               filteredValue: filters.seniority ? [filters.seniority] : null,
               ...serverSideColumnFilter,
-              render: formatLabel,
+              render: (value) => <SeniorityTag value={value} />,
             },
             {
               title: "Job Posting URL",
               dataIndex: "source_url",
               sortKey: "source",
               width: 280,
-              ellipsis: { showTitle: false },
               filters: [
                 { text: "Active URLs", value: "ACTIVE" },
                 { text: "Declined / archived URLs", value: "ARCHIVED" },
@@ -803,11 +803,10 @@ function Jobs({
               },
             },
             {
-              title: "Captured by",
+              title: "Captured By",
               dataIndex: "user_id",
               sortKey: "capturer",
               width: 160,
-              ellipsis: { showTitle: false },
               filters: capturers.map((item) => {
                 const name = personDisplayName({
                   displayName: item.displayName,
@@ -830,7 +829,9 @@ function Jobs({
               filterSearch: true,
               ...serverSideColumnFilter,
               render: (_, job) => (
-                <EllipsisCell>{capturedBy(job)}</EllipsisCell>
+                <MetaTag seed={job.user_id || capturedBy(job)}>
+                  {capturedBy(job)}
+                </MetaTag>
               ),
             },
             {
@@ -857,8 +858,8 @@ function Jobs({
               width: 170,
               filters: [
                 { text: "Today", value: "TODAY" },
-                { text: "This week", value: "THIS_WEEK" },
-                { text: "This month", value: "THIS_MONTH" },
+                { text: "This Week", value: "THIS_WEEK" },
+                { text: "This Month", value: "THIS_MONTH" },
               ],
               filterMultiple: false,
               filteredValue:
@@ -894,24 +895,21 @@ function Jobs({
     );
   const selectedCount = selectedJobIds.length,
     tooMany = selectedCount > MAX_BULK_JDS,
-    jobsTableScrollX = 1540;
+    jobsTableScrollX = 1580;
   async function downloadExcel() {
     setExportBusy(true);
     setExportMessage("");
     try {
       await exportFilteredJobsExcel(client, apiBaseUrl, filters);
     } catch (value) {
-      setExportMessage(value.message || "Job descriptions could not be exported.");
+      setExportMessage(value.message || "Job Descriptions could not be exported.");
     } finally {
       setExportBusy(false);
     }
   }
   return (
     <div className="page">
-      <Flex justify="space-between" align="center" wrap>
-        <Title level={1} tabIndex={-1}>
-          Job Descriptions
-        </Title>
+      <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
         <Space wrap>
           <Button
             loading={exportBusy}
@@ -963,7 +961,7 @@ function Jobs({
       ) : !data && loading ? (
         <Loading text="Loading job descriptions…" />
       ) : !data ? (
-        <ErrorState message={error || "Job descriptions could not be loaded."} />
+        <ErrorState message={error || "Job Descriptions could not be loaded."} />
       ) : (
         <Card>
           {error && (
@@ -982,7 +980,7 @@ function Jobs({
             dataSource={data.items}
             pagination={false}
             tableLayout="fixed"
-            scroll={{ x: jobsTableScrollX, y: "calc(100vh - 400px)" }}
+            scroll={{ x: jobsTableScrollX, y: "calc(100vh - 240px)" }}
             locale={{
               emptyText: (
                 <Space direction="vertical" size="small" style={{ padding: 24 }}>
@@ -1147,7 +1145,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               ),
             },
             {
-              title: "Primary category",
+              title: "Primary Category",
               dataIndex: "primary_category_id",
               sortKey: "category",
               filters: categories.primary.map((item) => ({
@@ -1180,7 +1178,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               render: formatLabel,
             },
             {
-              title: "File type",
+              title: "File Type",
               dataIndex: "mime_type",
               sortKey: "mime",
               filters: MIME_TYPES.map((item) => ({
@@ -1193,7 +1191,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               render: formatMime,
             },
             {
-              title: "Cover letter",
+              title: "Cover Letter",
               dataIndex: "cover_letter_storage_path",
               render: (value, resume) =>
                 value ? (
@@ -1264,9 +1262,6 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
     );
   return (
     <div className="page">
-      <Title level={1} tabIndex={-1}>
-        Resumes
-      </Title>
       {coverMessage && <Alert type="error" showIcon message={coverMessage} style={{ marginBottom: 16 }} />}
       {error ? (
         <ErrorState message={error} />
@@ -1279,7 +1274,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 400px)" }}
+            scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
             locale={{
               emptyText: (
                 <Space direction="vertical" size="small" style={{ padding: 24 }}>
@@ -1353,7 +1348,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
   if (job === undefined) return <Loading />;
   if (!job)
     return (
-      <ErrorState message="Job description not found or you do not have access to it." />
+      <ErrorState message="Job Description not found or you do not have access to it." />
     );
   const source = safeExternalUrl(job.source_url),
     canReview =
@@ -1366,42 +1361,42 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
         children: (
           <Meta
             items={[
-              ["Primary category", categoryName(categories, job.category_id)],
+              ["Primary Category", categoryName(categories, job.category_id)],
               [
                 "Subcategory",
                 job.subcategory_id
                   ? categoryName(categories, job.subcategory_id)
                   : "None",
               ],
-              ["Industry domain", formatLabel(job.industry_domain)],
+              ["Industry Domain", formatLabel(job.industry_domain)],
               ["Seniority", formatLabel(job.seniority)],
               ["Location", job.location_text || "Not specified / remote"],
-              ["Work arrangement", formatLabel(job.work_arrangement)],
-              ["Salary range", salaryRange(job)],
-              ["Original salary text", job.salary_text || "—"],
+              ["Work Arrangement", formatLabel(job.work_arrangement)],
+              ["Salary Range", salaryRange(job)],
+              ["Original Salary Text", job.salary_text || "—"],
               [
-                "Travel required",
+                "Travel Required",
                 job.travel_required === null
                   ? "Not specified"
                   : job.travel_required
                     ? "Yes"
                     : "No",
               ],
-              ["Travel details", job.travel_details || "—"],
-              ["Source site", job.source_site],
-              ["Captured by", capturedBy(job)],
-              ["Capturer user ID", job.user_id],
-              ["Review status", formatLabel(job.review_status)],
-              ["Reviewer comment", job.review_comment || "No comment"],
-              ...(job.review_decline_reason ? [["Decline reason", formatLabel(job.review_decline_reason)]] : []),
-              ["Capture method", formatLabel(job.capture_method)],
-              ["Extraction confidence", formatLabel(job.extraction_confidence)],
-              ["Captured at", formatDate(job.created_at)],
-              ["Last updated", formatDate(job.updated_at)],
+              ["Travel Details", job.travel_details || "—"],
+              ["Source Site", job.source_site],
+              ["Captured By", capturedBy(job)],
+              ["Capturer User ID", job.user_id],
+              ["Review Status", formatLabel(job.review_status)],
+              ["Reviewer Comment", job.review_comment || "No comment"],
+              ...(job.review_decline_reason ? [["Decline Reason", formatLabel(job.review_decline_reason)]] : []),
+              ["Capture Method", formatLabel(job.capture_method)],
+              ["Extraction Confidence", formatLabel(job.extraction_confidence)],
+              ["Captured At", formatDate(job.created_at)],
+              ["Last Updated", formatDate(job.updated_at)],
               ...(job.status === "ARCHIVED" ? [
-                ["Declined / archived at", formatDate(job.archived_at)],
-                ["Reviewed by user ID", job.archived_by || "Not recorded"],
-                ["Review reason", formatLabel(job.archive_reason)],
+                ["Declined / Archived At", formatDate(job.archived_at)],
+                ["Reviewed By User ID", job.archived_by || "Not recorded"],
+                ["Review Reason", formatLabel(job.archive_reason)],
               ] : []),
             ]}
           />
@@ -1412,13 +1407,13 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
         label: "Requirements",
         children: (
           <>
-            <Card size="small" title="Security requirements">
+            <Card size="small" title="Security Requirements">
               <Tags
                 values={job.clearance_requirements?.map(formatLabel)}
                 empty="No clearance requirement detected"
               />
             </Card>
-            <Card size="small" title="Detected technology stack">
+            <Card size="small" title="Detected Technology Stack">
               <Tags
                 values={job.detected_skills}
                 empty="No technology stack detected"
@@ -1429,7 +1424,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       },
       {
         key: "description",
-        label: "Job description",
+        label: "Job Description",
         children: <div className="long-text">{job.description_text}</div>,
       },
     ];
@@ -1469,7 +1464,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
             ? "JD declined in review."
             : nextStatus === "NEEDS_CORRECTION"
               ? "Correction requested from the JD Finder."
-              : "Review status updated.",
+              : "Review Status updated.",
       );
     } catch (value) {
       setStatusMessageType("error");
@@ -1593,7 +1588,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       />
       <Modal
         open={reviewDialog === "CORRECTION"}
-        title="Request correction"
+        title="Request Correction"
         okText="Save"
         confirmLoading={reviewBusy}
         onCancel={() => !reviewBusy && setReviewDialog(null)}
@@ -1610,7 +1605,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       </Modal>
       <Modal
         open={reviewDialog === "DECLINE"}
-        title="Decline JD in review"
+        title="Decline JD In Review"
         okText="Decline"
         okButtonProps={{ danger: true }}
         confirmLoading={reviewBusy}
@@ -1620,13 +1615,13 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       >
         <div className="review-dialog-stack">
           <label>
-            Decline reason
+            Decline Reason
             <Select
               value={declineReason}
               onChange={setDeclineReason}
               options={[
                 { value: "EXPIRED", label: "Expired" },
-                { value: "NOT_ELIGIBLE", label: "Not eligible" },
+                { value: "NOT_ELIGIBLE", label: "Not Eligible" },
                 { value: "DUPLICATE", label: "Duplicate" },
                 { value: "INVALID_URL", label: "Invalid URL" },
                 { value: "OTHER", label: "Other" },
@@ -1642,22 +1637,22 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
           />
         </div>
       </Modal>
-      <Modal open={editOpen} title="Edit captured job description" width={760} okText="Save changes" confirmLoading={editBusy} onOk={saveEdit} onCancel={() => !editBusy && setEditOpen(false)}>
+      <Modal open={editOpen} title="Edit Captured Job Description" width={760} okText="Save Changes" confirmLoading={editBusy} onOk={saveEdit} onCancel={() => !editBusy && setEditOpen(false)}>
         <Alert type="info" showIcon message={job.review_status === "NEEDS_CORRECTION" ? "Correct the requested details. The manager's review comment and audit history will be preserved." : "You can edit this JD until it is approved or declined."} style={{ marginBottom: 16 }} />
         <Form form={editForm} layout="vertical">
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Item name="company" label="Company" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="jobTitle" label="Job title" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="categoryId" label="Primary category" rules={[{ required: true }]}><Select options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { setEditCategoryId(value); editForm.setFieldValue("subcategoryId", undefined); }} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="jobTitle" label="Job Title" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="categoryId" label="Primary Category" rules={[{ required: true }]}><Select options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { setEditCategoryId(value); editForm.setFieldValue("subcategoryId", undefined); }} /></Form.Item></Col>
             <Col xs={24} md={12}><Form.Item name="subcategoryId" label="Subcategory (optional)"><Select allowClear options={(categories?.childrenByParent?.get(editCategoryId) || []).map((item) => ({ value: item.id, label: item.name }))} /></Form.Item></Col>
             <Col xs={24} md={12}><Form.Item name="seniority" label="Seniority"><Select options={SENIORITIES.map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="workArrangement" label="Work arrangement"><Select options={["REMOTE","HYBRID","ONSITE","UNSPECIFIED"].map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="workArrangement" label="Work Arrangement"><Select options={["REMOTE","HYBRID","ONSITE","UNSPECIFIED"].map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
             <Col xs={24} md={12}><Form.Item name="locationText" label="Location"><Input maxLength={300} /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="salaryText" label="Salary text"><Input maxLength={500} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="salaryText" label="Salary Text"><Input maxLength={500} /></Form.Item></Col>
           </Row>
-          <Form.Item name="sourceUrl" label="Job posting URL" rules={[{ required: true }, { type: "url" }, { max: 4000 }]}><Input /></Form.Item>
-          <Form.Item name="detectedSkills" label="Technical skills (comma-separated)"><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
-          <Form.Item name="descriptionText" label="Job description" rules={[{ required: true }, { min: 100 }, { max: 200000 }]}><Input.TextArea rows={10} /></Form.Item>
+          <Form.Item name="sourceUrl" label="Job Posting URL" rules={[{ required: true }, { type: "url" }, { max: 4000 }]}><Input /></Form.Item>
+          <Form.Item name="detectedSkills" label="Technical Skills (Comma-Separated)"><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
+          <Form.Item name="descriptionText" label="Job Description" rules={[{ required: true }, { min: 100 }, { max: 200000 }]}><Input.TextArea rows={10} /></Form.Item>
         </Form>
       </Modal>
     </div>
@@ -1711,7 +1706,7 @@ function ResumeBannedCompaniesCard({ client, apiBaseUrl, resumeId, canManage, is
     }
   }
   return (
-    <Card size="small" title="Banned companies">
+    <Card size="small" title="Banned Companies">
       {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
       {message && <Alert type="info" showIcon message={message} style={{ marginBottom: 12 }} />}
       {items === null ? (
@@ -1743,7 +1738,7 @@ function ResumeBannedCompaniesCard({ client, apiBaseUrl, resumeId, canManage, is
         <Space.Compact style={{ width: "100%", maxWidth: 420 }}>
           <Input
             value={companyName}
-            placeholder="Company name"
+            placeholder="Company Name"
             maxLength={200}
             disabled={busy}
             onChange={(event) => setCompanyName(event.target.value)}
@@ -1800,7 +1795,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     try {
       const url = await createCoverLetterSignedUrl(client, { id: resume.id, apiBaseUrl });
       window.open(url, "_blank", "noopener,noreferrer");
-      setFileMessage("Cover letter link opened. It expires shortly.");
+      setFileMessage("Cover Letter link opened. It expires shortly.");
     } catch (value) {
       setFileMessage(value.message);
     }
@@ -1814,7 +1809,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     try {
       const next = await uploadResumeCoverLetter(client, { id: resume.id, apiBaseUrl, file });
       setResume((current) => ({ ...current, ...next }));
-      setFileMessage(hasCoverLetter ? "Cover letter replaced." : "Cover letter uploaded.");
+      setFileMessage(hasCoverLetter ? "Cover Letter replaced." : "Cover Letter uploaded.");
     } catch (value) {
       setFileMessage(value.message);
     } finally {
@@ -1827,7 +1822,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     try {
       const next = await removeResumeCoverLetter(client, { id: resume.id, apiBaseUrl });
       setResume((current) => ({ ...current, ...next }));
-      setFileMessage("Cover letter removed.");
+      setFileMessage("Cover Letter removed.");
     } catch (value) {
       setFileMessage(value.message);
     } finally {
@@ -1856,15 +1851,15 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
           <>
             <Meta
               items={[
-                ["Resume number", resume.resume_number ? `#${resume.resume_number}` : "Not assigned"],
-                ["Resume type", formatLabel(resume.resume_type || "ORIGINAL")],
+                ["Resume Number", resume.resume_number ? `#${resume.resume_number}` : "Not assigned"],
+                ["Resume Type", formatLabel(resume.resume_type || "ORIGINAL")],
                 ["Parent Resume", resume.parent_resume_id ? "Original Resume available from this Application's tailoring history" : "None — this is an original Resume"],
-                ["Candidate email", resume.candidate_email || "Not recorded"],
-                ["Candidate phone", resume.candidate_phone || "Not recorded"],
-                ["Autofill metadata", formatLabel(resume.profile_review_status)],
-                ["Metadata reviewed at", formatDate(resume.profile_reviewed_at)],
+                ["Candidate Email", resume.candidate_email || "Not recorded"],
+                ["Candidate Phone", resume.candidate_phone || "Not recorded"],
+                ["Autofill Metadata", formatLabel(resume.profile_review_status)],
+                ["Metadata Reviewed At", formatDate(resume.profile_reviewed_at)],
                 [
-                  "Primary category",
+                  "Primary Category",
                   categoryName(categories, resume.primary_category_id),
                 ],
                 [
@@ -1875,23 +1870,23 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                 ],
                 ["Seniority", formatLabel(resume.seniority)],
                 [
-                  "Structured schema version",
+                  "Structured Schema Version",
                   resume.structured_schema_version || "Legacy",
                 ],
-                ["Original filename", resume.original_filename],
-                ["File type", formatMime(resume.mime_type)],
-                ["File size", formatBytes(resume.file_size_bytes)],
+                ["Original Filename", resume.original_filename],
+                ["File Type", formatMime(resume.mime_type)],
+                ["File Size", formatBytes(resume.file_size_bytes)],
                 [
-                  "Cover letter",
+                  "Cover Letter",
                   hasCoverLetter
                     ? `${resume.cover_letter_original_filename} (${formatBytes(resume.cover_letter_file_size_bytes)})`
                     : "None",
                 ],
-                ["Created at", formatDate(resume.created_at)],
-                ["Last updated", formatDate(resume.updated_at)],
+                ["Created At", formatDate(resume.created_at)],
+                ["Last Updated", formatDate(resume.updated_at)],
                 ...(resume.status === "ARCHIVED" ? [
-                  ["Archived at", formatDate(resume.archived_at)],
-                  ["Archived by user ID", resume.archived_by || "Not recorded"],
+                  ["Archived At", formatDate(resume.archived_at)],
+                  ["Archived By User ID", resume.archived_by || "Not recorded"],
                 ] : []),
               ]}
             />
@@ -1923,7 +1918,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       },
       {
         key: "original",
-        label: "Original text",
+        label: "Original Text",
         children: <div className="long-text">{resume.resume_text}</div>,
       },
       ...(canManage?[{
@@ -2003,7 +1998,7 @@ export function ConfigurationError({ message }) {
     <main className="config-page">
       <Card className="login-card">
         <UiErrorState
-          title="Dashboard setup required"
+          title="Dashboard Setup Required"
           message={
             <>
               {message}
@@ -2134,7 +2129,7 @@ export function App({ client, apiBaseUrl }) {
     return (
       <Shell
         route={route}
-        title="Access error"
+        title="Access Error"
         access={{ email: session.user.email, status: "INACTIVE", roles: [] }}
         logout={logout}
       >

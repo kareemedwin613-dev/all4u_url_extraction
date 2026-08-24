@@ -62,7 +62,7 @@ export async function setStatus(client,baseUrl,userId, status) {
 
 export async function updateUserProfile(client, baseUrl, userId, fullName) {
   const name = String(fullName || "").trim();
-  if (name.length > 200) throw {code: "VALIDATION_ERROR", message: "Full name must be at most 200 characters.", retryable: false};
+  if (name.length > 200) throw {code: "VALIDATION_ERROR", message: "Full Name must be at most 200 characters.", retryable: false};
   return api(client, baseUrl, `/api/v1/admin/users/${requireUuid(userId)}/profile`, {
     method: "PATCH",
     body: {fullName: name},

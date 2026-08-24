@@ -126,7 +126,7 @@ export function ApplierPerformanceChart({ rows = [], dateLabel = "Today" }) {
           <div
             className="overview-chart-scroll"
             role="img"
-            aria-label="Applier Performance graph"
+            aria-label="Applier Performance Graph"
           >
             <div style={{ minWidth: chartMinWidth, height: 320 }}>
               <ResponsiveContainer width="100%" height="100%">

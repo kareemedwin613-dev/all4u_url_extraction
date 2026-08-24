@@ -4,27 +4,27 @@ import{listResumeAnswers,saveResumeAnswers}from"./resume-answer-service.js";
 const{Text}=Typography;
 
 export const ANSWER_DEFINITIONS=Object.freeze({
- authorized_to_work:{label:"Authorized to work",type:"BOOLEAN",patterns:["Are you legally authorized to work?","Are you eligible to work in the United States?"]},
- requires_sponsorship:{label:"Requires sponsorship",type:"BOOLEAN",patterns:["Will you now or in the future require sponsorship?","Will you require visa sponsorship?"]},
- willing_to_relocate:{label:"Willing to relocate",type:"BOOLEAN",patterns:["Are you willing to relocate?"]},
- available_start_date:{label:"Available start date",type:"DATE",patterns:["When can you start?","What is your available start date?"]},
- desired_salary:{label:"Fallback desired salary",type:"TEXT",patterns:["What is your desired salary?","What are your salary expectations?"],help:"Used only when the JD has no complete numeric salary range. The extension otherwise recommends the JD midpoint."},
- years_of_experience:{label:"Years of experience",type:"NUMBER",patterns:["How many years of relevant experience do you have?","How many years of experience do you have?"]},
- remote_work_preference:{label:"Remote-work preference",type:"SINGLE_SELECT",patterns:["What is your preferred work arrangement?","What is your remote work preference?"]},
- gender_identity:{label:"Gender identity (voluntary)",type:"TEXT",patterns:["Gender","What is your gender?","I identify my gender as"],help:"Sensitive voluntary self-identification. Stored only when you configure and verify it; always reviewed again before autofill."},
- race_ethnicity:{label:"Race / ethnicity (voluntary)",type:"TEXT",patterns:["Race","Race and ethnicity","What is your race and ethnicity?"],help:"Sensitive voluntary self-identification. Use the exact option wording you normally select; always reviewed again before autofill."},
- veteran_status:{label:"Veteran status (voluntary)",type:"TEXT",patterns:["Veteran status","Are you a military veteran?"],help:"Sensitive voluntary self-identification. Use the exact option wording you normally select; always reviewed again before autofill."},
+ authorized_to_work:{label:"Authorized To Work",type:"BOOLEAN",patterns:["Are you legally authorized to work?","Are you eligible to work in the United States?"]},
+ requires_sponsorship:{label:"Requires Sponsorship",type:"BOOLEAN",patterns:["Will you now or in the future require sponsorship?","Will you require visa sponsorship?"]},
+ willing_to_relocate:{label:"Willing To Relocate",type:"BOOLEAN",patterns:["Are you willing to relocate?"]},
+ available_start_date:{label:"Available Start Date",type:"DATE",patterns:["When can you start?","What is your available start date?"]},
+ desired_salary:{label:"Fallback Desired Salary",type:"TEXT",patterns:["What is your desired salary?","What are your salary expectations?"],help:"Used only when the JD has no complete numeric salary range. The extension otherwise recommends the JD midpoint."},
+ years_of_experience:{label:"Years Of Experience",type:"NUMBER",patterns:["How many years of relevant experience do you have?","How many years of experience do you have?"]},
+ remote_work_preference:{label:"Remote-Work Preference",type:"SINGLE_SELECT",patterns:["What is your preferred work arrangement?","What is your remote work preference?"]},
+ gender_identity:{label:"Gender Identity (Voluntary)",type:"TEXT",patterns:["Gender","What is your gender?","I identify my gender as"],help:"Sensitive voluntary self-identification. Stored only when you configure and verify it; always reviewed again before autofill."},
+ race_ethnicity:{label:"Race / Ethnicity (Voluntary)",type:"TEXT",patterns:["Race","Race and ethnicity","What is your race and ethnicity?"],help:"Sensitive voluntary self-identification. Use the exact option wording you normally select; always reviewed again before autofill."},
+ veteran_status:{label:"Veteran Status (Voluntary)",type:"TEXT",patterns:["Veteran Status","Are you a military veteran?"],help:"Sensitive voluntary self-identification. Use the exact option wording you normally select; always reviewed again before autofill."},
 });
 const REMOTE_OPTIONS=["REMOTE","HYBRID","ONSITE","FLEXIBLE","NO_PREFERENCE"].map(value=>({value,label:value.replaceAll("_"," ")}));
 const configured=value=>value!==undefined&&value!==null&&String(value).trim()!=="";
 
 function ManualValueEditor({answerKey,definition}){
  const name=["answers",answerKey,"answerValue"];
- if(definition.type==="BOOLEAN")return <Form.Item name={name} label="Manual answer"><Select allowClear placeholder="Not configured" options={[{value:true,label:"Yes"},{value:false,label:"No"}]}/></Form.Item>;
- if(definition.type==="NUMBER")return <Form.Item name={name} label="Manual answer"><InputNumber min={0} max={100} precision={1} placeholder="Not configured" style={{width:"100%"}}/></Form.Item>;
- if(definition.type==="DATE")return <Form.Item name={name} label="Manual answer"><Input type="date"/></Form.Item>;
- if(definition.type==="SINGLE_SELECT")return <Form.Item name={name} label="Manual answer"><Select allowClear placeholder="Not configured" options={REMOTE_OPTIONS}/></Form.Item>;
- return <Form.Item name={name} label="Manual answer"><Input maxLength={500} placeholder="Not configured; for example 120000"/></Form.Item>;
+ if(definition.type==="BOOLEAN")return <Form.Item name={name} label="Manual Answer"><Select allowClear placeholder="Not configured" options={[{value:true,label:"Yes"},{value:false,label:"No"}]}/></Form.Item>;
+ if(definition.type==="NUMBER")return <Form.Item name={name} label="Manual Answer"><InputNumber min={0} max={100} precision={1} placeholder="Not configured" style={{width:"100%"}}/></Form.Item>;
+ if(definition.type==="DATE")return <Form.Item name={name} label="Manual Answer"><Input type="date"/></Form.Item>;
+ if(definition.type==="SINGLE_SELECT")return <Form.Item name={name} label="Manual Answer"><Select allowClear placeholder="Not configured" options={REMOTE_OPTIONS}/></Form.Item>;
+ return <Form.Item name={name} label="Manual Answer"><Input maxLength={500} placeholder="Not configured; for example 120000"/></Form.Item>;
 }
 
 function formState(items){
@@ -57,7 +57,7 @@ export function ResumeAnswerLibrary({client,apiBaseUrl,resumeId}){
       {definition.help&&<Text type="secondary" style={{display:"block",marginBottom:12}}>{definition.help}</Text>}
       <ManualValueEditor answerKey={key} definition={definition}/>
       <Form.Item name={["answers",key,"active"]} valuePropName="checked" noStyle><Switch checkedChildren="Active" unCheckedChildren="Archived"/></Form.Item>
-      <Collapse ghost size="small" style={{marginTop:8}} items={[{key:"patterns",label:"Question wording",children:<Form.Item name={["answers",key,"questionPatterns"]} extra="Paste unresolved ordinary question wording copied from the extension. Do not add legal attestations or unrelated sensitive questions."><Select mode="tags" tokenSeparators={[","]} maxCount={20} maxTagCount="responsive"/></Form.Item>}]}/>
+      <Collapse ghost size="small" style={{marginTop:8}} items={[{key:"patterns",label:"Question Wording",children:<Form.Item name={["answers",key,"questionPatterns"]} extra="Paste unresolved ordinary question wording copied from the extension. Do not add legal attestations or unrelated sensitive questions."><Select mode="tags" tokenSeparators={[","]} maxCount={20} maxTagCount="responsive"/></Form.Item>}]}/>
      </Card>
     </Col>)}
    </Row>

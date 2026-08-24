@@ -36,9 +36,9 @@ test("banned company client helpers use Nest routes", async () => {
   assert.equal(calls[2].method, "DELETE");
 });
 
-test("Resume Detail exposes Banned companies controls", async () => {
+test("Resume Detail exposes Banned Companies controls", async () => {
   const source = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
-  assert.match(source, /Banned companies/);
+  assert.match(source, /Banned Companies/);
   assert.match(source, /ResumeBannedCompaniesCard/);
   assert.match(source, /addResumeBannedCompany/);
   assert.match(source, /listResumeBannedCompanies/);
