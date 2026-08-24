@@ -49,6 +49,7 @@ import { getSession, signIn, signOut } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
+import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
@@ -658,6 +659,8 @@ function Jobs({
     [data, setData] = useState(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
+    [exportBusy, setExportBusy] = useState(false),
+    [exportMessage, setExportMessage] = useState(""),
     [capturers, setCapturers] = useState([]),
     [capturerError, setCapturerError] = useState(""),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE);
@@ -886,30 +889,50 @@ function Jobs({
   const selectedCount = selectedJobIds.length,
     tooMany = selectedCount > MAX_BULK_JDS,
     jobsTableScrollX = 1540;
+  async function downloadExcel() {
+    setExportBusy(true);
+    setExportMessage("");
+    try {
+      await exportFilteredJobsExcel(client, apiBaseUrl, filters);
+    } catch (value) {
+      setExportMessage(value.message || "Job descriptions could not be exported.");
+    } finally {
+      setExportBusy(false);
+    }
+  }
   return (
     <div className="page">
       <Flex justify="space-between" align="center" wrap>
         <Title level={1} tabIndex={-1}>
           Job Descriptions
         </Title>
-        {canBulk && (
-          <Space>
-            <Text>{selectedCount} selected</Text>
-            <Button
-              onClick={() => onSelectedJobIdsChange([])}
-              disabled={!selectedCount}
-            >
-              Clear selection
-            </Button>
-            <Button
-              type="primary"
-              disabled={!selectedCount || tooMany}
-              onClick={() => go("#/applications/bulk-create")}
-            >
-              Create Applications
-            </Button>
-          </Space>
-        )}
+        <Space wrap>
+          <Button
+            loading={exportBusy}
+            disabled={!data?.total || loading}
+            onClick={downloadExcel}
+          >
+            Download Excel
+          </Button>
+          {canBulk && (
+            <>
+              <Text>{selectedCount} selected</Text>
+              <Button
+                onClick={() => onSelectedJobIdsChange([])}
+                disabled={!selectedCount}
+              >
+                Clear selection
+              </Button>
+              <Button
+                type="primary"
+                disabled={!selectedCount || tooMany}
+                onClick={() => go("#/applications/bulk-create")}
+              >
+                Create Applications
+              </Button>
+            </>
+          )}
+        </Space>
       </Flex>
       {tooMany && (
         <Alert
@@ -917,6 +940,9 @@ function Jobs({
           showIcon
           message={`Select no more than ${MAX_BULK_JDS} job descriptions.`}
         />
+      )}
+      {exportMessage && (
+        <Alert type="error" showIcon message={exportMessage} />
       )}
       {capturerError && (
         <Alert
