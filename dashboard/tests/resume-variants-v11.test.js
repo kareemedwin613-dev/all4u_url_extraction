@@ -18,9 +18,17 @@ test("Resume list places Status after Updated",()=>{
   const end=app.indexOf("filters.sort", start);
   assert.ok(start>=0 && end>start, "Resume list columns are defined");
   const list=app.slice(start, end);
-  const order=["Seniority","File type","Updated","Status"].map((title)=>list.indexOf(`title: "${title}"`));
+  const order=["Seniority","File type","Cover letter","Updated","Status"].map((title)=>list.indexOf(`title: "${title}"`));
   assert.ok(order.every((index)=>index>=0), "expected Resume list columns are present");
   assert.deepEqual(order, [...order].sort((a,b)=>a-b));
+});
+
+test("Resume list opens cover letters through a signed URL when attached",()=>{
+  assert.match(app,/title: "Cover letter"/);
+  assert.match(app,/cover_letter_storage_path/);
+  assert.match(app,/createCoverLetterSignedUrl/);
+  assert.match(app,/cover_letter_original_filename/);
+  assert.match(service,/cover_letter_storage_path,cover_letter_original_filename/);
 });
 
 test("general Resume API reads, counts, and recent cards are original-only",()=>{

@@ -55,7 +55,7 @@ import { ApplierPerformanceChart } from "./features/overview/applier-performance
 import { JdFinderPerformanceChart } from "./features/overview/jd-finder-performance-chart.jsx";
 import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
 import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
-import { createResumeSignedUrl } from "./services/storage-read-service.js";
+import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, uploadResumeCoverLetter } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
   listSystemRoles,
@@ -1045,11 +1045,14 @@ function pickResumeSearch(tableFilters, currentSearch) {
 function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
   const filters = parseResumeQuery(query),
     [data, setData] = useState(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [coverMessage, setCoverMessage] = useState(""),
+    [coverBusyId, setCoverBusyId] = useState("");
   useEffect(() => {
     let live = true;
     setData(null);
     setError("");
+    setCoverMessage("");
     listResumes(client, apiBaseUrl, filters)
       .then((value) => live && setData(value))
       .catch((value) => live && setError(value.message));
@@ -1057,6 +1060,19 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
       live = false;
     };
   }, [client, apiBaseUrl, query, reload]);
+  async function openListCoverLetter(resume) {
+    if (!resume?.cover_letter_storage_path) return;
+    setCoverBusyId(resume.id);
+    setCoverMessage("");
+    try {
+      const url = await createCoverLetterSignedUrl(client, { id: resume.id, apiBaseUrl });
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (value) {
+      setCoverMessage(value.message);
+    } finally {
+      setCoverBusyId("");
+    }
+  }
   const update = (patch) => {
       const value = serializeQuery({ ...filters, ...patch });
       go(`#/resumes${value ? `?${value}` : ""}`);
@@ -1145,6 +1161,24 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               render: formatMime,
             },
             {
+              title: "Cover letter",
+              dataIndex: "cover_letter_storage_path",
+              render: (value, resume) =>
+                value ? (
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0, height: "auto" }}
+                    loading={coverBusyId === resume.id}
+                    onClick={() => openListCoverLetter(resume)}
+                  >
+                    {resume.cover_letter_original_filename || "Open"}
+                  </Button>
+                ) : (
+                  "—"
+                ),
+            },
+            {
               title: "Updated",
               dataIndex: "updated_at",
               sortKey: "updated",
@@ -1183,7 +1217,10 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
         ),
       [
         access,
+        apiBaseUrl,
         categories,
+        client,
+        coverBusyId,
         filters.categoryId,
         filters.mimeType,
         filters.search,
@@ -1198,6 +1235,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
       <Title level={1} tabIndex={-1}>
         Resumes
       </Title>
+      {coverMessage && <Alert type="error" showIcon message={coverMessage} style={{ marginBottom: 16 }} />}
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
@@ -1599,7 +1637,9 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     [error, setError] = useState(""),
     [fileMessage, setFileMessage] = useState(""),
     [statusMessage, setStatusMessage] = useState(""),
-    [statusBusy, setStatusBusy] = useState(false);
+    [statusBusy, setStatusBusy] = useState(false),
+    [coverBusy, setCoverBusy] = useState(false),
+    coverInputRef = useRef(null);
   useEffect(() => {
     getResume(client, apiBaseUrl, id)
       .then(setResume)
@@ -1611,6 +1651,9 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     return (
       <ErrorState message="Resume not found or you do not have access to it." />
     );
+  const canManage = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
+    isOriginal = resume.resume_type === "ORIGINAL",
+    hasCoverLetter = Boolean(resume.cover_letter_storage_path);
   async function open() {
     setFileMessage("Generating a secure link…");
     try {
@@ -1619,6 +1662,45 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       setFileMessage("Secure link opened. It expires shortly.");
     } catch (value) {
       setFileMessage(value.message);
+    }
+  }
+  async function openCoverLetter() {
+    setFileMessage("Generating a secure cover letter link…");
+    try {
+      const url = await createCoverLetterSignedUrl(client, { id: resume.id, apiBaseUrl });
+      window.open(url, "_blank", "noopener,noreferrer");
+      setFileMessage("Cover letter link opened. It expires shortly.");
+    } catch (value) {
+      setFileMessage(value.message);
+    }
+  }
+  async function onCoverLetterSelected(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setCoverBusy(true);
+    setFileMessage("");
+    try {
+      const next = await uploadResumeCoverLetter(client, { id: resume.id, apiBaseUrl, file });
+      setResume((current) => ({ ...current, ...next }));
+      setFileMessage(hasCoverLetter ? "Cover letter replaced." : "Cover letter uploaded.");
+    } catch (value) {
+      setFileMessage(value.message);
+    } finally {
+      setCoverBusy(false);
+    }
+  }
+  async function removeCoverLetter() {
+    setCoverBusy(true);
+    setFileMessage("");
+    try {
+      const next = await removeResumeCoverLetter(client, { id: resume.id, apiBaseUrl });
+      setResume((current) => ({ ...current, ...next }));
+      setFileMessage("Cover letter removed.");
+    } catch (value) {
+      setFileMessage(value.message);
+    } finally {
+      setCoverBusy(false);
     }
   }
   async function changeStatus(status) {
@@ -1668,6 +1750,12 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                 ["Original filename", resume.original_filename],
                 ["File type", formatMime(resume.mime_type)],
                 ["File size", formatBytes(resume.file_size_bytes)],
+                [
+                  "Cover letter",
+                  hasCoverLetter
+                    ? `${resume.cover_letter_original_filename} (${formatBytes(resume.cover_letter_file_size_bytes)})`
+                    : "None",
+                ],
                 ["Created at", formatDate(resume.created_at)],
                 ["Last updated", formatDate(resume.updated_at)],
                 ...(resume.status === "ARCHIVED" ? [
@@ -1700,7 +1788,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
         label: "Original text",
         children: <div className="long-text">{resume.resume_text}</div>,
       },
-      ...(hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)?[{
+      ...(canManage?[{
         key:"answers",
         label:"Answer Library",
         children:<ResumeAnswerLibrary client={client} apiBaseUrl={apiBaseUrl} resumeId={resume.id}/>,
@@ -1724,13 +1812,37 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       </div>
       {fileMessage && <Alert type="info" showIcon message={fileMessage} />}
       {statusMessage && <Alert type="info" showIcon message={statusMessage} />}
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+        style={{ display: "none" }}
+        onChange={onCoverLetterSelected}
+      />
       <TabbedSections
         items={tabs}
         extra={
           <Space wrap align="center" className="detail-action-group">
             <Button type="primary" onClick={open}>Open Original Resume</Button>
-            {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.status==="ACTIVE"&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}
-            {hasCapability(access,CAPABILITIES.APPLICATION_MANAGE)&&resume.resume_type==="ORIGINAL"&&(
+            {hasCoverLetter && <Button onClick={openCoverLetter}>Open Cover Letter</Button>}
+            {canManage && isOriginal && (
+              <Button loading={coverBusy} onClick={() => coverInputRef.current?.click()}>
+                {hasCoverLetter ? "Replace Cover Letter" : "Upload Cover Letter"}
+              </Button>
+            )}
+            {canManage && isOriginal && hasCoverLetter && (
+              <Popconfirm
+                title="Remove this cover letter?"
+                description="The file will be deleted. You can upload another later."
+                okText="Remove"
+                okButtonProps={{ danger: true, loading: coverBusy }}
+                onConfirm={removeCoverLetter}
+              >
+                <Button danger loading={coverBusy}>Remove Cover Letter</Button>
+              </Popconfirm>
+            )}
+            {canManage&&resume.status==="ACTIVE"&&<Button href={`#/resumes/${resume.id}/autofill`}>Edit Structured Resume</Button>}
+            {canManage&&isOriginal&&(
               <Popconfirm
                 title={resume.status === "ARCHIVED" ? "Restore this Resume?" : "Archive this Resume?"}
                 description={resume.status === "ARCHIVED" ? "The Resume will become available for new Applications and tailoring." : "The file and existing Application history will remain, but the Resume will be excluded from new work."}
