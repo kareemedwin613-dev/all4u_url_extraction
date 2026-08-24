@@ -57,7 +57,8 @@ test("Application pages expose list, create, detail, history, and empty/loading 
 
 test("manager Application page exposes persistent bulk assignment controls",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  for(const text of ["Assign Selected","applications/bulk-assign","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","assigned_to != null",'status !== "UNASSIGNED"'])assert.match(source,new RegExp(text));
+  for(const text of["Assign / Reassign Selected","applications/bulk-assign","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","CANCELLED","CLOSED","COMPLETED"])assert.match(source,new RegExp(text));
+  assert.doesNotMatch(source,/assigned_to != null/);
 });
 
 test("Applier Application columns follow the operational priority order",async()=>{

@@ -763,19 +763,21 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 390px)" }}
+            scroll={{ x: "max-content", y: "calc(100vh - 450px)" }}
             onChange={(_pagination, _filters, sorter) => {
               setSort(serverSortFromTable(sorter, "created_desc"));
               setPage(1);
             }}
           />
-          <Pagination
-            current={data.page}
-            pageSize={data.pageSize}
-            total={data.total}
-            showSizeChanger={false}
-            onChange={setPage}
-          />
+          <Flex className="ui-pagination" justify="flex-end" align="center">
+            <Pagination
+              current={data.page}
+              pageSize={data.pageSize}
+              total={data.total}
+              showSizeChanger={false}
+              onChange={setPage}
+            />
+          </Flex>
         </Card>
       )}
     </div>
@@ -895,8 +897,10 @@ export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
             </FilterPanel>
             {!results ? <LoadingState /> : (
               <>
-                <Table rowKey="id" columns={columns} dataSource={results.items} pagination={false} scroll={{ x: "max-content", y: "calc(100vh - 500px)" }} />
-                <Pagination current={results.page} pageSize={results.pageSize} total={results.total} showSizeChanger={false} onChange={setResultPage} />
+                <Table rowKey="id" columns={columns} dataSource={results.items} pagination={false} scroll={{ x: "max-content", y: "calc(100vh - 520px)" }} />
+                <Flex className="ui-pagination" justify="flex-end" align="center">
+                  <Pagination current={results.page} pageSize={results.pageSize} total={results.total} showSizeChanger={false} onChange={setResultPage} />
+                </Flex>
               </>
             )}
           </>
