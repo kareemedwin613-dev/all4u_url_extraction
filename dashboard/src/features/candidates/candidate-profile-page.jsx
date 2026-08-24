@@ -19,6 +19,7 @@ import {
   updateCandidateProfile,
   updateResumeAutofillPreferences,
 } from "./candidate-profile-service.js";
+import { getResume, renameResume } from "../../services/resume-read-service.js";
 import { StructuredResumeEditor } from "./structured-resume-editor.jsx";
 import { AutofillPreferencesCard } from "./autofill-preferences-card.jsx";
 import { notifyFromApp } from "../../shared/notifications.js";
@@ -40,9 +41,13 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
     Promise.all([
       importCandidateEmployment(client, apiBaseUrl, id),
       getResumeAutofillPreferences(client, apiBaseUrl, id),
+      getResume(client, apiBaseUrl, id).catch(() => null),
     ])
-      .then(([nextProfile, nextPreferences]) => {
-        setProfile(nextProfile);
+      .then(([nextProfile, nextPreferences, resumeRow]) => {
+        setProfile({
+          ...nextProfile,
+          resumeName: nextProfile.resumeName || resumeRow?.resume_name || "",
+        });
         setPreferences(nextPreferences.preferences);
       })
       .catch((x) => setLoadError(x.message));
@@ -55,6 +60,7 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
         (profile.links || []).map((x) => [x.linkType, x.url]),
       );
     form.setFieldsValue({
+      resumeName: profile.resumeName || "",
       fullName: profile.fullName,
       firstName: profile.firstName,
       middleName: profile.middleName,
@@ -76,6 +82,7 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
   async function saveProfile(values) {
     setBusy(true);
     try {
+      const nextResumeName = String(values.resumeName || "").trim();
       const links = [
           ["LINKEDIN", values.linkedInUrl],
           ["GITHUB", values.githubUrl],
@@ -91,6 +98,9 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
           postalCode: values.postalCode || "",
           country: values.country || "",
         };
+      if (nextResumeName && nextResumeName !== (profile.resumeName || "")) {
+        await renameResume(client, apiBaseUrl, id, nextResumeName);
+      }
       const next = await updateCandidateProfile(client, apiBaseUrl, id, {
         fullName: values.fullName,
         firstName: values.firstName || "",
@@ -102,7 +112,7 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
         primaryAddress,
         links,
       });
-      setProfile(next);
+      setProfile({ ...next, resumeName: nextResumeName || next.resumeName || profile.resumeName });
       notify("success", "Personal Resume details saved.");
     } catch (x) {
       notify("error", "Personal details could not be saved", x.message);
@@ -169,6 +179,16 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
       <Card title="Personal, Contact, Address, And Links">
         <Form form={form} layout="vertical" onFinish={saveProfile}>
           <Row gutter={12}>
+            <Col xs={24}>
+              <Form.Item
+                name="resumeName"
+                label="Resume Name"
+                rules={[{ required: true, message: "Enter a Resume name." }, { max: 200 }]}
+                extra="Shown in the Resumes list and Application matching."
+              >
+                <Input maxLength={200} placeholder="e.g. Brian Rose — Software Engineering" />
+              </Form.Item>
+            </Col>
             <Col xs={24} md={12}>
               <Form.Item
                 name="fullName"

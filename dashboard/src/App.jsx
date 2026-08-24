@@ -1969,6 +1969,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
             <Meta
               items={[
                 ["Resume Number", resume.resume_number ? `#${resume.resume_number}` : "Not assigned"],
+                ["Resume Name", resume.resume_name || "Not recorded"],
                 ["Resume Type", formatLabel(resume.resume_type || "ORIGINAL")],
                 ["Parent Resume", resume.parent_resume_id ? "Original Resume available from this Application's tailoring history" : "None — this is an original Resume"],
                 ["Candidate Email", resume.candidate_email || "Not recorded"],
