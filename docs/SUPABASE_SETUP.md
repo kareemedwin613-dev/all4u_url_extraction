@@ -15,7 +15,7 @@
 5. In Table Editor, verify RLS is enabled for `categories`, `job_descriptions`, `resumes`, `tailoring_jobs`, `profiles`, `roles`, and `user_roles`.
    The legacy `user_profiles` attribution table remains for compatibility. The authoritative v0.5 application status is in `profiles`; its `id` is the same UUID as the corresponding Supabase Auth user. Passwords and credentials remain exclusively in Supabase Auth.
 6. In Storage, verify `original-resumes` and `tailored-resumes` are private and limited to 5 MiB with the documented MIME types.
-7. In Authentication, create the first email/password user through the Dashboard. Public signup should remain disabled for a private MVP.
+7. In Authentication → Providers → Email, enable **Email sign-ups** so new members can register from the dashboard. Create the first Admin through the Dashboard (or promote the first user after sign-up). Public users still cannot access data until an Admin assigns a role.
 8. Run `npm run build`, load `extension/dist`, save the project URL and publishable key in Settings, test the connection, and sign in.
 
 `npm run test:db` uses the local Supabase CLI database test environment. It requires the CLI, Docker, and a started/local database.

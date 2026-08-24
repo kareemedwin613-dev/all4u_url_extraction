@@ -1,4 +1,4 @@
-import {JOB_SORTS,MIME_TYPES,PAGE_SIZES,RESUME_SORTS,SENIORITIES,STATUSES,USER_PAGE_SIZES,USER_ROLE_CODES,USER_SORTS} from "./constants.js";import {allowed,isUuid,normalizeDateInput,normalizeMime,normalizePage,normalizePageSize,normalizeSearch,normalizeSeniority,normalizeStatus} from "./validation.js";
+import {JOB_SORTS,MIME_TYPES,PAGE_SIZES,RESUME_SORTS,SENIORITIES,STATUSES,USER_PAGE_SIZES,USER_ROLE_FILTER_CODES,USER_SORTS} from "./constants.js";import {allowed,isUuid,normalizeDateInput,normalizeMime,normalizePage,normalizePageSize,normalizeSearch,normalizeSeniority,normalizeStatus} from "./validation.js";
 function base(params,sorts,defaultSort){let search="";try{search=normalizeSearch(params.get("search")||"");}catch{}const category=params.get("categoryId")||params.get("category")||"";return {search,categoryId:isUuid(category)?category:"",seniority:normalizeSeniority(params.get("seniority")||""),status:normalizeStatus(params.get("status")||""),sort:allowed(params.get("sort"),Object.keys(sorts),defaultSort),page:normalizePage(params.get("page")),pageSize:normalizePageSize(params.get("pageSize"))};}
 export function parseJobQuery(search=""){const params=new URLSearchParams(search),result=base(params,JOB_SORTS,"created_desc"),capturedWindow=allowed(params.get("capturedWindow"),["TODAY","THIS_WEEK","THIS_MONTH","CUSTOM"],""),capturedBy=params.get("capturedByUserId")||"";return{...result,status:allowed(params.get("status"),["ACTIVE","ARCHIVED","ALL"],"ACTIVE"),reviewStatus:allowed(params.get("reviewStatus"),["NEEDS_REVIEW","APPROVED","NEEDS_CORRECTION","DECLINED","ALL"],"ALL"),capturedByUserId:isUuid(capturedBy)?capturedBy:"",capturedWindow,capturedFrom:capturedWindow==="CUSTOM"?normalizeDateInput(params.get("capturedFrom")):"",capturedTo:capturedWindow==="CUSTOM"?normalizeDateInput(params.get("capturedTo")):""};}
 export function parseResumeQuery(search=""){const params=new URLSearchParams(search),result=base(params,RESUME_SORTS,"candidate_asc");return {...result,status:allowed(params.get("status"),["ACTIVE","ARCHIVED","ALL"],"ACTIVE"),mimeType:normalizeMime(params.get("mimeType")||"")};}
@@ -9,7 +9,7 @@ export function parseUserQuery(search=""){
   return{
     search:text,
     status:allowed(params.get("status")||"",["ACTIVE","INACTIVE"],""),
-    roleCode:allowed(String(params.get("roleCode")||"").trim().toUpperCase(),USER_ROLE_CODES,""),
+    roleCode:allowed(String(params.get("roleCode")||"").trim().toUpperCase(),USER_ROLE_FILTER_CODES,""),
     sort:allowed(params.get("sort"),Object.keys(USER_SORTS),"name_asc"),
     page:normalizePage(params.get("page")),
     pageSize:allowed(Number(params.get("pageSize")),USER_PAGE_SIZES,25),

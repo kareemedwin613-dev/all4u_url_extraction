@@ -46,7 +46,7 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
-import { getSession, signIn, signOut } from "./services/auth-service.js";
+import { getSession, signIn, signOut, signUp } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
@@ -86,7 +86,7 @@ import {
   parseResumeQuery,
   serializeQuery,
 } from "./shared/query-state.js";
-import { normalizeSearch, validateLogin } from "./shared/validation.js";
+import { normalizeSearch, validateLogin, validateSignUp } from "./shared/validation.js";
 import { safeExternalUrl } from "./shared/url.js";
 import {
   MIME_TYPES,
@@ -427,9 +427,52 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
 }
 
 function Login({ client, onSignedIn }) {
-  const [message, setMessage] = useState(""),
-    [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState("signin"),
+    [message, setMessage] = useState(""),
+    [success, setSuccess] = useState(""),
+    [busy, setBusy] = useState(false),
+    registering = mode === "signup";
+  function switchMode(next) {
+    setMode(next);
+    setMessage("");
+    setSuccess("");
+  }
   async function submit(values) {
+    setMessage("");
+    setSuccess("");
+    if (registering) {
+      const check = validateSignUp({
+        email: values.email,
+        password: values.password,
+        fullName: values.fullName,
+        confirmPassword: values.confirmPassword,
+      });
+      if (!check.valid) {
+        setMessage(Object.values(check.errors).join(" "));
+        return;
+      }
+      setBusy(true);
+      try {
+        const result = await signUp(client, {
+          email: values.email,
+          password: values.password,
+          fullName: values.fullName,
+        });
+        if (result.session) onSignedIn(result.session);
+        else {
+          setSuccess(
+            result.message ||
+              "Registration received. Sign in after confirming your email if required. An administrator must approve your account.",
+          );
+          setMode("signin");
+        }
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const check = validateLogin(values.email, values.password);
     if (!check.valid) {
       setMessage(Object.values(check.errors).join(" "));
@@ -451,13 +494,45 @@ function Login({ client, onSignedIn }) {
           Resume JD Operations
         </Text>
         <Title level={1} tabIndex={-1}>
-          Sign in
+          {registering ? "Sign Up" : "Sign In"}
         </Title>
         <Text>
-          Use the same Supabase email and password as the Chrome extension.
+          {registering
+            ? "Create an account with your full name, email, and password. An administrator must approve your request and assign a role before you can use the workspace."
+            : "Use the same Supabase email and password as the Chrome extension."}
         </Text>
-        {message && <UiErrorState title="Sign In Failed" message={message} />}
-        <Form layout="vertical" onFinish={submit} requiredMark={false}>
+        {message && (
+          <UiErrorState
+            title={registering ? "Sign Up Failed" : "Sign In Failed"}
+            message={message}
+          />
+        )}
+        {success && (
+          <Alert
+            type="success"
+            showIcon
+            message={success}
+            style={{ marginTop: 16, marginBottom: 8 }}
+          />
+        )}
+        <Form
+          layout="vertical"
+          onFinish={submit}
+          requiredMark={registering ? "optional" : false}
+          key={mode}
+        >
+          {registering && (
+            <Form.Item
+              label="Full Name"
+              name="fullName"
+              rules={[
+                { required: true, message: "Enter your full name." },
+                { max: 200, message: "Full name must be at most 200 characters." },
+              ]}
+            >
+              <Input autoComplete="name" maxLength={200} />
+            </Form.Item>
+          )}
           <Form.Item
             label="Email"
             name="email"
@@ -471,14 +546,56 @@ function Login({ client, onSignedIn }) {
           <Form.Item
             label="Password"
             name="password"
-            rules={[{ required: true, message: "Enter your password." }]}
+            rules={[
+              { required: true, message: "Enter your password." },
+              ...(registering
+                ? [
+                    {
+                      min: 8,
+                      message: "Password must be at least 8 characters.",
+                    },
+                  ]
+                : []),
+            ]}
           >
-            <Input.Password autoComplete="current-password" />
+            <Input.Password
+              autoComplete={registering ? "new-password" : "current-password"}
+            />
           </Form.Item>
+          {registering && (
+            <Form.Item
+              label="Confirm Password"
+              name="confirmPassword"
+              dependencies={["password"]}
+              rules={[
+                { required: true, message: "Confirm your password." },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value || getFieldValue("password") === value)
+                      return Promise.resolve();
+                    return Promise.reject(new Error("Passwords do not match."));
+                  },
+                }),
+              ]}
+            >
+              <Input.Password autoComplete="new-password" />
+            </Form.Item>
+          )}
           <Button type="primary" htmlType="submit" loading={busy} block>
-            Sign In
+            {registering ? "Sign Up" : "Sign In"}
           </Button>
         </Form>
+        <Flex justify="center" style={{ marginTop: 16 }}>
+          {registering ? (
+            <Button type="link" onClick={() => switchMode("signin")}>
+              Already have an account? Sign In
+            </Button>
+          ) : (
+            <Button type="link" onClick={() => switchMode("signup")}>
+              New member? Sign Up
+            </Button>
+          )}
+        </Flex>
       </Card>
     </main>
   );

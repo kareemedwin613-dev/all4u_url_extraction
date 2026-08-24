@@ -23,7 +23,12 @@ export function normalizeListOptions(options = {}) {
   const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
   const pageSize = [25, 50, 100].includes(Number(options.pageSize)) ? Number(options.pageSize) : 25;
   const status = ["ACTIVE", "INACTIVE"].includes(String(options.status || "").toUpperCase()) ? String(options.status).toUpperCase() : null;
-  const roleCode = String(options.roleCode || "").trim().toUpperCase() || null;
+  const roleCode = (() => {
+    const value = String(options.roleCode || "").trim().toUpperCase();
+    if (!value) return null;
+    if (value === "NONE") return "NONE";
+    return value;
+  })();
   const search = String(options.search || "").trim().slice(0, 100);
   const allowedSorts=["name_asc","name_desc","email_asc","email_desc","status_asc","status_desc","roles_asc","roles_desc","created_asc","created_desc"];
   const sort=allowedSorts.includes(String(options.sort||""))?String(options.sort):"name_asc";
