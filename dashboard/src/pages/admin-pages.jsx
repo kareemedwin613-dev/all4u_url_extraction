@@ -6,10 +6,12 @@ import {
   Card,
   Checkbox,
   Descriptions,
+  Flex,
   Input,
   Select,
   Space,
   Table as AntTable,
+  Tag,
   Typography,
 } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
@@ -32,7 +34,7 @@ import {
   setStatus,
   updateUserProfile,
 } from "../services/admin-user-service.js";
-import { USER_PAGE_SIZES } from "../shared/constants.js";
+import { USER_PAGE_SIZES, USER_ROLE_PENDING } from "../shared/constants.js";
 import { formatDate } from "../shared/formatters.js";
 import { parseUserQuery, serializeQuery } from "../shared/query-state.js";
 import {
@@ -178,14 +180,22 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
               title: "Roles",
               dataIndex: "role_codes",
               sortKey: "roles",
-              filters: roles.map((role) => ({
-                text: role.name,
-                value: role.code,
-              })),
+              filters: [
+                { text: "Pending Approval", value: USER_ROLE_PENDING },
+                ...roles.map((role) => ({
+                  text: role.name,
+                  value: role.code,
+                })),
+              ],
               filterMultiple: false,
               filteredValue: filters.roleCode ? [filters.roleCode] : null,
               ...serverSideColumnFilter,
-              render: (value) => <RoleBadges roles={value || []} />,
+              render: (value) =>
+                value?.length ? (
+                  <RoleBadges roles={value} />
+                ) : (
+                  <Tag color="gold">Pending Approval</Tag>
+                ),
             },
             {
               title: "Created",
@@ -198,7 +208,9 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
               key: "actions",
               render: (_, user) => (
                 <Button type="link" href={`#/admin/users/${user.id}`}>
-                  Manage
+                  {!user.role_codes?.length && user.status === "ACTIVE"
+                    ? "Review"
+                    : "Manage"}
                 </Button>
               ),
             },
@@ -227,6 +239,28 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
       : null;
   return (
     <div className="page">
+      <Flex className="page-toolbar" justify="space-between" align="center" wrap="wrap" gap="small">
+        <Space wrap>
+          <Button
+            type={filters.roleCode === USER_ROLE_PENDING ? "primary" : "default"}
+            onClick={() =>
+              update({
+                roleCode:
+                  filters.roleCode === USER_ROLE_PENDING
+                    ? ""
+                    : USER_ROLE_PENDING,
+                status: filters.roleCode === USER_ROLE_PENDING ? "" : "ACTIVE",
+                page: 1,
+              })
+            }
+          >
+            Pending Approvals
+          </Button>
+          {(filters.search || filters.status || filters.roleCode) && (
+            <Button onClick={() => navigate("#/admin/users")}>Clear Filters</Button>
+          )}
+        </Space>
+      </Flex>
       {error && !result ? (
         <ErrorState title="Users could not be loaded" message={error} />
       ) : !result && loading ? (
@@ -238,6 +272,15 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
         />
       ) : (
         <Card>
+          {filters.roleCode === USER_ROLE_PENDING && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="Pending Approvals"
+              description="These members signed up and are waiting for a role assignment. Open Review to accept (assign roles) or reject (deactivate)."
+            />
+          )}
           {error && (
             <Alert
               type="error"
@@ -376,18 +419,41 @@ export function AdminUserDetailPage({
         toRemove = roles.filter(
           (role) => !selected.has(role.code) && before.has(role.code),
         );
+      if (!before.size && !toAssign.length) {
+        setMessage("Select at least one role to approve this registration.");
+        setBusy(false);
+        return;
+      }
       await Promise.all([
         ...toAssign.map((role) => assignRole(client, apiBaseUrl, id, role.code)),
         ...toRemove.map((role) => removeRole(client, apiBaseUrl, id, role.code)),
       ]);
       await load();
       if (id === currentUserId) await onCurrentUserChanged();
-      setMessage("Role assignments saved successfully.");
+      setMessage(
+        before.size
+          ? "Role assignments saved successfully."
+          : "Registration approved. Role assignments saved successfully.",
+      );
     } catch (value) {
       setMessage(
         `${value.message} Any completed role changes were retained; the current assignments have been reloaded.`,
       );
       await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function rejectRegistration() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await setStatus(client, apiBaseUrl, id, "INACTIVE");
+      await load();
+      if (id === currentUserId) await onCurrentUserChanged();
+      setMessage("Registration rejected. The account is now inactive.");
+    } catch (value) {
+      setMessage(value.message);
     } finally {
       setBusy(false);
     }
@@ -444,6 +510,8 @@ export function AdminUserDetailPage({
       </div>
     );
   if (!user) return <LoadingState text="Loading user…" />;
+  const pendingApproval =
+    user.status === "ACTIVE" && !(user.roles || []).length;
   const nameDirty =
     String(fullNameValue || "").trim() !== String(user.fullName || "").trim();
   const tabs = [
@@ -541,8 +609,9 @@ export function AdminUserDetailPage({
       children: (
         <>
           <Text>
-            Roles are fixed system definitions. Select one or more assignments
-            for this user.
+            {pendingApproval
+              ? "Select at least one role to approve this registration."
+              : "Roles are fixed system definitions. Select one or more assignments for this user."}
           </Text>
           <div className="role-options">
             {roles.map((role) => (
@@ -562,11 +631,11 @@ export function AdminUserDetailPage({
           </div>
           <Button
             type="primary"
-            disabled={busy || !changed}
+            disabled={busy || (pendingApproval ? !selected.size : !changed)}
             loading={busy}
             onClick={saveRoles}
           >
-            Save Role Assignments
+            {pendingApproval ? "Approve And Save Roles" : "Save Role Assignments"}
           </Button>
         </>
       ),
@@ -580,6 +649,33 @@ export function AdminUserDetailPage({
       <Title level={1} tabIndex={-1}>
         Manage User
       </Title>
+      {pendingApproval && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Pending Registration Approval"
+          description="This member signed up and has no roles yet. Select one or more roles below and save to approve, or reject to deactivate the account."
+          action={
+            <Button
+              danger
+              disabled={busy}
+              onClick={() =>
+                modal.confirm({
+                  title: "Reject this registration?",
+                  content:
+                    "The account will be set to Inactive. The Auth user remains, but they cannot access platform data.",
+                  okText: "Reject",
+                  okButtonProps: { danger: true },
+                  onOk: rejectRegistration,
+                })
+              }
+            >
+              Reject
+            </Button>
+          }
+        />
+      )}
       {id === currentUserId && (
         <Alert
           type="warning"
