@@ -1,23 +1,30 @@
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { AuthenticatedUser } from "@resume-jd/contracts";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { ApiException } from "../common/errors/api.exception.js";
 import { SupabaseService } from "../supabase/supabase.service.js";
 
-export const RESUME_LIST_FIELDS="id,resume_number,resume_type,parent_resume_id,candidate_name,candidate_email,candidate_phone,resume_name,primary_category_id,subcategory_id,seniority,skills,industries,original_filename,mime_type,file_size_bytes,file_sha256,status,archived_at,archived_by,profile_review_status,created_at,updated_at";
-export const RESUME_DETAIL_FIELDS=`${RESUME_LIST_FIELDS},candidate_first_name,candidate_middle_name,candidate_last_name,address_line_1,address_line_2,address_city,address_state_region,address_postal_code,address_country,linkedin_url,github_url,portfolio_url,profile_reviewed_by,profile_reviewed_at,profile_schema_version,resume_text,structured_content,structured_schema_version,storage_bucket,storage_path`;
+export const RESUME_LIST_FIELDS="id,resume_number,resume_type,parent_resume_id,candidate_name,candidate_email,candidate_phone,resume_name,primary_category_id,subcategory_id,seniority,skills,industries,original_filename,mime_type,file_size_bytes,file_sha256,status,archived_at,archived_by,profile_review_status,created_at,updated_at,cover_letter_storage_path,cover_letter_original_filename";
+export const RESUME_DETAIL_FIELDS=`${RESUME_LIST_FIELDS},user_id,candidate_first_name,candidate_middle_name,candidate_last_name,address_line_1,address_line_2,address_city,address_state_region,address_postal_code,address_country,linkedin_url,github_url,portfolio_url,profile_reviewed_by,profile_reviewed_at,profile_schema_version,resume_text,structured_content,structured_schema_version,storage_bucket,storage_path,cover_letter_storage_bucket,cover_letter_mime_type,cover_letter_file_size_bytes,cover_letter_file_sha256`;
+const COVER_LETTER_MIMES=["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"];
 const SORTS:any={number_asc:["resume_number",true],number_desc:["resume_number",false],candidate_asc:["candidate_name",true],candidate_desc:["candidate_name",false],name_asc:["resume_name",true],name_desc:["resume_name",false],category_asc:["primary_category_id",true],category_desc:["primary_category_id",false],subcategory_asc:["subcategory_id",true],subcategory_desc:["subcategory_id",false],seniority_asc:["seniority",true],seniority_desc:["seniority",false],status_asc:["status",true],status_desc:["status",false],mime_asc:["mime_type",true],mime_desc:["mime_type",false],updated_asc:["updated_at",true],updated_desc:["updated_at",false]};
 const clean=(value:any)=>String(value??"").trim(),array=(value:any)=>[...new Set((Array.isArray(value)?value:String(value||"").split(",")).map(clean).filter(Boolean))];
 const structuredV3=(value:any)=>{const source=value&&typeof value==="object"?value:{},education=source.education;return{...source,professional_experience:Array.isArray(source.professional_experience)?source.professional_experience:[],education_legacy_text:typeof education==="string"?education:String(source.education_legacy_text||""),education:Array.isArray(education)?education:[],certifications:Array.isArray(source.certifications)?source.certifications:[]};};
 const safeName=(value:string)=>value.normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^\.+/,"").slice(-180)||"resume.pdf";
 const optional=(value:any,limit:number)=>clean(value).slice(0,limit)||null;
 const secureUrl=(value:any)=>{const result=clean(value);return !result?null:/^https:\/\/[^\s]+$/i.test(result)&&result.length<=2000?result:undefined;};
-function fail(error:any,message:string):never{if(error?.code==="42501"||/row-level security|permission denied/i.test(String(error?.message||"")))throw new ApiException("FORBIDDEN","The database policy denied this operation.",HttpStatus.FORBIDDEN);throw new ApiException("DATABASE_ERROR",message,HttpStatus.BAD_GATEWAY);}
+function fail(error:any,message:string):never{
+  const raw=String(error?.message||"");
+  if(error?.code==="42501"||/row-level security|permission denied|FORBIDDEN:/i.test(raw))throw new ApiException("FORBIDDEN","The database policy denied this operation.",HttpStatus.FORBIDDEN);
+  const known=raw.match(/^([A-Z][A-Z0-9_]+):\s*(.+)$/);
+  if(known)throw new ApiException(known[1],known[2],known[1].includes("NOT_FOUND")?HttpStatus.NOT_FOUND:HttpStatus.BAD_REQUEST);
+  throw new ApiException("DATABASE_ERROR",message,HttpStatus.BAD_GATEWAY);
+}
 
 @Injectable()
 export class ResumeService{
   constructor(@Inject(SupabaseService)private readonly supabase:SupabaseService){}
-  async list(user:AuthenticatedUser,q:any){const requestedPage=Number(q.page),requestedSize=Number(q.pageSize),page=Number.isInteger(requestedPage)&&requestedPage>0?requestedPage:1,size=[10,25,50,100].includes(requestedSize)?requestedSize:25,sort=SORTS[q.sort]||SORTS.candidate_asc,search=clean(q.search).slice(0,100),numberSearch=search.replace(/^(resume[- ]?|#)/i,""),status=q.status==="ARCHIVED"?"ARCHIVED":q.status==="ALL"?"":"ACTIVE";let x:any=this.supabase.forUser(user.token).from("resumes").select(RESUME_LIST_FIELDS,{count:"exact"}).eq("resume_type","ORIGINAL");if(status)x=x.eq("status",status);if(search){if(/^\d+$/.test(numberSearch))x=x.eq("resume_number",Number(numberSearch));else x=x.textSearch("search_vector",search,{type:"websearch",config:"english"});}for(const [key,column,allowed]of [["categoryId","primary_category_id",null],["seniority","seniority",["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL","MANAGER","DIRECTOR","EXECUTIVE","UNSPECIFIED"]],["mimeType","mime_type",["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"]]]as any[])if(q[key]&&(!allowed||allowed.includes(q[key])))x=x.eq(column,q[key]);const {data,error,count}=await x.order(sort[0],{ascending:sort[1]}).range((page-1)*size,page*size-1);if(error)fail(error,"Resumes could not be loaded.");const total=Number(count)||0,pages=total?Math.ceil(total/size):0;return{items:data||[],total,page:pages?Math.min(page,pages):1,pageSize:size,pageCount:pages,from:total?(page-1)*size+1:0,to:Math.min(page*size,total),hasPrevious:page>1,hasNext:page<pages};}
+  async list(user:AuthenticatedUser,q:any){const requestedPage=Number(q.page),requestedSize=Number(q.pageSize),page=Number.isInteger(requestedPage)&&requestedPage>0?requestedPage:1,size=[10,25,50,100].includes(requestedSize)?requestedSize:25,sort=SORTS[q.sort]||SORTS.candidate_asc,search=clean(q.search).slice(0,100),numberSearch=search.replace(/^(resume[- ]?|#)/i,""),status=q.status==="ARCHIVED"?"ARCHIVED":q.status==="ALL"?"":"ACTIVE";let x:any=this.supabase.forUser(user.token).from("resumes").select(RESUME_LIST_FIELDS,{count:"exact"}).eq("resume_type","ORIGINAL");if(status)x=x.eq("status",status);if(search){if(/^\d+$/.test(numberSearch))x=x.eq("resume_number",Number(numberSearch));else x=x.textSearch("search_vector",search,{type:"websearch",config:"english"});}for(const [key,column,allowed]of [["categoryId","primary_category_id",null],["seniority","seniority",["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL","MANAGER","DIRECTOR","EXECUTIVE","UNSPECIFIED"]],["mimeType","mime_type",COVER_LETTER_MIMES]]as any[])if(q[key]&&(!allowed||allowed.includes(q[key])))x=x.eq(column,q[key]);const {data,error,count}=await x.order(sort[0],{ascending:sort[1]}).range((page-1)*size,page*size-1);if(error)fail(error,"Resumes could not be loaded.");const total=Number(count)||0,pages=total?Math.ceil(total/size):0;return{items:data||[],total,page:pages?Math.min(page,pages):1,pageSize:size,pageCount:pages,from:total?(page-1)*size+1:0,to:Math.min(page*size,total),hasPrevious:page>1,hasNext:page<pages};}
   async detail(user:AuthenticatedUser,id:string){const{data,error}=await this.supabase.forUser(user.token).from("resumes").select(RESUME_DETAIL_FIELDS).eq("id",id).maybeSingle();if(error)fail(error,"The Resume could not be loaded.");return data?{...data,candidate_profile:{id:data.id,review_status:data.profile_review_status}}:data;}
   async count(user:AuthenticatedUser,status?:string){let q:any=this.supabase.forUser(user.token).from("resumes").select("id",{count:"exact",head:true}).eq("resume_type","ORIGINAL");if(status)q=q.eq("status",status);const{count,error}=await q;if(error)fail(error,"The Resume count could not be loaded.");return Number(count)||0;}
   async recent(user:AuthenticatedUser){const{data,error}=await this.supabase.forUser(user.token).from("resumes").select(RESUME_LIST_FIELDS).eq("resume_type","ORIGINAL").eq("status","ACTIVE").order("updated_at",{ascending:false}).limit(5);if(error)fail(error,"Recent Resumes could not be loaded.");return data||[];}
@@ -25,8 +32,7 @@ export class ResumeService{
   async checksum(user:AuthenticatedUser,checksum:string){if(!/^[0-9a-f]{64}$/.test(checksum))throw new ApiException("VALIDATION_ERROR","The Resume checksum is invalid.",HttpStatus.BAD_REQUEST);const{data,error}=await this.supabase.forUser(user.token).from("resumes").select("id,resume_number,candidate_name,resume_name").eq("file_sha256",checksum).eq("status","ACTIVE").eq("resume_type","ORIGINAL").limit(1);if(error)fail(error,"The duplicate-file check failed.");return data?.[0]||null;}
   async upload(user:AuthenticatedUser,metadata:any,file:any){
     if(!file||file.size<1||file.size>5242880)throw new ApiException("VALIDATION_ERROR","Choose a file between 1 byte and 5 MB.",HttpStatus.BAD_REQUEST);
-    const allowed=["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"];
-    if(!allowed.includes(file.mimetype))throw new ApiException("VALIDATION_ERROR","The Resume file type is not supported.",HttpStatus.BAD_REQUEST);
+    if(!COVER_LETTER_MIMES.includes(file.mimetype))throw new ApiException("VALIDATION_ERROR","The Resume file type is not supported.",HttpStatus.BAD_REQUEST);
     const links=[secureUrl(metadata.linkedInUrl),secureUrl(metadata.githubUrl),secureUrl(metadata.portfolioUrl)];
     if(metadata.reviewConfirmed!==true||links.some(value=>value===undefined))throw new ApiException("VALIDATION_ERROR","Review and confirm the Resume metadata. Professional links must use HTTPS.",HttpStatus.BAD_REQUEST);
     const first=optional(metadata.candidateFirstName,100),last=optional(metadata.candidateLastName,100);
@@ -51,4 +57,49 @@ export class ResumeService{
   async update(user:AuthenticatedUser,id:string,m:any){const changes={candidate_name:clean(m.candidateName),resume_name:clean(m.resumeName),primary_category_id:m.primaryCategoryId,subcategory_id:m.subcategoryId||null,seniority:m.seniority,skills:array(m.skills),industries:array(m.industries)};const{data,error}=await this.supabase.forUser(user.token).from("resumes").update(changes).eq("id",id).eq("resume_type","ORIGINAL").select(RESUME_LIST_FIELDS).single();if(error)fail(error,"Original Resume metadata could not be updated.");return data;}
   async status(user:AuthenticatedUser,id:string,status:string){if(!["ACTIVE","ARCHIVED"].includes(status))throw new ApiException("VALIDATION_ERROR","Select a valid Resume status.",HttpStatus.BAD_REQUEST);const{data,error}=await this.supabase.forUser(user.token).rpc("set_resume_archived_state_v23",{p_resume_id:id,p_status:status});if(error)fail(error,"Original Resume status could not be updated.");return data;}
   async signedUrl(user:AuthenticatedUser,id:string){const row=await this.detail(user,id);if(!row)throw new ApiException("NOT_FOUND","The Resume was not found.",HttpStatus.NOT_FOUND);const{data,error}=await this.supabase.forUser(user.token).storage.from(row.storage_bucket).createSignedUrl(row.storage_path,90);if(error||!data?.signedUrl)fail(error,"The private Resume file could not be opened.");return{signedUrl:data.signedUrl,expiresInSeconds:90,filename:row.original_filename,resumeNumber:row.resume_number,resumeType:row.resume_type};}
+
+  async uploadCoverLetter(user:AuthenticatedUser,id:string,file:any){
+    if(!file||file.size<1||file.size>5242880)throw new ApiException("VALIDATION_ERROR","Choose a cover letter between 1 byte and 5 MB.",HttpStatus.BAD_REQUEST);
+    if(!COVER_LETTER_MIMES.includes(file.mimetype))throw new ApiException("VALIDATION_ERROR","The cover letter file type is not supported.",HttpStatus.BAD_REQUEST);
+    const resume=await this.detail(user,id);
+    if(!resume)throw new ApiException("NOT_FOUND","The Resume was not found.",HttpStatus.NOT_FOUND);
+    if(resume.resume_type!=="ORIGINAL")throw new ApiException("RESUME_TYPE_INVALID","Cover letters can only be attached to original Resumes.",HttpStatus.BAD_REQUEST);
+    if(!resume.user_id)throw new ApiException("DATABASE_ERROR","Cover letter storage path could not be resolved for this Resume.",HttpStatus.BAD_GATEWAY);
+    const filename=safeName(file.originalname||"cover-letter.pdf"),path=`${resume.user_id}/${resume.id}/cover-${filename}`,checksum=createHash("sha256").update(file.buffer).digest("hex"),client=this.supabase.forUser(user.token);
+    const uploaded=await client.storage.from("cover-letters").upload(path,file.buffer,{contentType:file.mimetype,upsert:true});
+    if(uploaded.error)fail(uploaded.error,"The private cover letter file could not be uploaded.");
+    const{data,error}=await client.rpc("set_resume_cover_letter_v37",{
+      p_resume_id:id,
+      p_storage_path:path,
+      p_original_filename:file.originalname||filename,
+      p_mime_type:file.mimetype,
+      p_file_size_bytes:file.size,
+      p_file_sha256:checksum,
+    });
+    if(error){
+      await client.storage.from("cover-letters").remove([path]);
+      fail(error,"Cover letter metadata could not be saved.");
+    }
+    const previousPath=data?.previousPath,previousBucket=data?.previousBucket||"cover-letters";
+    if(previousPath&&previousPath!==path)await client.storage.from(previousBucket).remove([previousPath]);
+    return data?.resume||await this.detail(user,id);
+  }
+
+  async coverLetterSignedUrl(user:AuthenticatedUser,id:string){
+    const row=await this.detail(user,id);
+    if(!row)throw new ApiException("NOT_FOUND","The Resume was not found.",HttpStatus.NOT_FOUND);
+    if(!row.cover_letter_storage_path||!row.cover_letter_storage_bucket)throw new ApiException("COVER_LETTER_NOT_FOUND","This Resume does not have a cover letter.",HttpStatus.NOT_FOUND);
+    const{data,error}=await this.supabase.forUser(user.token).storage.from(row.cover_letter_storage_bucket).createSignedUrl(row.cover_letter_storage_path,90);
+    if(error||!data?.signedUrl)fail(error,"The private cover letter file could not be opened.");
+    return{signedUrl:data.signedUrl,expiresInSeconds:90,filename:row.cover_letter_original_filename,mimeType:row.cover_letter_mime_type,fileSizeBytes:row.cover_letter_file_size_bytes};
+  }
+
+  async removeCoverLetter(user:AuthenticatedUser,id:string){
+    const client=this.supabase.forUser(user.token);
+    const{data,error}=await client.rpc("clear_resume_cover_letter_v37",{p_resume_id:id});
+    if(error)fail(error,"The cover letter could not be removed.");
+    const previousPath=data?.previousPath,previousBucket=data?.previousBucket||"cover-letters";
+    if(previousPath)await client.storage.from(previousBucket).remove([previousPath]);
+    return data?.resume||await this.detail(user,id);
+  }
 }
