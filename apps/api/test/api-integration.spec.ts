@@ -57,7 +57,7 @@ before(async () => {
       addBannedCompany:async(_user:any,_id:string,companyName:string)=>({id:"ban-2",companyName}),
       removeBannedCompany:async()=>({id:"ban-1",companyName:"Google"}),
       identity:async()=>[{id:"resume-1"}],checksum:async()=>({id:"resume-1"}),upload:async()=>({id:"resume-1"}),
-      update:async()=>({id:"resume-1"}),status:async()=>({id:"resume-1",status:"ARCHIVED"}),
+      update:async()=>({id:"resume-1"}),rename:async(_user:any,_id:string,resumeName:string)=>({id:"resume-1",resume_name:resumeName}),status:async()=>({id:"resume-1",status:"ARCHIVED"}),
     })
     .overrideProvider(ApplicationService).useValue({
       list:async()=>({items:[{id:"application-1"}],hasMore:false,nextCursor:null}),mine:async()=>({items:[{id:"application-1"}]}),
@@ -185,6 +185,8 @@ test("Resume reads preserve history while archive actions require a manager or A
   await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED"}).expect(403);
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/status`).set("Authorization","Bearer token").send({status:"ARCHIVED"}).expect(200).expect(({body})=>assert.equal(body.data.status,"ARCHIVED"));
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/name`).set("Authorization","Bearer token").send({resumeName:"Brian Rose Resume"}).expect(200).expect(({body})=>assert.equal(body.data.resume_name,"Brian Rose Resume"));
+  await request(app.getHttpServer()).patch(`/api/v1/resumes/${id}/name`).set("Authorization","Bearer token").send({resumeName:""}).expect(400);
   await request(app.getHttpServer()).post("/api/v1/resumes/identity-duplicates").set("Authorization","Bearer token").send({candidateName:"Candidate"}).expect(403);
   roles=["ADMIN"];
   await request(app.getHttpServer()).post("/api/v1/resumes/identity-duplicates").set("Authorization","Bearer token").send({candidateName:"Candidate"}).expect(201).expect(({body})=>assert.equal(body.data[0].id,"resume-1"));

@@ -55,6 +55,13 @@ export class ResumeService{
     return data;
   }
   async update(user:AuthenticatedUser,id:string,m:any){const changes={candidate_name:clean(m.candidateName),resume_name:clean(m.resumeName),primary_category_id:m.primaryCategoryId,subcategory_id:m.subcategoryId||null,seniority:m.seniority,skills:array(m.skills),industries:array(m.industries)};const{data,error}=await this.supabase.forUser(user.token).from("resumes").update(changes).eq("id",id).eq("resume_type","ORIGINAL").select(RESUME_LIST_FIELDS).single();if(error)fail(error,"Original Resume metadata could not be updated.");return data;}
+  async rename(user:AuthenticatedUser,id:string,resumeName:string){
+    const name=clean(resumeName).slice(0,200);
+    if(!name)throw new ApiException("VALIDATION_ERROR","Enter a Resume name.",HttpStatus.BAD_REQUEST);
+    const{data,error}=await this.supabase.forUser(user.token).from("resumes").update({resume_name:name}).eq("id",id).eq("resume_type","ORIGINAL").select(RESUME_LIST_FIELDS).single();
+    if(error)fail(error,"The Resume name could not be updated.");
+    return data;
+  }
   async status(user:AuthenticatedUser,id:string,status:string){if(!["ACTIVE","ARCHIVED"].includes(status))throw new ApiException("VALIDATION_ERROR","Select a valid Resume status.",HttpStatus.BAD_REQUEST);const{data,error}=await this.supabase.forUser(user.token).rpc("set_resume_archived_state_v23",{p_resume_id:id,p_status:status});if(error)fail(error,"Original Resume status could not be updated.");return data;}
   async signedUrl(user:AuthenticatedUser,id:string){const row=await this.detail(user,id);if(!row)throw new ApiException("NOT_FOUND","The Resume was not found.",HttpStatus.NOT_FOUND);const{data,error}=await this.supabase.forUser(user.token).storage.from(row.storage_bucket).createSignedUrl(row.storage_path,90);if(error||!data?.signedUrl)fail(error,"The private Resume file could not be opened.");return{signedUrl:data.signedUrl,expiresInSeconds:90,filename:row.original_filename,resumeNumber:row.resume_number,resumeType:row.resume_type};}
 
