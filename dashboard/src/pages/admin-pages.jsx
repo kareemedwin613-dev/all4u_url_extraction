@@ -227,9 +227,6 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
       : null;
   return (
     <div className="page">
-      <Title level={1} tabIndex={-1}>
-        Users
-      </Title>
       {error && !result ? (
         <ErrorState title="Users could not be loaded" message={error} />
       ) : !result && loading ? (
@@ -255,7 +252,7 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
             columns={columns}
             dataSource={result.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 400px)" }}
+            scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
             locale={{
               emptyText: (
                 <Space
@@ -402,7 +399,7 @@ export function AdminUserDetailPage({
       await setStatus(client, apiBaseUrl, id, statusValue);
       await load();
       if (id === currentUserId) await onCurrentUserChanged();
-      setMessage("Account status updated successfully.");
+      setMessage("Account Status updated successfully.");
     } catch (value) {
       setMessage(value.message);
       setStatusValue(user.status);
@@ -429,7 +426,7 @@ export function AdminUserDetailPage({
       await updateUserProfile(client, apiBaseUrl, id, fullNameValue);
       await load();
       if (id === currentUserId) await onCurrentUserChanged();
-      setMessage("Full name updated successfully.");
+      setMessage("Full Name updated successfully.");
     } catch (value) {
       setMessage(value.message);
       setFullNameValue(user.fullName || "");
@@ -461,7 +458,7 @@ export function AdminUserDetailPage({
             items={[
               {
                 key: "name",
-                label: "Full name",
+                label: "Full Name",
                 children: (
                   <Space wrap style={{ width: "100%" }}>
                     <Input
@@ -470,7 +467,7 @@ export function AdminUserDetailPage({
                       disabled={busy}
                       onChange={(event) => setFullNameValue(event.target.value)}
                       placeholder="Enter full name"
-                      aria-label="Full name"
+                      aria-label="Full Name"
                       style={{ minWidth: 240 }}
                     />
                     <Button
@@ -506,7 +503,7 @@ export function AdminUserDetailPage({
     },
     {
       key: "status",
-      label: "Account status",
+      label: "Account Status",
       children: (
         <>
           <Text>
@@ -540,7 +537,7 @@ export function AdminUserDetailPage({
     },
     {
       key: "roles",
-      label: "System roles",
+      label: "System Roles",
       children: (
         <>
           <Text>
@@ -604,15 +601,15 @@ export function AdminUserDetailPage({
 
 export function AdminRolesPage({ roles }) {
   const columns = clientSortColumns([
-    { title: "Role name", dataIndex: "name" },
+    { title: "Role Name", dataIndex: "name" },
     {
-      title: "Role code",
+      title: "Role Code",
       dataIndex: "code",
       render: (value) => <Text code>{value}</Text>,
     },
     { title: "Description", dataIndex: "description" },
     {
-      title: "Active status",
+      title: "Active Status",
       dataIndex: "active",
       render: (value) => (
         <AccountStatusBadge status={value ? "ACTIVE" : "INACTIVE"} />
@@ -621,9 +618,6 @@ export function AdminRolesPage({ roles }) {
   ]);
   return (
     <div className="page">
-      <Title level={1} tabIndex={-1}>
-        System Roles
-      </Title>
       <Text>These roles are fixed and read-only.</Text>
       <Card>
         <AntTable
@@ -631,7 +625,7 @@ export function AdminRolesPage({ roles }) {
           columns={columns}
           dataSource={roles}
           pagination={false}
-          scroll={{ x: "max-content" }}
+          scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
         />
       </Card>
     </div>

@@ -15,5 +15,5 @@ export async function getMyAccessContext(client,apiBaseUrl) {
 
 export async function listSystemRoles(client,apiBaseUrl) {
   try{const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/admin/roles"});return payload.data||[];}
-  catch(error){throw normalizeAccessError(error,"DATA_REQUEST_FAILED","System roles could not be loaded.");}
+  catch(error){throw normalizeAccessError(error,"DATA_REQUEST_FAILED","System Roles could not be loaded.");}
 }

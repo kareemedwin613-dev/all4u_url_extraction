@@ -18,8 +18,8 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
   assert.match(app, /<Col xs=\{24\} xl=\{12\}><ApplierPerformanceChart/);
   assert.match(app, /<Col xs=\{24\} xl=\{12\}><JdFinderPerformanceChart/);
   assert.match(app, /dateLabel=\{dateLabel\}/);
-  assert.match(applier, /role="img"[\s\S]*aria-label="Applier Performance graph"/);
-  assert.match(finder, /role="img"[\s\S]*aria-label="JD Finder Performance graph"/);
+  assert.match(applier, /role="img"[\s\S]*aria-label="Applier Performance Graph"/);
+  assert.match(finder, /role="img"[\s\S]*aria-label="JD Finder Performance Graph"/);
   assert.match(applier, /aria-label="Search Applier Performance by name or email"/);
   assert.match(finder, /aria-label="Search JD Finder Performance by name or email"/);
   assert.match(applier, /item\.name} \$\{item\.email/);

@@ -326,12 +326,12 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
             items={[
               {
                 key: "identity",
-                label: "Personal & classification",
+                label: "Personal & Classification",
                 children: (
                   <Card
                     className="resume-upload-section"
                     bordered={false}
-                    title="Review extracted Resume information"
+                    title="Review Extracted Resume Information"
                   >
                     <Row gutter={[16, 16]}>
                       <Col xs={24} md={12}>
@@ -358,12 +358,12 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                           />
                         </label>
                       </Col>
-                      <Col xs={24} md={8}><label>First name<Input value={draft.candidateFirstName} onChange={(event)=>setField("candidateFirstName",event.target.value)} maxLength={100}/></label></Col>
-                      <Col xs={24} md={8}><label>Middle name (optional)<Input value={draft.candidateMiddleName} onChange={(event)=>setField("candidateMiddleName",event.target.value)} maxLength={100}/></label></Col>
-                      <Col xs={24} md={8}><label>Last name<Input value={draft.candidateLastName} onChange={(event)=>setField("candidateLastName",event.target.value)} maxLength={100}/></label></Col>
+                      <Col xs={24} md={8}><label>First Name<Input value={draft.candidateFirstName} onChange={(event)=>setField("candidateFirstName",event.target.value)} maxLength={100}/></label></Col>
+                      <Col xs={24} md={8}><label>Middle Name (optional)<Input value={draft.candidateMiddleName} onChange={(event)=>setField("candidateMiddleName",event.target.value)} maxLength={100}/></label></Col>
+                      <Col xs={24} md={8}><label>Last Name<Input value={draft.candidateLastName} onChange={(event)=>setField("candidateLastName",event.target.value)} maxLength={100}/></label></Col>
                       <Col xs={24} md={12}>
                         <label>
-                          Candidate email
+                          Candidate Email
                           <Input
                             type="email"
                             value={draft.candidateEmail}
@@ -376,7 +376,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                       </Col>
                       <Col xs={24} md={12}>
                         <label>
-                          Candidate phone
+                          Candidate Phone
                           <Input
                             type="tel"
                             value={draft.candidatePhone}
@@ -389,7 +389,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                       </Col>
                       <Col xs={24} md={12}>
                         <label>
-                          Primary category
+                          Primary Category
                           <Select
                             value={draft.primaryCategoryId || undefined}
                             onChange={(value) =>
@@ -464,11 +464,11 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                         </label>
                       </Col>
                       <Col span={24}><Title level={4}>Address and professional links</Title></Col>
-                      <Col xs={24} md={12}><label>Address line 1<Input value={draft.addressLine1} onChange={(event)=>setField("addressLine1",event.target.value)} maxLength={200}/></label></Col>
-                      <Col xs={24} md={12}><label>Address line 2<Input value={draft.addressLine2} onChange={(event)=>setField("addressLine2",event.target.value)} maxLength={200}/></label></Col>
+                      <Col xs={24} md={12}><label>Address Line 1<Input value={draft.addressLine1} onChange={(event)=>setField("addressLine1",event.target.value)} maxLength={200}/></label></Col>
+                      <Col xs={24} md={12}><label>Address Line 2<Input value={draft.addressLine2} onChange={(event)=>setField("addressLine2",event.target.value)} maxLength={200}/></label></Col>
                       <Col xs={24} md={6}><label>City<Input value={draft.city} onChange={(event)=>setField("city",event.target.value)} maxLength={120}/></label></Col>
-                      <Col xs={24} md={6}><label>State / region<Input value={draft.stateRegion} onChange={(event)=>setField("stateRegion",event.target.value)} maxLength={120}/></label></Col>
-                      <Col xs={24} md={6}><label>Postal code<Input value={draft.postalCode} onChange={(event)=>setField("postalCode",event.target.value)} maxLength={40}/></label></Col>
+                      <Col xs={24} md={6}><label>State / Region<Input value={draft.stateRegion} onChange={(event)=>setField("stateRegion",event.target.value)} maxLength={120}/></label></Col>
+                      <Col xs={24} md={6}><label>Postal Code<Input value={draft.postalCode} onChange={(event)=>setField("postalCode",event.target.value)} maxLength={40}/></label></Col>
                       <Col xs={24} md={6}><label>Country<Input value={draft.country} onChange={(event)=>setField("country",event.target.value)} maxLength={120}/></label></Col>
                       <Col xs={24} md={8}><label>LinkedIn URL<Input type="url" value={draft.linkedInUrl} onChange={(event)=>setField("linkedInUrl",event.target.value)} maxLength={2000}/></label></Col>
                       <Col xs={24} md={8}><label>GitHub URL<Input type="url" value={draft.githubUrl} onChange={(event)=>setField("githubUrl",event.target.value)} maxLength={2000}/></label></Col>
@@ -542,7 +542,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
               },
               {
                 key: "original",
-                label: "Original text",
+                label: "Original Text",
                 children: (
                   <Card className="resume-upload-section" bordered={false}>
                     <Collapse
@@ -550,7 +550,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                       items={[
                         {
                           key: "text",
-                          label: "Original extracted Resume text",
+                          label: "Original Extracted Resume Text",
                           children: (
                             <Input.TextArea
                               value={draft.resumeText}

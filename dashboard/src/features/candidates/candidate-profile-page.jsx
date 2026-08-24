@@ -120,9 +120,9 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
         values,
       );
       setPreferences(next.preferences);
-      notify("success", "Autofill permissions saved.");
+      notify("success", "Autofill Permissions saved.");
     } catch (x) {
-      notify("error", "Autofill permissions could not be saved", x.message);
+      notify("error", "Autofill Permissions could not be saved", x.message);
     } finally {
       setBusy(false);
     }
@@ -166,13 +166,13 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
         message="Edit the canonical Resume"
         description="Personal details and structured sections are stored on this Resume and reused by autofill. Structured sections are saved together so ordering and deletions remain consistent."
       />
-      <Card title="Personal, contact, address, and links">
+      <Card title="Personal, Contact, Address, And Links">
         <Form form={form} layout="vertical" onFinish={saveProfile}>
           <Row gutter={12}>
             <Col xs={24} md={12}>
               <Form.Item
                 name="fullName"
-                label="Full name"
+                label="Full Name"
                 rules={[{ required: true, max: 200 }]}
               >
                 <Input />
@@ -184,17 +184,17 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="firstName" label="First name">
+              <Form.Item name="firstName" label="First Name">
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="middleName" label="Middle name">
+              <Form.Item name="middleName" label="Middle Name">
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item name="lastName" label="Last name">
+              <Form.Item name="lastName" label="Last Name">
                 <Input />
               </Form.Item>
             </Col>
@@ -204,12 +204,12 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="addressLine1" label="Address line 1">
+              <Form.Item name="addressLine1" label="Address Line 1">
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="addressLine2" label="Address line 2">
+              <Form.Item name="addressLine2" label="Address Line 2">
                 <Input />
               </Form.Item>
             </Col>
@@ -219,12 +219,12 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
               </Form.Item>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="stateRegion" label="State / region">
+              <Form.Item name="stateRegion" label="State / Region">
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} md={6}>
-              <Form.Item name="postalCode" label="Postal code">
+              <Form.Item name="postalCode" label="Postal Code">
                 <Input />
               </Form.Item>
             </Col>

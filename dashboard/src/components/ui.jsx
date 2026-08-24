@@ -19,6 +19,44 @@ import { formatLabel } from "../shared/formatters.js";
 import { clientSortColumns } from "../shared/table-sorting.js";
 
 const { Text, Title } = Typography;
+
+const fnvHash = (seed) => {
+  const text = String(seed || "");
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+/** Spread hues so open-ended values (categories, people) rarely collide. */
+const hueHex = (hue) => {
+  const h = ((hue % 360) + 360) % 360;
+  const s = 0.58;
+  const l = 0.42;
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`;
+};
+
+const hashTone = (seed) => hueHex(fnvHash(seed));
+
+/** Stable, collision-resistant color for a known category list entry. */
+export const categoryTagColor = (categories, id) => {
+  const list = categories?.primary || [];
+  const index = list.findIndex((item) => item.id === id);
+  if (index < 0) return hashTone(id || "category");
+  // Evenly spaced hues across the palette so nearby categories never match.
+  return hueHex(Math.round((index * 360) / Math.max(list.length, 1)));
+};
+
 const tagColor = (value) =>
   ({
     ACTIVE: "green",
@@ -40,10 +78,55 @@ const tagColor = (value) =>
     CREATED: "green",
     DUPLICATE: "gold",
     SKIPPED: "default",
+    NEEDS_REVIEW: "gold",
+    APPROVED: "green",
+    NEEDS_CORRECTION: "orange",
+    DECLINED: "red",
   })[String(value || "").toUpperCase()] || "blue";
 
 export const StatusTag = ({ value }) => (
   <Tag color={tagColor(value)}>{formatLabel(value)}</Tag>
+);
+
+/** One unique preset per seniority level. */
+const seniorityColor = (value) =>
+  ({
+    INTERN: "lime",
+    ENTRY: "cyan",
+    JUNIOR: "blue",
+    MID: "geekblue",
+    SENIOR: "purple",
+    LEAD: "magenta",
+    PRINCIPAL: "volcano",
+    MANAGER: "orange",
+    DIRECTOR: "gold",
+    EXECUTIVE: "red",
+    UNSPECIFIED: "default",
+  })[String(value || "").toUpperCase()] || "default";
+
+/**
+ * Compact pill for categorical table cells.
+ * Pass `seed` (or omit `color`) so different values get stable, distinct colors.
+ */
+export const MetaTag = ({ children, color, seed, title }) => {
+  const text =
+    children == null || children === "" ? "" : String(children);
+  if (!text) return "—";
+  const resolvedColor = color || hashTone(seed ?? text);
+  const tag = (
+    <Tag color={resolvedColor} className="meta-tag">
+      {text}
+    </Tag>
+  );
+  return (
+    <Tooltip title={title || text} placement="topLeft">
+      {tag}
+    </Tooltip>
+  );
+};
+
+export const SeniorityTag = ({ value }) => (
+  <MetaTag color={seniorityColor(value)}>{formatLabel(value)}</MetaTag>
 );
 
 /** Single-line truncated cell with full value on hover. */
@@ -228,20 +311,24 @@ export const PageHeading = ({ title, eyebrow, extra }) => (
   <Flex
     className="page-heading"
     align="center"
-    justify="space-between"
+    justify={title || eyebrow ? "space-between" : "flex-end"}
     gap="middle"
     wrap
   >
-    <div>
-      {eyebrow && (
-        <Text type="secondary" className="eyebrow">
-          {eyebrow}
-        </Text>
-      )}
-      <Title level={1} tabIndex={-1}>
-        {title}
-      </Title>
-    </div>
+    {(title || eyebrow) && (
+      <div>
+        {eyebrow && (
+          <Text type="secondary" className="eyebrow">
+            {eyebrow}
+          </Text>
+        )}
+        {title ? (
+          <Title level={1} tabIndex={-1}>
+            {title}
+          </Title>
+        ) : null}
+      </div>
+    )}
     {extra}
   </Flex>
 );

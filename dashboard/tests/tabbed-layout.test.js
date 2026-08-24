@@ -38,13 +38,13 @@ test("long detail and workflow pages use compact tabbed layouts", async () => {
   assert.match(applications, /label="Overview"|label: "Overview"/);
   for (const label of ["Progress", "Assignment", "History"])
     assert.match(applications, new RegExp(`label[=:] ["']${label}`));
-  for (const label of ["Identity", "Account status", "System roles"])
+  for (const label of ["Identity", "Account Status", "System Roles"])
     assert.match(admin, new RegExp(`label: ["']${label}`));
   assert.match(bulk, /Review combinations/);
   assert.match(bulk, /Create selected/);
-  assert.match(upload, /Personal & classification/);
+  assert.match(upload, /Personal & Classification/);
   assert.match(upload, /Structured Resume/);
-  assert.match(upload, /Original text/);
+  assert.match(upload, /Original Text/);
 });
 
 test("primary paginated tables use bounded viewport scrolling", async () => {

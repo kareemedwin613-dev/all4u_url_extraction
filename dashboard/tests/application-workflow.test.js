@@ -64,7 +64,7 @@ test("manager Application page exposes persistent bulk assignment controls",asyn
 test("Applier Application columns follow the operational priority order",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   const section=source.slice(source.indexOf("const applierColumns ="),source.indexOf("const columns = manager"));
-  const labels=["Link","Status","Captured at","Last updated","Primary category"];
+  const labels=["Link","Status","Captured At","Last Updated","Primary Category"];
   let position=-1;
   for(const label of labels){const match=new RegExp(`title:\\s*\"${label}\"`).exec(section),next=match?.index??-1;assert.ok(next>position,`${label} follows the requested order`);position=next;}
   assert.match(section,/source_url/);
@@ -85,11 +85,11 @@ test("manager Application list identifies both sides of the JD and Resume pair",
   assert.match(section,/companyColumn/);
   assert.match(section,/jobTitleColumn/);
   assert.match(section,/resumeColumn/);
-  assert.match(section,/title:\s*"Captured at"/);
-  assert.match(section,/title:\s*"Last updated"/);
+  assert.match(section,/title:\s*"Captured At"/);
+  assert.match(section,/title:\s*"Last Updated"/);
 });
 
-test("Application list truncates only Company and Job title with ellipsis", async () => {
+test("Application list truncates only Company and Job Title with ellipsis", async () => {
   const source = await readFile(new URL("../src/features/applications/application-pages.jsx", import.meta.url), "utf8");
   const company = source.slice(source.indexOf("const companyColumn ="), source.indexOf("const jobTitleColumn ="));
   const jobTitle = source.slice(source.indexOf("const jobTitleColumn ="), source.indexOf("const resumeColumn ="));
@@ -102,9 +102,9 @@ test("Application list truncates only Company and Job title with ellipsis", asyn
   assert.match(source, /applicationsScrollX = manager \? 2262 : 1916/);
 });
 
-test("Application number is visible on the list, detail heading, and search",async()=>{
+test("Application Number is visible on the list, detail heading, and search",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   assert.match(source,/Application #/);
-  assert.match(source,/Application number/);
+  assert.match(source,/Application Number/);
   assert.match(source,/Application #, company, or job title/);
 });

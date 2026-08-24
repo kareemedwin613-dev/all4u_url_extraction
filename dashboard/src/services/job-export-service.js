@@ -6,11 +6,11 @@ import { listJobs } from "./job-read-service.js";
 export const JOB_EXPORT_PAGE_SIZE = 50;
 export const JOB_EXPORT_MAX_ROWS = 5000;
 export const JOB_EXPORT_HEADERS = Object.freeze([
-  "Company name",
-  "Role name",
-  "Job description URL",
-  "Founded by",
-  "Founded date",
+  "Company Name",
+  "Role Name",
+  "Job Description URL",
+  "Founded By",
+  "Founded Date",
   "Status",
 ]);
 

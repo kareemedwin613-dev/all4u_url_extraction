@@ -4,7 +4,7 @@ import {roleLabel} from "../access/role-codes.js";
 const {Text,Title}=Typography;
 
 export function RoleBadges({roles = []}) {
-  return roles.length ? <Flex gap="small" wrap aria-label="Assigned roles">{roles.map(role => <Tag color="blue" key={role}>{roleLabel(role)}</Tag>)}</Flex> : <Text type="secondary">No roles assigned</Text>;
+  return roles.length ? <Flex gap="small" wrap aria-label="Assigned Roles">{roles.map(role => <Tag color="blue" key={role}>{roleLabel(role)}</Tag>)}</Flex> : <Text type="secondary">No roles assigned</Text>;
 }
 
 export function AccountStatusBadge({status}) {

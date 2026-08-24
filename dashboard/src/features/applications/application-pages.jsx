@@ -199,7 +199,7 @@ function ApplicationFilters({
             <Form.Item label="Priority" name="priority">
               <Select
                 options={[
-                  { value: "", label: "All priorities" },
+                  { value: "", label: "All Priorities" },
                   ...APPLICATION_PRIORITIES.map((value) => ({
                     value,
                     label: formatLabel(value),
@@ -214,10 +214,10 @@ function ApplicationFilters({
             </Form.Item>
           </Col>
           <Col {...field}>
-            <Form.Item label="Primary category" name="categoryId">
+            <Form.Item label="Primary Category" name="categoryId">
               <Select
                 options={[
-                  { value: "", label: "All categories" },
+                  { value: "", label: "All Categories" },
                   ...(categories?.primary || []).map((x) => ({
                     value: x.id,
                     label: x.name,
@@ -227,10 +227,10 @@ function ApplicationFilters({
             </Form.Item>
           </Col>
           <Col {...field}>
-            <Form.Item label="Due date" name="dueFilter">
+            <Form.Item label="Due Date" name="dueFilter">
               <Select
                 options={[
-                  { value: "", label: "Any due date" },
+                  { value: "", label: "Any Due Date" },
                   ...DUE_FILTERS.map(([value, label]) => ({ value, label })),
                 ]}
               />
@@ -239,23 +239,23 @@ function ApplicationFilters({
           {manager && (
             <>
               <Col {...field}>
-                <Form.Item label="Created in" name="creationMode">
+                <Form.Item label="Created In" name="creationMode">
                   <Select
                     options={[
-                      { value: "", label: "Bulk or individual" },
-                      { value: "BULK", label: "Created in bulk" },
-                      { value: "INDIVIDUAL", label: "Created individually" },
+                      { value: "", label: "Bulk Or Individual" },
+                      { value: "BULK", label: "Created In Bulk" },
+                      { value: "INDIVIDUAL", label: "Created Individually" },
                     ]}
                   />
                 </Form.Item>
               </Col>
               <Col {...field}>
-                <Form.Item label="Creation batch" name="creationBatchId">
+                <Form.Item label="Creation Batch" name="creationBatchId">
                   <Select
                     showSearch
                     optionFilterProp="label"
                     options={[
-                      { value: "", label: "All creation batches" },
+                      { value: "", label: "All Creation Batches" },
                       ...batches.map((x) => ({
                         value: x.id,
                         label: x.name || `Batch ${String(x.id).slice(0, 8)}`,
@@ -267,7 +267,7 @@ function ApplicationFilters({
             </>
           )}
           <Col {...field}>
-            <Form.Item label="Page size" name="pageSize">
+            <Form.Item label="Page Size" name="pageSize">
               <Select
                 options={[25, 50, 100].map((value) => ({
                   value,
@@ -375,15 +375,13 @@ export function ApplicationsPage({
     dataIndex: "company",
     sortKey: "company",
     width: 160,
-    ellipsis: { showTitle: false },
     render: (value) => <EllipsisCell>{value}</EllipsisCell>,
   };
   const jobTitleColumn = {
-    title: "Job title",
+    title: "Job Title",
     dataIndex: "job_title",
     sortKey: "title",
     width: 200,
-    ellipsis: { showTitle: false },
     render: (value) => <EllipsisCell>{value}</EllipsisCell>,
   };
   const resumeColumn = {
@@ -400,7 +398,7 @@ export function ApplicationsPage({
     jobTitleColumn,
     resumeColumn,
     {
-      title: "Applier profile",
+      title: "Applier Profile",
       dataIndex: "assignee_name",
       sortKey: "assignee",
       width: 180,
@@ -436,14 +434,14 @@ export function ApplicationsPage({
         ),
     },
     {
-      title: "Captured at",
+      title: "Captured At",
       dataIndex: "captured_at",
       sortKey: "captured",
       width: 190,
       render: formatDate,
     },
     {
-      title: "Last updated",
+      title: "Last Updated",
       dataIndex: "updated_at",
       sortKey: "updated",
       width: 190,
@@ -494,21 +492,21 @@ export function ApplicationsPage({
       render: (value) => <StatusTag value={value} />,
     },
     {
-      title: "Captured at",
+      title: "Captured At",
       dataIndex: "captured_at",
       sortKey: "captured",
       width: 190,
       render: formatDate,
     },
     {
-      title: "Last updated",
+      title: "Last Updated",
       dataIndex: "updated_at",
       sortKey: "updated",
       width: 190,
       render: formatDate,
     },
     {
-      title: "Primary category",
+      title: "Primary Category",
       dataIndex: "category_name",
       sortKey: "category",
       width: 200,
@@ -522,13 +520,10 @@ export function ApplicationsPage({
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   return (
     <div className="page">
-      <Flex justify="space-between" align="center" wrap>
-        <Title level={1} tabIndex={-1}>
-          Applications
-        </Title>
-        {manager && (
+      {manager ? (
+        <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
           <Space wrap>
-            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select for tailoring"},{value:"ASSIGN",label:"Select for assignment / reassignment"}]} style={{minWidth:220}}/>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"}]} style={{minWidth:220}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
@@ -548,8 +543,8 @@ export function ApplicationsPage({
               Create Application
             </Button>
           </Space>
-        )}
-      </Flex>
+        </Flex>
+      ) : null}
       {notice && (
         <Alert
           type="success"
@@ -598,7 +593,7 @@ export function ApplicationsPage({
             dataSource={data.items}
             pagination={false}
             tableLayout="fixed"
-            scroll={{ x: applicationsScrollX, y: "calc(100vh - 430px)" }}
+            scroll={{ x: applicationsScrollX, y: "calc(100vh - 240px)" }}
             rowSelection={
               manager
                 ? {
@@ -740,7 +735,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
           <Form.Item label="Assigned Applier (optional)" name="assignedTo">
             <Select
               options={[
-                { value: "", label: "Leave unassigned" },
+                { value: "", label: "Leave Unassigned" },
                 ...appliers.map((x) => ({
                   value: x.id,
                   label: `${name(x)} - ${x.active_application_count} active`,
@@ -756,7 +751,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
               }))}
             />
           </Form.Item>
-          <Form.Item label="Due date and time (optional)" name="dueAt">
+          <Form.Item label="Due Date And Time (Optional)" name="dueAt">
             <Input type="datetime-local" />
           </Form.Item>
           <Form.Item label="Notes (optional)" name="notes">
@@ -822,7 +817,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
       </Form.Item>
       {manager && (
         <>
-          <Form.Item label="Applied date and time" name="appliedAt">
+          <Form.Item label="Applied Date And Time" name="appliedAt">
             <Input type="datetime-local" />
           </Form.Item>
           <Form.Item label="Priority" name="priority">
@@ -833,7 +828,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
               }))}
             />
           </Form.Item>
-          <Form.Item label="Due date and time" name="dueAt">
+          <Form.Item label="Due Date And Time" name="dueAt">
             <Input type="datetime-local" />
           </Form.Item>
           <Form.Item label="Notes" name="notes">
@@ -940,7 +935,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
         dataIndex: "new_assignee",
         render: (value) => value || "Unassigned",
       },
-      { title: "Changed by", dataIndex: "assigned_by" },
+      { title: "Changed By", dataIndex: "assigned_by" },
       { title: "Reason", dataIndex: "reason", render: (value) => value || "—" },
     ],
     statusColumns = [
@@ -948,7 +943,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       { title: "Type", dataIndex: "status_type", render: formatLabel },
       { title: "Previous", dataIndex: "previous_status", render: formatLabel },
       { title: "New", dataIndex: "new_status", render: formatLabel },
-      { title: "Changed by", dataIndex: "changed_by" },
+      { title: "Changed By", dataIndex: "changed_by" },
       { title: "Notes", dataIndex: "notes", render: (value) => value || "—" },
     ];
   return (
@@ -996,7 +991,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     items={[
                       {
                         key: "number",
-                        label: "Application number",
+                        label: "Application Number",
                         children: (
                           <Text code>{a.application_number ?? "—"}</Text>
                         ),
@@ -1028,7 +1023,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                       },
                       {
                         key: "creator",
-                        label: "Created by",
+                        label: "Created By",
                         children: name(detail.creator),
                       },
                       {
@@ -1075,7 +1070,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     items={[
                       {
                         key: "description",
-                        label: "View description",
+                        label: "View Description",
                         children: (
                           <div className="long-text">
                             {job.description_text}
