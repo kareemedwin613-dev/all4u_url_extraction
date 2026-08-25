@@ -13,6 +13,18 @@ export function validateSignUp({email,password,fullName,confirmPassword}={}){
   if(confirmPassword!==undefined&&pass!==String(confirmPassword||""))errors.confirmPassword="Passwords do not match.";
   return {valid:!Object.keys(errors).length,errors};
 }
+export function validatePasswordResetRequest(email){
+  const errors={};
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||"").trim()))errors.email="Enter a valid email address.";
+  return {valid:!Object.keys(errors).length,errors};
+}
+export function validateNewPassword({password,confirmPassword}={}){
+  const errors={},pass=String(password||"");
+  if(!pass)errors.password="Enter a new password.";
+  else if(pass.length<8)errors.password="Password must be at least 8 characters.";
+  if(confirmPassword!==undefined&&pass!==String(confirmPassword||""))errors.confirmPassword="Passwords do not match.";
+  return {valid:!Object.keys(errors).length,errors};
+}
 export function normalizeSearch(value){const search=String(value||"").trim().slice(0,SEARCH_MAX);if(/[,%_()"'\\\r\n]/.test(search))throw Object.assign(new Error("Search contains unsupported filter characters."),{code:"INVALID_FILTER"});return search;}
 export const allowed=(value,values,fallback="")=>values.includes(value)?value:fallback;
 export function normalizePage(value){const n=Number.parseInt(value,10);return Number.isInteger(n)&&n>=1?n:1;}

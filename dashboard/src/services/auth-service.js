@@ -43,6 +43,38 @@ export async function signUp(client,{email,password,fullName}){
   };
 }
 
+export function passwordResetRedirectUrl(locationLike=globalThis.location){
+  const origin=String(locationLike?.origin||"").replace(/\/+$/,"");
+  const path=String(locationLike?.pathname||"/")||"/";
+  return `${origin}${path==="/"?"":path.replace(/\/+$/,"")}/`;
+}
+
+export async function requestPasswordReset(client,email,locationLike=globalThis.location){
+  const address=String(email||"").trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)){
+    throw {code:"VALIDATION_ERROR",message:"Enter a valid email address.",retryable:false};
+  }
+  const {error}=await client.auth.resetPasswordForEmail(address,{
+    redirectTo:passwordResetRedirectUrl(locationLike),
+  });
+  if(error)throw normalizeError(error,"Unable to send a password reset email.");
+  return {
+    message:"If an account exists for that email, a reset link was sent. Check your inbox and spam folder.",
+  };
+}
+
+export async function updatePassword(client,password){
+  const next=String(password||"");
+  if(next.length<8)throw {code:"AUTH_WEAK_PASSWORD",message:"Password must be at least 8 characters.",retryable:false};
+  const {data,error}=await client.auth.updateUser({password:next});
+  if(error){
+    const raw=String(error.message||"");
+    if(/password/i.test(raw))throw {code:"AUTH_WEAK_PASSWORD",message:raw||"Choose a stronger password.",retryable:false};
+    throw normalizeError(error,"Unable to update your password.");
+  }
+  return data.user;
+}
+
 export async function signOut(client){
   const {error}=await client.auth.signOut();
   if(error)throw normalizeError(error,"Unable to sign out.");
