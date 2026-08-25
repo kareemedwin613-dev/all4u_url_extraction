@@ -44,7 +44,7 @@ before(async () => {
   const module = await Test.createTestingModule({ imports:[AppModule] })
     .overrideProvider(JwtVerifier).useValue({ verify: async (token:string) => ({id:"user-1",email:"user@example.com",token,claims:{}}) })
     .overrideProvider(SupabaseService).useValue(supabaseMock)
-    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null}),review:async(_user:any,id:string,reviewStatus:string,declineReason?:string,comment?:string)=>({id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null})})
+    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null}),review:async(_user:any,id:string,reviewStatus:string,declineReason?:string,comment?:string)=>({id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null}),bulkReview:async(_user:any,ids:string[],reviewStatus:string,declineReason?:string,comment?:string)=>({total:ids.length,succeeded:ids.length,failed:0,results:ids.map(id=>({id,ok:true,data:{id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null}}))})})
     .overrideProvider(LookupService).useValue({categories:async()=>[{id:"category-1",name:"Engineering"}],industryDomains:async()=>[{id:"industry-1",name:"Technology"}]})
     .overrideProvider(ResumeService).useValue({
       list:async()=>({items:[{id:"resume-1",candidate_name:"Candidate"}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),
@@ -172,6 +172,9 @@ test("simple JD decisions are restricted, validated, and returned",async()=>{
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/review`).set("Authorization","Bearer token").send({reviewStatus:"DECLINED",declineReason:"EXPIRED",comment:"Posting closed"}).expect(200).expect(({body})=>assert.equal(body.data.review_status,"DECLINED"));
   await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/review`).set("Authorization","Bearer token").send({reviewStatus:"DECLINED",declineReason:"UNSAFE"}).expect(400);
+  await request(app.getHttpServer()).post("/api/v1/job-descriptions/bulk-review").set("Authorization","Bearer token").send({jobDescriptionIds:[id],reviewStatus:"APPROVED"}).expect(201).expect(({body})=>{assert.equal(body.data.succeeded,1);assert.equal(body.data.results[0].data.review_status,"APPROVED");});
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).post("/api/v1/job-descriptions/bulk-review").set("Authorization","Bearer token").send({jobDescriptionIds:[id],reviewStatus:"APPROVED"}).expect(403);
 });
 
 test("Resume reads preserve history while archive actions require a manager or Admin",async()=>{

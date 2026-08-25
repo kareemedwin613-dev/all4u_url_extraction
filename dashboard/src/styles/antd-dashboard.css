@@ -7,3 +7,21 @@ html,body,#app{min-height:100%;margin:0}.ant-app{min-height:100vh}.dashboard-lay
 .overview-header-filter{padding:0 12px;border-left:1px solid #d6dde7;border-right:1px solid #d6dde7}.overview-header-filter-label{font-size:11px;line-height:1.2}.overview-header-filter .ant-input{width:132px}@media(max-width:1100px){.dashboard-header{flex-wrap:wrap}.dashboard-header-actions{width:100%;justify-content:flex-end}.overview-header-filter{margin-right:auto;border-left:0;padding-left:0}}@media(max-width:768px){.overview-header-filter{width:100%;padding:8px 0;border-right:0;border-top:1px solid #e7ebf0}.overview-header-filter .ant-flex{width:100%}}
 
 .overview-chart-scroll{width:100%;overflow-x:auto;overflow-y:hidden}.overview-chart-tooltip{min-width:180px;padding:10px 12px;background:#fff;border:1px solid #e5e9ef;border-radius:8px;box-shadow:0 8px 24px rgba(5,30,66,.12)}.overview-chart-tooltip__row{display:flex;align-items:center;gap:8px;margin-top:4px}
+
+/* Keep list pagination visible: table body scrolls inside remaining viewport height. */
+.dashboard-layout{height:100vh;max-height:100vh;overflow:hidden}
+.dashboard-layout>.ant-layout{min-height:0;height:100%}
+.dashboard-workspace{height:100%;min-height:0;display:flex;flex-direction:column}
+.dashboard-workspace>.ant-layout-header{flex:none}
+.dashboard-content{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+.dashboard-content:has(.page-list){overflow:hidden}
+.page.page-list{flex:1;min-height:0;display:flex;flex-direction:column;gap:0;overflow:hidden}
+.page.page-list>.page-toolbar{flex:none}
+.page.page-list>.ant-alert{flex:none}
+.page.page-list>.page-list-card{flex:1;min-height:0;margin-bottom:0;display:flex;flex-direction:column;overflow:hidden}
+.page.page-list>.page-list-card>.ant-card-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:12px}
+.page-list-table-host{flex:1;min-height:200px;min-width:0;overflow:hidden}
+.page-list-table-host .ant-table-wrapper{height:100%}
+.page.page-list .ui-pagination{flex:none;margin-top:12px;margin-bottom:0;padding-top:8px;border-top:1px solid #eef2f7}
+@media(max-width:768px){.dashboard-layout{height:auto;max-height:none;overflow:visible}.dashboard-content{overflow:visible}.page.page-list,.page.page-list>.page-list-card,.page.page-list>.page-list-card>.ant-card-body{min-height:auto;overflow:visible}.page-list-table-host{min-height:320px}}
+

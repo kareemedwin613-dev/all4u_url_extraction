@@ -49,7 +49,7 @@ import { parseRoute } from "./router.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, bulkReviewJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import {
@@ -97,6 +97,7 @@ import {
   serverSortColumns,
   serverSortFromTable,
 } from "./shared/table-sorting.js";
+import { useTableBodyHeight } from "./shared/use-table-body-height.js";
 import {
   AccessDeniedPage,
   AccessLoadErrorPage,
@@ -871,7 +872,17 @@ function Jobs({
     [exportMessage, setExportMessage] = useState(""),
     [capturers, setCapturers] = useState([]),
     [capturerError, setCapturerError] = useState(""),
-    canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE);
+    [reviewBusy, setReviewBusy] = useState(false),
+    [reviewMessage, setReviewMessage] = useState(""),
+    [reviewMessageType, setReviewMessageType] = useState("info"),
+    [reviewDialog, setReviewDialog] = useState(null),
+    [reviewComment, setReviewComment] = useState(""),
+    [declineReason, setDeclineReason] = useState("EXPIRED"),
+    [listReload, setListReload] = useState(0),
+    [selectedReviewById, setSelectedReviewById] = useState({}),
+    canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE),
+    canReview = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
+    canSelect = canBulk || canReview;
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -890,7 +901,22 @@ function Jobs({
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, query, reload]);
+  }, [client, apiBaseUrl, query, reload, listReload]);
+  useEffect(() => {
+    if (!selectedJobIds.length) {
+      setSelectedReviewById({});
+      return;
+    }
+    setSelectedReviewById((prev) => {
+      const next = {};
+      for (const id of selectedJobIds) {
+        const fromPage = data?.items?.find((job) => job.id === id);
+        if (fromPage) next[id] = fromPage.review_status;
+        else if (prev[id] != null) next[id] = prev[id];
+      }
+      return next;
+    });
+  }, [data, selectedJobIds]);
   useEffect(() => {
     let live = true;
     setCapturerError("");
@@ -901,6 +927,45 @@ function Jobs({
       live = false;
     };
   }, [client, apiBaseUrl, reload]);
+  function clearJobSelection() {
+    onSelectedJobIdsChange([]);
+    setSelectedReviewById({});
+  }
+  async function submitBulkReview(nextStatus, reason = null, comment = "") {
+    if (!selectedJobIds.length) return;
+    setReviewBusy(true);
+    setReviewMessage("");
+    try {
+      const result = await bulkReviewJobs(client, apiBaseUrl, {
+        jobDescriptionIds: selectedJobIds,
+        reviewStatus: nextStatus,
+        ...(reason ? { declineReason: reason } : {}),
+        ...(comment.trim() ? { comment: comment.trim() } : {}),
+      });
+      setReviewDialog(null);
+      setReviewComment("");
+      setDeclineReason("EXPIRED");
+      clearJobSelection();
+      setListReload((value) => value + 1);
+      setReviewMessageType(result.failed ? "warning" : "success");
+      setReviewMessage(
+        result.failed
+          ? `Updated ${result.succeeded} of ${result.total} Job Descriptions. ${result.failed} could not be updated.`
+          : nextStatus === "APPROVED"
+            ? `Approved ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`
+            : nextStatus === "DECLINED"
+              ? `Declined ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`
+              : nextStatus === "NEEDS_CORRECTION"
+                ? `Requested corrections on ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`
+                : `Updated review status for ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`,
+      );
+    } catch (value) {
+      setReviewMessageType("error");
+      setReviewMessage(value.message || "Bulk review could not be completed.");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
   const update = (patch) => {
       const next = { ...filters, ...patch };
       if (patch.capturedWindow !== undefined && patch.capturedWindow !== "CUSTOM") {
@@ -1094,7 +1159,15 @@ function Jobs({
     );
   const selectedCount = selectedJobIds.length,
     tooMany = selectedCount > MAX_BULK_JDS,
-    jobsTableScrollX = 1580;
+    hasNeedsReviewSelected = selectedJobIds.some((id) => {
+      const reviewStatus =
+        selectedReviewById[id] ??
+        data?.items?.find((job) => job.id === id)?.review_status;
+      return reviewStatus === "NEEDS_REVIEW";
+    }),
+    createApplicationsDisabled = !selectedCount || tooMany || hasNeedsReviewSelected,
+    jobsTableScrollX = 1580,
+    [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   async function downloadExcel() {
     setExportBusy(true);
     setExportMessage("");
@@ -1107,7 +1180,7 @@ function Jobs({
     }
   }
   return (
-    <div className="page">
+    <div className="page page-list">
       <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
         <Space wrap>
           <Button
@@ -1117,23 +1190,64 @@ function Jobs({
           >
             Download Excel
           </Button>
-          {canBulk && (
+          {canSelect && (
             <>
               <Text>{selectedCount} selected</Text>
               <Button
-                onClick={() => onSelectedJobIdsChange([])}
-                disabled={!selectedCount}
+                onClick={clearJobSelection}
+                disabled={!selectedCount || reviewBusy}
               >
                 Clear selection
               </Button>
+            </>
+          )}
+          {canReview && (
+            <>
               <Button
                 type="primary"
+                loading={reviewBusy}
                 disabled={!selectedCount || tooMany}
-                onClick={() => go("#/applications/bulk-create")}
+                onClick={() => submitBulkReview("APPROVED")}
               >
-                Create Applications
+                Approve Selected
+              </Button>
+              <Button
+                loading={reviewBusy}
+                disabled={!selectedCount || tooMany}
+                onClick={() => {
+                  setReviewComment("");
+                  setReviewDialog("CORRECTION");
+                }}
+              >
+                Needs Correction
+              </Button>
+              <Button
+                danger
+                loading={reviewBusy}
+                disabled={!selectedCount || tooMany}
+                onClick={() => {
+                  setReviewComment("");
+                  setDeclineReason("EXPIRED");
+                  setReviewDialog("DECLINE");
+                }}
+              >
+                Decline Selected
               </Button>
             </>
+          )}
+          {canBulk && (
+            <Button
+              type={canReview ? "default" : "primary"}
+              disabled={createApplicationsDisabled}
+              title={
+                hasNeedsReviewSelected
+                  ? "Remove Needs Review Job Descriptions from the selection before creating Applications."
+                  : undefined
+              }
+              onClick={() => go("#/applications/bulk-create")}
+            >
+              Create Applications
+            </Button>
           )}
         </Space>
       </Flex>
@@ -1143,6 +1257,9 @@ function Jobs({
           showIcon
           message={`Select no more than ${MAX_BULK_JDS} job descriptions.`}
         />
+      )}
+      {reviewMessage && (
+        <Alert type={reviewMessageType} showIcon message={reviewMessage} style={{ marginBottom: 12 }} />
       )}
       {exportMessage && (
         <Alert type="error" showIcon message={exportMessage} />
@@ -1162,7 +1279,7 @@ function Jobs({
       ) : !data ? (
         <ErrorState message={error || "Job Descriptions could not be loaded."} />
       ) : (
-        <Card>
+        <Card className="page-list-card">
           {error && (
             <Alert
               type="error"
@@ -1171,15 +1288,16 @@ function Jobs({
               style={{ marginBottom: 12 }}
             />
           )}
+          <div ref={tableHostRef} className="page-list-table-host">
           <AntTable
             className="dashboard-ellipsis-table"
             rowKey="id"
-            loading={loading}
+            loading={loading || reviewBusy}
             columns={columns}
             dataSource={data.items}
             pagination={false}
             tableLayout="fixed"
-            scroll={{ x: jobsTableScrollX, y: "calc(100vh - 240px)" }}
+            scroll={{ x: jobsTableScrollX, y: tableBodyHeight }}
             locale={{
               emptyText: (
                 <Space direction="vertical" size="small" style={{ padding: 24 }}>
@@ -1220,28 +1338,51 @@ function Jobs({
               });
             }}
             rowSelection={
-              canBulk
+              canSelect
                 ? {
                     columnWidth: 48,
                     fixed: true,
                     selectedRowKeys: selectedJobIds,
                     preserveSelectedRowKeys: true,
-                    onChange: (keys) => onSelectedJobIdsChange(keys),
-                    getCheckboxProps: (job) => ({
-                      disabled:
-                        job.status !== "ACTIVE" ||
-                        job.review_status !== "APPROVED",
-                      title:
-                        job.review_status !== "APPROVED"
-                          ? "Approve this JD before creating an Application."
-                          : job.status !== "ACTIVE"
-                            ? "Restore this URL before creating an Application."
-                            : undefined,
-                    }),
+                    onChange: (keys, rows) => {
+                      onSelectedJobIdsChange(keys);
+                      setSelectedReviewById((prev) => {
+                        const next = {};
+                        for (const id of keys) {
+                          const row = rows.find((job) => job.id === id);
+                          if (row) next[id] = row.review_status;
+                          else if (prev[id] != null) next[id] = prev[id];
+                        }
+                        return next;
+                      });
+                    },
+                    getCheckboxProps: (job) => {
+                      if (canReview) {
+                        return {
+                          disabled: false,
+                          title:
+                            job.review_status === "APPROVED" && job.status === "ACTIVE"
+                              ? "Selected for review or Create Applications."
+                              : "Selected for bulk review.",
+                        };
+                      }
+                      return {
+                        disabled:
+                          job.status !== "ACTIVE" ||
+                          job.review_status !== "APPROVED",
+                        title:
+                          job.review_status !== "APPROVED"
+                            ? "Approve this JD before creating an Application."
+                            : job.status !== "ACTIVE"
+                              ? "Restore this URL before creating an Application."
+                              : undefined,
+                      };
+                    },
                   }
                 : undefined
             }
           />
+          </div>
           <Pagination
             data={data}
             pageSizeOptions={PAGE_SIZES}
@@ -1255,6 +1396,58 @@ function Jobs({
           />
         </Card>
       )}
+      <Modal
+        open={reviewDialog === "CORRECTION"}
+        title={`Request Correction (${selectedCount} selected)`}
+        okText="Save"
+        confirmLoading={reviewBusy}
+        onCancel={() => !reviewBusy && setReviewDialog(null)}
+        onOk={() => submitBulkReview("NEEDS_CORRECTION", null, reviewComment)}
+        destroyOnHidden
+      >
+        <Input.TextArea
+          value={reviewComment}
+          onChange={(event) => setReviewComment(event.target.value)}
+          maxLength={1000}
+          rows={4}
+          placeholder="Optional note for the JD Finder"
+        />
+      </Modal>
+      <Modal
+        open={reviewDialog === "DECLINE"}
+        title={`Decline Selected JDs (${selectedCount})`}
+        okText="Decline"
+        okButtonProps={{ danger: true }}
+        confirmLoading={reviewBusy}
+        onCancel={() => !reviewBusy && setReviewDialog(null)}
+        onOk={() => submitBulkReview("DECLINED", declineReason, reviewComment)}
+        destroyOnHidden
+      >
+        <div className="review-dialog-stack">
+          <label>
+            Decline Reason
+            <Select
+              style={{ width: "100%", marginTop: 8, marginBottom: 12 }}
+              value={declineReason}
+              onChange={setDeclineReason}
+              options={[
+                { value: "EXPIRED", label: "Expired" },
+                { value: "NOT_ELIGIBLE", label: "Not Eligible" },
+                { value: "DUPLICATE", label: "Duplicate" },
+                { value: "INVALID_URL", label: "Invalid URL" },
+                { value: "OTHER", label: "Other" },
+              ]}
+            />
+          </label>
+          <Input.TextArea
+            value={reviewComment}
+            onChange={(event) => setReviewComment(event.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="Optional comment"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -1276,7 +1469,8 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
     [data, setData] = useState(null),
     [error, setError] = useState(""),
     [coverMessage, setCoverMessage] = useState(""),
-    [coverBusyId, setCoverBusyId] = useState("");
+    [coverBusyId, setCoverBusyId] = useState(""),
+    [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   useEffect(() => {
     let live = true;
     setData(null);
@@ -1460,20 +1654,21 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
       ],
     );
   return (
-    <div className="page">
+    <div className="page page-list">
       {coverMessage && <Alert type="error" showIcon message={coverMessage} style={{ marginBottom: 16 }} />}
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
         <Loading text="Loading resumes…" />
       ) : (
-        <Card>
+        <Card className="page-list-card">
+          <div ref={tableHostRef} className="page-list-table-host">
           <AntTable
             rowKey="id"
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
+            scroll={{ x: "max-content", y: tableBodyHeight }}
             locale={{
               emptyText: (
                 <Space direction="vertical" size="small" style={{ padding: 24 }}>
@@ -1507,6 +1702,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               });
             }}
           />
+          </div>
           <Pagination
             data={data}
             pageSizeOptions={PAGE_SIZES}

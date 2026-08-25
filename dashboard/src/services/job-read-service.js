@@ -19,4 +19,21 @@ export const recentJobs=(client,apiBaseUrl,limit=5)=>request(client,apiBaseUrl,`
 export const listJobCapturers=(client,apiBaseUrl)=>request(client,apiBaseUrl,"/api/v1/job-descriptions/capturers");
 export const setJobStatus=async(client,apiBaseUrl,id,status,reason)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/status`,method:"PATCH",body:{status,...(reason?{reason}:{})}})).payload.data;
 export const reviewJob=async(client,apiBaseUrl,id,decision)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/review`,method:"PATCH",body:decision})).payload.data;
+export async function bulkReviewJobs(client,apiBaseUrl,{jobDescriptionIds,reviewStatus,declineReason,comment}={}){
+  const ids=[...new Set((jobDescriptionIds||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
+  if(!ids.length)throw{code:"VALIDATION_ERROR",message:"Select at least one Job Description.",retryable:false};
+  if(ids.length>100)throw{code:"VALIDATION_ERROR",message:"Select no more than 100 Job Descriptions.",retryable:false};
+  return(await authenticatedApiRequest(client,{
+    baseUrl:apiBaseUrl,
+    path:"/api/v1/job-descriptions/bulk-review",
+    method:"POST",
+    timeoutMs:60000,
+    body:{
+      jobDescriptionIds:ids,
+      reviewStatus,
+      ...(declineReason?{declineReason}:{}),
+      ...(comment?{comment}:{}),
+    },
+  })).payload.data;
+}
 export const updateOwnJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/correction`,method:"PATCH",body})).payload.data;
