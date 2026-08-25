@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {applicationActions,validateApplicationCreate,validateApplicationProgress} from "../src/features/applications/validation.js";
 import {parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
-import {createApplication,listApplicationsCursor,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
+import {createApplication,listApplications,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
 import {capabilitiesForRoles} from "../src/access/capabilities.js";
 import {readFile} from "node:fs/promises";
 
@@ -34,8 +34,8 @@ test("application query state is allowlisted and serializable",()=>{
 
 test("application services use protected RPC contracts",async()=>{
   const calls=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};
-  globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options,body:options.body?JSON.parse(options.body):null});return new Response(JSON.stringify({data:String(url).endsWith("pageSize=25")?{items:[{id}],hasMore:false,nextCursor:null}:{id}}),{status:200});};
-  try{const base="https://api.example.com",list=await listApplicationsCursor(client,base,{search:""},null,25);assert.equal(list.items.length,1);await createApplication(client,base,{jobDescriptionId:id,resumeId:id2,priority:"HIGH"});await updateApplication(client,base,id,{status:"IN_PROGRESS",priority:"HIGH"});await updateApplication(client,base,id,{status:"APPLIED",applicationUrl:"https://jobs.example.test/application"});await reassignApplication(client,base,id,id2,"Capacity");}
+  globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options,body:options.body?JSON.parse(options.body):null});return new Response(JSON.stringify({data:String(url).includes("/api/v1/applications?")||String(url).endsWith("/api/v1/applications")?{items:[{id}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1}:{id}}),{status:200});};
+  try{const base="https://api.example.com",list=await listApplications(client,base,{search:"",pageSize:25,page:1});assert.equal(list.items.length,1);await createApplication(client,base,{jobDescriptionId:id,resumeId:id2,priority:"HIGH"});await updateApplication(client,base,id,{status:"IN_PROGRESS",priority:"HIGH"});await updateApplication(client,base,id,{status:"APPLIED",applicationUrl:"https://jobs.example.test/application"});await reassignApplication(client,base,id,id2,"Capacity");}
   finally{globalThis.fetch=originalFetch;}
   assert.deepEqual(calls.map(x=>[x.options.method,x.url.pathname]),[["GET","/api/v1/applications"],["POST","/api/v1/applications"],["PATCH",`/api/v1/applications/${id}/progress`],["PATCH",`/api/v1/applications/${id}/progress`],["PATCH",`/api/v1/applications/${id}/assignment`]]);assert.equal(calls[0].url.searchParams.get("pageSize"),"25");assert.equal(calls[3].body.priority,undefined);
 });
@@ -99,7 +99,7 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.match(jobTitle, /EllipsisCell/);
   assert.doesNotMatch(resume, /EllipsisCell/);
   assert.doesNotMatch(manager, /title:\s*"Applier profile"[\s\S]*?EllipsisCell/);
-  assert.match(source, /applicationsScrollX = manager \? 2262 : 1916/);
+  assert.match(source, /applicationsScrollX = manager \? 2462 : 2116/);
 });
 
 test("Application Number is visible on the list, detail heading, and search",async()=>{

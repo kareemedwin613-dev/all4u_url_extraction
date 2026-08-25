@@ -5,7 +5,7 @@ const errorMessages={APPLICATION_DUPLICATE:"An Application already exists for th
 export function normalizeApplicationError(error,fallback="The Application request could not be completed."){const raw=String(error?.message||""),code=errorMessages[error?.code]?error.code:error?.code==="42501"?"APPLICATION_ACCESS_DENIED":Object.keys(errorMessages).find(value=>raw.toUpperCase().includes(value))||(error?.code||"APPLICATION_REQUEST_FAILED");return {code,message:errorMessages[code]||raw||fallback,retryable:error?.retryable||/fetch|network|timeout/i.test(raw)};}
 async function api(client,baseUrl,path,{method="GET",body}={}){try{const{payload}=await authenticatedApiRequest(client,{baseUrl,path,method,body});return payload.data;}catch(error){throw normalizeApplicationError(error);}}
 const query=(values)=>{const p=new URLSearchParams();for(const[key,value]of Object.entries(values))if(value!==undefined&&value!==null&&value!=="")p.set(key,String(value));const text=p.toString();return text?`?${text}`:"";};
-export function listApplicationsCursor(client,baseUrl,filters={},cursor=null,pageSize=25){return api(client,baseUrl,"/api/v1/applications"+query({...filters,cursorUpdatedAt:cursor?.updatedAt,cursorId:cursor?.id,pageSize}));}
+export function listApplications(client,baseUrl,filters={}){return api(client,baseUrl,"/api/v1/applications"+query(filters));}
 export const getApplication=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}`);
 export const getApplicationCounts=(client,baseUrl,dateRange)=>api(client,baseUrl,"/api/v1/applications/counts"+query(dateRange||{}));
 export const getApplicationExtensionContext=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/extension-context`);
