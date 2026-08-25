@@ -42,32 +42,27 @@ test("password reset redirect uses the dashboard origin path", () => {
   );
 });
 
-test("requestPasswordReset and updatePassword call Supabase Auth helpers", async () => {
-  const calls = [];
+test("requestPasswordReset maps email rate-limit errors", async () => {
   const client = {
     auth: {
-      resetPasswordForEmail: async (email, options) => {
-        calls.push(["reset", email, options]);
-        return { data: {}, error: null };
-      },
-      updateUser: async (body) => {
-        calls.push(["update", body]);
-        return { data: { user: { id: "user-1" } }, error: null };
-      },
+      resetPasswordForEmail: async () => ({
+        data: {},
+        error: { code: "over_email_send_rate_limit", message: "email rate limit exceeded" },
+      }),
     },
   };
-  const result = await requestPasswordReset(client, "user@example.com", {
-    origin: "http://127.0.0.1:4174",
-    pathname: "/",
-  });
-  assert.match(result.message, /reset link/i);
-  await updatePassword(client, "newpass12");
-  assert.deepEqual(calls[0], [
-    "reset",
-    "user@example.com",
-    { redirectTo: "http://127.0.0.1:4174/" },
-  ]);
-  assert.deepEqual(calls[1], ["update", { password: "newpass12" }]);
+  await assert.rejects(
+    () =>
+      requestPasswordReset(client, "user@example.com", {
+        origin: "https://all4u-url-extraction.vercel.app",
+        pathname: "/",
+      }),
+    (error) => {
+      assert.equal(error.code, "AUTH_EMAIL_RATE_LIMIT");
+      assert.match(error.message, /few minutes/i);
+      return true;
+    },
+  );
 });
 
 test("login UI exposes Forgot Password and Choose New Password recovery flow", async () => {
