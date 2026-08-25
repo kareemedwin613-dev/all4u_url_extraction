@@ -44,7 +44,7 @@ before(async () => {
   const module = await Test.createTestingModule({ imports:[AppModule] })
     .overrideProvider(JwtVerifier).useValue({ verify: async (token:string) => ({id:"user-1",email:"user@example.com",token,claims:{}}) })
     .overrideProvider(SupabaseService).useValue(supabaseMock)
-    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null}),review:async(_user:any,id:string,reviewStatus:string,declineReason?:string,comment?:string)=>({id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null}),bulkReview:async(_user:any,ids:string[],reviewStatus:string,declineReason?:string,comment?:string)=>({total:ids.length,succeeded:ids.length,failed:0,results:ids.map(id=>({id,ok:true,data:{id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null}}))})})
+    .overrideProvider(JobDescriptionReadService).useValue({list:async()=>({items:[row],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),detail:async()=>row,count:async()=>1,recent:async()=>[row],capturers:async()=>[{id:"123e4567-e89b-42d3-a456-426614174000",displayName:"Capture User",email:"capture@example.com",capturedCount:3}],status:async(_user:any,id:string,status:string,reason?:string)=>({id,status,archive_reason:reason||null}),review:async(_user:any,id:string,reviewStatus:string,declineReason?:string,comment?:string)=>({id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null}),bulkReview:async(_user:any,ids:string[],reviewStatus:string,declineReason?:string,comment?:string)=>({total:ids.length,succeeded:ids.length,failed:0,results:ids.map(id=>({id,ok:true,data:{id,review_status:reviewStatus,review_decline_reason:declineReason||null,review_comment:comment||null}}))}),managerEdit:async(_user:any,id:string,body:any)=>({id,company:body.company,job_title:body.jobTitle,review_status:"NEEDS_REVIEW"}),correct:async(_user:any,id:string,body:any)=>({id,company:body.company,review_status:"NEEDS_REVIEW"})})
     .overrideProvider(LookupService).useValue({categories:async()=>[{id:"category-1",name:"Engineering"}],industryDomains:async()=>[{id:"industry-1",name:"Technology"}]})
     .overrideProvider(ResumeService).useValue({
       list:async()=>({items:[{id:"resume-1",candidate_name:"Candidate"}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1,hasPrevious:false,hasNext:false}),
@@ -146,7 +146,8 @@ test("JD read and lookup routes require authentication and expose bounded API re
   await request(app.getHttpServer()).get("/api/v1/access-context").expect(401);
   await request(app.getHttpServer()).get("/api/v1/access-context").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.status,"ACTIVE"));
   await request(app.getHttpServer()).get("/api/v1/job-descriptions").expect(401);
-  await request(app.getHttpServer()).get("/api/v1/job-descriptions?sort=raw_sql&pageSize=500").set("Authorization","Bearer token").expect(400);
+  await request(app.getHttpServer()).get("/api/v1/job-descriptions?sort=raw_sql&pageSize=999").set("Authorization","Bearer token").expect(400);
+  await request(app.getHttpServer()).get("/api/v1/job-descriptions?status=ACTIVE&sort=created_desc&pageSize=500").set("Authorization","Bearer token").expect(200).expect(({body})=>{assert.equal(body.data.total,1);assert.equal(body.data.items[0].id,"job-1");});
   await request(app.getHttpServer()).get("/api/v1/job-descriptions?status=ACTIVE&sort=created_desc&pageSize=25").set("Authorization","Bearer token").expect(200).expect(({body})=>{assert.equal(body.data.total,1);assert.equal(body.data.items[0].id,"job-1");});
   await request(app.getHttpServer()).get("/api/v1/job-descriptions/count?status=ACTIVE").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data,1));
   await request(app.getHttpServer()).get("/api/v1/job-descriptions/recent?limit=5").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.length,1));
@@ -175,6 +176,18 @@ test("simple JD decisions are restricted, validated, and returned",async()=>{
   await request(app.getHttpServer()).post("/api/v1/job-descriptions/bulk-review").set("Authorization","Bearer token").send({jobDescriptionIds:[id],reviewStatus:"APPROVED"}).expect(201).expect(({body})=>{assert.equal(body.data.succeeded,1);assert.equal(body.data.results[0].data.review_status,"APPROVED");});
   roles=["APPLIER"];
   await request(app.getHttpServer()).post("/api/v1/job-descriptions/bulk-review").set("Authorization","Bearer token").send({jobDescriptionIds:[id],reviewStatus:"APPROVED"}).expect(403);
+});
+
+test("manager can edit an unapproved JD during review",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000",
+    body={company:"Acme",jobTitle:"Engineer",categoryId:id,sourceUrl:"https://example.com/jobs/1",descriptionText:"A".repeat(100)};
+  roles=["JD_FINDER"];
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/manager-edit`).set("Authorization","Bearer token").send(body).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).patch(`/api/v1/job-descriptions/${id}/manager-edit`).set("Authorization","Bearer token").send(body).expect(200).expect(({body:payload})=>{
+    assert.equal(payload.data.company,"Acme");
+    assert.equal(payload.data.job_title,"Engineer");
+  });
 });
 
 test("Resume reads preserve history while archive actions require a manager or Admin",async()=>{

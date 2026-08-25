@@ -37,3 +37,4 @@ export async function bulkReviewJobs(client,apiBaseUrl,{jobDescriptionIds,review
   })).payload.data;
 }
 export const updateOwnJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/correction`,method:"PATCH",body})).payload.data;
+export const updateManagedJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/manager-edit`,method:"PATCH",body})).payload.data;

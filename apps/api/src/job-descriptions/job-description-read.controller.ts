@@ -51,6 +51,9 @@ export class JobDescriptionReadController {
   @Patch(":id/correction") @RequireRoles("JD_FINDER") @ApiOperation({ summary: "Correct one of the caller's unapproved job descriptions" })
   async correct(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionCorrectionDto)) body: JobDescriptionCorrectionDto) { return { data: await this.jobs.correct(request.user!, id, body), requestId: request.requestId }; }
 
+  @Patch(":id/manager-edit") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Edit an unapproved job description during manager review" })
+  async managerEdit(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionCorrectionDto)) body: JobDescriptionCorrectionDto) { return { data: await this.jobs.managerEdit(request.user!, id, body), requestId: request.requestId }; }
+
   @Get(":id") @ApiOperation({ summary: "Get one accessible job description" })
   async detail(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return { data: await this.jobs.detail(request.user!, id), requestId: request.requestId }; }
 }

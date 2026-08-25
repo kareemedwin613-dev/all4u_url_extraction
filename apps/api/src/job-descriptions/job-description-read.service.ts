@@ -41,8 +41,9 @@ function applyCapturerNames(items: any[], capturers: Array<{ id: string; display
 function databaseError(error: any, fallback: string): never {
   const raw = String(error?.message || "");
   if (/JOB_EDIT_LOCKED/i.test(raw)) throw new ApiException("JOB_EDIT_LOCKED", "Approved and declined job descriptions are locked. Ask a reviewer to request a correction.", HttpStatus.CONFLICT);
+  if (/JOB_EDIT_FORBIDDEN/i.test(raw)) throw new ApiException("JOB_EDIT_FORBIDDEN", "You do not have permission to edit this job description.", HttpStatus.FORBIDDEN);
   if (/JOB_DUPLICATE/i.test(raw)) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
-  if (/JOB_NOT_FOUND/i.test(raw)) throw new ApiException("JOB_NOT_FOUND", "The job description was not found or does not belong to you.", HttpStatus.NOT_FOUND);
+  if (/JOB_NOT_FOUND/i.test(raw)) throw new ApiException("JOB_NOT_FOUND", "The job description was not found or is no longer accessible.", HttpStatus.NOT_FOUND);
   const known = raw.match(/^(JOB_REVIEW_[A-Z_]+):\s*(.+)$/i);
   if (known) throw new ApiException(known[1].toUpperCase(), known[2], HttpStatus.BAD_REQUEST);
   if (/PGRST202|could not find the function|function .* does not exist/i.test(raw) || error?.code === "PGRST202") {
@@ -181,9 +182,22 @@ export class JobDescriptionReadService {
   }
 
   async correct(user: AuthenticatedUser, id: string, input: JobDescriptionCorrectionDto) {
+    return this.applyCorrection(user, id, input, "update_my_job_description_v31");
+  }
+
+  async managerEdit(user: AuthenticatedUser, id: string, input: JobDescriptionCorrectionDto) {
+    return this.applyCorrection(user, id, input, "manager_update_job_description_v312");
+  }
+
+  private async applyCorrection(
+    user: AuthenticatedUser,
+    id: string,
+    input: JobDescriptionCorrectionDto,
+    rpcName: "update_my_job_description_v31" | "manager_update_job_description_v312",
+  ) {
     if (input.salaryMin != null && input.salaryMax != null && input.salaryMax < input.salaryMin) throw new ApiException("VALIDATION_ERROR", "The request contains invalid fields.", HttpStatus.BAD_REQUEST, undefined, { salaryMax: ["Salary maximum must be at least the minimum."] });
     const sourceUrl = input.sourceUrl.trim(), normalizedUrl = normalizeSourceUrl(sourceUrl);
-    const { data, error } = await this.supabase.forUser(user.token).rpc("update_my_job_description_v31", {
+    const { data, error } = await this.supabase.forUser(user.token).rpc(rpcName, {
       p_job_description_id: id,
       p_company: input.company,
       p_job_title: input.jobTitle,
