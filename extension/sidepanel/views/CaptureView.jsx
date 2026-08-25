@@ -13,7 +13,13 @@ import {
   Space,
   Typography,
 } from "antd";
-import { EditOutlined, HighlightOutlined, ReloadOutlined, ScanOutlined } from "@ant-design/icons";
+import {
+  EditOutlined,
+  HighlightOutlined,
+  ReloadOutlined,
+  SaveOutlined,
+  ScanOutlined,
+} from "@ant-design/icons";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { normalizeUrl } from "../../shared/normalization.js";
 import { suggestControlledCategory } from "../../shared/categories.js";
@@ -449,17 +455,43 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   return (
     <>
       <Card className="capture-sticky-bar" size="small" style={{ marginBottom: 12 }}>
-        <Space wrap>
-          <Button icon={<ScanOutlined />} loading={extracting} onClick={() => extract(MESSAGE_TYPES.EXTRACT_CURRENT_JOB)}>
+        <Flex vertical gap={8}>
+          <Button
+            block
+            icon={<ScanOutlined />}
+            loading={extracting}
+            onClick={() => extract(MESSAGE_TYPES.EXTRACT_CURRENT_JOB)}
+          >
             Extract Current Job
           </Button>
-          <Button icon={<HighlightOutlined />} loading={extracting} onClick={() => extract(MESSAGE_TYPES.EXTRACT_SELECTED_TEXT)}>
+          <Button
+            block
+            icon={<HighlightOutlined />}
+            loading={extracting}
+            onClick={() => extract(MESSAGE_TYPES.EXTRACT_SELECTED_TEXT)}
+          >
             Use Selected Text
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={resetCaptureAndDiscardDraft}>
-            Reset Current Capture
-          </Button>
-        </Space>
+          <Flex gap={8}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={resetCaptureAndDiscardDraft}
+              style={{ flex: 1 }}
+            >
+              Reset Current Capture
+            </Button>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving}
+              disabled={!canWrite}
+              onClick={() => form.submit()}
+              style={{ flex: 1 }}
+            >
+              Save JD
+            </Button>
+          </Flex>
+        </Flex>
       </Card>
       <Card>
         <Form form={form} layout="vertical" initialValues={DEFAULT_VALUES} onValuesChange={scheduleDraftSave} onFinish={submit}>
@@ -557,18 +589,13 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
           >
             <Input />
           </Form.Item>
-          <Space style={{ marginBottom: 16 }}>
+          <Space style={{ marginBottom: 0 }}>
             <Text type="secondary">
               Capture method: <Text strong>{captureMethod}</Text>
             </Text>
             <Text type="secondary">
               Confidence: <Text strong>{confidence}</Text>
             </Text>
-          </Space>
-          <Space>
-            <Button type="primary" htmlType="submit" loading={saving} disabled={!canWrite}>
-              Save JD
-            </Button>
           </Space>
         </Form>
       </Card>

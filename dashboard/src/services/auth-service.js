@@ -57,7 +57,13 @@ export async function requestPasswordReset(client,email,locationLike=globalThis.
   const {error}=await client.auth.resetPasswordForEmail(address,{
     redirectTo:passwordResetRedirectUrl(locationLike),
   });
-  if(error)throw normalizeError(error,"Unable to send a password reset email.");
+  if(error){
+    const raw=String(error.message||error.code||"");
+    if(/over_email_send_rate_limit|rate limit|email rate limit/i.test(raw)||error.code==="over_email_send_rate_limit"){
+      throw {code:"AUTH_EMAIL_RATE_LIMIT",message:"Too many reset emails were requested. Wait a few minutes, then try again.",retryable:true};
+    }
+    throw normalizeError(error,"Unable to send a password reset email.");
+  }
   return {
     message:"If an account exists for that email, a reset link was sent. Check your inbox and spam folder.",
   };

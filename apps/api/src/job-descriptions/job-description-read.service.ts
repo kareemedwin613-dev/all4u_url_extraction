@@ -39,11 +39,26 @@ function applyCapturerNames(items: any[], capturers: Array<{ id: string; display
 }
 
 function databaseError(error: any, fallback: string): never {
-  if (/JOB_EDIT_LOCKED/i.test(String(error?.message || ""))) throw new ApiException("JOB_EDIT_LOCKED", "Approved and declined job descriptions are locked. Ask a reviewer to request a correction.", HttpStatus.CONFLICT);
-  if (/JOB_DUPLICATE/i.test(String(error?.message || ""))) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
-  if (/JOB_NOT_FOUND/i.test(String(error?.message || ""))) throw new ApiException("JOB_NOT_FOUND", "The job description was not found or does not belong to you.", HttpStatus.NOT_FOUND);
-  if (error?.code === "42501" || /row-level security|permission denied/i.test(String(error?.message || ""))) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
+  const raw = String(error?.message || "");
+  if (/JOB_EDIT_LOCKED/i.test(raw)) throw new ApiException("JOB_EDIT_LOCKED", "Approved and declined job descriptions are locked. Ask a reviewer to request a correction.", HttpStatus.CONFLICT);
+  if (/JOB_DUPLICATE/i.test(raw)) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
+  if (/JOB_NOT_FOUND/i.test(raw)) throw new ApiException("JOB_NOT_FOUND", "The job description was not found or does not belong to you.", HttpStatus.NOT_FOUND);
+  const known = raw.match(/^(JOB_REVIEW_[A-Z_]+):\s*(.+)$/i);
+  if (known) throw new ApiException(known[1].toUpperCase(), known[2], HttpStatus.BAD_REQUEST);
+  if (/PGRST202|could not find the function|function .* does not exist/i.test(raw) || error?.code === "PGRST202") {
+    throw new ApiException(
+      "MIGRATION_REQUIRED",
+      "Bulk review needs database migration 202608250071_v3_11_bulk_job_description_review. Apply it, then retry.",
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
+  if (error?.code === "42501" || /row-level security|permission denied/i.test(raw)) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
   throw new ApiException("DATABASE_ERROR", fallback, HttpStatus.BAD_GATEWAY);
+}
+
+function isMissingBulkReviewRpc(error: any) {
+  const raw = String(error?.message || error?.details || error?.hint || "");
+  return error?.code === "PGRST202" || /PGRST202|could not find the function|function .*bulk_review_job_descriptions_v311.* does not exist|bulk_review_job_descriptions_v311/i.test(raw);
 }
 
 @Injectable()
@@ -103,6 +118,66 @@ export class JobDescriptionReadService {
     });
     if (error) databaseError(error, "The job-description review decision could not be saved.");
     return data;
+  }
+
+  async bulkReview(user: AuthenticatedUser, ids: string[], reviewStatus: string, declineReason?: string, comment?: string) {
+    const unique = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!unique.length) throw new ApiException("VALIDATION_ERROR", "Select at least one Job Description.", HttpStatus.BAD_REQUEST);
+    if (unique.length > 100) throw new ApiException("VALIDATION_ERROR", "Select no more than 100 Job Descriptions.", HttpStatus.BAD_REQUEST);
+    const { data, error } = await this.supabase.forUser(user.token).rpc("bulk_review_job_descriptions_v311", {
+      p_job_description_ids: unique,
+      p_review_status: reviewStatus,
+      p_decline_reason: declineReason || null,
+      p_comment: comment || null,
+    });
+    if (error) {
+      if (isMissingBulkReviewRpc(error)) return this.bulkReviewConcurrent(user, unique, reviewStatus, declineReason, comment);
+      databaseError(error, "The bulk job-description review could not be saved.");
+    }
+    const payload = data && typeof data === "object" ? data as any : {};
+    return {
+      total: Number(payload.total) || unique.length,
+      succeeded: Number(payload.succeeded) || 0,
+      failed: Number(payload.failed) || 0,
+      results: Array.isArray(payload.results) ? payload.results : [],
+    };
+  }
+
+  private async bulkReviewConcurrent(
+    user: AuthenticatedUser,
+    ids: string[],
+    reviewStatus: string,
+    declineReason?: string,
+    comment?: string,
+  ) {
+    const results: Array<{ id: string; ok: boolean; data?: unknown; code?: string; message?: string }> = [];
+    const concurrency = 8;
+    for (let index = 0; index < ids.length; index += concurrency) {
+      const chunk = ids.slice(index, index + concurrency);
+      const settled = await Promise.all(
+        chunk.map(async (id) => {
+          try {
+            const data = await this.review(user, id, reviewStatus, declineReason, comment);
+            return { id, ok: true as const, data };
+          } catch (error: any) {
+            return {
+              id,
+              ok: false as const,
+              code: error?.code || "REVIEW_FAILED",
+              message: error?.message || "The review decision could not be saved.",
+            };
+          }
+        }),
+      );
+      results.push(...settled);
+    }
+    const succeeded = results.filter((item) => item.ok).length;
+    return {
+      total: ids.length,
+      succeeded,
+      failed: ids.length - succeeded,
+      results,
+    };
   }
 
   async correct(user: AuthenticatedUser, id: string, input: JobDescriptionCorrectionDto) {
