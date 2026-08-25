@@ -46,7 +46,7 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
-import { getSession, signIn, signOut, signUp } from "./services/auth-service.js";
+import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
@@ -86,7 +86,7 @@ import {
   parseResumeQuery,
   serializeQuery,
 } from "./shared/query-state.js";
-import { normalizeSearch, validateLogin, validateSignUp } from "./shared/validation.js";
+import { normalizeSearch, validateLogin, validateNewPassword, validatePasswordResetRequest, validateSignUp } from "./shared/validation.js";
 import { safeExternalUrl } from "./shared/url.js";
 import {
   MIME_TYPES,
@@ -426,13 +426,19 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
   );
 }
 
-function Login({ client, onSignedIn }) {
-  const [mode, setMode] = useState("signin"),
+function Login({ client, onSignedIn, passwordRecovery = false, onPasswordUpdated }) {
+  const [mode, setMode] = useState(passwordRecovery ? "reset" : "signin"),
     [message, setMessage] = useState(""),
     [success, setSuccess] = useState(""),
     [busy, setBusy] = useState(false),
-    registering = mode === "signup";
+    registering = mode === "signup",
+    forgetting = mode === "forgot",
+    resetting = mode === "reset" || passwordRecovery;
+  useEffect(() => {
+    if (passwordRecovery) setMode("reset");
+  }, [passwordRecovery]);
   function switchMode(next) {
+    if (passwordRecovery && next !== "reset") return;
     setMode(next);
     setMessage("");
     setSuccess("");
@@ -440,6 +446,44 @@ function Login({ client, onSignedIn }) {
   async function submit(values) {
     setMessage("");
     setSuccess("");
+    if (resetting) {
+      const check = validateNewPassword({
+        password: values.password,
+        confirmPassword: values.confirmPassword,
+      });
+      if (!check.valid) {
+        setMessage(Object.values(check.errors).join(" "));
+        return;
+      }
+      setBusy(true);
+      try {
+        await updatePassword(client, values.password);
+        if (onPasswordUpdated) onPasswordUpdated();
+        else setSuccess("Password updated. You can continue into the workspace.");
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (forgetting) {
+      const check = validatePasswordResetRequest(values.email);
+      if (!check.valid) {
+        setMessage(Object.values(check.errors).join(" "));
+        return;
+      }
+      setBusy(true);
+      try {
+        const result = await requestPasswordReset(client, values.email);
+        setSuccess(result.message);
+      } catch (error) {
+        setMessage(error.message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (registering) {
       const check = validateSignUp({
         email: values.email,
@@ -487,6 +531,27 @@ function Login({ client, onSignedIn }) {
       setBusy(false);
     }
   }
+  const title = resetting
+    ? "Choose New Password"
+    : forgetting
+      ? "Forgot Password"
+      : registering
+        ? "Sign Up"
+        : "Sign In";
+  const description = resetting
+    ? "Enter a new password for your account. Use at least 8 characters."
+    : forgetting
+      ? "Enter your account email and we will send a reset link if it matches an existing account."
+      : registering
+        ? "Create an account with your full name, email, and password. An administrator must approve your request and assign a role before you can use the workspace."
+        : "Use the same Supabase email and password as the Chrome extension.";
+  const errorTitle = resetting
+    ? "Password Update Failed"
+    : forgetting
+      ? "Password Reset Failed"
+      : registering
+        ? "Sign Up Failed"
+        : "Sign In Failed";
   return (
     <main className="login-page">
       <Card className="login-card">
@@ -494,16 +559,12 @@ function Login({ client, onSignedIn }) {
           Resume JD Operations
         </Text>
         <Title level={1} tabIndex={-1}>
-          {registering ? "Sign Up" : "Sign In"}
+          {title}
         </Title>
-        <Text>
-          {registering
-            ? "Create an account with your full name, email, and password. An administrator must approve your request and assign a role before you can use the workspace."
-            : "Use the same Supabase email and password as the Chrome extension."}
-        </Text>
+        <Text>{description}</Text>
         {message && (
           <UiErrorState
-            title={registering ? "Sign Up Failed" : "Sign In Failed"}
+            title={errorTitle}
             message={message}
           />
         )}
@@ -518,7 +579,7 @@ function Login({ client, onSignedIn }) {
         <Form
           layout="vertical"
           onFinish={submit}
-          requiredMark={registering ? "optional" : false}
+          requiredMark={registering || resetting ? "optional" : false}
           key={mode}
         >
           {registering && (
@@ -533,36 +594,40 @@ function Login({ client, onSignedIn }) {
               <Input autoComplete="name" maxLength={200} />
             </Form.Item>
           )}
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[
-              { required: true, message: "Enter your email address." },
-              { type: "email", message: "Enter a valid email address." },
-            ]}
-          >
-            <Input autoComplete="username" />
-          </Form.Item>
-          <Form.Item
-            label="Password"
-            name="password"
-            rules={[
-              { required: true, message: "Enter your password." },
-              ...(registering
-                ? [
-                    {
-                      min: 8,
-                      message: "Password must be at least 8 characters.",
-                    },
-                  ]
-                : []),
-            ]}
-          >
-            <Input.Password
-              autoComplete={registering ? "new-password" : "current-password"}
-            />
-          </Form.Item>
-          {registering && (
+          {!resetting && (
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[
+                { required: true, message: "Enter your email address." },
+                { type: "email", message: "Enter a valid email address." },
+              ]}
+            >
+              <Input autoComplete="username" />
+            </Form.Item>
+          )}
+          {!forgetting && (
+            <Form.Item
+              label={resetting ? "New Password" : "Password"}
+              name="password"
+              rules={[
+                { required: true, message: resetting ? "Enter a new password." : "Enter your password." },
+                ...((registering || resetting)
+                  ? [
+                      {
+                        min: 8,
+                        message: "Password must be at least 8 characters.",
+                      },
+                    ]
+                  : []),
+              ]}
+            >
+              <Input.Password
+                autoComplete={registering || resetting ? "new-password" : "current-password"}
+              />
+            </Form.Item>
+          )}
+          {(registering || resetting) && (
             <Form.Item
               label="Confirm Password"
               name="confirmPassword"
@@ -582,20 +647,37 @@ function Login({ client, onSignedIn }) {
             </Form.Item>
           )}
           <Button type="primary" htmlType="submit" loading={busy} block>
-            {registering ? "Sign Up" : "Sign In"}
+            {resetting
+              ? "Save New Password"
+              : forgetting
+                ? "Send Reset Link"
+                : registering
+                  ? "Sign Up"
+                  : "Sign In"}
           </Button>
         </Form>
-        <Flex justify="center" style={{ marginTop: 16 }}>
-          {registering ? (
-            <Button type="link" onClick={() => switchMode("signin")}>
-              Already have an account? Sign In
-            </Button>
-          ) : (
-            <Button type="link" onClick={() => switchMode("signup")}>
-              New member? Sign Up
-            </Button>
-          )}
-        </Flex>
+        {!passwordRecovery && (
+          <Flex vertical gap={4} align="center" style={{ marginTop: 16 }}>
+            {forgetting ? (
+              <Button type="link" onClick={() => switchMode("signin")}>
+                Back to Sign In
+              </Button>
+            ) : registering ? (
+              <Button type="link" onClick={() => switchMode("signin")}>
+                Already have an account? Sign In
+              </Button>
+            ) : (
+              <>
+                <Button type="link" onClick={() => switchMode("forgot")}>
+                  Forgot Password?
+                </Button>
+                <Button type="link" onClick={() => switchMode("signup")}>
+                  New member? Sign Up
+                </Button>
+              </>
+            )}
+          </Flex>
+        )}
       </Card>
     </main>
   );
@@ -2133,6 +2215,7 @@ export function ConfigurationError({ message }) {
 
 export function App({ client, apiBaseUrl }) {
   const [session, setSession] = useState(undefined),
+    [passwordRecovery, setPasswordRecovery] = useState(false),
     [access, setAccess] = useState(undefined),
     [accessError, setAccessError] = useState(null),
     [route, setRoute] = useState(() => parseRoute(location.hash || "#/")),
@@ -2146,7 +2229,7 @@ export function App({ client, apiBaseUrl }) {
     resumesBack = useRef("#/resumes"),
     overviewDateRange = useMemo(() => overviewDateBounds(overviewPeriod), [overviewPeriod]);
   const reloadAccess = useCallback(async () => {
-    if (!session) return;
+    if (!session || passwordRecovery) return;
     setAccessError(null);
     try {
       const next = await getMyAccessContext(client, apiBaseUrl);
@@ -2156,7 +2239,7 @@ export function App({ client, apiBaseUrl }) {
       setAccess(null);
       setAccessError(error);
     }
-  }, [client, apiBaseUrl, session]);
+  }, [client, apiBaseUrl, session, passwordRecovery]);
   useEffect(() => {
     getSession(client)
       .then((next) => {
@@ -2168,6 +2251,7 @@ export function App({ client, apiBaseUrl }) {
         setSession(null);
       });
     const { data } = client.auth.onAuthStateChange((event, next) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
       const decision = authStateDecision(event, sessionRef.current, next);
       if (!decision.apply) return;
       sessionRef.current = next;
@@ -2186,13 +2270,13 @@ export function App({ client, apiBaseUrl }) {
     };
   }, [client]);
   useEffect(() => {
-    if (session) reloadAccess();
-    else {
+    if (session && !passwordRecovery) reloadAccess();
+    else if (!session) {
       setAccess(undefined);
       setCategories(null);
       setRoles([]);
     }
-  }, [session, reloadAccess]);
+  }, [session, passwordRecovery, reloadAccess]);
   useEffect(() => {
     let live = true;
     if (
@@ -2223,12 +2307,18 @@ export function App({ client, apiBaseUrl }) {
     queueMicrotask(() => document.querySelector("h1")?.focus());
   }, [route, session, access]);
   if (session === undefined) return <Loading text="Restoring session…" />;
-  if (!session)
+  if (!session || passwordRecovery)
     return (
       <Login
         client={client}
+        passwordRecovery={passwordRecovery}
         onSignedIn={(next) => {
+          setPasswordRecovery(false);
           setSession(next);
+          go("#/", true);
+        }}
+        onPasswordUpdated={() => {
+          setPasswordRecovery(false);
           go("#/", true);
         }}
       />
