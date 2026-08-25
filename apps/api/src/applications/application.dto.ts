@@ -11,11 +11,11 @@ export class ApplicationListQueryDto{
   @IsOptional()@IsIn(["",...PRIORITIES])priority="";
   @IsOptional()@IsString()@MaxLength(100)company="";
   @IsOptional()@IsUUID("4")categoryId?:string;
-  @IsOptional()@IsIn(["","TODAY","OVERDUE","NEXT_7_DAYS","NO_DUE_DATE"])dueFilter="";
+  @IsOptional()@IsIn(["","TODAY","DUE_TODAY","OVERDUE","NEXT_7_DAYS","NO_DUE_DATE"])dueFilter="";
   @IsOptional()@IsUUID("4")creationBatchId?:string;
   @IsOptional()@IsIn(["","BULK","INDIVIDUAL"])creationMode="";
-  @IsOptional()@IsISO8601()cursorUpdatedAt?:string;
-  @IsOptional()@IsUUID("4")cursorId?:string;
+  @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","number_asc","number_desc","priority_asc","priority_desc","due_asc","due_desc","captured_asc","captured_desc","category_asc","category_desc","assignee_asc","assignee_desc","batch_asc","batch_desc"])sort="updated_desc";
+  @IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;
   @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100])pageSize=25;
 }
 export class MyApplicationQueryDto{

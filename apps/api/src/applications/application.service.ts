@@ -12,7 +12,41 @@ function failure(error:any,fallback:string):never{
   private filters(status=""){return["UNASSIGNED","ASSIGNED","IN_PROGRESS","BLOCKED","CANCELLED"].includes(status)?{work:status,application:""}:{work:"",application:status};}
   private async rpc(user:AuthenticatedUser,name:string,args:any,fallback:string){const{data,error}=await this.supabase.forUser(user.token).rpc(name,args);if(error)failure(error,fallback);return data;}
   private async extensionRpc(user:AuthenticatedUser,name:string,args:any,fallback:string){let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([this.rpc(user,name,args,fallback),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new ApiException("UPSTREAM_TIMEOUT","The extension request timed out. Try again.",HttpStatus.GATEWAY_TIMEOUT)),10000);})]);}finally{if(timer)clearTimeout(timer);}}
-  async list(user:AuthenticatedUser,q:any){const f=this.filters(q.status||""),data:any=await this.rpc(user,"list_applications_cursor",{p_search:q.search||"",p_assigned_to:q.assignedTo||null,p_work_status:f.work,p_application_status:f.application,p_priority:q.priority||"",p_company:q.company||"",p_category_id:q.categoryId||null,p_due_filter:q.dueFilter||"",p_creation_batch_id:q.creationBatchId||null,p_creation_mode:q.creationMode||"",p_cursor_updated_at:q.cursorUpdatedAt||null,p_cursor_id:q.cursorId||null,p_limit:q.pageSize||25},"Applications could not be loaded.");return{...data,items:(data?.items||[]).map((x:any)=>this.normalized(x))};}
+  async list(user:AuthenticatedUser,q:any){
+    const f=this.filters(q.status||""),
+      size=q.pageSize||25,
+      page=q.page||1,
+      dueFilter=q.dueFilter==="TODAY"?"DUE_TODAY":(q.dueFilter||""),
+      data:any=await this.rpc(user,"list_applications_v07",{
+        p_search:q.search||"",
+        p_assigned_to:q.assignedTo||null,
+        p_work_status:f.work,
+        p_application_status:f.application,
+        p_priority:q.priority||"",
+        p_company:q.company||"",
+        p_category_id:q.categoryId||null,
+        p_due_filter:dueFilter,
+        p_sort:q.sort||"updated_desc",
+        p_creation_batch_id:q.creationBatchId||null,
+        p_creation_mode:q.creationMode||"",
+        p_limit:size,
+        p_offset:(page-1)*size,
+      },"Applications could not be loaded."),
+      total=Number(data?.total)||0,
+      pageCount=total?Math.ceil(total/size):0,
+      safePage=pageCount?Math.min(page,pageCount):1;
+    return{
+      items:(data?.items||[]).map((x:any)=>this.normalized(x)),
+      total,
+      page:safePage,
+      pageSize:size,
+      pageCount,
+      from:total?(safePage-1)*size+1:0,
+      to:total?Math.min(safePage*size,total):0,
+      hasPrevious:safePage>1,
+      hasNext:safePage<pageCount,
+    };
+  }
   async mine(user:AuthenticatedUser,q:any){const data:any=await this.rpc(user,"list_my_applications_v17",{p_status:q.status||"",p_sort:q.sort||"updated_desc",p_limit:Math.min(Number(q.limit)||100,100)},"Your Applications could not be loaded.");return{...data,items:(data?.items||[]).map((x:any)=>this.normalized(x))};}
   async detail(u:AuthenticatedUser,id:string){const data:any=await this.rpc(u,"get_application_detail",{p_application_id:id},"The Application could not be loaded.");return{...data,application:this.normalized(data?.application)};}
   counts=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_application_counts_v29",{p_from:from,p_to:to},"Application counts could not be loaded.");

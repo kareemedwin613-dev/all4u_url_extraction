@@ -24,12 +24,20 @@ import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";
 import {
+  firstFilterValue,
+  pickSharedColumnSearch,
+  searchFilterIcon,
+  serverSideColumnFilter,
+  textSearchFilterDropdown,
+} from "../../shared/column-filters.jsx";
+import { useTableBodyHeight } from "../../shared/use-table-body-height.js";
+import {
   ErrorState,
   EllipsisCell,
-  FilterPanel,
   LoadingState,
   StatusTag,
   TabbedSections,
+  DataPagination,
 } from "../../components/ui.jsx";
 import {
   APPLICATION_PRIORITIES,
@@ -48,7 +56,7 @@ import {
   listActiveAppliers,
   listApplicationJobs,
   listApplicationResumes,
-  listApplicationsCursor,
+  listApplications,
   openApplicationResume,
   reassignApplication,
   updateApplication,
@@ -65,7 +73,9 @@ const { Text, Title } = Typography,
   toLocal = (value) =>
     value ? new Date(value).toISOString().slice(0, 16) : "",
   fromLocal = (value) => (value ? new Date(value).toISOString() : null),
-  name = (user) => user?.display_name || user?.email || "Unassigned";
+  name = (user) => user?.display_name || user?.email || "Unassigned",
+  PAGE_SIZES = [25, 50, 100],
+  UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000";
 const Notice = ({ message, error = false }) =>
   message ? (
     <Alert
@@ -127,171 +137,6 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
   );
 }
 
-function ApplicationFilters({
-  value,
-  manager,
-  appliers,
-  batches,
-  categories,
-  onApply,
-  onClear,
-}) {
-  const field = { xs: 24, sm: 12, lg: 6 },
-    activeCount = [
-      value.search,
-      manager ? value.assignedTo : "",
-      value.status,
-      value.priority,
-      value.company,
-      value.categoryId,
-      value.dueFilter,
-      manager ? value.creationMode : "",
-      manager ? value.creationBatchId : "",
-    ].filter(Boolean).length;
-  return (
-    <FilterPanel activeCount={activeCount}>
-      <Form
-        layout="vertical"
-        initialValues={value}
-        key={serializeApplicationQuery(value)}
-        onFinish={(raw) => onApply({ ...raw, pageSize: Number(raw.pageSize) })}
-      >
-        <Row gutter={12}>
-          <Col {...field}>
-            <Form.Item label="Search" name="search">
-              <Input.Search
-                maxLength={100}
-                allowClear
-                placeholder="Application #, company, or job title"
-              />
-            </Form.Item>
-          </Col>
-          {manager && (
-            <Col {...field}>
-              <Form.Item label="Assigned Applier" name="assignedTo">
-                <Select
-                  options={[
-                    { value: "", label: "All Appliers" },
-                    {
-                      value: "00000000-0000-4000-8000-000000000000",
-                      label: "Unassigned",
-                    },
-                    ...appliers.map((x) => ({ value: x.id, label: name(x) })),
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-          )}
-          <Col {...field}>
-            <Form.Item label="Status" name="status">
-              <Select
-                options={[
-                  { value: "", label: "All Statuses" },
-                  ...APPLICATION_STATUSES.map((value) => ({
-                    value,
-                    label: formatLabel(value),
-                  })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Priority" name="priority">
-              <Select
-                options={[
-                  { value: "", label: "All Priorities" },
-                  ...APPLICATION_PRIORITIES.map((value) => ({
-                    value,
-                    label: formatLabel(value),
-                  })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Company" name="company">
-              <Input maxLength={100} />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Primary Category" name="categoryId">
-              <Select
-                options={[
-                  { value: "", label: "All Categories" },
-                  ...(categories?.primary || []).map((x) => ({
-                    value: x.id,
-                    label: x.name,
-                  })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label="Due Date" name="dueFilter">
-              <Select
-                options={[
-                  { value: "", label: "Any Due Date" },
-                  ...DUE_FILTERS.map(([value, label]) => ({ value, label })),
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          {manager && (
-            <>
-              <Col {...field}>
-                <Form.Item label="Created In" name="creationMode">
-                  <Select
-                    options={[
-                      { value: "", label: "Bulk Or Individual" },
-                      { value: "BULK", label: "Created In Bulk" },
-                      { value: "INDIVIDUAL", label: "Created Individually" },
-                    ]}
-                  />
-                </Form.Item>
-              </Col>
-              <Col {...field}>
-                <Form.Item label="Creation Batch" name="creationBatchId">
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    options={[
-                      { value: "", label: "All Creation Batches" },
-                      ...batches.map((x) => ({
-                        value: x.id,
-                        label: x.name || `Batch ${String(x.id).slice(0, 8)}`,
-                      })),
-                    ]}
-                  />
-                </Form.Item>
-              </Col>
-            </>
-          )}
-          <Col {...field}>
-            <Form.Item label="Page Size" name="pageSize">
-              <Select
-                options={[25, 50, 100].map((value) => ({
-                  value,
-                  label: String(value),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col {...field}>
-            <Form.Item label=" " colon={false} className="filter-actions">
-              <Space>
-                <Button type="primary" htmlType="submit">
-                  Apply
-                </Button>
-                <Button onClick={onClear}>Clear</Button>
-              </Space>
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-    </FilterPanel>
-  );
-}
-
 export function ApplicationsPage({
   client,
   apiBaseUrl,
@@ -312,15 +157,14 @@ export function ApplicationsPage({
     [selectionMode,setSelectionMode]=useState("TAILOR"),
     [tailoringBusy,setTailoringBusy]=useState(false),
     [localReload, setLocalReload] = useState(0),
-    [cursorStack, setCursorStack] = useState([null]),
-    [pageIndex, setPageIndex] = useState(0),
-    requestId = useRef(0);
-  function loadPage(index, stack) {
+    requestId = useRef(0),
+    [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
+  useEffect(() => {
     const id = ++requestId.current;
     setData();
     setError("");
     Promise.all([
-      listApplicationsCursor(client, apiBaseUrl, filters, stack[index], filters.pageSize),
+      listApplications(client, apiBaseUrl, filters),
       manager ? listActiveAppliers(client, apiBaseUrl) : Promise.resolve([]),
       manager ? listApplicationBatchOptions(client, apiBaseUrl) : Promise.resolve([]),
     ])
@@ -329,38 +173,25 @@ export function ApplicationsPage({
         setData(items);
         setAppliers(users);
         setBatches(batchItems);
-        setPageIndex(index);
       })
       .catch((x) => {
         if (id === requestId.current) setError(x.message);
       });
-  }
-  useEffect(() => {
-    setCursorStack([null]);
-    loadPage(0, [null]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, filterKey, reload, manager, localReload]);
-  function goToNextPage() {
-    if (!data?.hasMore || !data?.nextCursor) return;
-    setCursorStack((stack) => {
-      const next = stack.slice(0, pageIndex + 1).concat([data.nextCursor]);
-      loadPage(pageIndex + 1, next);
-      return next;
-    });
-  }
-  function goToPreviousPage() {
-    if (pageIndex === 0) return;
-    loadPage(pageIndex - 1, cursorStack);
-  }
   const update = (patch) => {
     const text = serializeApplicationQuery({ ...filters, ...patch });
     go(`#/applications${text ? `?${text}` : ""}`);
   };
+  const searchFiltered = filters.search ? [filters.search] : null;
+  const searchPlaceholder = "Application #, company, or job title";
+  const sharedSearchKeys = ["application_number", "company", "job_title"];
   const actionColumn = {
     title: "Actions",
     key: "action",
     width: 88,
     fixed: "right",
+    sortable: false,
     render: (_, record) => <Button type="link" href={`#/applications/${record.id}`}>View</Button>,
   };
   const numberColumn = {
@@ -368,6 +199,10 @@ export function ApplicationsPage({
     dataIndex: "application_number",
     sortKey: "number",
     width: 148,
+    filteredValue: searchFiltered,
+    ...serverSideColumnFilter,
+    filterDropdown: textSearchFilterDropdown(searchPlaceholder),
+    filterIcon: searchFilterIcon,
     render: (value) => <Text code>{value ?? "—"}</Text>,
   };
   const companyColumn = {
@@ -375,6 +210,10 @@ export function ApplicationsPage({
     dataIndex: "company",
     sortKey: "company",
     width: 160,
+    filteredValue: searchFiltered,
+    ...serverSideColumnFilter,
+    filterDropdown: textSearchFilterDropdown(searchPlaceholder),
+    filterIcon: searchFilterIcon,
     render: (value) => <EllipsisCell>{value}</EllipsisCell>,
   };
   const jobTitleColumn = {
@@ -382,6 +221,10 @@ export function ApplicationsPage({
     dataIndex: "job_title",
     sortKey: "title",
     width: 200,
+    filteredValue: searchFiltered,
+    ...serverSideColumnFilter,
+    filterDropdown: textSearchFilterDropdown(searchPlaceholder),
+    filterIcon: searchFilterIcon,
     render: (value) => <EllipsisCell>{value}</EllipsisCell>,
   };
   const resumeColumn = {
@@ -392,134 +235,302 @@ export function ApplicationsPage({
     render: (value, record) =>
       `${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`,
   };
-  const managerColumns = [
-    numberColumn,
-    companyColumn,
-    jobTitleColumn,
-    resumeColumn,
-    {
-      title: "Applier Profile",
-      dataIndex: "assignee_name",
-      sortKey: "assignee",
-      width: 180,
-      render: (value, record) => value || record.assignee_email || "Unassigned",
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      sortKey: "status",
-      width: 140,
-      render: (value) => <StatusTag value={value} />,
-    },
-    {
-      title: "Priority",
-      dataIndex: "priority",
-      sortKey: "priority",
-      width: 110,
-      render: (value) => <StatusTag value={value} />,
-    },
-    { title: "Due", dataIndex: "due_at", sortKey: "due", width: 180, render: formatDate },
-    {
-      title: "Creation",
-      dataIndex: "creation_batch_id",
-      sortKey: "batch",
-      width: 168,
-      render: (value, record) =>
-        value ? (
-          <a href={`#/application-batches/${value}`}>
-            {record.creation_batch_name || `Batch ${String(value).slice(0, 8)}`}
-          </a>
-        ) : (
-          "Individual"
-        ),
-    },
-    {
-      title: "Captured At",
-      dataIndex: "captured_at",
-      sortKey: "captured",
-      width: 190,
-      render: formatDate,
-    },
-    {
-      title: "Last Updated",
-      dataIndex: "updated_at",
-      sortKey: "updated",
-      width: 190,
-      render: formatDate,
-    },
-    actionColumn,
-  ];
-  const applierColumns = [
-    numberColumn,
-    companyColumn,
-    jobTitleColumn,
-    resumeColumn,
-    {
-      title: "Link",
-      key: "links",
-      sortKey: "link",
-      width: 140,
-      render: (_, record) => {
-        const jobUrl = safeExternalUrl(record.source_url),
-          applicationUrl = safeExternalUrl(record.application_url);
-        return (
-          <Space orientation="vertical" size={0}>
-            {jobUrl ? (
-              <a href={jobUrl} target="_blank" rel="noopener noreferrer">
-                Job posting
-              </a>
-            ) : (
-              <Text type="secondary">No job link</Text>
-            )}
-            {applicationUrl && (
-              <a
-                href={applicationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Application
-              </a>
-            )}
-          </Space>
-        );
+  const statusColumn = {
+    title: "Status",
+    dataIndex: "status",
+    sortKey: "status",
+    width: 140,
+    filters: APPLICATION_STATUSES.map((value) => ({
+      text: formatLabel(value),
+      value,
+    })),
+    filterMultiple: false,
+    filteredValue: filters.status ? [filters.status] : null,
+    ...serverSideColumnFilter,
+    render: (value) => <StatusTag value={value} />,
+  };
+  const priorityColumn = {
+    title: "Priority",
+    dataIndex: "priority",
+    sortKey: "priority",
+    width: 110,
+    filters: APPLICATION_PRIORITIES.map((value) => ({
+      text: formatLabel(value),
+      value,
+    })),
+    filterMultiple: false,
+    filteredValue: filters.priority ? [filters.priority] : null,
+    ...serverSideColumnFilter,
+    render: (value) => <StatusTag value={value} />,
+  };
+  const dueColumn = {
+    title: "Due",
+    dataIndex: "due_at",
+    sortKey: "due",
+    width: 180,
+    filters: DUE_FILTERS.map(([value, label]) => ({ text: label, value })),
+    filterMultiple: false,
+    filteredValue: filters.dueFilter ? [filters.dueFilter] : null,
+    ...serverSideColumnFilter,
+    render: formatDate,
+  };
+  const categoryColumn = {
+    title: "Primary Category",
+    dataIndex: "category_id",
+    sortKey: "category",
+    width: 200,
+    filters: (categories?.primary || []).map((item) => ({
+      text: item.name,
+      value: item.id,
+    })),
+    filterMultiple: false,
+    filteredValue: filters.categoryId ? [filters.categoryId] : null,
+    ...serverSideColumnFilter,
+    render: (value, record) => record.category_name || "Uncategorized",
+  };
+  const managerColumns = useMemo(
+    () => [
+      numberColumn,
+      companyColumn,
+      jobTitleColumn,
+      resumeColumn,
+      {
+        title: "Applier Profile",
+        dataIndex: "assignee_name",
+        sortKey: "assignee",
+        width: 180,
+        filters: [
+          { text: "Unassigned", value: UNASSIGNED_APPLIER_ID },
+          ...appliers.map((item) => ({
+            text: name(item),
+            value: item.id,
+          })),
+        ],
+        filterMultiple: false,
+        filteredValue: filters.assignedTo ? [filters.assignedTo] : null,
+        ...serverSideColumnFilter,
+        render: (value, record) => value || record.assignee_email || "Unassigned",
       },
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      sortKey: "status",
-      width: 140,
-      render: (value) => <StatusTag value={value} />,
-    },
-    {
-      title: "Captured At",
-      dataIndex: "captured_at",
-      sortKey: "captured",
-      width: 190,
-      render: formatDate,
-    },
-    {
-      title: "Last Updated",
-      dataIndex: "updated_at",
-      sortKey: "updated",
-      width: 190,
-      render: formatDate,
-    },
-    {
-      title: "Primary Category",
-      dataIndex: "category_name",
-      sortKey: "category",
-      width: 200,
-      render: (value) => value || "Uncategorized",
-    },
-    actionColumn,
-  ];
+      statusColumn,
+      priorityColumn,
+      dueColumn,
+      categoryColumn,
+      {
+        title: "Creation",
+        dataIndex: "creation_batch_id",
+        sortKey: "batch",
+        width: 168,
+        filters: [
+          { text: "Created In Bulk", value: "mode:BULK" },
+          { text: "Created Individually", value: "mode:INDIVIDUAL" },
+          ...batches.map((item) => ({
+            text: item.name || `Batch ${String(item.id).slice(0, 8)}`,
+            value: `batch:${item.id}`,
+          })),
+        ],
+        filterMultiple: false,
+        filteredValue: filters.creationBatchId
+          ? [`batch:${filters.creationBatchId}`]
+          : filters.creationMode
+            ? [`mode:${filters.creationMode}`]
+            : null,
+        ...serverSideColumnFilter,
+        render: (value, record) =>
+          value ? (
+            <a href={`#/application-batches/${value}`}>
+              {record.creation_batch_name || `Batch ${String(value).slice(0, 8)}`}
+            </a>
+          ) : (
+            "Individual"
+          ),
+      },
+      {
+        title: "Captured At",
+        dataIndex: "captured_at",
+        sortKey: "captured",
+        width: 190,
+        render: formatDate,
+      },
+      {
+        title: "Last Updated",
+        dataIndex: "updated_at",
+        sortKey: "updated",
+        width: 190,
+        render: formatDate,
+      },
+      actionColumn,
+    ],
+    // Column defs close over filters/appliers/batches; rebuild when those change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      filters.search,
+      filters.assignedTo,
+      filters.status,
+      filters.priority,
+      filters.dueFilter,
+      filters.categoryId,
+      filters.creationBatchId,
+      filters.creationMode,
+      appliers,
+      batches,
+      categories,
+    ],
+  );
+  const applierColumns = useMemo(
+    () => [
+      numberColumn,
+      companyColumn,
+      jobTitleColumn,
+      resumeColumn,
+      {
+        title: "Link",
+        key: "links",
+        sortKey: "link",
+        width: 140,
+        render: (_, record) => {
+          const jobUrl = safeExternalUrl(record.source_url),
+            applicationUrl = safeExternalUrl(record.application_url);
+          return (
+            <Space orientation="vertical" size={0}>
+              {jobUrl ? (
+                <a href={jobUrl} target="_blank" rel="noopener noreferrer">
+                  Job posting
+                </a>
+              ) : (
+                <Text type="secondary">No job link</Text>
+              )}
+              {applicationUrl && (
+                <a
+                  href={applicationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Application
+                </a>
+              )}
+            </Space>
+          );
+        },
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        sortKey: "status",
+        width: 140,
+        filters: APPLICATION_STATUSES.map((value) => ({
+          text: formatLabel(value),
+          value,
+        })),
+        filterMultiple: false,
+        filteredValue: filters.status ? [filters.status] : null,
+        ...serverSideColumnFilter,
+        render: (value) => <StatusTag value={value} />,
+      },
+      {
+        title: "Captured At",
+        dataIndex: "captured_at",
+        sortKey: "captured",
+        width: 190,
+        render: formatDate,
+      },
+      {
+        title: "Last Updated",
+        dataIndex: "updated_at",
+        sortKey: "updated",
+        width: 190,
+        render: formatDate,
+      },
+      {
+        title: "Primary Category",
+        dataIndex: "category_id",
+        sortKey: "category",
+        width: 200,
+        filters: (categories?.primary || []).map((item) => ({
+          text: item.name,
+          value: item.id,
+        })),
+        filterMultiple: false,
+        filteredValue: filters.categoryId ? [filters.categoryId] : null,
+        ...serverSideColumnFilter,
+        render: (value, record) => record.category_name || "Uncategorized",
+      },
+      {
+        title: "Priority",
+        dataIndex: "priority",
+        sortKey: "priority",
+        width: 110,
+        filters: APPLICATION_PRIORITIES.map((value) => ({
+          text: formatLabel(value),
+          value,
+        })),
+        filterMultiple: false,
+        filteredValue: filters.priority ? [filters.priority] : null,
+        ...serverSideColumnFilter,
+        render: (value) => <StatusTag value={value} />,
+      },
+      {
+        title: "Due",
+        dataIndex: "due_at",
+        sortKey: "due",
+        width: 180,
+        filters: DUE_FILTERS.map(([value, label]) => ({ text: label, value })),
+        filterMultiple: false,
+        filteredValue: filters.dueFilter ? [filters.dueFilter] : null,
+        ...serverSideColumnFilter,
+        render: formatDate,
+      },
+      actionColumn,
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      filters.search,
+      filters.status,
+      filters.priority,
+      filters.dueFilter,
+      filters.categoryId,
+      categories,
+    ],
+  );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2262 : 1916,
+    applicationsScrollX = manager ? 2462 : 2116,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
+  function applyTableFilters(tableFilters) {
+    let search = filters.search;
+    try {
+      search = pickSharedColumnSearch(
+        tableFilters,
+        sharedSearchKeys,
+        filters.search,
+      ).trim().slice(0, 100);
+    } catch {
+      search = filters.search;
+    }
+    const creationRaw = firstFilterValue(tableFilters, "creation_batch_id", "");
+    let creationMode = "",
+      creationBatchId = "";
+    if (creationRaw.startsWith("mode:")) {
+      creationMode = creationRaw.slice(5);
+    } else if (creationRaw.startsWith("batch:")) {
+      creationBatchId = creationRaw.slice(6);
+    }
+    update({
+      search,
+      assignedTo: manager
+        ? firstFilterValue(tableFilters, "assignee_name", "")
+        : filters.assignedTo,
+      status: firstFilterValue(tableFilters, "status", ""),
+      priority: firstFilterValue(tableFilters, "priority", ""),
+      company: "",
+      categoryId: firstFilterValue(tableFilters, "category_id", ""),
+      dueFilter: firstFilterValue(tableFilters, "due_at", ""),
+      creationMode: manager ? creationMode : "",
+      creationBatchId: manager ? creationBatchId : "",
+      page: 1,
+    });
+  }
   return (
-    <div className="page">
+    <div className="page page-list">
       {manager ? (
         <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
           <Space wrap>
@@ -553,7 +564,7 @@ export function ApplicationsPage({
           onClose={() => setNotice("")}
           message={notice}
         />
-      )}{" "}
+      )}
       {tooMany && (
         <Alert
           type="error"
@@ -561,74 +572,73 @@ export function ApplicationsPage({
           message="Select no more than 2,000 Applications for one assignment."
         />
       )}
-      <ApplicationFilters
-        value={filters}
-        manager={manager}
-        appliers={appliers}
-        batches={batches}
-        categories={categories}
-        onApply={update}
-        onClear={() => go("#/applications")}
-      />
-      {error ? (
+      {error && !data ? (
         <ErrorState message={error} />
       ) : !data ? (
         <LoadingState text="Loading Applications…" />
-      ) : !data.items.length ? (
-        <Card>
-          <Empty
-            description={
-              manager
-                ? "No Applications match this view. Create one by pairing a job description and active resume."
-                : "No Applications are currently assigned to you."
-            }
-          />
-        </Card>
       ) : (
-        <Card>
-          <Table
-            className="dashboard-ellipsis-table"
-            rowKey="id"
-            columns={columns}
-            dataSource={data.items}
-            pagination={false}
-            tableLayout="fixed"
-            scroll={{ x: applicationsScrollX, y: "calc(100vh - 240px)" }}
-            rowSelection={
-              manager
-                ? {
-                    columnWidth: 48,
-                    fixed: true,
-                    selectedRowKeys: selectedIds,
-                    preserveSelectedRowKeys: true,
-                    onChange: setSelectedIds,
-                    getCheckboxProps: (record) => ({
-                      disabled: selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status),
-                    }),
-                  }
-                : undefined
-            }
+        <Card className="page-list-card">
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+          <div ref={tableHostRef} className="page-list-table-host">
+            <Table
+              className="dashboard-ellipsis-table"
+              rowKey="id"
+              columns={columns}
+              dataSource={data.items}
+              pagination={false}
+              tableLayout="fixed"
+              scroll={{ x: applicationsScrollX, y: tableBodyHeight }}
+              locale={{
+                emptyText: (
+                  <Space direction="vertical" size="small" style={{ padding: 24 }}>
+                    <Text strong>No Applications</Text>
+                    <Text type="secondary">
+                      {manager
+                        ? "No Applications match this view. Create one by pairing a job description and active resume."
+                        : "No Applications match the current filters."}
+                    </Text>
+                    <Button onClick={() => go("#/applications")}>Clear filters</Button>
+                  </Space>
+                ),
+              }}
+              onChange={(_pagination, tableFilters, _sorter, extra) => {
+                if (extra?.action && extra.action !== "filter") return;
+                applyTableFilters(tableFilters);
+              }}
+              rowSelection={
+                manager
+                  ? {
+                      columnWidth: 48,
+                      fixed: true,
+                      selectedRowKeys: selectedIds,
+                      preserveSelectedRowKeys: true,
+                      onChange: setSelectedIds,
+                      getCheckboxProps: (record) => ({
+                        disabled: selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status),
+                      }),
+                    }
+                  : undefined
+              }
+            />
+          </div>
+          <DataPagination
+            data={data}
+            pageSizeOptions={PAGE_SIZES}
+            onPage={(page, pageSize) => {
+              const nextSize = pageSize || filters.pageSize;
+              update({
+                page: nextSize !== filters.pageSize ? 1 : page,
+                pageSize: nextSize,
+              });
+            }}
           />
-          <Flex
-            justify="space-between"
-            align="center"
-            wrap
-            gap="middle"
-            style={{ marginTop: 16 }}
-          >
-            <Text>
-              Sorted by last updated · {data.items.length} shown on this page
-            </Text>
-            <Space>
-              <Button disabled={pageIndex === 0} onClick={goToPreviousPage}>
-                Previous
-              </Button>
-              <Text type="secondary">Page {pageIndex + 1}</Text>
-              <Button disabled={!data.hasMore} onClick={goToNextPage}>
-                Next
-              </Button>
-            </Space>
-          </Flex>
         </Card>
       )}
     </div>
@@ -687,7 +697,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
   return (
     <div className="page narrow-page">
       <Button type="link" href="#/applications">
-        ← Back to Applications
+        G�� Back to Applications
       </Button>
       <Title level={1} tabIndex={-1}>
         Create Application
@@ -842,6 +852,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
     </Form>
   );
 }
+
 
 export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }) {
   const { modal } = AntApp.useApp(),
