@@ -73,6 +73,7 @@ test("Applier Application columns follow the operational priority order",async()
   for(const label of labels){const match=new RegExp(`title:\\s*\"${label}\"`).exec(section),next=match?.index??-1;assert.ok(next>position,`${label} follows the requested order`);position=next;}
   assert.match(section,/source_url/);
   assert.match(section,/application_url/);
+  assert.ok(section.indexOf("noColumn") < section.indexOf("numberColumn"));
   assert.ok(section.indexOf("numberColumn")<section.indexOf("companyColumn"));
   assert.ok(section.indexOf("companyColumn")<section.indexOf("jobTitleColumn"));
   assert.ok(section.indexOf("jobTitleColumn")<section.indexOf("resumeColumn"));
@@ -85,6 +86,7 @@ test("manager Application list identifies both sides of the JD and Resume pair",
   const section=source.slice(source.indexOf("const managerColumns ="),source.indexOf("const applierColumns ="));
   for(const field of ["company","job_title","resume_name","candidate_name"])assert.match(shared,new RegExp(field));
   assert.match(section,/assignee_name/);
+  assert.match(section,/noColumn/);
   assert.match(section,/numberColumn/);
   assert.match(section,/companyColumn/);
   assert.match(section,/jobTitleColumn/);
@@ -102,8 +104,10 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.match(company, /EllipsisCell/);
   assert.match(jobTitle, /EllipsisCell/);
   assert.doesNotMatch(resume, /EllipsisCell/);
-  assert.doesNotMatch(manager, /title:\s*"Applier profile"[\s\S]*?EllipsisCell/);
-  assert.match(source, /applicationsScrollX = manager \? 2462 : 2116/);
+  assert.doesNotMatch(manager, /title:\s*"Applier Profile"[\s\S]*?EllipsisCell/);
+  assert.match(manager, /title:\s*"Applier Profile"[\s\S]*?MetaTag/);
+  assert.match(source, /categoryTagColor\(categories/);
+  assert.match(source, /applicationsScrollX = manager \? 2346 : 2000/);
 });
 
 test("Application Number is visible on the list, detail heading, and search",async()=>{

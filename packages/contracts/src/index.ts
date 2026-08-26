@@ -427,7 +427,7 @@ export interface ApplicationAutofillContextResponse extends RequestMetadata { da
 
 export interface AutofillQualityReportItem{adapter_id:string;adapter_version:string;target_domain:string;sessions:number;detected:number;verified:number;failed:number;unresolved:number;verification_rate:number;}
 export interface AutofillQualityReport{days:number;generatedAt:string;items:AutofillQualityReportItem[];}
-export interface ApplierPerformanceOverview{ id:string;applier_name:string;email:string;assigned_count:number;active_count:number;completed_count:number;applied_count:number;applied_today:number;applied_last_3_days:number;applied_this_week:number;applied_this_month:number;applied_last_30_days:number;completion_rate:number; }
+export interface ApplierPerformanceOverview{ id:string;applier_name:string;email:string;assigned_count:number;active_count:number;blocked_count:number;completed_count:number;applied_count:number;applied_today:number;applied_last_3_days:number;applied_this_week:number;applied_this_month:number;applied_last_30_days:number;completion_rate:number; }
 export interface JdFinderPerformanceOverview{ id:string;finder_name:string;email:string;captured_count:number;approved_count:number;needs_review_count:number;needs_correction_count:number;declined_count:number;approval_rate:number; }
 
 export type ResumeApplicationAnswerKey = "authorized_to_work"|"requires_sponsorship"|"willing_to_relocate"|"available_start_date"|"desired_salary"|"years_of_experience"|"remote_work_preference"|"gender_identity"|"race_ethnicity"|"veteran_status";

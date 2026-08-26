@@ -35,14 +35,15 @@ import {
   ErrorState,
   EllipsisCell,
   LoadingState,
+  MetaTag,
   StatusTag,
   TabbedSections,
   DataPagination,
+  categoryTagColor,
 } from "../../components/ui.jsx";
 import {
   APPLICATION_PRIORITIES,
   APPLICATION_STATUSES,
-  DUE_FILTERS,
 } from "./constants.js";
 import { applicationActions, isApplicationManager } from "./validation.js";
 import {
@@ -110,7 +111,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
           ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
           ["Overdue", data.overdue],
-          [`Applied Â· ${dateLabel}`, data.applied_today],
+          [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ]
       : [
@@ -118,7 +119,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
           ["Due Today", data.due_today],
           ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
-          [`Applied Â· ${dateLabel}`, data.applied_today],
+          [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ];
   return (
@@ -194,6 +195,14 @@ export function ApplicationsPage({
     sortable: false,
     render: (_, record) => <Button type="link" href={`#/applications/${record.id}`}>View</Button>,
   };
+  const noColumn = {
+    title: "No",
+    key: "no",
+    width: 64,
+    sortable: false,
+    render: (_value, _row, index) =>
+      ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,
+  };
   const numberColumn = {
     title: "Application #",
     dataIndex: "application_number",
@@ -203,7 +212,7 @@ export function ApplicationsPage({
     ...serverSideColumnFilter,
     filterDropdown: textSearchFilterDropdown(searchPlaceholder),
     filterIcon: searchFilterIcon,
-    render: (value) => <Text code>{value ?? "â"}</Text>,
+    render: (value) => <Text code>{value ?? "—"}</Text>,
   };
   const companyColumn = {
     title: "Company",
@@ -233,7 +242,7 @@ export function ApplicationsPage({
     sortKey: "resume",
     width: 320,
     render: (value, record) =>
-      `${value || "Unnamed Resume"}${record.candidate_name ? ` â ${record.candidate_name}` : ""}`,
+      `${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`,
   };
   const statusColumn = {
     title: "Status",
@@ -263,17 +272,6 @@ export function ApplicationsPage({
     ...serverSideColumnFilter,
     render: (value) => <StatusTag value={value} />,
   };
-  const dueColumn = {
-    title: "Due",
-    dataIndex: "due_at",
-    sortKey: "due",
-    width: 180,
-    filters: DUE_FILTERS.map(([value, label]) => ({ text: label, value })),
-    filterMultiple: false,
-    filteredValue: filters.dueFilter ? [filters.dueFilter] : null,
-    ...serverSideColumnFilter,
-    render: formatDate,
-  };
   const categoryColumn = {
     title: "Primary Category",
     dataIndex: "category_id",
@@ -286,10 +284,15 @@ export function ApplicationsPage({
     filterMultiple: false,
     filteredValue: filters.categoryId ? [filters.categoryId] : null,
     ...serverSideColumnFilter,
-    render: (value, record) => record.category_name || "Uncategorized",
+    render: (value, record) => (
+      <MetaTag color={categoryTagColor(categories, value)}>
+        {record.category_name || "Uncategorized"}
+      </MetaTag>
+    ),
   };
   const managerColumns = useMemo(
     () => [
+      noColumn,
       numberColumn,
       companyColumn,
       jobTitleColumn,
@@ -309,11 +312,21 @@ export function ApplicationsPage({
         filterMultiple: false,
         filteredValue: filters.assignedTo ? [filters.assignedTo] : null,
         ...serverSideColumnFilter,
-        render: (value, record) => value || record.assignee_email || "Unassigned",
+        render: (value, record) => {
+          const label = value || record.assignee_email || "Unassigned";
+          const assigned = Boolean(record.assigned_to);
+          return (
+            <MetaTag
+              color={assigned ? undefined : "default"}
+              seed={assigned ? record.assigned_to : "unassigned"}
+            >
+              {label}
+            </MetaTag>
+          );
+        },
       },
       statusColumn,
       priorityColumn,
-      dueColumn,
       categoryColumn,
       {
         title: "Creation",
@@ -363,11 +376,12 @@ export function ApplicationsPage({
     // Column defs close over filters/appliers/batches; rebuild when those change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
+      filters.page,
+      filters.pageSize,
       filters.search,
       filters.assignedTo,
       filters.status,
       filters.priority,
-      filters.dueFilter,
       filters.categoryId,
       filters.creationBatchId,
       filters.creationMode,
@@ -378,6 +392,7 @@ export function ApplicationsPage({
   );
   const applierColumns = useMemo(
     () => [
+      noColumn,
       numberColumn,
       companyColumn,
       jobTitleColumn,
@@ -452,7 +467,11 @@ export function ApplicationsPage({
         filterMultiple: false,
         filteredValue: filters.categoryId ? [filters.categoryId] : null,
         ...serverSideColumnFilter,
-        render: (value, record) => record.category_name || "Uncategorized",
+        render: (value, record) => (
+          <MetaTag color={categoryTagColor(categories, value)}>
+            {record.category_name || "Uncategorized"}
+          </MetaTag>
+        ),
       },
       {
         title: "Priority",
@@ -468,31 +487,21 @@ export function ApplicationsPage({
         ...serverSideColumnFilter,
         render: (value) => <StatusTag value={value} />,
       },
-      {
-        title: "Due",
-        dataIndex: "due_at",
-        sortKey: "due",
-        width: 180,
-        filters: DUE_FILTERS.map(([value, label]) => ({ text: label, value })),
-        filterMultiple: false,
-        filteredValue: filters.dueFilter ? [filters.dueFilter] : null,
-        ...serverSideColumnFilter,
-        render: formatDate,
-      },
       actionColumn,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
+      filters.page,
+      filters.pageSize,
       filters.search,
       filters.status,
       filters.priority,
-      filters.dueFilter,
       filters.categoryId,
       categories,
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2462 : 2116,
+    applicationsScrollX = manager ? 2346 : 2000,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   function applyTableFilters(tableFilters) {
@@ -575,7 +584,7 @@ export function ApplicationsPage({
       {error && !data ? (
         <ErrorState message={error} />
       ) : !data ? (
-        <LoadingState text="Loading Applicationsâ¦" />
+        <LoadingState text="Loading Applications…" />
       ) : (
         <Card className="page-list-card">
           {error && (
@@ -697,7 +706,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
   return (
     <div className="page narrow-page">
       <Button type="link" href="#/applications">
-        Gï¿½ï¿½ Back to Applications
+        ← Back to Applications
       </Button>
       <Title level={1} tabIndex={-1}>
         Create Application
@@ -947,7 +956,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
         render: (value) => value || "Unassigned",
       },
       { title: "Changed By", dataIndex: "assigned_by" },
-      { title: "Reason", dataIndex: "reason", render: (value) => value || "â" },
+      { title: "Reason", dataIndex: "reason", render: (value) => value || "—" },
     ],
     statusColumns = [
       { title: "When", dataIndex: "created_at", render: formatDate },
@@ -955,17 +964,17 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       { title: "Previous", dataIndex: "previous_status", render: formatLabel },
       { title: "New", dataIndex: "new_status", render: formatLabel },
       { title: "Changed By", dataIndex: "changed_by" },
-      { title: "Notes", dataIndex: "notes", render: (value) => value || "â" },
+      { title: "Notes", dataIndex: "notes", render: (value) => value || "—" },
     ];
   return (
     <div className="page">
       <Button type="link" href="#/applications">
-        â Back to Applications
+        ← Back to Applications
       </Button>
       <Flex justify="space-between" align="center" wrap>
         <div>
           <Text type="secondary" className="eyebrow">
-            Application #{a.application_number ?? "â"} Â· {job.company}
+            Application #{a.application_number ?? "—"} · {job.company}
           </Text>
           <Title level={1} tabIndex={-1}>
             {job.job_title}
@@ -1004,7 +1013,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         key: "number",
                         label: "Application Number",
                         children: (
-                          <Text code>{a.application_number ?? "â"}</Text>
+                          <Text code>{a.application_number ?? "—"}</Text>
                         ),
                       },
                       {
@@ -1049,7 +1058,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         children: a.notes ? (
                           <Text className="long-text">{a.notes}</Text>
                         ) : (
-                          "â"
+                          "—"
                         ),
                       },
                     ]}
@@ -1097,7 +1106,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     {resume.resume_name}
                   </p>
                   <p>
-                    {formatLabel(resume.seniority)} Â· {resume.original_filename}
+                    {formatLabel(resume.seniority)} · {resume.original_filename}
                   </p>
                   <Space wrap>
                     <Button
