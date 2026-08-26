@@ -36,7 +36,7 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
   assert.match(finder, /overview-chart-scroll/);
   assert.match(applier, /dataKey=\{metric\.key\}/);
   assert.match(finder, /dataKey=\{metric\.key\}/);
-  for (const label of ["Assigned", "Active", "Completed", "Applied", "completionRate"]) {
+  for (const label of ["Assigned", "Active", "Blocked", "Completed", "Applied", "completionRate"]) {
     assert.match(applierModel, new RegExp(label));
   }
   for (const label of ["Captured", "Approved", "Needs Review", "Correction", "Declined", "approvalRate"]) {
@@ -54,6 +54,7 @@ test("normalizeApplierPerformance maps overview rows for the grouped bar chart",
       email: "alex@example.com",
       assigned_count: 4,
       active_count: 1,
+      blocked_count: 2,
       completed_count: 2,
       applied_count: 3,
       completion_rate: 50,
@@ -65,6 +66,7 @@ test("normalizeApplierPerformance maps overview rows for the grouped bar chart",
     email: "alex@example.com",
     assigned: 4,
     active: 1,
+    blocked: 2,
     completed: 2,
     applied: 3,
     completionRate: 50,
@@ -134,7 +136,7 @@ test("normalizeJdFinderPerformance prefers display names over email-like finder 
 });
 
 test("role performance aggregation is set-based, bounded, role-gated, and status-aware", async () => {
-  const sql = await read("../../supabase/migrations/202608210060_v3_2_overview_role_performance_display_names.sql");
+  const sql = await read("../../supabase/migrations/202608260079_v3_19_overview_applier_blocked_count.sql");
   assert.match(sql, /get_business_overview_v30\(p_from timestamptz,p_to timestamptz\)/);
   assert.match(sql, /p_to-p_from>interval '370 days'/);
   assert.match(sql, /has_role\('APPLYING_MANAGER'\).*has_role\('ADMIN'\)/);
@@ -148,6 +150,8 @@ test("role performance aggregation is set-based, bounded, role-gated, and status
   assert.match(sql, /'Unknown Applier'/);
   assert.match(sql, /'Unknown JD Finder'/);
   assert.match(sql, /left join public\.applications a on a\.assigned_to=p\.id/);
+  assert.match(sql, /a\.status='BLOCKED'/);
+  assert.match(sql, /blocked_count/);
   assert.match(sql, /left join public\.job_descriptions j on j\.user_id=p\.id/);
   for (const status of ["APPROVED", "NEEDS_REVIEW", "NEEDS_CORRECTION", "DECLINED"]) {
     assert.match(sql, new RegExp(`review_status='${status}'`));
