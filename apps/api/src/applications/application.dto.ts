@@ -16,7 +16,7 @@ export class ApplicationListQueryDto{
   @IsOptional()@IsIn(["","BULK","INDIVIDUAL"])creationMode="";
   @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","number_asc","number_desc","priority_asc","priority_desc","due_asc","due_desc","captured_asc","captured_desc","category_asc","category_desc","assignee_asc","assignee_desc","batch_asc","batch_desc"])sort="updated_desc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;
-  @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100])pageSize=25;
+  @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100,500,1000,5000])pageSize=25;
 }
 export class MyApplicationQueryDto{
   @IsOptional()@IsIn(["",...APPLICATION_STATUSES])status="";
@@ -77,10 +77,10 @@ export class ApplicationAutofillContextQueryDto {
   @IsUUID("4") sessionId!: string;
   @IsOptional() @IsISO8601({ strict: true }) resumeUpdatedAt?: string;
 }
-export class BulkPreviewDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(100)@IsUUID("4",{each:true})jobDescriptionIds!:string[];}
+export class BulkPreviewDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(1000)@IsUUID("4",{each:true})jobDescriptionIds!:string[];}
 export class BulkCombinationDto{@IsUUID("4")job_description_id!:string;@IsUUID("4")resume_id!:string;}
 export class BulkCreateDto{
-  @IsArray()@ArrayMinSize(1)@ArrayMaxSize(2000)@ValidateNested({each:true})@Type(()=>BulkCombinationDto)combinations!:BulkCombinationDto[];
+  @IsArray()@ArrayMinSize(1)@ArrayMaxSize(5000)@ValidateNested({each:true})@Type(()=>BulkCombinationDto)combinations!:BulkCombinationDto[];
   @IsOptional()@IsString()@MaxLength(120)batchName?:string;
 }
 export class BatchListQueryDto{

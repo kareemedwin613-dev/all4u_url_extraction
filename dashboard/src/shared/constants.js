@@ -1,5 +1,7 @@
 export const APP_NAME="Resume JD Operations";
 export const PAGE_SIZES=Object.freeze([10,25,50]);
+export const JOB_PAGE_SIZES=Object.freeze([10,25,50,100,500,1000]);
+export const APPLICATION_PAGE_SIZES=Object.freeze([25,50,100,500,1000,5000]);
 export const USER_PAGE_SIZES=Object.freeze([25,50,100]);
 export const STATUSES=Object.freeze(["ACTIVE","ARCHIVED"]);
 export const SENIORITIES=Object.freeze(["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL","MANAGER","DIRECTOR","EXECUTIVE","UNSPECIFIED"]);

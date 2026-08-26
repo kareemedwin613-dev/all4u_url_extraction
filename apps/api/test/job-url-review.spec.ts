@@ -50,3 +50,12 @@ test("JD Finder correction uses the caller-scoped v3.1 RPC",async()=>{
   assert.equal(call.args.p_normalized_source_url,"https://example.com/jobs/1");
   assert.equal(result.review_status,"NEEDS_REVIEW");
 });
+
+test("manager edit uses the v3.12 protected RPC for any unapproved JD",async()=>{
+  let call:any;
+  const service=new JobDescriptionReadService({forUser:(token:string)=>{assert.equal(token,"manager-jwt");return{rpc:async(name:string,args:any)=>{call={name,args};return{data:{id:args.p_job_description_id,company:args.p_company,review_status:"NEEDS_REVIEW"},error:null};}};}}as any);
+  const result:any=await service.managerEdit({id:"manager",token:"manager-jwt",claims:{}} as any,"123e4567-e89b-42d3-a456-426614174000",{company:"Acme",jobTitle:"Engineer",categoryId:"123e4567-e89b-42d3-a456-426614174000",sourceUrl:"https://example.com/jobs/2",descriptionText:"B".repeat(100)} as any);
+  assert.equal(call.name,"manager_update_job_description_v312");
+  assert.equal(call.args.p_company,"Acme");
+  assert.equal(result.review_status,"NEEDS_REVIEW");
+});

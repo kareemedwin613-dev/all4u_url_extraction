@@ -1,7 +1,49 @@
-import "reflect-metadata";import test from"node:test";import assert from"node:assert/strict";import{plainToInstance}from"class-transformer";import{validate}from"class-validator";import{BulkAssignDto,BulkAssignmentPreviewDto,UpdateWorkloadSettingsDto}from"../src/bulk-assignment/bulk-assignment.dto.js";import{distributeCapacityAware,distributeEven,validateManual}from"../src/bulk-assignment/distribution.js";import{BulkAssignmentService}from"../src/bulk-assignment/bulk-assignment.service.js";
-const apps=[{id:"a"},{id:"b"},{id:"c"},{id:"d"}],appliers=[{userId:"2",currentWorkload:1,maxCapacity:3},{userId:"1",currentWorkload:1,maxCapacity:3}];
-test("even distribution is deterministic and uses ID as the stable tie breaker",()=>{const first=distributeEven(apps,appliers),second=distributeEven(apps,appliers);assert.deepEqual(first,second);assert.deepEqual(first.map(x=>x.assignedTo),["1","2","1","2"]);});
-test("capacity-aware distribution favors greatest remaining capacity without overflow",()=>{const result=distributeCapacityAware(apps,[{userId:"a",currentWorkload:4,maxCapacity:5},{userId:"b",currentWorkload:1,maxCapacity:4}]);assert.deepEqual(result.map(x=>x.assignedTo),["b","b","b","a"]);});
-test("manual distribution must cover each intended Application exactly once",()=>{assert.equal(validateManual([{applicationId:"a",assignedTo:"1"},{applicationId:"b",assignedTo:"2"}],[{id:"a"},{id:"b"}]),true);assert.equal(validateManual([{applicationId:"a",assignedTo:"1"}],[{id:"a"},{id:"b"}]),false);});
-test("v0.8 DTOs enforce strategy, capacity, limits, and unknown-field-safe shapes",async()=>{assert.equal((await validate(plainToInstance(BulkAssignmentPreviewDto,{strategy:"RANDOM",applicationIds:[]}))).length>0,true);assert.equal((await validate(plainToInstance(UpdateWorkloadSettingsDto,{isAvailable:true,maxActiveApplications:10001}))).length>0,true);assert.equal((await validate(plainToInstance(BulkAssignDto,{strategy:"EVEN",assignments:[{applicationId:"bad",assignedTo:"bad"}]}))).length>0,true);});
-test("bulk assignment service hashes idempotency metadata and uses one commit RPC",async()=>{const calls:any[]=[];const supabase={forUser:()=>({rpc:(name:string,args:any)=>{calls.push({name,args});return Promise.resolve({data:{batchId:"batch",assignedCount:1},error:null});}})},logger={log:()=>{}};const service=new BulkAssignmentService(supabase as any,logger as any);await service.assign({id:"user",token:"jwt",claims:{}},{strategy:"MANUAL",assignments:[{applicationId:"00000000-0000-4000-8000-000000000001",assignedTo:"00000000-0000-4000-8000-000000000002"}]},"same-key-123","req");assert.equal(calls.length,1);assert.equal(calls[0].name,"assign_applications_bulk_v08");assert.match(calls[0].args.p_idempotency_key_hash,/^[0-9a-f]{64}$/);assert.match(calls[0].args.p_request_payload_hash,/^[0-9a-f]{64}$/);});
+import "reflect-metadata";
+import test from "node:test";
+import assert from "node:assert/strict";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
+import { BulkAssignDto, BulkAssignmentPreviewDto, UpdateWorkloadSettingsDto } from "../src/bulk-assignment/bulk-assignment.dto.js";
+import { BulkAssignmentService } from "../src/bulk-assignment/bulk-assignment.service.js";
+
+const id = "00000000-0000-4000-8000-000000000001";
+const id2 = "00000000-0000-4000-8000-000000000002";
+
+test("v0.8 DTOs enforce PROFILE strategy, capacity, limits, and unknown-field-safe shapes", async () => {
+  assert.equal((await validate(plainToInstance(BulkAssignmentPreviewDto, { strategy: "EVEN", applicationIds: [id] }))).length > 0, true);
+  assert.equal((await validate(plainToInstance(BulkAssignmentPreviewDto, { strategy: "PROFILE", applicationIds: [id] }))).length, 0);
+  assert.equal((await validate(plainToInstance(BulkAssignmentPreviewDto, { strategy: "PROFILE" }))).length > 0, true);
+  assert.equal((await validate(plainToInstance(UpdateWorkloadSettingsDto, { isAvailable: true, maxActiveApplications: 10001 }))).length > 0, true);
+  assert.equal((await validate(plainToInstance(BulkAssignDto, { strategy: "EVEN", assignments: [{ applicationId: id, assignedTo: id2 }] }))).length > 0, true);
+  assert.equal((await validate(plainToInstance(BulkAssignDto, { strategy: "PROFILE", assignments: [{ applicationId: id, assignedTo: id2 }] }))).length, 0);
+});
+
+test("bulk assignment service hashes idempotency metadata and uses one commit RPC", async () => {
+  const calls: any[] = [];
+  const supabase = { forUser: () => ({ rpc: (name: string, args: any) => { calls.push({ name, args }); return Promise.resolve({ data: { batchId: "batch", assignedCount: 1 }, error: null }); } }) };
+  const logger = { log: () => {} };
+  const service = new BulkAssignmentService(supabase as any, logger as any);
+  await service.assign({ id: "user", token: "jwt", claims: {} }, { strategy: "PROFILE", assignments: [{ applicationId: id, assignedTo: id2 }] }, "same-key-123", "req");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "assign_applications_bulk_v08");
+  assert.equal(calls[0].args.p_strategy, "PROFILE");
+  assert.match(calls[0].args.p_idempotency_key_hash, /^[0-9a-f]{64}$/);
+  assert.match(calls[0].args.p_request_payload_hash, /^[0-9a-f]{64}$/);
+});
+
+test("bulk assignment preview rejects non-PROFILE strategies and sends application ids only", async () => {
+  const calls: any[] = [];
+  const supabase = { forUser: () => ({ rpc: (name: string, args: any) => { calls.push({ name, args }); return Promise.resolve({ data: { proposals: [] }, error: null }); } }) };
+  const logger = { log: () => {} };
+  const service = new BulkAssignmentService(supabase as any, logger as any);
+  await assert.rejects(
+    () => service.preview({ id: "user", token: "jwt", claims: {} }, { strategy: "EVEN", applicationIds: [id], applierIds: [id2] }, "req"),
+    (error: any) => error.code === "INVALID_STRATEGY",
+  );
+  await service.preview({ id: "user", token: "jwt", claims: {} }, { strategy: "PROFILE", applicationIds: [id] }, "req");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "preview_bulk_assignment_v08");
+  assert.equal(calls[0].args.p_strategy, "PROFILE");
+  assert.deepEqual(calls[0].args.p_application_ids, [id]);
+  assert.deepEqual(calls[0].args.p_applier_ids, []);
+});

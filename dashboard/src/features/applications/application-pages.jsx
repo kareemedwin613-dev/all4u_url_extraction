@@ -74,7 +74,7 @@ const { Text, Title } = Typography,
     value ? new Date(value).toISOString().slice(0, 16) : "",
   fromLocal = (value) => (value ? new Date(value).toISOString() : null),
   name = (user) => user?.display_name || user?.email || "Unassigned",
-  PAGE_SIZES = [25, 50, 100],
+  PAGE_SIZES = [25, 50, 100, 500, 1000, 5000],
   UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000";
 const Notice = ({ message, error = false }) =>
   message ? (
@@ -110,7 +110,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
           ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
           ["Overdue", data.overdue],
-          [`Applied · ${dateLabel}`, data.applied_today],
+          [`Applied Â· ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ]
       : [
@@ -118,7 +118,7 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
           ["Due Today", data.due_today],
           ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
-          [`Applied · ${dateLabel}`, data.applied_today],
+          [`Applied Â· ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ];
   return (
@@ -203,7 +203,7 @@ export function ApplicationsPage({
     ...serverSideColumnFilter,
     filterDropdown: textSearchFilterDropdown(searchPlaceholder),
     filterIcon: searchFilterIcon,
-    render: (value) => <Text code>{value ?? "—"}</Text>,
+    render: (value) => <Text code>{value ?? "â"}</Text>,
   };
   const companyColumn = {
     title: "Company",
@@ -233,7 +233,7 @@ export function ApplicationsPage({
     sortKey: "resume",
     width: 320,
     render: (value, record) =>
-      `${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`,
+      `${value || "Unnamed Resume"}${record.candidate_name ? ` â ${record.candidate_name}` : ""}`,
   };
   const statusColumn = {
     title: "Status",
@@ -575,7 +575,7 @@ export function ApplicationsPage({
       {error && !data ? (
         <ErrorState message={error} />
       ) : !data ? (
-        <LoadingState text="Loading Applications…" />
+        <LoadingState text="Loading Applicationsâ¦" />
       ) : (
         <Card className="page-list-card">
           {error && (
@@ -697,7 +697,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
   return (
     <div className="page narrow-page">
       <Button type="link" href="#/applications">
-        G�� Back to Applications
+        Gï¿½ï¿½ Back to Applications
       </Button>
       <Title level={1} tabIndex={-1}>
         Create Application
@@ -947,7 +947,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
         render: (value) => value || "Unassigned",
       },
       { title: "Changed By", dataIndex: "assigned_by" },
-      { title: "Reason", dataIndex: "reason", render: (value) => value || "—" },
+      { title: "Reason", dataIndex: "reason", render: (value) => value || "â" },
     ],
     statusColumns = [
       { title: "When", dataIndex: "created_at", render: formatDate },
@@ -955,17 +955,17 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       { title: "Previous", dataIndex: "previous_status", render: formatLabel },
       { title: "New", dataIndex: "new_status", render: formatLabel },
       { title: "Changed By", dataIndex: "changed_by" },
-      { title: "Notes", dataIndex: "notes", render: (value) => value || "—" },
+      { title: "Notes", dataIndex: "notes", render: (value) => value || "â" },
     ];
   return (
     <div className="page">
       <Button type="link" href="#/applications">
-        ← Back to Applications
+        â Back to Applications
       </Button>
       <Flex justify="space-between" align="center" wrap>
         <div>
           <Text type="secondary" className="eyebrow">
-            Application #{a.application_number ?? "—"} · {job.company}
+            Application #{a.application_number ?? "â"} Â· {job.company}
           </Text>
           <Title level={1} tabIndex={-1}>
             {job.job_title}
@@ -1004,7 +1004,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         key: "number",
                         label: "Application Number",
                         children: (
-                          <Text code>{a.application_number ?? "—"}</Text>
+                          <Text code>{a.application_number ?? "â"}</Text>
                         ),
                       },
                       {
@@ -1049,7 +1049,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         children: a.notes ? (
                           <Text className="long-text">{a.notes}</Text>
                         ) : (
-                          "—"
+                          "â"
                         ),
                       },
                     ]}
@@ -1097,7 +1097,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     {resume.resume_name}
                   </p>
                   <p>
-                    {formatLabel(resume.seniority)} · {resume.original_filename}
+                    {formatLabel(resume.seniority)} Â· {resume.original_filename}
                   </p>
                   <Space wrap>
                     <Button

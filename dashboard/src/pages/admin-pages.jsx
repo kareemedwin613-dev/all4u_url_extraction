@@ -43,6 +43,7 @@ import {
   serverSortFromTable,
 } from "../shared/table-sorting.js";
 import { normalizeSearch } from "../shared/validation.js";
+import { useTableBodyHeight } from "../shared/use-table-body-height.js";
 
 const { Text, Title } = Typography;
 
@@ -133,6 +134,14 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
         serverSortColumns(
           [
             {
+              title: "No",
+              key: "no",
+              width: 64,
+              sortable: false,
+              render: (_value, _row, index) =>
+                ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,
+            },
+            {
               title: "Name",
               dataIndex: "full_name",
               sortKey: "name",
@@ -194,7 +203,9 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
                 value?.length ? (
                   <RoleBadges roles={value} />
                 ) : (
-                  <Tag color="gold">Pending Approval</Tag>
+                  <Tag color="gold" style={{ marginInlineEnd: 0 }}>
+                    Pending Approval
+                  </Tag>
                 ),
             },
             {
@@ -206,18 +217,21 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
             {
               title: "Actions",
               key: "actions",
+              width: 96,
+              sortable: false,
               render: (_, user) => (
-                <Button type="link" href={`#/admin/users/${user.id}`}>
+                <a href={`#/admin/users/${user.id}`}>
                   {!user.role_codes?.length && user.status === "ACTIVE"
                     ? "Review"
                     : "Manage"}
-                </Button>
+                </a>
               ),
-            },
-          ],
+            },          ],
           filters.sort,
         ),
       [
+        filters.page,
+        filters.pageSize,
         filters.roleCode,
         filters.search,
         filters.sort,
@@ -237,8 +251,9 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
             : 0,
         }
       : null;
+  const [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(result));
   return (
-    <div className="page">
+    <div className="page page-list">
       <Flex className="page-toolbar" justify="space-between" align="center" wrap="wrap" gap="small">
         <Space wrap>
           <Button
@@ -271,7 +286,7 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
           message={error || "Users could not be loaded."}
         />
       ) : (
-        <Card>
+        <Card className="page-list-card">
           {filters.roleCode === USER_ROLE_PENDING && (
             <Alert
               type="info"
@@ -289,62 +304,64 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
               style={{ marginBottom: 12 }}
             />
           )}
-          <AntTable
-            rowKey="id"
-            loading={loading}
-            columns={columns}
-            dataSource={result.items}
-            pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
-            locale={{
-              emptyText: (
-                <Space
-                  direction="vertical"
-                  size="small"
-                  style={{ padding: 24 }}
-                >
-                  <Text strong>No users</Text>
-                  <Text type="secondary">
-                    {filters.search || filters.status || filters.roleCode
-                      ? "No users match the current filters."
-                      : "No registered profiles were found."}
-                  </Text>
-                  {(filters.search || filters.status || filters.roleCode) && (
-                    <Button onClick={() => navigate("#/admin/users")}>
-                      Clear filters
-                    </Button>
-                  )}
-                </Space>
-              ),
-            }}
-            onChange={(_pagination, tableFilters, sorter, extra) => {
-              if (
-                extra?.action &&
-                extra.action !== "filter" &&
-                extra.action !== "sort"
-              )
-                return;
-              let search = filters.search;
-              try {
-                search = normalizeSearch(
-                  pickSharedColumnSearch(
-                    tableFilters,
-                    ["full_name", "email"],
-                    filters.search,
-                  ),
-                );
-              } catch {
-                search = filters.search;
-              }
-              update({
-                search,
-                status: tableFilters.status?.[0] || "",
-                roleCode: tableFilters.role_codes?.[0] || "",
-                sort: serverSortFromTable(sorter, "name_asc"),
-                page: 1,
-              });
-            }}
-          />
+          <div ref={tableHostRef} className="page-list-table-host">
+            <AntTable
+              rowKey="id"
+              loading={loading}
+              columns={columns}
+              dataSource={result.items}
+              pagination={false}
+              scroll={{ x: "max-content", y: tableBodyHeight }}
+              locale={{
+                emptyText: (
+                  <Space
+                    direction="vertical"
+                    size="small"
+                    style={{ padding: 24 }}
+                  >
+                    <Text strong>No users</Text>
+                    <Text type="secondary">
+                      {filters.search || filters.status || filters.roleCode
+                        ? "No users match the current filters."
+                        : "No registered profiles were found."}
+                    </Text>
+                    {(filters.search || filters.status || filters.roleCode) && (
+                      <Button onClick={() => navigate("#/admin/users")}>
+                        Clear filters
+                      </Button>
+                    )}
+                  </Space>
+                ),
+              }}
+              onChange={(_pagination, tableFilters, sorter, extra) => {
+                if (
+                  extra?.action &&
+                  extra.action !== "filter" &&
+                  extra.action !== "sort"
+                )
+                  return;
+                let search = filters.search;
+                try {
+                  search = normalizeSearch(
+                    pickSharedColumnSearch(
+                      tableFilters,
+                      ["full_name", "email"],
+                      filters.search,
+                    ),
+                  );
+                } catch {
+                  search = filters.search;
+                }
+                update({
+                  search,
+                  status: tableFilters.status?.[0] || "",
+                  roleCode: tableFilters.role_codes?.[0] || "",
+                  sort: serverSortFromTable(sorter, "name_asc"),
+                  page: 1,
+                });
+              }}
+            />
+          </div>
           <DataPagination
             data={paginationData}
             pageSizeOptions={USER_PAGE_SIZES}
@@ -712,17 +729,22 @@ export function AdminRolesPage({ roles }) {
       ),
     },
   ]);
+  const [tableHostRef, tableBodyHeight] = useTableBodyHeight(true);
   return (
-    <div className="page">
-      <Text>These roles are fixed and read-only.</Text>
-      <Card>
-        <AntTable
-          rowKey="code"
-          columns={columns}
-          dataSource={roles}
-          pagination={false}
-          scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
-        />
+    <div className="page page-list">
+      <Text className="page-toolbar" style={{ display: "block", marginBottom: 12 }}>
+        These roles are fixed and read-only.
+      </Text>
+      <Card className="page-list-card">
+        <div ref={tableHostRef} className="page-list-table-host">
+          <AntTable
+            rowKey="code"
+            columns={columns}
+            dataSource={roles}
+            pagination={false}
+            scroll={{ x: "max-content", y: tableBodyHeight }}
+          />
+        </div>
       </Card>
     </div>
   );

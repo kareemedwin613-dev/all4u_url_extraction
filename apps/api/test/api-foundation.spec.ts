@@ -45,8 +45,16 @@ test("JD DTO rejects unknown-quality input and accepts bounded ingestion fields"
 test("JD read query DTO allowlists filters, sorting, and pagination", async () => {
   const valid=plainToInstance(JobDescriptionQueryDto,{search:"data",categoryId:"123e4567-e89b-42d3-a456-426614174000",capturedByUserId:"223e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:"2",pageSize:"25"});
   assert.equal((await validate(valid)).length,0);assert.equal(valid.page,2);
-  const invalid=plainToInstance(JobDescriptionQueryDto,{sort:"raw_sql",pageSize:"500",capturedFrom:"not-a-date",capturedByUserId:"not-a-user"});
+  const invalid=plainToInstance(JobDescriptionQueryDto,{sort:"raw_sql",pageSize:"999",capturedFrom:"not-a-date",capturedByUserId:"not-a-user"});
   assert.ok((await validate(invalid)).length>=2);
+});
+
+test("JD read query DTO accepts larger Job Descriptions page sizes", async () => {
+  for (const pageSize of ["100", "500", "1000"]) {
+    const value = plainToInstance(JobDescriptionQueryDto, { status: "ACTIVE", sort: "created_desc", pageSize });
+    assert.equal((await validate(value)).length, 0, `pageSize ${pageSize} should be allowed`);
+    assert.equal(value.pageSize, Number(pageSize));
+  }
 });
 
 test("request ID middleware accepts safe IDs and replaces unsafe values", () => {

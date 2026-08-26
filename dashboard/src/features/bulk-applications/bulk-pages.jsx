@@ -28,7 +28,12 @@ import {
   TabbedSections,
 } from "../../components/ui.jsx";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
-import { useDebouncedValue } from "../../shared/use-debounced-value.js";
+import {
+  firstFilterValue,
+  searchFilterIcon,
+  serverSideColumnFilter,
+  textSearchFilterDropdown,
+} from "../../shared/column-filters.jsx";
 import {
   clientSortColumns,
   serverSortColumns,
@@ -644,20 +649,12 @@ export function BulkCreatePage({
 
 export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
   const params = new URLSearchParams(query),
-    [searchInput, setSearchInput] = useState(params.get("search") || ""),
-    search = useDebouncedValue(searchInput, 300),
-    searchRef = useRef(search),
+    [search, setSearch] = useState(params.get("search") || ""),
     [status, setStatus] = useState(params.get("status") || ""),
     [sort, setSort] = useState(params.get("sort") || "created_desc"),
     [page, setPage] = useState(Math.max(1, Number(params.get("page")) || 1)),
     [data, setData] = useState(),
     [error, setError] = useState("");
-  useEffect(() => {
-    if (searchRef.current !== search) {
-      searchRef.current = search;
-      setPage(1);
-    }
-  }, [search]);
   useEffect(() => {
     let live = true;
     setData();
@@ -669,12 +666,36 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
       live = false;
     };
   }, [client, apiBaseUrl, search, status, sort, page, reload]);
+
+  const searchFiltered = search ? [search] : null;
+  const statusOptions = [
+    "PROCESSING",
+    "COMPLETED",
+    "COMPLETED_WITH_WARNINGS",
+    "FAILED",
+  ].map((value) => ({ value, text: formatLabel(value) }));
+
   const columns = serverSortColumns(
     [
+      {
+        title: "No",
+        key: "no",
+        width: 72,
+        sortable: false,
+        render: (_value, _row, index) => {
+          const size = data?.pageSize || 25;
+          const current = data?.page || page;
+          return (current - 1) * size + index + 1;
+        },
+      },
       {
         title: "Batch Name",
         dataIndex: "name",
         sortKey: "name",
+        filteredValue: searchFiltered,
+        ...serverSideColumnFilter,
+        filterDropdown: textSearchFilterDropdown("Search batch name"),
+        filterIcon: searchFilterIcon,
         render: (value, row) => (
           <a href={`#/application-batches/${row.id}`}>{value}</a>
         ),
@@ -712,49 +733,28 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
         title: "Status",
         dataIndex: "status",
         sortKey: "status",
+        filteredValue: status ? [status] : null,
+        filters: statusOptions,
+        filterMultiple: false,
+        ...serverSideColumnFilter,
         render: (value) => <StatusTag value={value} />,
       },
     ],
     sort,
   );
+
+  function clearFilters() {
+    setSearch("");
+    setStatus("");
+    setPage(1);
+  }
+
   return (
     <div className="page">
-      <FilterPanel activeCount={[search, status].filter(Boolean).length}>
-        <Space wrap>
-          <Input.Search
-            value={searchInput}
-            allowClear
-            placeholder="Search batch name"
-            onChange={(event) => setSearchInput(event.target.value)}
-            style={{ width: 280 }}
-          />
-          <Select
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
-            style={{ width: 240 }}
-            options={[
-              { value: "", label: "All Statuses" },
-              ...[
-                "PROCESSING",
-                "COMPLETED",
-                "COMPLETED_WITH_WARNINGS",
-                "FAILED",
-              ].map((value) => ({ value, label: formatLabel(value) })),
-            ]}
-          />
-        </Space>
-      </FilterPanel>
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
         <LoadingState />
-      ) : !data.items.length ? (
-        <Card>
-          <Empty description="No Application creation batches found." />
-        </Card>
       ) : (
         <Card>
           <Table
@@ -762,9 +762,28 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
             columns={columns}
             dataSource={data.items}
             pagination={false}
-            scroll={{ x: "max-content", y: "calc(100vh - 280px)" }}
-            onChange={(_pagination, _filters, sorter) => {
-              setSort(serverSortFromTable(sorter, "created_desc"));
+            scroll={{ x: "max-content", y: "calc(100vh - 240px)" }}
+            locale={{
+              emptyText: (
+                <Space direction="vertical" size="small" style={{ padding: 24 }}>
+                  <Text strong>No Application creation batches found.</Text>
+                  {(search || status) && (
+                    <Button onClick={clearFilters}>Clear filters</Button>
+                  )}
+                </Space>
+              ),
+            }}
+            onChange={(_pagination, tableFilters, sorter, extra) => {
+              if (extra?.action === "sort") {
+                setSort(serverSortFromTable(sorter, "created_desc"));
+                setPage(1);
+                return;
+              }
+              if (extra?.action && extra.action !== "filter") return;
+              const nextSearch = firstFilterValue(tableFilters, "name", search);
+              const nextStatus = firstFilterValue(tableFilters, "status", "");
+              setSearch(nextSearch);
+              setStatus(nextStatus);
               setPage(1);
             }}
           />

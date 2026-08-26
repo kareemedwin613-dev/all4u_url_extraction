@@ -36,6 +36,7 @@ export class ApplicationBatchesService {
     const batchName = String(body.batchName || "").trim();
     const hash = createHash("sha256").update(JSON.stringify({ batchName, combinations: normalized })).digest("hex");
     const raw: any = await timeout(this.repository.rpc(user, "create_applications_bulk_api", { p_combinations: normalized, p_batch_name: batchName || null, p_idempotency_key: idempotencyKey, p_request_hash: hash }, "The bulk Applications could not be created."), 30_000);
+    if (!raw || typeof raw !== "object") throw new ApiException("DATABASE_ERROR", "The bulk Applications could not be created.", HttpStatus.BAD_GATEWAY);
     const data = mapCreation(raw);
     this.logger.log("bulk.create.completed", { requestId, userId: user.id, requestedCombinationCount: pairs.length, batchId: data.batchId, createdCount: data.createdCount, duplicateCount: data.duplicateCount, skippedCount: data.skippedCount, failedCount: data.failedCount });
     return data;

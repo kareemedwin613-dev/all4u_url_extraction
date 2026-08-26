@@ -16,7 +16,7 @@ export class JobDescriptionQueryDto {
   @IsOptional() @IsDateString() capturedTo?: string;
   @IsOptional() @IsIn(JOB_SORTS) sort?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @IsIn([10, 25, 50]) pageSize?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @IsIn([10, 25, 50, 100, 500, 1000]) pageSize?: number;
 }
 
 export class JobCountQueryDto {

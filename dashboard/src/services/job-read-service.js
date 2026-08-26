@@ -22,7 +22,7 @@ export const reviewJob=async(client,apiBaseUrl,id,decision)=>(await authenticate
 export async function bulkReviewJobs(client,apiBaseUrl,{jobDescriptionIds,reviewStatus,declineReason,comment}={}){
   const ids=[...new Set((jobDescriptionIds||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
   if(!ids.length)throw{code:"VALIDATION_ERROR",message:"Select at least one Job Description.",retryable:false};
-  if(ids.length>100)throw{code:"VALIDATION_ERROR",message:"Select no more than 100 Job Descriptions.",retryable:false};
+  if(ids.length>1000)throw{code:"VALIDATION_ERROR",message:"Select no more than 1000 Job Descriptions.",retryable:false};
   return(await authenticatedApiRequest(client,{
     baseUrl:apiBaseUrl,
     path:"/api/v1/job-descriptions/bulk-review",
@@ -37,3 +37,4 @@ export async function bulkReviewJobs(client,apiBaseUrl,{jobDescriptionIds,review
   })).payload.data;
 }
 export const updateOwnJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/correction`,method:"PATCH",body})).payload.data;
+export const updateManagedJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/manager-edit`,method:"PATCH",body})).payload.data;

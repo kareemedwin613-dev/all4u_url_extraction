@@ -11,13 +11,13 @@ import "./styles/tailoring.css";
 import { App, ConfigurationError } from "./App.jsx";
 import { initializeSupabase } from "./services/supabase-client.js";
 import { dashboardTheme } from "./theme.js";
-import { APP_NOTIFICATION_CONFIG } from "./shared/notifications.js";
+import { APP_MESSAGE_CONFIG, APP_NOTIFICATION_CONFIG } from "./shared/notifications.js";
 
 const configured = initializeSupabase();
 createRoot(document.getElementById("app")).render(
   <React.StrictMode>
     <ConfigProvider theme={dashboardTheme}>
-      <AntApp notification={APP_NOTIFICATION_CONFIG}>
+      <AntApp message={APP_MESSAGE_CONFIG} notification={APP_NOTIFICATION_CONFIG}>
         {configured.error ? (
           <ConfigurationError message={configured.error.message} />
         ) : (

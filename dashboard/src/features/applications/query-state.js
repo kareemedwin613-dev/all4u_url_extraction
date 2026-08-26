@@ -3,7 +3,7 @@ const allowed=(value,items)=>items.includes(value)?value:"";
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,uuid=value=>UUID.test(String(value||""))?String(value):"";
 export function parseApplicationQuery(query=""){
   const p=new URLSearchParams(query),
-    pageSize=[25,50,100].includes(Number(p.get("pageSize")))?Number(p.get("pageSize")):25,
+    pageSize=[25,50,100,500,1000,5000].includes(Number(p.get("pageSize")))?Number(p.get("pageSize")):25,
     page=Math.max(1,Number(p.get("page"))||1);
   return {
     search:(p.get("search")||"").trim().slice(0,100),

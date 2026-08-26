@@ -1,5 +1,5 @@
-export const MAX_BULK_JDS=100;
-export const MAX_BULK_COMBINATIONS=2000;
+export const MAX_BULK_JDS=1000;
+export const MAX_BULK_COMBINATIONS=5000;
 export const BULK_PAGE_SIZES=Object.freeze([25,50,100]);
 
 export const pairKey=(jobDescriptionId,resumeId)=>`${jobDescriptionId}:${resumeId}`;

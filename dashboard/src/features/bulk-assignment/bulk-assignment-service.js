@@ -5,6 +5,9 @@ export const appliersApi={
   async getWorkloads(client,baseUrl,filters={}){return request(client,baseUrl,`/api/v1/appliers/workloads?${qs(filters)}`)},
   async getWorkloadSettings(client,baseUrl,id){return(await request(client,baseUrl,`/api/v1/appliers/${encodeURIComponent(id)}/workload-settings`)).data},
   async updateWorkloadSettings(client,baseUrl,id,value){return(await request(client,baseUrl,`/api/v1/appliers/${encodeURIComponent(id)}/workload-settings`,{method:"PATCH",body:value})).data},
+  async listResumeProfiles(client,baseUrl,id){return(await request(client,baseUrl,`/api/v1/appliers/${encodeURIComponent(id)}/resume-profiles`)).data},
+  async listResumeProfileOptions(client,baseUrl){return(await request(client,baseUrl,"/api/v1/appliers/resume-profile-options")).data},
+  async setResumeProfiles(client,baseUrl,id,resumeIds){return(await request(client,baseUrl,`/api/v1/appliers/${encodeURIComponent(id)}/resume-profiles`,{method:"PUT",body:{resumeIds}})).data},
 };
 export const bulkAssignmentApi={
   async preview(client,baseUrl,body){return(await request(client,baseUrl,"/api/v1/applications/bulk-assignment-preview",{method:"POST",body})).data},

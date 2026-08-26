@@ -284,7 +284,7 @@ export function LegacyTable({ headers, children }) {
       dataSource={rows}
       pagination={false}
       scroll={{ x: "max-content" }}
-      size="middle"
+      size="small"
     />
   );
 }

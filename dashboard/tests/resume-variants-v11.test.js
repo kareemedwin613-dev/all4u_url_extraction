@@ -7,14 +7,15 @@ const service=readFileSync(new URL("../../apps/api/src/resumes/resume.service.ts
 const applicationPage=readFileSync(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
 
 test("Resume dashboard identifies original Resumes by decimal number",()=>{
-  assert.match(app,/title: "Resume #"/);
-  assert.match(app,/dataIndex: "resume_number"/);
+  assert.match(app,/title: "No"/);
+  assert.match(app,/filters\.pageSize \|\| 25/);
   assert.match(app,/resume\.resume_name.*resume\.resume_number/s);
   assert.match(app,/\["Resume Type", formatLabel\(resume\.resume_type/);
+  assert.match(app,/\["Resume Number", resume\.resume_number/);
 });
 
 test("Resume list places Status after Updated",()=>{
-  const start=app.indexOf('title: "Resume #"');
+  const start=app.indexOf('title: "No"');
   const end=app.indexOf("filters.sort", start);
   assert.ok(start>=0 && end>start, "Resume list columns are defined");
   const list=app.slice(start, end);

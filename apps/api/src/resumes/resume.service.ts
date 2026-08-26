@@ -129,4 +129,10 @@ export class ResumeService{
     if(error)fail(error,"The banned company could not be removed.");
     return data;
   }
+
+  async applierProfile(user:AuthenticatedUser,id:string){
+    const{data,error}=await this.supabase.forUser(user.token).rpc("get_resume_applier_profile_v313",{p_resume_id:id});
+    if(error)fail(error,"The Applier profile for this Resume could not be loaded.");
+    return data||null;
+  }
 }

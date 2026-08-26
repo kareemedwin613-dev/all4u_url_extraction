@@ -32,16 +32,33 @@ export const mapResult = (row: any) => ({
   ...(row.created_at ? { createdAt: row.created_at } : {}),
 });
 
-export const mapCreation = (value: any) => ({
-  batchId: value.batchId,
-  batchName: value.batchName,
-  status: value.status,
-  selectedJdCount: number(value.selectedJdCount),
-  requestedCount: number(value.requestedCount),
-  createdCount: number(value.createdCount),
-  duplicateCount: number(value.duplicateCount),
-  skippedCount: number(value.skippedCount),
-  failedCount: number(value.failedCount),
-  replayed: Boolean(value.replayed),
-  results: (value.results || []).map(mapResult),
-});
+export const mapCreation = (value: any) => {
+  if (!value || typeof value !== "object") {
+    return {
+      batchId: null,
+      batchName: null,
+      status: "FAILED",
+      selectedJdCount: 0,
+      requestedCount: 0,
+      createdCount: 0,
+      duplicateCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      replayed: false,
+      results: [],
+    };
+  }
+  return {
+    batchId: value.batchId,
+    batchName: value.batchName,
+    status: value.status,
+    selectedJdCount: number(value.selectedJdCount),
+    requestedCount: number(value.requestedCount),
+    createdCount: number(value.createdCount),
+    duplicateCount: number(value.duplicateCount),
+    skippedCount: number(value.skippedCount),
+    failedCount: number(value.failedCount),
+    replayed: Boolean(value.replayed),
+    results: (value.results || []).map(mapResult),
+  };
+};

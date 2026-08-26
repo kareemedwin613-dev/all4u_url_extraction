@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   Alert,
+  App as AntApp,
   Avatar,
   Button,
   Card,
@@ -49,7 +50,7 @@ import { parseRoute } from "./router.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, bulkReviewJobs, reviewJob, setJobStatus, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import {
@@ -89,6 +90,7 @@ import {
 import { normalizeSearch, validateLogin, validateNewPassword, validatePasswordResetRequest, validateSignUp } from "./shared/validation.js";
 import { safeExternalUrl } from "./shared/url.js";
 import {
+  JOB_PAGE_SIZES,
   MIME_TYPES,
   PAGE_SIZES,
   SENIORITIES,
@@ -98,6 +100,7 @@ import {
   serverSortFromTable,
 } from "./shared/table-sorting.js";
 import { useTableBodyHeight } from "./shared/use-table-body-height.js";
+import { toastFromApp } from "./shared/notifications.js";
 import {
   AccessDeniedPage,
   AccessLoadErrorPage,
@@ -203,6 +206,7 @@ const NAV_ICONS = Object.freeze({
     "application-batches": <HistoryOutlined />,
     "assignment-batches": <HistoryOutlined />,
     "applier-workloads": <UserOutlined />,
+    "applier-directory": <UserOutlined />,
     "tailoring-jobs": <FileSearchOutlined />,
     "tailoring-batches": <HistoryOutlined />,
     jobs: <FileSearchOutlined />,
@@ -321,11 +325,7 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
         }}
       >
         <div className="brand" title="Resume JD Operations">
-          <span className="brand-full">
-            Resume JD
-            <br />
-            Operations
-          </span>
+          <span className="brand-full">Resume JD Operations</span>
           <span className="brand-compact" aria-hidden="true">
             RJ
           </span>
@@ -737,7 +737,7 @@ function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
 /** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
 const serverSideColumnFilter = { onFilter: () => true };
 
-function BusinessOverview({ client, apiBaseUrl, categories, reload, access, dateRange, dateLabel }) {
+function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateLabel }) {
   const [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
@@ -757,8 +757,6 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
     activeJobs = result.jobCounts.active,
     resumes = result.resumeCounts.total,
     activeResumes = result.resumeCounts.active,
-    recentJ = result.recentJobs,
-    recentR = result.recentResumes || [],
     showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE);
   return (
     <div className="page">
@@ -779,77 +777,28 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
           </Col>
         ))}
       </Row>
-      {!showApplierPerformance && <Card
-        title="Recent Job Descriptions"
-        extra={<a href="#/jobs">View all</a>}
-      >
-        {recentJ.length ? (
-          <Table
-            headers={[
-              "Company",
-              "Job Title",
-              "Category",
-              "Captured By",
-              "Status",
-              "Captured",
-            ]}
-          >
-            {recentJ.map((job) => (
-              <tr key={job.id}>
-                <td>{job.company}</td>
-                <td>
-                  <a href={`#/jobs/${job.id}`}>{job.job_title}</a>
-                </td>
-                <td>{categoryName(categories, job.category_id)}</td>
-                <td>{capturedBy(job)}</td>
-                <td>
-                  <Badge value={job.status} />
-                </td>
-                <td>{formatDate(job.created_at)}</td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Text type="secondary">
-            No job descriptions have been captured yet.
-          </Text>
-        )}
-      </Card>}
-      {showApplierPerformance ? <Row gutter={[16,16]}><Col xs={24} xl={12}><ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel}/></Col><Col xs={24} xl={12}><JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel}/></Col></Row> : <Card title="Recent Resumes" extra={<a href="#/resumes">View all</a>}>
-        {recentR.length ? (
-          <Table
-            headers={["Candidate", "Resume", "Category", "Status", "Updated"]}
-          >
-            {recentR.map((resume) => (
-              <tr key={resume.id}>
-                <td>{resume.candidate_name}</td>
-                <td>
-                  <a href={`#/resumes/${resume.id}`}>{resume.resume_name}</a>
-                </td>
-                <td>{categoryName(categories, resume.primary_category_id)}</td>
-                <td>
-                  <Badge value={resume.status} />
-                </td>
-                <td>{formatDate(resume.updated_at)}</td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Text type="secondary">No resumes have been uploaded yet.</Text>
-        )}
-      </Card>}
+      {showApplierPerformance ? (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} xl={12}>
+            <ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel} />
+          </Col>
+          <Col xs={24} xl={12}>
+            <JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel} />
+          </Col>
+        </Row>
+      ) : null}
     </div>
   );
 }
 
-function BusinessDashboard({ client, apiBaseUrl, categories, reload, access, period, dateRange }) {
+function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange }) {
   return (
     <>
       <div className="page application-overview">
         <Title level={1} tabIndex={-1}>Overview</Title>
         <ApplicationCountCards client={client} apiBaseUrl={apiBaseUrl} access={access} reload={reload} dateRange={dateRange} dateLabel={period.label} />
       </div>
-      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} categories={categories} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
+      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
     </>
   );
 }
@@ -864,17 +813,16 @@ function Jobs({
   selectedJobIds,
   onSelectedJobIdsChange,
 }) {
-  const filters = parseJobQuery(query),
+  const { message } = AntApp.useApp(),
+    toast = (type, content) => toastFromApp(message, type, content),
+    filters = parseJobQuery(query),
     [data, setData] = useState(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [exportBusy, setExportBusy] = useState(false),
-    [exportMessage, setExportMessage] = useState(""),
     [capturers, setCapturers] = useState([]),
     [capturerError, setCapturerError] = useState(""),
     [reviewBusy, setReviewBusy] = useState(false),
-    [reviewMessage, setReviewMessage] = useState(""),
-    [reviewMessageType, setReviewMessageType] = useState("info"),
     [reviewDialog, setReviewDialog] = useState(null),
     [reviewComment, setReviewComment] = useState(""),
     [declineReason, setDeclineReason] = useState("EXPIRED"),
@@ -934,7 +882,6 @@ function Jobs({
   async function submitBulkReview(nextStatus, reason = null, comment = "") {
     if (!selectedJobIds.length) return;
     setReviewBusy(true);
-    setReviewMessage("");
     try {
       const result = await bulkReviewJobs(client, apiBaseUrl, {
         jobDescriptionIds: selectedJobIds,
@@ -947,8 +894,8 @@ function Jobs({
       setDeclineReason("EXPIRED");
       clearJobSelection();
       setListReload((value) => value + 1);
-      setReviewMessageType(result.failed ? "warning" : "success");
-      setReviewMessage(
+      toast(
+        result.failed ? "warning" : "success",
         result.failed
           ? `Updated ${result.succeeded} of ${result.total} Job Descriptions. ${result.failed} could not be updated.`
           : nextStatus === "APPROVED"
@@ -960,8 +907,7 @@ function Jobs({
                 : `Updated review status for ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`,
       );
     } catch (value) {
-      setReviewMessageType("error");
-      setReviewMessage(value.message || "Bulk review could not be completed.");
+      toast("error", value.message || "Bulk review could not be completed.");
     } finally {
       setReviewBusy(false);
     }
@@ -1170,11 +1116,11 @@ function Jobs({
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   async function downloadExcel() {
     setExportBusy(true);
-    setExportMessage("");
     try {
       await exportFilteredJobsExcel(client, apiBaseUrl, filters);
+      toast("success", "Excel download started.");
     } catch (value) {
-      setExportMessage(value.message || "Job Descriptions could not be exported.");
+      toast("error", value.message || "Job Descriptions could not be exported.");
     } finally {
       setExportBusy(false);
     }
@@ -1258,16 +1204,12 @@ function Jobs({
           message={`Select no more than ${MAX_BULK_JDS} job descriptions.`}
         />
       )}
-      {reviewMessage && (
-        <Alert type={reviewMessageType} showIcon message={reviewMessage} style={{ marginBottom: 12 }} />
-      )}
-      {exportMessage && (
-        <Alert type="error" showIcon message={exportMessage} />
-      )}
       {capturerError && (
         <Alert
           type="warning"
           showIcon
+          closable
+          onClose={() => setCapturerError("")}
           message="Captured-by options could not be loaded."
           description={capturerError}
         />
@@ -1385,7 +1327,7 @@ function Jobs({
           </div>
           <Pagination
             data={data}
-            pageSizeOptions={PAGE_SIZES}
+            pageSizeOptions={JOB_PAGE_SIZES}
             onPage={(page, pageSize) => {
               const nextSize = pageSize || filters.pageSize;
               update({
@@ -1465,17 +1407,17 @@ function pickResumeSearch(tableFilters, currentSearch) {
 }
 
 function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
-  const filters = parseResumeQuery(query),
+  const { message } = AntApp.useApp(),
+    toast = (type, content) => toastFromApp(message, type, content),
+    filters = parseResumeQuery(query),
     [data, setData] = useState(null),
     [error, setError] = useState(""),
-    [coverMessage, setCoverMessage] = useState(""),
     [coverBusyId, setCoverBusyId] = useState(""),
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   useEffect(() => {
     let live = true;
     setData(null);
     setError("");
-    setCoverMessage("");
     listResumes(client, apiBaseUrl, filters)
       .then((value) => live && setData(value))
       .catch((value) => live && setError(value.message));
@@ -1486,12 +1428,12 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
   async function openListCoverLetter(resume) {
     if (!resume?.cover_letter_storage_path) return;
     setCoverBusyId(resume.id);
-    setCoverMessage("");
     try {
       const url = await createCoverLetterSignedUrl(client, { id: resume.id, apiBaseUrl });
       window.open(url, "_blank", "noopener,noreferrer");
+      toast("success", "Cover Letter link opened. It expires shortly.");
     } catch (value) {
-      setCoverMessage(value.message);
+      toast("error", value.message);
     } finally {
       setCoverBusyId("");
     }
@@ -1506,10 +1448,12 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
         serverSortColumns(
           [
             {
-              title: "Resume #",
-              dataIndex: "resume_number",
-              sortKey: "number",
-              render: (value) => (value ? `#${value}` : "—"),
+              title: "No",
+              key: "no",
+              width: 64,
+              sortable: false,
+              render: (_value, _row, index) =>
+                ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,
             },
             {
               title: "Candidate",
@@ -1646,6 +1590,8 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
         coverBusyId,
         filters.categoryId,
         filters.mimeType,
+        filters.page,
+        filters.pageSize,
         filters.search,
         filters.seniority,
         filters.sort,
@@ -1655,7 +1601,6 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
     );
   return (
     <div className="page page-list">
-      {coverMessage && <Alert type="error" showIcon message={coverMessage} style={{ marginBottom: 16 }} />}
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
@@ -1721,11 +1666,11 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
 }
 
 function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
-  const [editForm] = Form.useForm();
+  const { message } = AntApp.useApp(),
+    toast = (type, content) => toastFromApp(message, type, content),
+    [editForm] = Form.useForm();
   const [job, setJob] = useState(),
     [error, setError] = useState(""),
-    [statusMessage, setStatusMessage] = useState(""),
-    [statusMessageType, setStatusMessageType] = useState("info"),
     [statusBusy, setStatusBusy] = useState(false),
     [editOpen, setEditOpen] = useState(false),
     [editBusy, setEditBusy] = useState(false),
@@ -1825,22 +1770,23 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     ];
   async function changeStatus(status) {
     setStatusBusy(true);
-    setStatusMessage("");
     try {
       const next = await setJobStatus(client, apiBaseUrl, job.id, status, status === "ARCHIVED" ? "NOT_APPLICABLE" : undefined);
       setJob((current) => ({ ...current, ...next }));
-      setStatusMessageType("success");
-      setStatusMessage(status === "ARCHIVED" ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications." : "URL restored to active review and new Application Workflows.");
+      toast(
+        "success",
+        status === "ARCHIVED"
+          ? "URL declined and archived. Its capture history remains, and it is excluded from new Applications."
+          : "URL restored to active review and new Application Workflows.",
+      );
     } catch (value) {
-      setStatusMessageType("error");
-      setStatusMessage(value.message);
+      toast("error", value.message);
     } finally {
       setStatusBusy(false);
     }
   }
   async function submitReview(nextStatus, reason = null, comment = "") {
     setReviewBusy(true);
-    setStatusMessage("");
     try {
       const next = await reviewJob(client, apiBaseUrl, job.id, {
         reviewStatus: nextStatus,
@@ -1851,8 +1797,8 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
       setReviewDialog(null);
       setReviewComment("");
       setDeclineReason("EXPIRED");
-      setStatusMessageType("success");
-      setStatusMessage(
+      toast(
+        "success",
         nextStatus === "APPROVED"
           ? "JD approved. It can be selected for new Applications."
           : nextStatus === "DECLINED"
@@ -1862,13 +1808,17 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
               : "Review Status updated.",
       );
     } catch (value) {
-      setStatusMessageType("error");
-      setStatusMessage(value.message);
+      toast("error", value.message);
     } finally {
       setReviewBusy(false);
     }
   }
-  const finderCanEdit = hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_EDIT_OWN) && job.user_id === access.userId && ["NEEDS_REVIEW", "NEEDS_CORRECTION"].includes(job.review_status);
+  const finderCanEdit = hasCapability(access, CAPABILITIES.JOB_DESCRIPTION_EDIT_OWN) && job.user_id === access.userId && ["NEEDS_REVIEW", "NEEDS_CORRECTION"].includes(job.review_status),
+    managerCanEdit =
+      canReview &&
+      job.status === "ACTIVE" &&
+      ["NEEDS_REVIEW", "NEEDS_CORRECTION"].includes(job.review_status),
+    canEditJd = finderCanEdit || managerCanEdit;
   function openEdit() {
     const skills = Array.isArray(job.detected_skills) ? job.detected_skills.join(", ") : "";
     editForm.setFieldsValue({
@@ -1885,7 +1835,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     try {
       const values = await editForm.validateFields();
       setEditBusy(true);
-      const next = await updateOwnJob(client, apiBaseUrl, job.id, {
+      const payload = {
         ...values,
         subcategoryId: values.subcategoryId || null,
         locationText: values.locationText || null,
@@ -1898,15 +1848,23 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
         salaryCurrency: job.salary_currency,
         salaryPeriod: job.salary_period,
         salaryText: values.salaryText || null,
-      });
+      };
+      const next = managerCanEdit
+        ? await updateManagedJob(client, apiBaseUrl, job.id, payload)
+        : await updateOwnJob(client, apiBaseUrl, job.id, payload);
       setJob((current) => ({ ...current, ...next }));
       setEditOpen(false);
-      setStatusMessageType("success");
-      setStatusMessage(job.review_status === "NEEDS_CORRECTION" ? "Correction saved. The JD remains in Needs Correction until a manager reviews it again." : "Changes saved. The JD remains in the review queue.");
+      toast(
+        "success",
+        managerCanEdit
+          ? "Changes saved. You can Approve this JD when ready."
+          : job.review_status === "NEEDS_CORRECTION"
+            ? "Correction saved. The JD remains in Needs Correction until a manager reviews it again."
+            : "Changes saved. The JD remains in the review queue.",
+      );
     } catch (value) {
       if (value?.errorFields) return;
-      setStatusMessageType("error");
-      setStatusMessage(value?.message || "The correction could not be saved.");
+      toast("error", value?.message || "The correction could not be saved.");
     } finally {
       setEditBusy(false);
     }
@@ -1927,13 +1885,16 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
         </div>
         <Space><Badge value={job.review_status} />{job.status === "ARCHIVED" && <Badge value={job.status} />}</Space>
       </div>
-      {statusMessage && <Alert type={statusMessageType} showIcon message={statusMessage} />}
       <TabbedSections
         items={tabs}
         extra={
           <Space wrap align="center" className="detail-action-group">
             {source ? <Button type="link" href={source} target="_blank" rel="noopener noreferrer">Open original posting</Button> : null}
-            {finderCanEdit && <Button type="primary" onClick={openEdit}>Edit my JD</Button>}
+            {canEditJd && (
+              <Button type={managerCanEdit ? "default" : "primary"} onClick={openEdit}>
+                {managerCanEdit ? "Edit JD" : "Edit my JD"}
+              </Button>
+            )}
             {canReview && (
               <>
                 <Button
@@ -2032,8 +1993,19 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
           />
         </div>
       </Modal>
-      <Modal open={editOpen} title="Edit Captured Job Description" width={760} okText="Save Changes" confirmLoading={editBusy} onOk={saveEdit} onCancel={() => !editBusy && setEditOpen(false)}>
-        <Alert type="info" showIcon message={job.review_status === "NEEDS_CORRECTION" ? "Correct the requested details. The manager's review comment and audit history will be preserved." : "You can edit this JD until it is approved or declined."} style={{ marginBottom: 16 }} />
+      <Modal open={editOpen} title={managerCanEdit ? "Edit Job Description" : "Edit Captured Job Description"} width={760} okText="Save Changes" confirmLoading={editBusy} onOk={saveEdit} onCancel={() => !editBusy && setEditOpen(false)}>
+        <Alert
+          type="info"
+          showIcon
+          message={
+            managerCanEdit
+              ? "Fix capture details here, then Approve when ready. Needs Correction remains available if you want the JD Finder to revise it instead."
+              : job.review_status === "NEEDS_CORRECTION"
+                ? "Correct the requested details. The manager's review comment and audit history will be preserved."
+                : "You can edit this JD until it is approved or declined."
+          }
+          style={{ marginBottom: 16 }}
+        />
         <Form form={editForm} layout="vertical">
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Item name="company" label="Company" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
@@ -2154,10 +2126,10 @@ function ResumeBannedCompaniesCard({ client, apiBaseUrl, resumeId, canManage, is
 }
 
 function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access }) {
-  const [resume, setResume] = useState(),
+  const { message } = AntApp.useApp(),
+    toast = (type, content) => toastFromApp(message, type, content),
+    [resume, setResume] = useState(),
     [error, setError] = useState(""),
-    [fileMessage, setFileMessage] = useState(""),
-    [statusMessage, setStatusMessage] = useState(""),
     [statusBusy, setStatusBusy] = useState(false),
     [coverBusy, setCoverBusy] = useState(false),
     coverInputRef = useRef(null);
@@ -2176,23 +2148,21 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     isOriginal = resume.resume_type === "ORIGINAL",
     hasCoverLetter = Boolean(resume.cover_letter_storage_path);
   async function open() {
-    setFileMessage("Generating a secure link…");
     try {
       const url = await createResumeSignedUrl(client, {id:resume.id,apiBaseUrl});
       window.open(url, "_blank", "noopener,noreferrer");
-      setFileMessage("Secure link opened. It expires shortly.");
+      toast("success", "Secure link opened. It expires shortly.");
     } catch (value) {
-      setFileMessage(value.message);
+      toast("error", value.message);
     }
   }
   async function openCoverLetter() {
-    setFileMessage("Generating a secure cover letter link…");
     try {
       const url = await createCoverLetterSignedUrl(client, { id: resume.id, apiBaseUrl });
       window.open(url, "_blank", "noopener,noreferrer");
-      setFileMessage("Cover Letter link opened. It expires shortly.");
+      toast("success", "Cover Letter link opened. It expires shortly.");
     } catch (value) {
-      setFileMessage(value.message);
+      toast("error", value.message);
     }
   }
   async function onCoverLetterSelected(event) {
@@ -2200,39 +2170,41 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     event.target.value = "";
     if (!file) return;
     setCoverBusy(true);
-    setFileMessage("");
     try {
       const next = await uploadResumeCoverLetter(client, { id: resume.id, apiBaseUrl, file });
       setResume((current) => ({ ...current, ...next }));
-      setFileMessage(hasCoverLetter ? "Cover Letter replaced." : "Cover Letter uploaded.");
+      toast("success", hasCoverLetter ? "Cover Letter replaced." : "Cover Letter uploaded.");
     } catch (value) {
-      setFileMessage(value.message);
+      toast("error", value.message);
     } finally {
       setCoverBusy(false);
     }
   }
   async function removeCoverLetter() {
     setCoverBusy(true);
-    setFileMessage("");
     try {
       const next = await removeResumeCoverLetter(client, { id: resume.id, apiBaseUrl });
       setResume((current) => ({ ...current, ...next }));
-      setFileMessage("Cover Letter removed.");
+      toast("success", "Cover Letter removed.");
     } catch (value) {
-      setFileMessage(value.message);
+      toast("error", value.message);
     } finally {
       setCoverBusy(false);
     }
   }
   async function changeStatus(status) {
     setStatusBusy(true);
-    setStatusMessage("");
     try {
       const next = await setResumeStatus(client, apiBaseUrl, resume.id, status);
       setResume((current) => ({ ...current, ...next }));
-      setStatusMessage(status === "ARCHIVED" ? "Resume archived. It is now retained as history and excluded from new work." : "Resume restored and available for new work.");
+      toast(
+        "success",
+        status === "ARCHIVED"
+          ? "Resume archived. It is now retained as history and excluded from new work."
+          : "Resume restored and available for new work.",
+      );
     } catch (value) {
-      setStatusMessage(value.message);
+      toast("error", value.message);
     } finally {
       setStatusBusy(false);
     }
@@ -2339,8 +2311,6 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
         </div>
         <Badge value={resume.status} />
       </div>
-      {fileMessage && <Alert type="info" showIcon message={fileMessage} />}
-      {statusMessage && <Alert type="info" showIcon message={statusMessage} />}
       <input
         ref={coverInputRef}
         type="file"
@@ -2611,7 +2581,7 @@ export function App({ client, apiBaseUrl }) {
     );
   else if (route.name === "overview")
     page = hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? (
-      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} categories={categories} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} />
+      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} />
     ) : (
       <TechnicalOverview access={access} />
     );
@@ -2661,6 +2631,8 @@ export function App({ client, apiBaseUrl }) {
     page = <AssignmentBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "applier-workloads")
     page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "applier-directory" || route.name === "users-directory")
+    page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "tailoring-jobs")
     page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "tailoring-job-detail")
@@ -2669,8 +2641,6 @@ export function App({ client, apiBaseUrl }) {
     page = <TailoringBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "tailoring-batch-detail")
     page = <TailoringBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
-  else if (route.name === "users-directory")
-    page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "jobs")
     page = (
       <Jobs
