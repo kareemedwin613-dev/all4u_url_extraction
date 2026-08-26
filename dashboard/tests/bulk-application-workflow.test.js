@@ -48,6 +48,10 @@ test("batch detail and paginated outcomes use separate backend reads",async()=>{
 test("bulk pages use Ant Design, original Resume scope, disabled exclusions, confirmation, and guarded double submission",async()=>{
   const source=await readFile(new URL("../src/features/bulk-applications/bulk-pages.jsx",import.meta.url),"utf8");
   for(const text of ["PreviewSummary","Select Resumes","Only active original Resumes","selectedResumeIds","resumeType === \"ORIGINAL\"","Select all eligible","Select visible eligible","Clear visible selection","Clear all selection","getCheckboxProps","disabled","modal.confirm","Defaults:","submitLock.current","ApplicationBatchesPage","ApplicationBatchDetailPage"])assert.match(source,new RegExp(text));
+  const batches=source.slice(source.indexOf("export function ApplicationBatchesPage"),source.indexOf("export function ApplicationBatchDetailPage"));
+  assert.match(batches,/textSearchFilterDropdown\("Search batch name"\)/);
+  assert.match(batches,/serverSideColumnFilter/);
+  assert.doesNotMatch(batches,/<FilterPanel/);
 });
 
 test("JD page exposes selection only behind the bulk capability",async()=>{const source=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");assert.match(source,/APPLICATION_BULK_MANAGE/);assert.match(source,/rowSelection=\{\s*canBulk\s*\?/);assert.match(source,/preserveSelectedRowKeys\s*:\s*true/);assert.match(source,/Create Applications/);});

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Button, Card, Checkbox, Col, Descriptions, Flex, Form, Input,
-  InputNumber, Modal, Progress, Radio, Result, Row, Select, Space, Statistic,
-  Steps, Switch, Table as AntTable, Tag, Typography,
+  InputNumber, Modal, Result, Row, Space, Statistic, Steps, Switch,
+  Table as AntTable, Tag, Typography,
 } from "antd";
 import { ErrorState, LoadingState, StatusTag } from "../../components/ui.jsx";
 import { formatDate } from "../../shared/formatters.js";
@@ -13,46 +13,11 @@ import {
 
 const { Title, Text } = Typography;
 const Table = (props) => <AntTable {...props} columns={clientSortColumns(props.columns)} />;
-const strategies = [
-  { value: "MANUAL", label: "Manual", description: "Choose an Applier for each Application." },
-  { value: "EVEN", label: "Even Distribution", description: "Balance projected active workload deterministically." },
-  { value: "CAPACITY_AWARE", label: "Capacity-aware", description: "Use the greatest remaining capacity first." },
-];
 const newKey = () => `assign-${crypto.randomUUID()}`;
-const eligible = (workload) => workload.isAvailable && workload.remainingCapacity > 0;
-
-function capacityState(proposals, workloads) {
-  const map = new Map(workloads.map((workload) => [workload.userId, { ...workload, count: 0, freed: 0 }]));
-  for (const proposal of proposals) {
-    if (proposal.currentAssigneeId && proposal.currentAssigneeId === proposal.proposedAssigneeId) continue;
-    if (proposal.currentAssigneeId) {
-      const previous = map.get(proposal.currentAssigneeId);
-      if (previous) previous.freed += 1;
-    }
-    const workload = map.get(proposal.proposedAssigneeId);
-    if (workload) workload.count += 1;
-  }
-  const summaries = [...map.values()]
-    .filter((workload) => workload.count || workload.freed)
-    .map((workload) => {
-      const projected = workload.activeApplicationCount - workload.freed + workload.count;
-      return {
-        ...workload,
-        projected,
-        valid: projected <= workload.maxActiveApplications,
-      };
-    });
-  return { summaries, valid: summaries.every((summary) => summary.valid) };
-}
 
 export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
   const ids = useMemo(() => parseAssignmentIds(query), [query]);
   const [step, setStep] = useState(0);
-  const [workloads, setWorkloads] = useState();
-  const [workloadSearch, setWorkloadSearch] = useState("");
-  const [selected, setSelected] = useState([]);
-  const [strategy, setStrategy] = useState("CAPACITY_AWARE");
-  const [manual, setManual] = useState({});
   const [preview, setPreview] = useState();
   const [proposals, setProposals] = useState([]);
   const [result, setResult] = useState();
@@ -62,31 +27,18 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
   const [batchName, setBatchName] = useState("");
   const keyRef = useRef();
 
-  useEffect(() => {
-    appliersApi.getWorkloads(client, apiBaseUrl, { limit: 100, search: workloadSearch })
-      .then((response) => setWorkloads(response.data))
-      .catch((failure) => setError(failure.message));
-  }, [client, apiBaseUrl, workloadSearch]);
-
-  const capacity = useMemo(() => capacityState(proposals, workloads || []), [proposals, workloads]);
-  const summaryFor = (row) => capacity.summaries.find((item) => item.userId === row.proposedAssigneeId);
-
   async function generate() {
     setBusy(true);
     setError("");
     try {
-      const assignments = ids.map((applicationId, index) => ({
-        applicationId,
-        assignedTo: manual[applicationId] || selected[index % selected.length],
-      }));
-      const body = strategy === "MANUAL"
-        ? { strategy, assignments }
-        : { strategy, applicationIds: ids, applierIds: selected };
-      const data = await bulkAssignmentApi.preview(client, apiBaseUrl, body);
+      const data = await bulkAssignmentApi.preview(client, apiBaseUrl, {
+        strategy: "PROFILE",
+        applicationIds: ids,
+      });
       setPreview(data);
       setProposals(data.proposals || []);
       keyRef.current = undefined;
-      setStep(3);
+      setStep(1);
     } catch (failure) {
       setError(failure.message);
     } finally {
@@ -94,23 +46,15 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
     }
   }
 
-  function changeAssignee(applicationId, userId) {
-    const workload = workloads.find((item) => item.userId === userId);
-    setProposals((rows) => rows.map((row) => row.applicationId === applicationId
-      ? { ...row, proposedAssigneeId: userId, proposedAssigneeName: workload.fullName }
-      : row));
-    keyRef.current = undefined;
-  }
-
   async function assign() {
-    if (!capacity.valid || !proposals.length || busy) return;
+    if (!proposals.length || busy) return;
     setBusy(true);
     setError("");
     try {
       keyRef.current ||= newKey();
       const data = await bulkAssignmentApi.assign(client, apiBaseUrl, {
         batchName: batchName || undefined,
-        strategy,
+        strategy: "PROFILE",
         assignments: proposals.map((proposal) => ({
           applicationId: proposal.applicationId,
           assignedTo: proposal.proposedAssigneeId,
@@ -118,7 +62,7 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
       }, keyRef.current);
       setResult(data);
       setConfirm(false);
-      setStep(4);
+      setStep(2);
     } catch (failure) {
       setError(failure.message);
       setConfirm(false);
@@ -127,30 +71,18 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
     }
   }
 
-  const workloadColumns = [
-    { title: "Applier", dataIndex: "fullName", render: (value, row) => <><Text strong>{value}</Text><br /><Text type="secondary">{row.email}</Text></> },
-    { title: "Available", dataIndex: "isAvailable", render: (value) => <Tag color={value ? "green" : "default"}>{value ? "Available" : "Unavailable"}</Tag> },
-    { title: "Active", dataIndex: "activeApplicationCount" },
-    { title: "Capacity", dataIndex: "maxActiveApplications" },
-    { title: "Remaining", dataIndex: "remainingCapacity", render: (value, row) => <Progress percent={Math.round(value / row.maxActiveApplications * 100)} size="small" format={() => value} /> },
-  ];
   const proposalColumns = [
     { title: "Application", dataIndex: "applicationId", render: (value) => <Text code>{value.slice(0, 8)}</Text> },
     { title: "Company", dataIndex: "company" },
     { title: "Job Title", dataIndex: "jobTitle" },
     { title: "Candidate", dataIndex: "candidateName" },
     { title: "Resume", dataIndex: "resumeName" },
-    { title: "Proposed Applier", dataIndex: "proposedAssigneeId", sortValue: (row) => row.proposedAssigneeName, render: (value, row) => <Select value={value} style={{ minWidth: 220 }} onChange={(next) => changeAssignee(row.applicationId, next)} options={(workloads || []).filter(eligible).map((workload) => ({ value: workload.userId, label: `${workload.fullName} (${workload.remainingCapacity} open)` }))} /> },
-    { title: "Current Workload", sortValue: (row) => summaryFor(row)?.activeApplicationCount ?? -1, render: (_, row) => summaryFor(row)?.activeApplicationCount ?? "—" },
-    { title: "Proposed Increase", sortValue: (row) => summaryFor(row)?.count ?? -1, render: (_, row) => summaryFor(row)?.count ?? "—" },
-    { title: "Final Workload", sortValue: (row) => summaryFor(row)?.projected ?? -1, render: (_, row) => summaryFor(row)?.projected ?? "—" },
-    { title: "Capacity", sortValue: (row) => summaryFor(row)?.maxActiveApplications ?? -1, render: (_, row) => summaryFor(row)?.maxActiveApplications ?? "—" },
-    { title: "Remaining", sortValue: (row) => { const summary = summaryFor(row); return summary ? summary.maxActiveApplications - summary.projected : -1; }, render: (_, row) => { const summary = summaryFor(row); return summary ? summary.maxActiveApplications - summary.projected : "—"; } },
+    { title: "Proposed Applier", dataIndex: "proposedAssigneeName" },
   ];
   const exclusionColumns = [
     { title: "Application", dataIndex: "applicationId", render: (value) => <Text code>{value?.slice(0, 8) || "—"}</Text> },
-    { title: "Code", dataIndex: "code", render: (value) => <Tag>{value}</Tag> },
-    { title: "Reason", dataIndex: "reason" },
+    { title: "Code", dataIndex: "code", render: (value) => <Tag color={value === "RESUME_PROFILE_MISSING" || value === "APPLIER_PROFILE_REQUIRED" || value === "APPLIER_RESUME_NOT_ALLOWED" ? "orange" : undefined}>{value}</Tag> },
+    { title: "Reason", dataIndex: "reason", render: (value, row) => value || (row.code === "RESUME_PROFILE_MISSING" ? "This Resume is not assigned to any Applier profile." : row.code === "APPLIER_PROFILE_REQUIRED" ? "Applier has no profiles." : row.code === "APPLIER_RESUME_NOT_ALLOWED" ? "Resume not assigned to this Applier." : "—") },
   ];
   const resultColumns = [
     { title: "Application", dataIndex: "applicationId", render: (value) => <Text code>{value?.slice(0, 8) || "—"}</Text> },
@@ -161,21 +93,106 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
   let content;
   if (!ids.length) {
     content = <Alert type="error" showIcon message="Select one or more Applications from the Applications page to assign or reassign." />;
-  } else if (!workloads) {
-    content = <LoadingState text="Loading Applier workloads…" />;
   } else if (step === 0) {
-    content = <Card><Space orientation="vertical" size="middle" style={{ width: "100%" }}><Statistic title="Selected Applications" value={ids.length} /><Alert type="info" showIcon message="Unassigned Applications can be assigned, and active assigned Applications can be moved to other Appliers. Completed or cancelled Applications are excluded." /><Button type="primary" onClick={() => setStep(1)}>Choose Appliers</Button></Space></Card>;
+    content = (
+      <Card>
+        <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+          <Statistic title="Selected Applications" value={ids.length} />
+          <Alert type="info" showIcon message="Each Application is assigned to the Applier who owns that Resume profile. Unassigned Applications can be assigned, and active assigned Applications can be moved when the profile Applier differs. Completed or cancelled Applications are excluded." />
+          <Button type="primary" loading={busy} onClick={generate}>Generate Preview</Button>
+        </Space>
+      </Card>
+    );
   } else if (step === 1) {
-    content = <Card><Input.Search allowClear placeholder="Search Appliers by name or email" onSearch={(value) => { setSelected([]); setWorkloadSearch(value.trim()); }} style={{ maxWidth: 420, marginBottom: 16 }} /><Table rowKey="userId" columns={workloadColumns} dataSource={workloads} pagination={false} rowSelection={{ selectedRowKeys: selected, onChange: setSelected, getCheckboxProps: (row) => ({ disabled: !eligible(row) }) }} /><Flex className="table-footer-actions" justify="space-between"><Button onClick={() => setStep(0)}>Back</Button><Button type="primary" disabled={!selected.length} onClick={() => setStep(2)}>Choose Distribution</Button></Flex></Card>;
-  } else if (step === 2) {
-    content = <Card><Radio.Group value={strategy} onChange={(event) => setStrategy(event.target.value)}><Space orientation="vertical">{strategies.map((item) => <Radio key={item.value} value={item.value}><Text strong>{item.label}</Text> — {item.description}</Radio>)}</Space></Radio.Group>{strategy === "MANUAL" && <div style={{ marginTop: 20 }}>{ids.map((id, index) => <Form.Item key={id} label={`Application ${id.slice(0, 8)}`}><Select value={manual[id] || selected[index % selected.length]} onChange={(value) => setManual((current) => ({ ...current, [id]: value }))} options={workloads.filter((workload) => selected.includes(workload.userId) && eligible(workload)).map((workload) => ({ value: workload.userId, label: workload.fullName }))} /></Form.Item>)}</div>}<Flex className="table-footer-actions" justify="space-between"><Button onClick={() => setStep(1)}>Back</Button><Button type="primary" loading={busy} onClick={generate}>Generate Preview</Button></Flex></Card>;
-  } else if (step === 3) {
-    content = <><Row gutter={16}>{[["Assignable", proposals.length], ["Excluded", preview?.excludedApplicationCount || 0], ["Appliers", capacity.summaries.length]].map(([title, value]) => <Col span={8} key={title}><Card><Statistic title={title} value={value} /></Card></Col>)}</Row>{!capacity.valid && <Alert type="error" showIcon message="One or more adjusted assignments exceeds capacity." />}<Card title="Proposed Assignments"><Table rowKey="applicationId" columns={proposalColumns} dataSource={proposals} pagination={{ pageSize: 25 }} scroll={{ x: "max-content" }} /></Card>{preview?.excludedApplications?.length > 0 && <Card title="Excluded Applications"><Table rowKey="applicationId" columns={exclusionColumns} dataSource={preview.excludedApplications} pagination={{ pageSize: 10 }} /></Card>}<Card title="Projected Workload">{capacity.summaries.map((summary) => <div key={summary.userId}><Flex justify="space-between"><Text>{summary.fullName}: {summary.count ? `+${summary.count}` : "±0"}{summary.freed ? ` · −${summary.freed}` : ""}</Text><Text type={summary.valid ? undefined : "danger"}>{summary.projected}/{summary.maxActiveApplications}</Text></Flex><Progress percent={Math.min(100, Math.round(summary.projected / summary.maxActiveApplications * 100))} status={summary.valid ? "normal" : "exception"} /></div>)}</Card><Flex className="table-footer-actions" justify="space-between"><Button onClick={() => setStep(2)}>Back</Button><Button type="primary" disabled={!proposals.length || !capacity.valid} onClick={() => setConfirm(true)}>Confirm Assignment</Button></Flex></>;
+    const profileExclusions = (preview?.excludedApplications || []).filter((row) =>
+      row.code === "RESUME_PROFILE_MISSING" || row.code === "APPLIER_PROFILE_REQUIRED" || row.code === "APPLIER_RESUME_NOT_ALLOWED");
+    content = (
+      <>
+        <Row gutter={16}>
+          {[["Assignable", proposals.length], ["Excluded", preview?.excludedApplicationCount || 0], ["Appliers", preview?.selectedApplierCount || 0]].map(([title, value]) => (
+            <Col span={8} key={title}><Card><Statistic title={title} value={value} /></Card></Col>
+          ))}
+        </Row>
+        {profileExclusions.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16, marginTop: 16 }}
+            message={`${profileExclusions.length} Application${profileExclusions.length === 1 ? "" : "s"} excluded because the Resume has no Applier profile, or the mapped Applier cannot receive it.`}
+          />
+        )}
+        <Card title="Proposed Assignments" style={{ marginTop: 16 }}>
+          <Table rowKey="applicationId" columns={proposalColumns} dataSource={proposals} pagination={{ pageSize: 25 }} scroll={{ x: "max-content" }} />
+        </Card>
+        {preview?.excludedApplications?.length > 0 && (
+          <Card title="Excluded Applications">
+            <Table rowKey="applicationId" columns={exclusionColumns} dataSource={preview.excludedApplications} pagination={{ pageSize: 10 }} />
+          </Card>
+        )}
+        {(preview?.applierSummaries || []).length > 0 && (
+          <Card title="Projected Workload">
+            {(preview.applierSummaries || []).filter((summary) => summary.proposedCount).map((summary) => (
+              <Flex key={summary.userId} justify="space-between" style={{ marginBottom: 8 }}>
+                <Text>{summary.fullName}: +{summary.proposedCount}</Text>
+                <Text>{summary.projectedWorkload}/{summary.maxCapacity}</Text>
+              </Flex>
+            ))}
+          </Card>
+        )}
+        <Flex className="table-footer-actions" justify="space-between">
+          <Button onClick={() => setStep(0)}>Back</Button>
+          <Button type="primary" disabled={!proposals.length} onClick={() => setConfirm(true)}>Confirm Assignment</Button>
+        </Flex>
+      </>
+    );
   } else {
-    content = <><Result status={result?.failedCount || result?.skippedCount ? "warning" : "success"} title={`${result?.assignedCount || 0} Applications assigned`} subTitle={`${result?.skippedCount || 0} skipped · ${result?.failedCount || 0} failed`} extra={[<Button key="batch" href={`#/assignment-batches/${result?.batchId}`}>View Assignment Batch</Button>, <Button key="apps" type="primary" href="#/applications?status=ASSIGNED">Back to Applications</Button>]} /><Card title="Assignment Results"><Table rowKey="id" columns={resultColumns} dataSource={result?.results || []} pagination={{ pageSize: 25 }} /></Card></>;
+    content = (
+      <>
+        <Result
+          status={result?.failedCount || result?.skippedCount ? "warning" : "success"}
+          title={`${result?.assignedCount || 0} Applications assigned`}
+          subTitle={`${result?.skippedCount || 0} skipped · ${result?.failedCount || 0} failed`}
+          extra={[
+            <Button key="batch" href={`#/assignment-batches/${result?.batchId}`}>View Assignment Batch</Button>,
+            <Button key="apps" type="primary" href="#/applications?status=ASSIGNED">Back to Applications</Button>,
+          ]}
+        />
+        <Card title="Assignment Results">
+          <Table rowKey="id" columns={resultColumns} dataSource={result?.results || []} pagination={{ pageSize: 25 }} />
+        </Card>
+      </>
+    );
   }
 
-  return <div className="page"><Title level={1}>Bulk Assignment</Title><Steps current={step} items={["Applications", "Appliers", "Distribution", "Preview", "Result"].map((title) => ({ title }))} />{error && <ErrorState message={error} />}<div style={{ marginTop: 24 }}>{content}</div><Modal open={confirm} title="Confirm Bulk Assignment" okText={`Assign ${proposals.length} Applications`} confirmLoading={busy} okButtonProps={{ disabled: !capacity.valid }} onOk={assign} onCancel={() => !busy && setConfirm(false)}><Input value={batchName} maxLength={120} placeholder="Optional batch name" onChange={(event) => setBatchName(event.target.value)} /><Descriptions column={1} style={{ marginTop: 16 }} items={[{ key: "selected", label: "Applications Selected", children: ids.length }, { key: "assignable", label: "Applications Assignable", children: proposals.length }, { key: "excluded", label: "Applications Excluded", children: preview?.excludedApplicationCount || 0 }, { key: "appliers", label: "Appliers Selected", children: selected.length }, { key: "transition", label: "Effect", children: "Assign unassigned Applications and reassign active ones to the proposed Appliers" }]} />{capacity.summaries.map((summary) => <p key={summary.userId}>{summary.fullName}: {summary.count ? `+${summary.count}` : "no new"}{summary.freed ? ` · −${summary.freed} reassigned away` : ""} ({summary.projected}/{summary.maxActiveApplications})</p>)}</Modal></div>;
+  return (
+    <div className="page">
+      <Title level={1}>Bulk Assignment</Title>
+      <Steps current={step} items={["Applications", "Preview", "Result"].map((title) => ({ title }))} />
+      {error && <ErrorState message={error} />}
+      <div style={{ marginTop: 24 }}>{content}</div>
+      <Modal
+        open={confirm}
+        title="Confirm Bulk Assignment"
+        okText={`Assign ${proposals.length} Applications`}
+        confirmLoading={busy}
+        onOk={assign}
+        onCancel={() => !busy && setConfirm(false)}
+      >
+        <Input value={batchName} maxLength={120} placeholder="Optional batch name" onChange={(event) => setBatchName(event.target.value)} />
+        <Descriptions
+          column={1}
+          style={{ marginTop: 16 }}
+          items={[
+            { key: "selected", label: "Applications Selected", children: ids.length },
+            { key: "assignable", label: "Applications Assignable", children: proposals.length },
+            { key: "excluded", label: "Applications Excluded", children: preview?.excludedApplicationCount || 0 },
+            { key: "appliers", label: "Appliers Matched", children: preview?.selectedApplierCount || 0 },
+            { key: "transition", label: "Effect", children: "Assign each Application to the Applier who owns its Resume profile" },
+          ]}
+        />
+      </Modal>
+    </div>
+  );
 }
 
 export function ApplierWorkloadsPage({ client, apiBaseUrl }) {

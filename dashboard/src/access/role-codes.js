@@ -18,6 +18,19 @@ export const ROLE_LABELS = Object.freeze({
   ADMIN: "Admin",
 });
 
+export const ROLE_COLORS = Object.freeze({
+  APPLIER: "cyan",
+  APPLYING_MANAGER: "blue",
+  DEVELOPER: "geekblue",
+  DEVELOPMENT_MANAGER: "purple",
+  JD_FINDER: "orange",
+  ADMIN: "magenta",
+});
+
 export function roleLabel(code) {
   return ROLE_LABELS[String(code || "").toUpperCase()] || String(code || "Unknown role");
+}
+
+export function roleColor(code) {
+  return ROLE_COLORS[String(code || "").toUpperCase()] || "default";
 }

@@ -56,6 +56,7 @@ before(async () => {
       listBannedCompanies:async()=>[{id:"ban-1",companyName:"Google"}],
       addBannedCompany:async(_user:any,_id:string,companyName:string)=>({id:"ban-2",companyName}),
       removeBannedCompany:async()=>({id:"ban-1",companyName:"Google"}),
+      applierProfile:async()=>({applierUserId:"applier-1",displayName:"Khalid",resumeId:"resume-1"}),
       identity:async()=>[{id:"resume-1"}],checksum:async()=>({id:"resume-1"}),upload:async()=>({id:"resume-1"}),
       update:async()=>({id:"resume-1"}),rename:async(_user:any,_id:string,resumeName:string)=>({id:"resume-1",resume_name:resumeName}),status:async()=>({id:"resume-1",status:"ARCHIVED"}),
     })
@@ -83,10 +84,13 @@ before(async () => {
       workloads:async()=>({items:[{userId:"applier-1",remainingCapacity:5}],page:{nextCursor:null,pageSize:25,total:1}}),
       settings:async()=>({userId:"applier-1",isAvailable:true,maxActiveApplications:10}),
       updateSettings:async()=>({userId:"applier-1",isAvailable:false,maxActiveApplications:10}),
-      preview:async()=>({strategy:"EVEN",proposals:[{applicationId:"application-1",proposedAssigneeId:"applier-1"}],excludedApplications:[]}),
+      listResumeProfiles:async()=>[{resumeId:"resume-1",resumeName:"Derek"}],
+      listResumeProfileOptions:async()=>[{resumeId:"resume-1",resumeName:"Derek",ownerApplierUserId:null}],
+      setResumeProfiles:async(_user:any,_id:string,resumeIds:string[])=>resumeIds.map((resumeId)=>({resumeId})),
+      preview:async()=>({strategy:"PROFILE",proposals:[{applicationId:"application-1",proposedAssigneeId:"applier-1"}],excludedApplications:[]}),
       assign:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",assignedCount:1,skippedCount:0,failedCount:0,replayed:false}),
       batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),
-      batch:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",strategy:"EVEN"}),
+      batch:async()=>({id:"123e4567-e89b-42d3-a456-426614174000",strategy:"PROFILE"}),
       results:async()=>({items:[],page:{nextCursor:null,pageSize:25,total:0}}),
     })
     .overrideProvider(CandidateService).useValue({
@@ -236,6 +240,20 @@ test("Resume banned companies are readable while add and delete require a manage
   roles=["APPLYING_MANAGER"];
 });
 
+test("Applier resume profile allowlist routes are manager-only",async()=>{
+  const id="123e4567-e89b-42d3-a456-426614174000",resumeId="223e4567-e89b-42d3-a456-426614174000";
+  roles=["APPLIER"];
+  await request(app.getHttpServer()).get(`/api/v1/resumes/${resumeId}/applier-profile`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.displayName,"Khalid"));
+  await request(app.getHttpServer()).get("/api/v1/appliers/resume-profile-options").set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).get(`/api/v1/appliers/${id}/resume-profiles`).set("Authorization","Bearer token").expect(403);
+  await request(app.getHttpServer()).put(`/api/v1/appliers/${id}/resume-profiles`).set("Authorization","Bearer token").send({resumeIds:[resumeId]}).expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).get("/api/v1/appliers/resume-profile-options").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].resumeName,"Derek"));
+  await request(app.getHttpServer()).get(`/api/v1/appliers/${id}/resume-profiles`).set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data[0].resumeName,"Derek"));
+  await request(app.getHttpServer()).put(`/api/v1/appliers/${id}/resume-profiles`).set("Authorization","Bearer token").send({resumeIds:[resumeId]}).expect(200).expect(({body})=>assert.equal(body.data[0].resumeId,resumeId));
+  roles=["APPLYING_MANAGER"];
+});
+
 test("Application and bulk routes enforce roles and validate protected mutations",async()=>{
   const id="123e4567-e89b-42d3-a456-426614174000",resumeId="223e4567-e89b-42d3-a456-426614174000";
   roles=["APPLIER"];
@@ -320,13 +338,13 @@ test("v0.8 workload and bulk-assignment routes are manager-only and require idem
   const id="123e4567-e89b-42d3-a456-426614174000";
   roles=["APPLIER"];
   await request(app.getHttpServer()).get("/api/v1/appliers/workloads").set("Authorization","Bearer token").expect(403);
-  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assignment-preview").set("Authorization","Bearer token").send({strategy:"EVEN",applicationIds:[id],applierIds:[id]}).expect(403);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assignment-preview").set("Authorization","Bearer token").send({strategy:"PROFILE",applicationIds:[id]}).expect(403);
   roles=["APPLYING_MANAGER"];
   await request(app.getHttpServer()).get("/api/v1/appliers/workloads?limit=25").set("Authorization","Bearer token").expect(200).expect(({body})=>{assert.equal(body.data.length,1);assert.equal(body.page.total,1);});
   await request(app.getHttpServer()).patch(`/api/v1/appliers/${id}/workload-settings`).set("Authorization","Bearer token").send({isAvailable:false,maxActiveApplications:10}).expect(200);
-  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assignment-preview").set("Authorization","Bearer token").send({strategy:"EVEN",applicationIds:[id],applierIds:[id]}).expect(201);
-  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assign").set("Authorization","Bearer token").send({strategy:"EVEN",assignments:[{applicationId:id,assignedTo:id}]}).expect(400);
-  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assign").set("Authorization","Bearer token").set("Idempotency-Key","assign_test_123").send({strategy:"EVEN",assignments:[{applicationId:id,assignedTo:id}]}).expect(201);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assignment-preview").set("Authorization","Bearer token").send({strategy:"PROFILE",applicationIds:[id]}).expect(201);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assign").set("Authorization","Bearer token").send({strategy:"PROFILE",assignments:[{applicationId:id,assignedTo:id}]}).expect(400);
+  await request(app.getHttpServer()).post("/api/v1/applications/bulk-assign").set("Authorization","Bearer token").set("Idempotency-Key","assign_test_123").send({strategy:"PROFILE",assignments:[{applicationId:id,assignedTo:id}]}).expect(201);
   await request(app.getHttpServer()).get(`/api/v1/assignment-batches/${id}/results?limit=25`).set("Authorization","Bearer token").expect(200);
 });
 

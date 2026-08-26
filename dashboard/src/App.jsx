@@ -206,6 +206,7 @@ const NAV_ICONS = Object.freeze({
     "application-batches": <HistoryOutlined />,
     "assignment-batches": <HistoryOutlined />,
     "applier-workloads": <UserOutlined />,
+    "applier-directory": <UserOutlined />,
     "tailoring-jobs": <FileSearchOutlined />,
     "tailoring-batches": <HistoryOutlined />,
     jobs: <FileSearchOutlined />,
@@ -324,11 +325,7 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
         }}
       >
         <div className="brand" title="Resume JD Operations">
-          <span className="brand-full">
-            Resume JD
-            <br />
-            Operations
-          </span>
+          <span className="brand-full">Resume JD Operations</span>
           <span className="brand-compact" aria-hidden="true">
             RJ
           </span>
@@ -740,7 +737,7 @@ function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
 /** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
 const serverSideColumnFilter = { onFilter: () => true };
 
-function BusinessOverview({ client, apiBaseUrl, categories, reload, access, dateRange, dateLabel }) {
+function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateLabel }) {
   const [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
@@ -760,8 +757,6 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
     activeJobs = result.jobCounts.active,
     resumes = result.resumeCounts.total,
     activeResumes = result.resumeCounts.active,
-    recentJ = result.recentJobs,
-    recentR = result.recentResumes || [],
     showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE);
   return (
     <div className="page">
@@ -782,77 +777,28 @@ function BusinessOverview({ client, apiBaseUrl, categories, reload, access, date
           </Col>
         ))}
       </Row>
-      {!showApplierPerformance && <Card
-        title="Recent Job Descriptions"
-        extra={<a href="#/jobs">View all</a>}
-      >
-        {recentJ.length ? (
-          <Table
-            headers={[
-              "Company",
-              "Job Title",
-              "Category",
-              "Captured By",
-              "Status",
-              "Captured",
-            ]}
-          >
-            {recentJ.map((job) => (
-              <tr key={job.id}>
-                <td>{job.company}</td>
-                <td>
-                  <a href={`#/jobs/${job.id}`}>{job.job_title}</a>
-                </td>
-                <td>{categoryName(categories, job.category_id)}</td>
-                <td>{capturedBy(job)}</td>
-                <td>
-                  <Badge value={job.status} />
-                </td>
-                <td>{formatDate(job.created_at)}</td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Text type="secondary">
-            No job descriptions have been captured yet.
-          </Text>
-        )}
-      </Card>}
-      {showApplierPerformance ? <Row gutter={[16,16]}><Col xs={24} xl={12}><ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel}/></Col><Col xs={24} xl={12}><JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel}/></Col></Row> : <Card title="Recent Resumes" extra={<a href="#/resumes">View all</a>}>
-        {recentR.length ? (
-          <Table
-            headers={["Candidate", "Resume", "Category", "Status", "Updated"]}
-          >
-            {recentR.map((resume) => (
-              <tr key={resume.id}>
-                <td>{resume.candidate_name}</td>
-                <td>
-                  <a href={`#/resumes/${resume.id}`}>{resume.resume_name}</a>
-                </td>
-                <td>{categoryName(categories, resume.primary_category_id)}</td>
-                <td>
-                  <Badge value={resume.status} />
-                </td>
-                <td>{formatDate(resume.updated_at)}</td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Text type="secondary">No resumes have been uploaded yet.</Text>
-        )}
-      </Card>}
+      {showApplierPerformance ? (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} xl={12}>
+            <ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel} />
+          </Col>
+          <Col xs={24} xl={12}>
+            <JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel} />
+          </Col>
+        </Row>
+      ) : null}
     </div>
   );
 }
 
-function BusinessDashboard({ client, apiBaseUrl, categories, reload, access, period, dateRange }) {
+function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange }) {
   return (
     <>
       <div className="page application-overview">
         <Title level={1} tabIndex={-1}>Overview</Title>
         <ApplicationCountCards client={client} apiBaseUrl={apiBaseUrl} access={access} reload={reload} dateRange={dateRange} dateLabel={period.label} />
       </div>
-      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} categories={categories} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
+      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
     </>
   );
 }
@@ -1502,10 +1448,12 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
         serverSortColumns(
           [
             {
-              title: "Resume #",
-              dataIndex: "resume_number",
-              sortKey: "number",
-              render: (value) => (value ? `#${value}` : "—"),
+              title: "No",
+              key: "no",
+              width: 64,
+              sortable: false,
+              render: (_value, _row, index) =>
+                ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,
             },
             {
               title: "Candidate",
@@ -1642,6 +1590,8 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
         coverBusyId,
         filters.categoryId,
         filters.mimeType,
+        filters.page,
+        filters.pageSize,
         filters.search,
         filters.seniority,
         filters.sort,
@@ -2631,7 +2581,7 @@ export function App({ client, apiBaseUrl }) {
     );
   else if (route.name === "overview")
     page = hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? (
-      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} categories={categories} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} />
+      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} />
     ) : (
       <TechnicalOverview access={access} />
     );
@@ -2681,6 +2631,8 @@ export function App({ client, apiBaseUrl }) {
     page = <AssignmentBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "applier-workloads")
     page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "applier-directory" || route.name === "users-directory")
+    page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "tailoring-jobs")
     page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "tailoring-job-detail")
@@ -2689,8 +2641,6 @@ export function App({ client, apiBaseUrl }) {
     page = <TailoringBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "tailoring-batch-detail")
     page = <TailoringBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
-  else if (route.name === "users-directory")
-    page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "jobs")
     page = (
       <Jobs

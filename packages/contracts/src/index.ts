@@ -181,7 +181,9 @@ export interface ApplicationBatchDetail extends ApplicationBatchSummary {
 export interface ApplicationBatchResult extends BulkCreateRowResult { id: string; createdAt: string; }
 export interface CursorPage { nextCursor: string | null; pageSize: number; total?: number; }
 
-export type BulkAssignmentStrategy = "MANUAL" | "EVEN" | "CAPACITY_AWARE";
+export type BulkAssignmentStrategy = "PROFILE";
+/** Historical assignment batches may still show legacy strategy values. */
+export type AssignmentBatchStrategy = BulkAssignmentStrategy | "MANUAL" | "EVEN" | "CAPACITY_AWARE";
 export interface ApplierWorkload {
   userId: string; fullName: string; email: string; isAvailable: boolean;
   activeApplicationCount: number; maxActiveApplications: number; remainingCapacity: number;
@@ -194,7 +196,7 @@ export interface ApplierWorkloadSettings {
 export interface UpdateWorkloadSettingsRequest { isAvailable: boolean; maxActiveApplications: number; }
 export interface ManualAssignment { applicationId: string; assignedTo: string; }
 export interface BulkAssignmentPreviewRequest {
-  strategy: BulkAssignmentStrategy; applicationIds?: string[]; applierIds?: string[]; assignments?: ManualAssignment[];
+  strategy: BulkAssignmentStrategy; applicationIds: string[];
 }
 export interface AssignmentProposal {
   applicationId: string; company: string; jobTitle: string; candidateName?: string | null; resumeName: string;
@@ -219,13 +221,13 @@ export interface BulkAssignmentRowResult {
   outcome: BulkAssignmentOutcome; errorCode: string | null; message: string; createdAt: string;
 }
 export interface BulkAssignData {
-  batchId: string; batchName: string; strategy: BulkAssignmentStrategy; requestedCount: number;
+  batchId: string; batchName: string; strategy: AssignmentBatchStrategy; requestedCount: number;
   assignedCount: number; skippedCount: number; failedCount: number; status: string; replayed: boolean;
   results: BulkAssignmentRowResult[];
 }
 export interface BulkAssignResponse extends RequestMetadata { data: BulkAssignData; }
 export interface AssignmentBatchSummary {
-  id: string; name: string; strategy: BulkAssignmentStrategy; selectedApplicationCount: number;
+  id: string; name: string; strategy: AssignmentBatchStrategy; selectedApplicationCount: number;
   requestedCount: number; assignedCount: number; skippedCount: number; failedCount: number;
   status: string; createdBy: string; creatorName: string; createdAt: string; completedAt: string | null;
 }

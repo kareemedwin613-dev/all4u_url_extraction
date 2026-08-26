@@ -6,7 +6,7 @@ const trim = ({ value }: { value: unknown }) => typeof value === "string" ? valu
 export class BulkJobDescriptionReviewDto {
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(1000)
   @ArrayUnique()
   @IsUUID("4", { each: true })
   jobDescriptionIds!: string[];

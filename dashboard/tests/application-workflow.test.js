@@ -30,6 +30,10 @@ test("application query state is allowlisted and serializable",()=>{
   assert.equal(value.creationMode,"BULK");assert.equal(value.creationBatchId,id);
   assert.match(serializeApplicationQuery(value),/status=BLOCKED/);
   assert.equal(parseApplicationQuery("status=INJECTED").status,"");
+  for (const pageSize of [100, 500, 1000, 5000]) {
+    assert.equal(parseApplicationQuery(`pageSize=${pageSize}`).pageSize, pageSize);
+  }
+  assert.equal(parseApplicationQuery("pageSize=999").pageSize, 25);
 });
 
 test("application services use protected RPC contracts",async()=>{

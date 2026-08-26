@@ -4,8 +4,8 @@ import { ApiException } from "../common/errors/api.exception.js";
 import { SupabaseService } from "../supabase/supabase.service.js";
 
 const CODE_MAP: Record<string, { code: string; status: HttpStatus; message: string }> = {
-  BULK_JD_LIMIT: { code: "BULK_LIMIT_EXCEEDED", status: HttpStatus.BAD_REQUEST, message: "You can preview up to 100 job descriptions." },
-  BULK_COMBINATION_LIMIT: { code: "BULK_LIMIT_EXCEEDED", status: HttpStatus.BAD_REQUEST, message: "You can create up to 2,000 Applications at once." },
+  BULK_JD_LIMIT: { code: "BULK_LIMIT_EXCEEDED", status: HttpStatus.BAD_REQUEST, message: "You can preview up to 1000 job descriptions." },
+  BULK_COMBINATION_LIMIT: { code: "BULK_LIMIT_EXCEEDED", status: HttpStatus.BAD_REQUEST, message: "You can create up to 5,000 Applications at once." },
   BULK_NO_JDS: { code: "VALIDATION_ERROR", status: HttpStatus.BAD_REQUEST, message: "Select at least one job description." },
   BULK_NO_COMBINATIONS: { code: "NO_ELIGIBLE_COMBINATIONS", status: HttpStatus.BAD_REQUEST, message: "Select at least one eligible combination." },
   IDEMPOTENCY_CONFLICT: { code: "IDEMPOTENCY_CONFLICT", status: HttpStatus.CONFLICT, message: "This idempotency key was already used with a different request." },

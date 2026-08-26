@@ -124,7 +124,7 @@ export class JobDescriptionReadService {
   async bulkReview(user: AuthenticatedUser, ids: string[], reviewStatus: string, declineReason?: string, comment?: string) {
     const unique = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
     if (!unique.length) throw new ApiException("VALIDATION_ERROR", "Select at least one Job Description.", HttpStatus.BAD_REQUEST);
-    if (unique.length > 100) throw new ApiException("VALIDATION_ERROR", "Select no more than 100 Job Descriptions.", HttpStatus.BAD_REQUEST);
+    if (unique.length > 1000) throw new ApiException("VALIDATION_ERROR", "Select no more than 1000 Job Descriptions.", HttpStatus.BAD_REQUEST);
     const { data, error } = await this.supabase.forUser(user.token).rpc("bulk_review_job_descriptions_v311", {
       p_job_description_ids: unique,
       p_review_status: reviewStatus,

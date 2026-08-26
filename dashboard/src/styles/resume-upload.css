@@ -2,17 +2,21 @@
 .resume-upload-page{
   display:grid;
   gap:16px;
+  justify-items:stretch;
+  text-align:center;
 }
-.resume-upload-page>.back-link{margin:0}
+.resume-upload-page>.back-link{margin:0;justify-self:center}
 .resume-upload-page>.page-heading{margin:0}
 .resume-upload-page>.page-heading h1{margin:0!important}
 .resume-upload-page>.page-heading .ant-typography{margin:0}
-.resume-upload-page>.ant-alert{margin:0}
+.resume-upload-page>.ant-alert{margin:0;text-align:left}
 .resume-upload-form{
   display:grid;
   gap:16px;
   max-width:1100px;
-  margin:0;
+  width:100%;
+  margin:0 auto;
+  text-align:left;
 }
 .resume-upload-form>.ant-card,
 .resume-upload-form>.tabbed-page-card{margin:0}

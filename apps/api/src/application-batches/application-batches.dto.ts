@@ -2,7 +2,7 @@ import { Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from "class-validator";
 
 export class BulkPreviewDto {
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @IsUUID("4", { each: true })
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(1000) @IsUUID("4", { each: true })
   jobDescriptionIds!: string[];
 }
 
@@ -12,7 +12,7 @@ export class BulkCreatePairDto {
 }
 
 export class BulkCreateDto {
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(2000) @ValidateNested({ each: true }) @Type(() => BulkCreatePairDto)
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5000) @ValidateNested({ each: true }) @Type(() => BulkCreatePairDto)
   combinations!: BulkCreatePairDto[];
   @IsOptional() @IsString() @MaxLength(120) batchName?: string;
 }
