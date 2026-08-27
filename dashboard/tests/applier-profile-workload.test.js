@@ -6,12 +6,11 @@ import { normalizeApplierProfileWorkload } from "../src/features/overview/applie
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 test("Applier Overview shows My Profile Workload instead of manager performance charts", async () => {
-  const [app, chart, model, sql, sqlLatest, service, controller] = await Promise.all([
+  const [app, chart, model, sqlLatest, service, controller] = await Promise.all([
     read("../src/App.jsx"),
     read("../src/features/overview/applier-profile-workload-chart.jsx"),
     read("../src/features/overview/applier-profile-workload.js"),
-    read("../../supabase/migrations/202608270082_v3_22_applier_profile_workload_blocked.sql"),
-    read("../../supabase/migrations/202608270083_v3_23_admin_all_profile_workload.sql"),
+    read("../../supabase/migrations/202608270084_v3_24_applier_profile_workload_interview.sql"),
     read("../../apps/api/src/applications/application.service.ts"),
     read("../../apps/api/src/applications/application.controller.ts"),
   ]);
@@ -22,10 +21,11 @@ test("Applier Overview shows My Profile Workload instead of manager performance 
   assert.match(chart, /aria-label=\{`Search \$\{title\}/);
   assert.match(chart, /from "recharts"/);
   assert.match(chart, /BarChart/);
-  for (const label of ["Total", "Applied", "Pending", "Blocked"]) {
+  for (const label of ["Total", "Applied", "Pending", "Blocked", "Interview"]) {
     assert.match(model, new RegExp(label));
   }
-  assert.match(sql, /blocked_count/);
+  assert.match(sqlLatest, /interview_count/);
+  assert.match(sqlLatest, /INTERVIEW_SCHEDULED/);
   assert.match(sqlLatest, /v_admin boolean/);
   assert.match(sqlLatest, /v_admin or arp\.applier_user_id = auth\.uid\(\)/);
   assert.match(sqlLatest, /applier_name/);
@@ -45,6 +45,7 @@ test("normalizeApplierProfileWorkload maps overview rows for the profile chart",
       applied_count: 12,
       pending_count: 18,
       blocked_count: 4,
+      interview_count: 3,
     },
   ]);
   assert.deepEqual(row, {
@@ -56,5 +57,6 @@ test("normalizeApplierProfileWorkload maps overview rows for the profile chart",
     applied: 12,
     pending: 18,
     blocked: 4,
+    interview: 3,
   });
 });
