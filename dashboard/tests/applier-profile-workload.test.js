@@ -10,7 +10,7 @@ test("Applier Overview shows My Profile Workload instead of manager performance 
     read("../src/App.jsx"),
     read("../src/features/overview/applier-profile-workload-chart.jsx"),
     read("../src/features/overview/applier-profile-workload.js"),
-    read("../../supabase/migrations/202608270084_v3_24_applier_profile_workload_interview.sql"),
+    read("../../supabase/migrations/202608270086_v3_26_profile_workload_by_resume.sql"),
     read("../../apps/api/src/applications/application.service.ts"),
     read("../../apps/api/src/applications/application.controller.ts"),
   ]);
@@ -29,6 +29,7 @@ test("Applier Overview shows My Profile Workload instead of manager performance 
   assert.match(sqlLatest, /v_admin boolean/);
   assert.match(sqlLatest, /v_admin or arp\.applier_user_id = auth\.uid\(\)/);
   assert.match(sqlLatest, /applier_name/);
+  assert.doesNotMatch(sqlLatest, /a\.assigned_to = arp\.applier_user_id/);
   assert.match(service, /get_applier_resume_profile_workload_v31/);
   assert.match(controller, /profile-workload/);
   assert.match(controller, /RequireRoles\("APPLIER","ADMIN"\)/);
