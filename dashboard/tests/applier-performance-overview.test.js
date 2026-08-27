@@ -16,7 +16,6 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
   ]);
   assert.match(app, /showBusinessRecords = hasCapability\(access, CAPABILITIES\.USER_ADMIN\)/);
   assert.match(app, /showApplierPerformance = hasCapability\(access, CAPABILITIES\.APPLICATION_MANAGE\)/);
-  assert.match(app, /Applier & JD Finder Performance Review/);
   assert.match(app, /<Col xs=\{24\} xl=\{12\}>\s*<ApplierPerformanceChart/);
   assert.match(app, /<Col xs=\{24\} xl=\{12\}>\s*<JdFinderPerformanceChart/);
   assert.match(app, /dateLabel=\{dateLabel\}/);
@@ -38,7 +37,7 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
   assert.match(finder, /overview-chart-scroll/);
   assert.match(applier, /dataKey=\{metric\.key\}/);
   assert.match(finder, /dataKey=\{metric\.key\}/);
-  for (const label of ["Assigned", "Blocked", "Completed", "Applied", "completionRate"]) {
+  for (const label of ["Assigned", "Pending", "Blocked", "Completed", "Applied", "completionRate"]) {
     assert.match(applierModel, new RegExp(label));
   }
   assert.doesNotMatch(applierModel, /label: "Active"/);
@@ -57,6 +56,7 @@ test("normalizeApplierPerformance maps overview rows for the grouped bar chart",
       email: "alex@example.com",
       assigned_count: 4,
       active_count: 1,
+      pending_count: 1,
       blocked_count: 2,
       completed_count: 2,
       applied_count: 3,
@@ -69,6 +69,7 @@ test("normalizeApplierPerformance maps overview rows for the grouped bar chart",
     email: "alex@example.com",
     assigned: 4,
     active: 1,
+    pending: 1,
     blocked: 2,
     completed: 2,
     applied: 3,
@@ -139,13 +140,14 @@ test("normalizeJdFinderPerformance prefers display names over email-like finder 
 });
 
 test("role performance aggregation is set-based, bounded, role-gated, and status-aware", async () => {
-  const sql = await read("../../supabase/migrations/202608260079_v3_19_overview_applier_blocked_count.sql");
+  const sql = await read("../../supabase/migrations/202608270090_v3_30_overview_inactive_jd_finder_performance.sql");
   assert.match(sql, /get_business_overview_v30\(p_from timestamptz,p_to timestamptz\)/);
   assert.match(sql, /p_to-p_from>interval '370 days'/);
   assert.match(sql, /has_role\('APPLYING_MANAGER'\).*has_role\('ADMIN'\)/);
-  assert.match(sql, /r\.code='APPLIER'/);
-  assert.match(sql, /r\.code='JD_FINDER'/);
-  assert.match(sql, /p\.status='ACTIVE'and r\.active/);
+  assert.match(sql, /where r\.active and r\.code='APPLIER'/);
+  assert.match(sql, /where r\.active and r\.code='JD_FINDER'/);
+  assert.doesNotMatch(sql, /where p\.status='ACTIVE'and r\.active and r\.code='APPLIER'/);
+  assert.doesNotMatch(sql, /where p\.status='ACTIVE'and r\.active and r\.code='JD_FINDER'/);
   assert.match(sql, /left join public\.user_profiles up on up\.id=p\.id/);
   assert.match(sql, /nullif\(btrim\(up\.display_name\),''\)/);
   assert.match(sql, /position\('@' in btrim\(p\.full_name\)\)=0/);
@@ -155,6 +157,8 @@ test("role performance aggregation is set-based, bounded, role-gated, and status
   assert.match(sql, /left join public\.applications a on a\.assigned_to=p\.id/);
   assert.match(sql, /a\.status='BLOCKED'/);
   assert.match(sql, /blocked_count/);
+  assert.match(sql, /pending_count/);
+  assert.match(sql, /'ASSIGNED','IN_PROGRESS'/);
   assert.match(sql, /left join public\.job_descriptions j on j\.user_id=p\.id/);
   for (const status of ["APPROVED", "NEEDS_REVIEW", "NEEDS_CORRECTION", "DECLINED"]) {
     assert.match(sql, new RegExp(`review_status='${status}'`));

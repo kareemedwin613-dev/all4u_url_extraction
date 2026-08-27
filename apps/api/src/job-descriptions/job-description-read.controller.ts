@@ -10,6 +10,7 @@ import { JobDescriptionReadService } from "./job-description-read.service.js";
 import { JobDescriptionStatusDto } from "./job-description-status.dto.js";
 import { JobDescriptionReviewDto } from "./job-description-review.dto.js";
 import { BulkJobDescriptionReviewDto } from "./bulk-job-description-review.dto.js";
+import { BulkJobDescriptionDeleteDto } from "./bulk-job-description-delete.dto.js";
 import { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
 
 const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "JD_FINDER", "ADMIN"] as const;
@@ -38,6 +39,14 @@ export class JobDescriptionReadController {
   async bulkReview(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobDescriptionReviewDto)) body: BulkJobDescriptionReviewDto) {
     return {
       data: await this.jobs.bulkReview(request.user!, body.jobDescriptionIds, body.reviewStatus, body.declineReason, body.comment),
+      requestId: request.requestId,
+    };
+  }
+
+  @Post("bulk-delete") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Permanently delete job descriptions with no applications" })
+  async bulkDelete(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobDescriptionDeleteDto)) body: BulkJobDescriptionDeleteDto) {
+    return {
+      data: await this.jobs.bulkDelete(request.user!, body.jobDescriptionIds),
       requestId: request.requestId,
     };
   }

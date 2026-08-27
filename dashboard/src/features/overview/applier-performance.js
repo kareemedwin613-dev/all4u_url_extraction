@@ -2,6 +2,7 @@ import { personDisplayName } from "../../shared/person-name.js";
 
 export const APPLIER_PERFORMANCE_METRICS = Object.freeze([
   { key: "assigned", label: "Assigned", color: "#8c8c8c" },
+  { key: "pending", label: "Pending", color: "#1677ff" },
   { key: "blocked", label: "Blocked", color: "#ff4d4f" },
   { key: "completed", label: "Completed", color: "#52c41a" },
   { key: "applied", label: "Applied", color: "#722ed1" },
@@ -24,6 +25,7 @@ export function normalizeApplierPerformance(rows = []) {
       email,
       assigned: count(row.assigned_count),
       active: count(row.active_count),
+      pending: count(row.pending_count ?? row.pending),
       blocked: count(row.blocked_count),
       completed: count(row.completed_count),
       applied: count(row.applied_count),

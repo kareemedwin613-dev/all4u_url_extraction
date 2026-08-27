@@ -11,16 +11,8 @@ const { Text } = Typography;
 const STATUS_OPTIONS = [
   { value: "", label: "All Statuses" },
   { value: "ASSIGNED", label: "Assigned" },
-  { value: "IN_PROGRESS", label: "In Progress" },
   { value: "BLOCKED", label: "Blocked" },
   { value: "APPLIED", label: "Applied" },
-  { value: "SCREENING", label: "Screening" },
-  { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
-  { value: "OFFER_RECEIVED", label: "Offer Received" },
-  { value: "REJECTED", label: "Rejected" },
-  { value: "WITHDRAWN", label: "Withdrawn" },
-  { value: "CLOSED", label: "Closed" },
-  { value: "CANCELLED", label: "Cancelled" },
 ];
 
 export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }) {
