@@ -2,7 +2,6 @@ import { personDisplayName } from "../../shared/person-name.js";
 
 export const APPLIER_PERFORMANCE_METRICS = Object.freeze([
   { key: "assigned", label: "Assigned", color: "#8c8c8c" },
-  { key: "active", label: "Active", color: "#1677ff" },
   { key: "blocked", label: "Blocked", color: "#ff4d4f" },
   { key: "completed", label: "Completed", color: "#52c41a" },
   { key: "applied", label: "Applied", color: "#722ed1" },

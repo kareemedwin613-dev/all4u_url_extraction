@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, Card, Empty, Select, Space } from "antd";
+import { Button, Card, Empty, Select, Space, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { createApplicationExtensionSession, downloadApplicationResume, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
+
+const { Text } = Typography;
 
 const STATUS_OPTIONS = [
   { value: "", label: "All Statuses" },
@@ -25,6 +27,8 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
   const [status, setStatus] = useState("");
   const [resumeFilter, setResumeFilter] = useState("");
   const [items, setItems] = useState(null);
+  const [resumes, setResumes] = useState([]);
+  const [total, setTotal] = useState(0);
   const [editingApplication, setEditingApplication] = useState(null);
   const [extensionBusy, setExtensionBusy] = useState("");
 
@@ -49,9 +53,28 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     } finally { setExtensionBusy(""); }
   }
 
-  async function reload(nextStatus = status) {
+  async function reload({ nextStatus = status, nextResumeId = resumeFilter } = {}) {
     try {
-      setItems(await listMyApplications(client, backendBaseUrl, { status: nextStatus }));
+      // Status-scoped resume options come from the full matching set on the server.
+      // Items are limited to 100 after status (+ optional resume) filters.
+      let activeResumeId = nextResumeId;
+      let data = await listMyApplications(client, backendBaseUrl, {
+        status: nextStatus,
+        resumeId: "",
+      });
+      if (activeResumeId && !data.resumes.some((resume) => resume.id === activeResumeId)) {
+        activeResumeId = "";
+        setResumeFilter("");
+      }
+      if (activeResumeId) {
+        data = await listMyApplications(client, backendBaseUrl, {
+          status: nextStatus,
+          resumeId: activeResumeId,
+        });
+      }
+      setItems(data.items);
+      setResumes(data.resumes);
+      setTotal(data.total);
     } catch (error) {
       onError(error);
     }
@@ -72,14 +95,15 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const resumeOptions = useMemo(() => {
-    const names = [...new Set((items || []).map((application) => application.resume_name).filter(Boolean))].sort();
-    return [{ value: "", label: "All resumes" }, ...names.map((name) => ({ value: name, label: name }))];
-  }, [items]);
-
-  const filteredItems = useMemo(
-    () => (items || []).filter((application) => !resumeFilter || application.resume_name === resumeFilter),
-    [items, resumeFilter],
+  const resumeOptions = useMemo(
+    () => [
+      { value: "", label: "All resumes" },
+      ...resumes.map((resume) => ({
+        value: resume.id,
+        label: resume.resumeName || `Resume #${resume.resumeNumber || "?"}`,
+      })),
+    ],
+    [resumes],
   );
 
   return (
@@ -92,31 +116,44 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
             options={STATUS_OPTIONS}
             onChange={(value) => {
               setStatus(value);
-              reload(value);
+              setResumeFilter("");
+              reload({ nextStatus: value, nextResumeId: "" });
             }}
           />
           <Select
-            style={{ width: 200 }}
+            style={{ width: 220 }}
             value={resumeFilter}
             options={resumeOptions}
-            onChange={setResumeFilter}
+            onChange={(value) => {
+              setResumeFilter(value);
+              reload({ nextResumeId: value });
+            }}
             placeholder="Filter by resume"
+            showSearch
+            optionFilterProp="label"
           />
           <Button icon={<ReloadOutlined />} onClick={() => reload()}>
             Refresh
           </Button>
         </Space>
+        {items && total > items.length ? (
+          <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+            Showing {items.length} of {total} Applications for this Status{resumeFilter ? " + Resume" : ""} filter.
+          </Text>
+        ) : null}
       </Card>
-      {!items ? null : !filteredItems.length ? (
+      {!items ? null : !items.length ? (
         <Card>
           <Empty
             description={
-              items.length ? "No Applications match this resume filter." : "No Applications are currently assigned to you."
+              resumeFilter
+                ? "No Applications match this resume filter."
+                : "No Applications are currently assigned to you."
             }
           />
         </Card>
       ) : (
-        filteredItems.map((application) => (
+        items.map((application) => (
           <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} extensionBusy={extensionBusy} />
         ))
       )}

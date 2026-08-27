@@ -104,27 +104,25 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
   if (error) return <Notice message={error} error />;
   if (!data) return <LoadingState />;
   const manager = isApplicationManager(access),
+    isAdmin = access?.capabilities?.has("USER_ADMIN"),
     cards = manager
       ? [
           ["Total Applications", data.total],
           ["Unassigned", data.unassigned],
-          ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
-          ["Overdue", data.overdue],
+          ...(!isAdmin ? [["Overdue", data.overdue]] : []),
           [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ]
       : [
           ["My Assigned Applications", data.my_assigned],
-          ["Due Today", data.due_today],
-          ["In Progress", data.in_progress],
           ["Blocked", data.blocked],
           [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ];
   return (
     <section>
-      <Title level={2}>Application Workflow</Title>
+      {isAdmin ? <Title level={2}>Application Workflow</Title> : null}
       <Row gutter={[16, 16]} className="summary-grid application-counts">
         {cards.map(([label, value]) => (
           <Col xs={24} sm={12} lg={8} xl={6} key={label}>
@@ -826,7 +824,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
         />
       </Form.Item>
       <Form.Item
-        label="Application URL"
+        label="Confirmation URL"
         name="applicationUrl"
         rules={[
           { type: "url", warningOnly: true, message: "Enter a valid URL." },
@@ -1000,7 +998,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        Open Application URL
+                        Open Confirmation URL
                       </Button>
                     ) : null
                   }

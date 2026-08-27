@@ -47,9 +47,29 @@ function failure(error:any,fallback:string):never{
       hasNext:safePage<pageCount,
     };
   }
-  async mine(user:AuthenticatedUser,q:any){const data:any=await this.rpc(user,"list_my_applications_v17",{p_status:q.status||"",p_sort:q.sort||"updated_desc",p_limit:Math.min(Number(q.limit)||100,100)},"Your Applications could not be loaded.");return{...data,items:(data?.items||[]).map((x:any)=>this.normalized(x))};}
+  async mine(user:AuthenticatedUser,q:any){
+    const data:any=await this.rpc(user,"list_my_applications_v19",{
+      p_status:q.status||"",
+      p_sort:q.sort||"updated_desc",
+      p_limit:Math.min(Number(q.limit)||100,500),
+      p_resume_id:q.resumeId||null,
+    },"Your Applications could not be loaded.");
+    const resumes=(Array.isArray(data?.resumes)?data.resumes:[]).map((row:any)=>({
+      id:String(row?.id||row?.resumeId||row?.resume_id||""),
+      resumeName:String(row?.resumeName||row?.resume_name||"").trim(),
+      resumeNumber:Number(row?.resumeNumber||row?.resume_number)||null,
+    })).filter((row:any)=>row.id&&row.resumeName);
+    return{
+      ...data,
+      items:(data?.items||[]).map((x:any)=>this.normalized(x)),
+      resumes,
+      total:Number(data?.total)||0,
+      limit:Number(data?.limit)||Math.min(Number(q.limit)||100,500),
+    };
+  }
   async detail(u:AuthenticatedUser,id:string){const data:any=await this.rpc(u,"get_application_detail",{p_application_id:id},"The Application could not be loaded.");return{...data,application:this.normalized(data?.application)};}
   counts=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_application_counts_v29",{p_from:from,p_to:to},"Application counts could not be loaded.");
+  profileWorkload=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_applier_resume_profile_workload_v31",{p_from:from,p_to:to},"Profile workload could not be loaded.");
   appliers=(u:AuthenticatedUser,s="")=>this.rpc(u,"list_active_appliers",{p_search:s,p_limit:200},"Active Appliers could not be loaded.");
   jobs=(u:AuthenticatedUser,s="")=>this.rpc(u,"list_application_jobs",{p_search:s,p_limit:200},"Job descriptions could not be loaded.");
   async resumes(u:AuthenticatedUser,id:string,s=""){const rows:any[]=await this.rpc(u,"list_application_resumes",{p_job_description_id:id,p_search:s,p_limit:200},"Active Resumes could not be loaded.");return(rows||[]).filter(row=>String(row?.resume_type||row?.resumeType||"ORIGINAL")==="ORIGINAL");}
