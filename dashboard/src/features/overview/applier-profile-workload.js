@@ -5,6 +5,7 @@ export const APPLIER_PROFILE_WORKLOAD_METRICS = Object.freeze([
   { key: "applied", label: "Applied", color: "#722ed1" },
   { key: "pending", label: "Pending", color: "#1677ff" },
   { key: "blocked", label: "Blocked", color: "#ff4d4f" },
+  { key: "interview", label: "Interview", color: "#13c2c2" },
 ]);
 
 const count = (value) => Math.max(0, Number(value) || 0);
@@ -29,6 +30,7 @@ export function normalizeApplierProfileWorkload(rows = []) {
       applied: count(row.applied_count ?? row.applied),
       pending: count(row.pending_count ?? row.pending),
       blocked: count(row.blocked_count ?? row.blocked),
+      interview: count(row.interview_count ?? row.interview),
     };
   });
 }
