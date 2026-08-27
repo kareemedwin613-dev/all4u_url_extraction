@@ -69,13 +69,21 @@ export function ApplierDirectoryPage({ client, apiBaseUrl, reload }) {
   }
 
   const selectOptions = useMemo(() => (options || []).map((row) => {
-    const ownedByOther = row.ownerApplierUserId && row.ownerApplierUserId !== edit?.id;
+    const ownerId = row.ownerApplierUserId || row.owner_applier_user_id;
+    const ownerActive = row.ownerActive ?? row.owner_active;
+    const ownedByOther = Boolean(ownerId && ownerId !== edit?.id);
+    const lockedByActiveOther = ownedByOther && ownerActive !== false;
+    const ownerName = row.ownerDisplayName || row.owner_display_name || row.ownerEmail || row.owner_email || "another Applier";
+    let label = profileLabel(row);
+    if (lockedByActiveOther) {
+      label = `${label} (assigned to ${ownerName})`;
+    } else if (ownedByOther) {
+      label = `${label} (was assigned to ${ownerName} · inactive — will transfer)`;
+    }
     return {
-      value: row.resumeId,
-      disabled: ownedByOther,
-      label: ownedByOther
-        ? `${profileLabel(row)} (assigned to ${row.ownerDisplayName || row.ownerEmail || "another Applier"})`
-        : profileLabel(row),
+      value: row.resumeId || row.resume_id,
+      disabled: lockedByActiveOther,
+      label,
     };
   }), [options, edit?.id]);
 

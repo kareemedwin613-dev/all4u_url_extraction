@@ -6,6 +6,7 @@ import { appliersApi } from "../src/features/bulk-assignment/bulk-assignment-ser
 const directory = await readFile(new URL("../src/features/applications/applier-directory-page.jsx", import.meta.url), "utf8");
 const wizard = await readFile(new URL("../src/features/bulk-assignment/bulk-assignment-pages.jsx", import.meta.url), "utf8");
 const migration = await readFile(new URL("../../supabase/migrations/202608250073_v3_13_applier_resume_profiles.sql", import.meta.url), "utf8");
+const reclaim = await readFile(new URL("../../supabase/migrations/202608270085_v3_25_reclaim_inactive_applier_profiles.sql", import.meta.url), "utf8");
 const profileAssign = await readFile(new URL("../../supabase/migrations/202608250075_v3_15_profile_bulk_assignment.sql", import.meta.url), "utf8");
 
 test("applier directory manages exclusive resume profiles", () => {
@@ -14,7 +15,8 @@ test("applier directory manages exclusive resume profiles", () => {
   assert.match(directory, /This Applier cannot receive Applications until at least one profile is assigned/);
   assert.match(directory, /setResumeProfiles/);
   assert.match(directory, /listResumeProfileOptions/);
-  assert.match(directory, /ownedByOther/);
+  assert.match(directory, /lockedByActiveOther/);
+  assert.match(directory, /will transfer/);
 });
 
 test("bulk assignment preview surfaces profile mismatch exclusions", () => {
@@ -36,6 +38,12 @@ test("migration enforces exclusive unique resume mapping and assignment gates", 
   assert.match(profileAssign, /assign_applications_bulk_v08/);
 });
 
+test("inactive Applier profile mappings can be reclaimed by another Applier", () => {
+  assert.match(reclaim, /ownerActive/);
+  assert.match(reclaim, /v_owner_status = 'ACTIVE'/);
+  assert.match(reclaim, /p\.status is distinct from 'ACTIVE'/);
+  assert.match(reclaim, /delete from public\.applier_resume_profiles m/);
+});
 test("frontend APIs call Nest resume-profile routes", async () => {
   const paths = [];
   const client = { auth: { getSession: async () => ({ data: { session: { access_token: "jwt" } }, error: null }) } };
