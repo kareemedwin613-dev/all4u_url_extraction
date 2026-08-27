@@ -1,6 +1,8 @@
 .DS_Store
 node_modules/
 extension/dist/
+extension/*.rar
+*.rar
 dashboard/dist/
 apps/api/dist/
 apps/tailoring-worker/dist/
