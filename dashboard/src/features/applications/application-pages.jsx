@@ -108,16 +108,15 @@ export function ApplicationCountCards({ client, apiBaseUrl, access, reload, date
     cards = manager
       ? [
           ["Total Applications", data.total],
-          ["Unassigned", data.unassigned],
+          [`Applied · ${dateLabel}`, data.applied_today],
           ["Blocked", data.blocked],
           ...(!isAdmin ? [["Overdue", data.overdue]] : []),
-          [`Applied · ${dateLabel}`, data.applied_today],
           ["Interviews", data.interviews],
         ]
       : [
           ["My Assigned Applications", data.my_assigned],
-          ["Blocked", data.blocked],
           [`Applied · ${dateLabel}`, data.applied_today],
+          ["Blocked", data.blocked],
           ["Interviews", data.interviews],
         ];
   return (

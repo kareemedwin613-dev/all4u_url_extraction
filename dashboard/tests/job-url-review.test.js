@@ -20,3 +20,26 @@ test("declining a URL uses the protected backend review endpoint",async()=>{
   assert.equal(request.options.method,"PATCH");
   assert.deepEqual(JSON.parse(request.options.body),{status:"ARCHIVED",reason:"NOT_APPLICABLE"});
 });
+
+test("bulk delete calls the protected backend delete endpoint", async () => {
+  let request;
+  const originalFetch = globalThis.fetch;
+  const { bulkDeleteJobs } = await import("../src/services/job-read-service.js");
+  const id = "123e4567-e89b-42d3-a456-426614174000";
+  globalThis.fetch = async (url, options) => {
+    request = { url: String(url), options };
+    return new Response(
+      JSON.stringify({ data: { total: 1, succeeded: 1, failed: 0, results: [{ id, ok: true }] } }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  try {
+    const result = await bulkDeleteJobs(client, "https://api.example.com", { jobDescriptionIds: [id] });
+    assert.equal(result.succeeded, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(new URL(request.url).pathname, "/api/v1/job-descriptions/bulk-delete");
+  assert.equal(request.options.method, "POST");
+  assert.deepEqual(JSON.parse(request.options.body), { jobDescriptionIds: [id] });
+});

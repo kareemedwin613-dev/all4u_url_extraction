@@ -48,8 +48,11 @@ test("Jobs list exposes bulk review actions for managers", async () => {
   const source = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   assert.match(source, /Approve Selected/);
   assert.match(source, /Decline Selected/);
+  assert.match(source, /Delete Selected/);
   assert.match(source, /bulkReviewJobs/);
+  assert.match(source, /bulkDeleteJobs/);
   assert.match(source, /submitBulkReview/);
+  assert.match(source, /submitBulkDelete/);
   assert.match(source, /hasNeedsReviewSelected/);
   assert.match(source, /createApplicationsDisabled/);
   const api = await readFile(
@@ -57,14 +60,21 @@ test("Jobs list exposes bulk review actions for managers", async () => {
     "utf8",
   );
   assert.match(api, /Post\("bulk-review"\)/);
+  assert.match(api, /Post\("bulk-delete"\)/);
   const service = await readFile(
     new URL("../../apps/api/src/job-descriptions/job-description-read.service.ts", import.meta.url),
     "utf8",
   );
   assert.match(service, /bulk_review_job_descriptions_v311/);
+  assert.match(service, /bulk_delete_job_descriptions_v314/);
   const migration = await readFile(
     new URL("../../supabase/migrations/202608250071_v3_11_bulk_job_description_review.sql", import.meta.url),
     "utf8",
   );
   assert.match(migration, /bulk_review_job_descriptions_v311/);
+  const deleteMigration = await readFile(
+    new URL("../../supabase/migrations/202608270087_v3_27_bulk_delete_job_descriptions.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(deleteMigration, /JOB_HAS_APPLICATIONS/);
 });

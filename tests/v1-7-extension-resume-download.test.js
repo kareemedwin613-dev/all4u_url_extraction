@@ -45,6 +45,16 @@ test("My Applications resume options come from the status-scoped API payload",()
   assert.doesNotMatch(service,/supportsResumeFilter/);
 });
 
+test("My Applications status filter shows only core Applier workflow statuses", () => {
+  const view = read("../extension/sidepanel/views/MyApplicationsView.jsx");
+  for (const label of ["All Statuses", "Assigned", "Blocked", "Applied"]) {
+    assert.match(view, new RegExp(`label: "${label}"`));
+  }
+  for (const label of ["In Progress", "Screening", "Interview Scheduled", "Offer Received", "Rejected", "Withdrawn", "Closed", "Cancelled"]) {
+    assert.doesNotMatch(view, new RegExp(`label: "${label}"`));
+  }
+});
+
 test("download validates variant identity and delegates to Chrome download manager",async()=>{
   const originalFetch=globalThis.fetch,requests=[];
   globalThis.fetch=async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({data:{signedUrl:"https://project.supabase.co/storage/v1/object/sign/tailored-resumes/file",filename:"Tailored Resume.docx",resumeNumber:42,resumeType:"TAILORED",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",fileSizeBytes:1234}}),{status:200,headers:{"content-type":"application/json"}});};

@@ -1,4 +1,5 @@
 export const MAX_BULK_JDS=1000;
+export const MAX_OPEN_JOB_URLS=25;
 export const MAX_BULK_COMBINATIONS=5000;
 export const BULK_PAGE_SIZES=Object.freeze([25,50,100]);
 

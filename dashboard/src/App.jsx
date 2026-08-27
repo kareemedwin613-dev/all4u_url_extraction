@@ -34,6 +34,7 @@ import {
   FileSearchOutlined,
   HistoryOutlined,
   HomeOutlined,
+  LinkOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -50,7 +51,7 @@ import { parseRoute } from "./router.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import {
@@ -90,7 +91,7 @@ import {
   serializeQuery,
 } from "./shared/query-state.js";
 import { normalizeSearch, validateLogin, validateNewPassword, validatePasswordResetRequest, validateSignUp } from "./shared/validation.js";
-import { safeExternalUrl } from "./shared/url.js";
+import { openExternalUrls, safeExternalUrl } from "./shared/url.js";
 import {
   JOB_PAGE_SIZES,
   MIME_TYPES,
@@ -127,7 +128,7 @@ import {
   ApplicationBatchesPage,
   BulkCreatePage,
 } from "./features/bulk-applications/bulk-pages.jsx";
-import { MAX_BULK_JDS } from "./features/bulk-applications/bulk-state.js";
+import { MAX_BULK_JDS, MAX_OPEN_JOB_URLS } from "./features/bulk-applications/bulk-state.js";
 import { ApplierDirectoryPage } from "./features/applications/applier-directory-page.jsx";
 import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-page.jsx";
 import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage, BulkAssignmentWizardPage } from "./features/bulk-assignment/bulk-assignment-pages.jsx";
@@ -786,7 +787,6 @@ function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateL
       ) : null}
       {showApplierPerformance ? (
         <section>
-          <Title level={2}>Applier & JD Finder Performance Review</Title>
           <Row gutter={[16, 16]} className="summary-grid">
             <Col xs={24} xl={12}>
               <ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel} />
@@ -888,11 +888,13 @@ function Jobs({
     [capturers, setCapturers] = useState([]),
     [capturerError, setCapturerError] = useState(""),
     [reviewBusy, setReviewBusy] = useState(false),
+    [deleteBusy, setDeleteBusy] = useState(false),
+    [openUrlsBusy, setOpenUrlsBusy] = useState(false),
     [reviewDialog, setReviewDialog] = useState(null),
     [reviewComment, setReviewComment] = useState(""),
     [declineReason, setDeclineReason] = useState("EXPIRED"),
     [listReload, setListReload] = useState(0),
-    [selectedReviewById, setSelectedReviewById] = useState({}),
+    [selectedJobById, setSelectedJobById] = useState({}),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE),
     canReview = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
     canSelect = canBulk || canReview;
@@ -917,15 +919,21 @@ function Jobs({
   }, [client, apiBaseUrl, query, reload, listReload]);
   useEffect(() => {
     if (!selectedJobIds.length) {
-      setSelectedReviewById({});
+      setSelectedJobById({});
       return;
     }
-    setSelectedReviewById((prev) => {
+    setSelectedJobById((prev) => {
       const next = {};
       for (const id of selectedJobIds) {
         const fromPage = data?.items?.find((job) => job.id === id);
-        if (fromPage) next[id] = fromPage.review_status;
-        else if (prev[id] != null) next[id] = prev[id];
+        if (fromPage) {
+          next[id] = {
+            reviewStatus: fromPage.review_status,
+            sourceUrl: fromPage.source_url,
+          };
+        } else if (prev[id]) {
+          next[id] = prev[id];
+        }
       }
       return next;
     });
@@ -942,7 +950,68 @@ function Jobs({
   }, [client, apiBaseUrl, reload]);
   function clearJobSelection() {
     onSelectedJobIdsChange([]);
-    setSelectedReviewById({});
+    setSelectedJobById({});
+  }
+  function rememberSelectedJobs(rows = []) {
+    if (!rows.length) return;
+    setSelectedJobById((prev) => {
+      const next = { ...prev };
+      for (const row of rows) {
+        if (!row?.id) continue;
+        next[row.id] = {
+          reviewStatus: row.review_status,
+          sourceUrl: row.source_url,
+        };
+      }
+      return next;
+    });
+  }
+  async function openSelectedJobUrls() {
+    if (!selectedJobIds.length || openUrlsBusy) return;
+    setOpenUrlsBusy(true);
+    try {
+      const urls = [];
+      const missing = [];
+      for (const id of selectedJobIds) {
+        const cached = selectedJobById[id]?.sourceUrl;
+        const fromPage = data?.items?.find((job) => job.id === id)?.source_url;
+        const url = safeExternalUrl(cached || fromPage);
+        if (url) urls.push(url);
+        else missing.push(id);
+      }
+      if (missing.length) {
+        const fetched = await Promise.all(
+          missing.map(async (id) => {
+            try {
+              return await getJob(client, apiBaseUrl, id);
+            } catch {
+              return null;
+            }
+          }),
+        );
+        for (const job of fetched) {
+          const url = safeExternalUrl(job?.source_url);
+          if (url) urls.push(url);
+        }
+      }
+      const result = openExternalUrls(urls, { limit: MAX_OPEN_JOB_URLS });
+      if (!result.attempted) {
+        toast("warning", "No valid Job Posting URLs in the selection.");
+        return;
+      }
+      let message = `Opened ${result.opened} Job Posting URL${result.opened === 1 ? "" : "s"}.`;
+      if (result.blocked) {
+        message += ` ${result.blocked} were blocked by the browser popup blocker.`;
+      }
+      if (result.skipped) {
+        message += ` ${result.skipped} were not opened (limit ${MAX_OPEN_JOB_URLS}).`;
+      }
+      toast(result.blocked || result.skipped ? "warning" : "success", message);
+    } catch (value) {
+      toast("error", value.message || "Selected Job Posting URLs could not be opened.");
+    } finally {
+      setOpenUrlsBusy(false);
+    }
   }
   async function submitBulkReview(nextStatus, reason = null, comment = "") {
     if (!selectedJobIds.length) return;
@@ -975,6 +1044,27 @@ function Jobs({
       toast("error", value.message || "Bulk review could not be completed.");
     } finally {
       setReviewBusy(false);
+    }
+  }
+  async function submitBulkDelete() {
+    if (!selectedJobIds.length) return;
+    setDeleteBusy(true);
+    try {
+      const result = await bulkDeleteJobs(client, apiBaseUrl, {
+        jobDescriptionIds: selectedJobIds,
+      });
+      clearJobSelection();
+      setListReload((value) => value + 1);
+      toast(
+        result.failed ? "warning" : "success",
+        result.failed
+          ? `Deleted ${result.succeeded} of ${result.total} Job Descriptions. ${result.failed} could not be deleted.`
+          : `Deleted ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`,
+      );
+    } catch (value) {
+      toast("error", value.message || "The selected Job Descriptions could not be deleted.");
+    } finally {
+      setDeleteBusy(false);
     }
   }
   const update = (patch) => {
@@ -1172,7 +1262,7 @@ function Jobs({
     tooMany = selectedCount > MAX_BULK_JDS,
     hasNeedsReviewSelected = selectedJobIds.some((id) => {
       const reviewStatus =
-        selectedReviewById[id] ??
+        selectedJobById[id]?.reviewStatus ??
         data?.items?.find((job) => job.id === id)?.review_status;
       return reviewStatus === "NEEDS_REVIEW";
     }),
@@ -1205,8 +1295,16 @@ function Jobs({
             <>
               <Text>{selectedCount} selected</Text>
               <Button
+                icon={<LinkOutlined />}
+                loading={openUrlsBusy}
+                disabled={!selectedCount || reviewBusy || deleteBusy}
+                onClick={openSelectedJobUrls}
+              >
+                Open Selected URLs
+              </Button>
+              <Button
                 onClick={clearJobSelection}
-                disabled={!selectedCount || reviewBusy}
+                disabled={!selectedCount || reviewBusy || deleteBusy || openUrlsBusy}
               >
                 Clear selection
               </Button>
@@ -1214,17 +1312,34 @@ function Jobs({
           )}
           {canReview && (
             <>
+              <Popconfirm
+                title="Delete selected Job Descriptions?"
+                description="This permanently removes URLs with no Applications. Job Descriptions linked to Applications must be declined instead."
+                okText="Delete"
+                okButtonProps={{ danger: true, loading: deleteBusy }}
+                cancelButtonProps={{ disabled: deleteBusy }}
+                onConfirm={submitBulkDelete}
+                disabled={!selectedCount || tooMany || reviewBusy || deleteBusy || openUrlsBusy}
+              >
+                <Button
+                  danger
+                  loading={deleteBusy}
+                  disabled={!selectedCount || tooMany || reviewBusy || openUrlsBusy}
+                >
+                  Delete Selected
+                </Button>
+              </Popconfirm>
               <Button
                 type="primary"
                 loading={reviewBusy}
-                disabled={!selectedCount || tooMany}
+                disabled={!selectedCount || tooMany || deleteBusy || openUrlsBusy}
                 onClick={() => submitBulkReview("APPROVED")}
               >
                 Approve Selected
               </Button>
               <Button
                 loading={reviewBusy}
-                disabled={!selectedCount || tooMany}
+                disabled={!selectedCount || tooMany || deleteBusy || openUrlsBusy}
                 onClick={() => {
                   setReviewComment("");
                   setReviewDialog("CORRECTION");
@@ -1235,7 +1350,7 @@ function Jobs({
               <Button
                 danger
                 loading={reviewBusy}
-                disabled={!selectedCount || tooMany}
+                disabled={!selectedCount || tooMany || deleteBusy || openUrlsBusy}
                 onClick={() => {
                   setReviewComment("");
                   setDeclineReason("EXPIRED");
@@ -1299,7 +1414,7 @@ function Jobs({
           <AntTable
             className="dashboard-ellipsis-table"
             rowKey="id"
-            loading={loading || reviewBusy}
+            loading={loading || reviewBusy || deleteBusy || openUrlsBusy}
             columns={columns}
             dataSource={data.items}
             pagination={false}
@@ -1353,15 +1468,7 @@ function Jobs({
                     preserveSelectedRowKeys: true,
                     onChange: (keys, rows) => {
                       onSelectedJobIdsChange(keys);
-                      setSelectedReviewById((prev) => {
-                        const next = {};
-                        for (const id of keys) {
-                          const row = rows.find((job) => job.id === id);
-                          if (row) next[id] = row.review_status;
-                          else if (prev[id] != null) next[id] = prev[id];
-                        }
-                        return next;
-                      });
+                      rememberSelectedJobs(rows);
                     },
                     getCheckboxProps: (job) => {
                       if (canReview) {
