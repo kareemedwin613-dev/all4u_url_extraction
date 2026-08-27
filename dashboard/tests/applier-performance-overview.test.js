@@ -14,9 +14,11 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
     read("../src/features/overview/jd-finder-performance-chart.jsx"),
     read("../src/features/overview/jd-finder-performance.js"),
   ]);
+  assert.match(app, /showBusinessRecords = hasCapability\(access, CAPABILITIES\.USER_ADMIN\)/);
   assert.match(app, /showApplierPerformance = hasCapability\(access, CAPABILITIES\.APPLICATION_MANAGE\)/);
-  assert.match(app, /<Col xs=\{24\} xl=\{12\}><ApplierPerformanceChart/);
-  assert.match(app, /<Col xs=\{24\} xl=\{12\}><JdFinderPerformanceChart/);
+  assert.match(app, /Applier & JD Finder Performance Review/);
+  assert.match(app, /<Col xs=\{24\} xl=\{12\}>\s*<ApplierPerformanceChart/);
+  assert.match(app, /<Col xs=\{24\} xl=\{12\}>\s*<JdFinderPerformanceChart/);
   assert.match(app, /dateLabel=\{dateLabel\}/);
   assert.match(applier, /role="img"[\s\S]*aria-label="Applier Performance Graph"/);
   assert.match(finder, /role="img"[\s\S]*aria-label="JD Finder Performance Graph"/);
@@ -36,9 +38,10 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
   assert.match(finder, /overview-chart-scroll/);
   assert.match(applier, /dataKey=\{metric\.key\}/);
   assert.match(finder, /dataKey=\{metric\.key\}/);
-  for (const label of ["Assigned", "Active", "Blocked", "Completed", "Applied", "completionRate"]) {
+  for (const label of ["Assigned", "Blocked", "Completed", "Applied", "completionRate"]) {
     assert.match(applierModel, new RegExp(label));
   }
+  assert.doesNotMatch(applierModel, /label: "Active"/);
   for (const label of ["Captured", "Approved", "Needs Review", "Correction", "Declined", "approvalRate"]) {
     assert.match(finderModel, new RegExp(label));
   }

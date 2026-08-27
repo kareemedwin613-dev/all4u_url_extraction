@@ -77,7 +77,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
       (!(values.applicationUrl || application.application_url) || !screenshots.length)
     ) {
       onStatus({
-        message: "Add an Application URL and attach at least one confirmation screenshot before marking this Applied.",
+        message: "Add a Confirmation URL and attach at least one confirmation screenshot before marking this Applied.",
         kind: "error",
       });
       return;
@@ -134,7 +134,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
           />
         </Form.Item>
         <Form.Item
-          label="Application URL"
+          label="Confirmation URL"
           name="applicationUrl"
           rules={[{ type: "url", warningOnly: true, message: "Enter a valid URL." }]}
         >
@@ -182,7 +182,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Marking Applied for the first time requires an Application URL and at least one screenshot."
+          message="Marking Applied for the first time requires a Confirmation URL and at least one screenshot."
         />
         <Space>
           <Button type="primary" htmlType="submit" loading={saving}>

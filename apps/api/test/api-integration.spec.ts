@@ -62,7 +62,7 @@ before(async () => {
     })
     .overrideProvider(ApplicationService).useValue({
       list:async()=>({items:[{id:"application-1"}],hasMore:false,nextCursor:null}),mine:async()=>({items:[{id:"application-1"}]}),
-      detail:async()=>({application:{id:"application-1"}}),counts:async()=>({total:1}),appliers:async()=>[{id:"applier-1"}],jobs:async()=>[{id:"job-1"}],resumes:async()=>[{id:"resume-1"}],
+      detail:async()=>({application:{id:"application-1"}}),counts:async()=>({total:1}),profileWorkload:async()=>[{id:"resume-1",profile_name:"Alex",total_count:2,applied_count:1,pending_count:1}],appliers:async()=>[{id:"applier-1"}],jobs:async()=>[{id:"job-1"}],resumes:async()=>[{id:"resume-1"}],
       create:async()=>({id:"application-1"}),update:async()=>({id:"application-1",status:"IN_PROGRESS"}),assign:async()=>({id:"application-1"}),bulkAssign:async()=>({changedCount:1}),
       extensionContext:async()=>({application:{id:"123e4567-e89b-42d3-a456-426614174000",applicationNumber:1},job:{sourceUrl:"https://example.com/jobs/1"},resume:{id:"resume-1"},candidate:{profileAvailable:false},permissions:{canLoadResume:true,canAutofill:true}}),
       createExtensionSession:async(_user:any,id:string,body:any)=>({id:"323e4567-e89b-42d3-a456-426614174000",applicationId:id,action:body.action,status:"CREATED",targetUrl:"https://example.com/jobs/1",expiresAt:"2026-07-28T12:15:00Z"}),

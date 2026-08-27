@@ -60,9 +60,11 @@ import {
 } from "./services/resume-banned-companies-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
+import { ApplierProfileWorkloadChart } from "./features/overview/applier-profile-workload-chart.jsx";
 import { JdFinderPerformanceChart } from "./features/overview/jd-finder-performance-chart.jsx";
 import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
 import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
+import { getApplierProfileWorkload } from "./features/applications/application-service.js";
 import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, uploadResumeCoverLetter } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -738,9 +740,12 @@ function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
 const serverSideColumnFilter = { onFilter: () => true };
 
 function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateLabel }) {
-  const [result, setResult] = useState(null),
+  const showBusinessRecords = hasCapability(access, CAPABILITIES.USER_ADMIN),
+    showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
+    [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
+    if (!showBusinessRecords && !showApplierPerformance) return undefined;
     let live = true;
     setResult(null);
     setError("");
@@ -750,56 +755,116 @@ function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateL
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, showBusinessRecords, showApplierPerformance]);
+  if (!showBusinessRecords && !showApplierPerformance) return null;
   if (error) return <ErrorState message={error} />;
   if (!result) return <Loading text="Loading dashboard…" />;
   const jobs = result.jobCounts.total,
     activeJobs = result.jobCounts.active,
     resumes = result.resumeCounts.total,
-    activeResumes = result.resumeCounts.active,
-    showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE);
+    activeResumes = result.resumeCounts.active;
   return (
     <div className="page">
-      <Title level={2}>
-        Business Records
-      </Title>
-      <Row gutter={[16, 16]} className="summary-grid">
-        {[
-          ["Total Job Descriptions", jobs],
-          ["Active Job Descriptions", activeJobs],
-          ["Total Resumes", resumes],
-          ["Active Resumes", activeResumes],
-        ].map(([label, count]) => (
-          <Col xs={24} sm={12} xl={6} key={label}>
-            <Card>
-              <Statistic title={label} value={count} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      {showBusinessRecords ? (
+        <section>
+          <Title level={2}>Business Records</Title>
+          <Row gutter={[16, 16]} className="summary-grid">
+            {[
+              ["Total Job Descriptions", jobs],
+              ["Active Job Descriptions", activeJobs],
+              ["Total Resumes", resumes],
+              ["Active Resumes", activeResumes],
+            ].map(([label, count]) => (
+              <Col xs={24} sm={12} xl={6} key={label}>
+                <Card>
+                  <Statistic title={label} value={count} />
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </section>
+      ) : null}
       {showApplierPerformance ? (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xl={12}>
-            <ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel} />
-          </Col>
-          <Col xs={24} xl={12}>
-            <JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel} />
-          </Col>
-        </Row>
+        <section>
+          <Title level={2}>Applier & JD Finder Performance Review</Title>
+          <Row gutter={[16, 16]} className="summary-grid">
+            <Col xs={24} xl={12}>
+              <ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel} />
+            </Col>
+            <Col xs={24} xl={12}>
+              <JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel} />
+            </Col>
+          </Row>
+        </section>
       ) : null}
     </div>
   );
 }
 
 function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange }) {
+  const isAdmin = hasCapability(access, CAPABILITIES.USER_ADMIN),
+    showOwnProfileWorkload =
+      hasCapability(access, CAPABILITIES.APPLICATION_VIEW) &&
+      !hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
+    showProfileWorkload = isAdmin || showOwnProfileWorkload;
   return (
     <>
       <div className="page application-overview">
-        <Title level={1} tabIndex={-1}>Overview</Title>
         <ApplicationCountCards client={client} apiBaseUrl={apiBaseUrl} access={access} reload={reload} dateRange={dateRange} dateLabel={period.label} />
       </div>
       <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
+      {showProfileWorkload ? (
+        <ApplierProfileWorkloadSection
+          client={client}
+          apiBaseUrl={apiBaseUrl}
+          reload={reload}
+          dateRange={dateRange}
+          dateLabel={period.label}
+          title={isAdmin ? "Profile Workload" : "My Profile Workload"}
+          emptyDescription={
+            isAdmin
+              ? "No Resume profiles have been mapped to Appliers yet."
+              : "No Resume profiles are assigned to you yet."
+          }
+        />
+      ) : null}
     </>
+  );
+}
+
+function ApplierProfileWorkloadSection({
+  client,
+  apiBaseUrl,
+  reload,
+  dateRange,
+  dateLabel,
+  title = "My Profile Workload",
+  emptyDescription = "No Resume profiles are assigned to you yet.",
+}) {
+  const [rows, setRows] = useState(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    setError("");
+    getApplierProfileWorkload(client, apiBaseUrl, dateRange)
+      .then((value) => live && setRows(Array.isArray(value) ? value : []))
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
+  if (error) return <div className="page"><ErrorState message={error} /></div>;
+  if (!rows) return <div className="page"><Loading text="Loading profile workload…" /></div>;
+  return (
+    <div className="page">
+      <ApplierProfileWorkloadChart
+        rows={rows}
+        dateLabel={dateLabel}
+        title={title}
+        emptyDescription={emptyDescription}
+      />
+    </div>
   );
 }
 

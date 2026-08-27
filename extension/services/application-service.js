@@ -1,7 +1,56 @@
 import {AppError} from "../shared/errors.js";import {apiRequest} from "./api-client.js";
 async function token(client){const{data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");return data.session.access_token;}
 async function call(client,baseUrl,path,options={}){return(await apiRequest({baseUrl,path,token:await token(client),...options})).data;}
-export async function listMyApplications(client,baseUrl,{status="",sort="updated_desc",limit=100}={}){const q=new URLSearchParams({status,sort,limit:String(limit)});return(await call(client,baseUrl,`/api/v1/applications/mine?${q}`))?.items||[];}
+function normalizeMineResumes(rows){
+  return (Array.isArray(rows)?rows:[]).map((row)=>({
+    id:String(row?.id||row?.resumeId||row?.resume_id||""),
+    resumeName:String(row?.resumeName||row?.resume_name||"").trim(),
+    resumeNumber:Number(row?.resumeNumber||row?.resume_number)||null,
+  })).filter((row)=>row.id&&row.resumeName);
+}
+function normalizeMinePayload(data,limit=100){
+  return{
+    items:data?.items||[],
+    resumes:normalizeMineResumes(data?.resumes),
+    total:Number(data?.total)||0,
+    limit:Number(data?.limit)||limit,
+  };
+}
+async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="updated_desc",limit=100}={}){
+  const {data,error}=await client.rpc("list_my_applications_v19",{
+    p_status:status||"",
+    p_sort:sort||"updated_desc",
+    p_limit:Math.min(Number(limit)||100,500),
+    p_resume_id:resumeId||null,
+  });
+  if(error){
+    const detail=String(error.message||error.details||error.hint||"");
+    throw new AppError(
+      String(error.code||"APPLICATIONS_LOAD_FAILED"),
+      detail.includes("list_my_applications_v19")||/could not find the function/i.test(detail)
+        ? "Apply the latest database migrations, then reload the extension."
+        : "Your Applications could not be loaded.",
+      detail,
+    );
+  }
+  return normalizeMinePayload(data,limit);
+}
+export async function listMyApplications(client,baseUrl,{status="",resumeId="",sort="updated_desc",limit=100}={}){
+  // Prefer Nest when it returns status-scoped resume options. Otherwise use the
+  // already-migrated RPC so options are never derived from the truncated page.
+  if(baseUrl){
+    try{
+      const q=new URLSearchParams({status,sort,limit:String(limit)});
+      if(resumeId)q.set("resumeId",resumeId);
+      const data=await call(client,baseUrl,`/api/v1/applications/mine?${q}`);
+      if(Object.prototype.hasOwnProperty.call(data||{},"resumes"))return normalizeMinePayload(data,limit);
+    }catch(error){
+      if(!(error instanceof AppError))throw error;
+      // Older Nest builds omit resume options / reject resumeId — use RPC instead.
+    }
+  }
+  return listMyApplicationsViaRpc(client,{status,resumeId,sort,limit});
+}
 export const getApplicationExtensionContext=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-context`);
 export const getApplicationAutofillContext=(client,baseUrl,applicationId,sessionId,resumeUpdatedAt="")=>{const query=new URLSearchParams({sessionId});if(resumeUpdatedAt)query.set("resumeUpdatedAt",resumeUpdatedAt);return call(client,baseUrl,`/api/v1/applications/${applicationId}/autofill-context?${query}`);};
 export const createApplicationExtensionSession=(client,baseUrl,applicationId,action)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-sessions`,{method:"POST",body:{action,extensionVersion:chrome.runtime.getManifest().version}});
