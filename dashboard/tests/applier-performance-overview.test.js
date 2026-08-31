@@ -6,7 +6,7 @@ import { normalizeJdFinderPerformance } from "../src/features/overview/jd-finder
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("manager Overview presents matching Applier and JD Finder Performance panels", async () => {
+test("Overview dashboard excludes JD Finder Performance panel", async () => {
   const [app, applier, applierModel, finder, finderModel] = await Promise.all([
     read("../src/App.jsx"),
     read("../src/features/overview/applier-performance-chart.jsx"),
@@ -15,14 +15,18 @@ test("manager Overview presents matching Applier and JD Finder Performance panel
     read("../src/features/overview/jd-finder-performance.js"),
   ]);
   assert.match(app, /showBusinessRecords = hasCapability\(access, CAPABILITIES\.USER_ADMIN\)/);
-  assert.match(app, /showApplierPerformance = hasCapability\(access, CAPABILITIES\.APPLICATION_MANAGE\)/);
-  assert.match(app, /<Col xs=\{24\} xl=\{12\}>\s*<ApplierPerformanceChart/);
-  assert.match(app, /<Col xs=\{24\} xl=\{12\}>\s*<JdFinderPerformanceChart/);
-  assert.match(app, /dateLabel=\{dateLabel\}/);
+  assert.doesNotMatch(app, /showApplierPerformance/);
+  assert.doesNotMatch(app, /title="JD Finder Performance"/);
+  assert.doesNotMatch(app, /JdFinderPerformanceChart/);
+  assert.match(app, /BusinessRecordCards/);
+  assert.doesNotMatch(app, /OverviewApplierInsights/);
+  assert.match(applier, /OverviewChartCard/);
+  assert.match(finder, /OverviewChartCard/);
+  assert.match(applier, /OverviewChartLegend/);
   assert.match(applier, /role="img"[\s\S]*aria-label="Applier Performance Graph"/);
   assert.match(finder, /role="img"[\s\S]*aria-label="JD Finder Performance Graph"/);
-  assert.match(applier, /aria-label="Search Applier Performance by name or email"/);
-  assert.match(finder, /aria-label="Search JD Finder Performance by name or email"/);
+  assert.match(applier, /searchAriaLabel="Search Applier Performance by name or email"/);
+  assert.match(finder, /searchAriaLabel="Search JD Finder Performance by name or email"/);
   assert.match(applier, /item\.name} \$\{item\.email/);
   assert.match(finder, /item\.name} \$\{item\.email/);
   assert.match(applier, /No Appliers match this search/);

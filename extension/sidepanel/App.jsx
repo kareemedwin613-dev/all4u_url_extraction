@@ -16,6 +16,7 @@ import {
 } from "../services/supabase-client.js";
 import { currentSession, signIn, signOut } from "../services/auth-service.js";
 import { getMyAccessContext } from "../services/access-service.js";
+import { recordLogin } from "../services/session-events-service.js";
 import {
   canAccessMyApplications,
   canAccessResumeQueue,
@@ -364,6 +365,7 @@ export function App() {
   async function handleSignIn(email, password) {
     try {
       await signIn(client, email, password);
+      await recordLogin(client, backendBaseUrl, "EXTENSION");
       await enterAuthenticated(client);
       setStatus({ message: "Signed in successfully.", kind: "success" });
     } catch (error) {

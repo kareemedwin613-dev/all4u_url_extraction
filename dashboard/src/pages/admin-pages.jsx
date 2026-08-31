@@ -19,6 +19,8 @@ import {
   AccountStatusBadge,
   RoleBadges,
 } from "../components/access-components.jsx";
+import { ProfileAvatarEditor } from "../components/profile-avatar-editor.jsx";
+import { UserAvatar } from "../components/user-avatar.jsx";
 import {
   DataPagination,
   ErrorState,
@@ -145,6 +147,7 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
               title: "Name",
               dataIndex: "full_name",
               sortKey: "name",
+              width: 260,
               filteredValue: searchFiltered,
               ...serverSideColumnFilter,
               filterDropdown: textSearchFilterDropdown(
@@ -155,7 +158,22 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
                   style={{ color: filtered ? "#1677ff" : undefined }}
                 />
               ),
-              render: (value) => value || "Name not provided",
+              render: (value, record) => (
+                <div className="admin-user-name-cell">
+                  <UserAvatar
+                    client={client}
+                    apiBaseUrl={apiBaseUrl}
+                    userId={record.id}
+                    name={value || record.email}
+                    size={32}
+                    hasAvatar={record.has_avatar}
+                    avatarUpdatedAt={record.avatar_updated_at}
+                  />
+                  <a href={`#/admin/users/${record.id}`}>
+                    {value || "Name not provided"}
+                  </a>
+                </div>
+              ),
             },
             {
               title: "Email",
@@ -230,6 +248,8 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
           filters.sort,
         ),
       [
+        client,
+        apiBaseUrl,
         filters.page,
         filters.pageSize,
         filters.roleCode,
@@ -537,9 +557,20 @@ export function AdminUserDetailPage({
       label: "Identity",
       children: (
         <>
+          <ProfileAvatarEditor
+            client={client}
+            apiBaseUrl={apiBaseUrl}
+            userId={user.id}
+            name={user.fullName || user.email}
+            hasAvatar={user.hasAvatar}
+            avatarUpdatedAt={user.avatarUpdatedAt}
+            admin
+            onChanged={load}
+          />
           <Descriptions
             bordered
             column={{ xs: 1, md: 2 }}
+            style={{ marginTop: 16 }}
             items={[
               {
                 key: "name",

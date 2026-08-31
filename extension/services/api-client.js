@@ -31,7 +31,7 @@ export async function apiRequest({ baseUrl, path, token, method = "GET", body, i
   catch (error) {
     const transient = error?.name === "AbortError" || error instanceof TypeError || error?.code === "API_TRANSIENT";
     if (method === "POST" && idempotencyKey && transient) return attempt();
-    if (error?.name === "AbortError") throw new AppError("API_TIMEOUT", "The backend API did not respond in time.");
+    if (error?.name === "AbortError") throw new AppError("API_TIMEOUT", "The backend API did not respond in time.", "Check the Backend API URL in Settings and confirm the API server is running.");
     throw error;
   }
 }

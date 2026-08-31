@@ -25,15 +25,18 @@ test("custom Overview range labels use readable month-day-year spelling", () => 
 
 test("the sticky top bar owns the shared Overview reporting period", async () => {
   const app = await read("../src/App.jsx");
-  const cards = await read("../src/features/applications/application-pages.jsx");
+  const cards = await read("../src/features/overview/overview-count-cards.jsx");
   assert.match(app, /headerExtra=\{route\.name === "overview"/);
   assert.match(app, /<OverviewDateFilter compact value=\{overviewPeriod\} onChange=\{setOverviewPeriod\}/);
   assert.doesNotMatch(app, /<OverviewDateFilter value=\{period\}/);
   assert.match(app, /dateRange=\{dateRange\}/);
-  assert.match(app, /ApplierPerformanceChart rows=\{result\.applierPerformance \|\| \[\]\} dateLabel=\{dateLabel\}/);
-  assert.match(app, /JdFinderPerformanceChart rows=\{result\.jdFinderPerformance \|\| \[\]\} dateLabel=\{dateLabel\}/);
+  assert.doesNotMatch(app, /ApplierPerformanceChart rows=\{result\.applierPerformance/);
+  assert.doesNotMatch(app, /JdFinderPerformanceChart/);
+  assert.doesNotMatch(app, /jdFinderPerformance/);
   assert.doesNotMatch(app, /CapturedJobUrls|Captured job URLs/);
-  assert.match(cards, /dateLabel/);
+  assert.doesNotMatch(app, /OverviewApplierInsights/);
+  assert.match(cards, /OverviewKpiGrid/);
+  assert.match(cards, /Application Workflow/);
 });
 
 test("date-windowed Overview RPCs are role checked, bounded, and use canonical Application status", async () => {
@@ -48,6 +51,6 @@ test("date-windowed Overview RPCs are role checked, bounded, and use canonical A
 
 test("the API requests the combined role-performance Overview contract", async () => {
   const service = await read("../../apps/api/src/platform/platform.service.ts");
-  assert.match(service, /get_business_overview_v30/);
+  assert.match(service, /get_business_overview_v31/);
   assert.match(service, /\{p_from:from,p_to:to\}/);
 });

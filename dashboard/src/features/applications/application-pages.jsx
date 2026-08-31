@@ -20,6 +20,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { FileImageOutlined } from "@ant-design/icons";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";
@@ -62,6 +63,7 @@ import {
   reassignApplication,
   updateApplication,
 } from "./application-service.js";
+import { ApplicationScreenshotsCard } from "./application-screenshots-card.jsx";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
 import { createTailoringBatch,requestApplicationTailoring } from "../tailoring/tailoring-service.js";
@@ -86,54 +88,6 @@ const Notice = ({ message, error = false }) =>
       message={message}
     />
   ) : null;
-
-export function ApplicationCountCards({ client, apiBaseUrl, access, reload, dateRange, dateLabel = "Today" }) {
-  const [data, setData] = useState(),
-    [error, setError] = useState("");
-  useEffect(() => {
-    let live = true;
-    setData(undefined);
-    setError("");
-    getApplicationCounts(client, apiBaseUrl, dateRange)
-      .then((x) => live && setData(x))
-      .catch((x) => live && setError(x.message));
-    return () => {
-      live = false;
-    };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
-  if (error) return <Notice message={error} error />;
-  if (!data) return <LoadingState />;
-  const manager = isApplicationManager(access),
-    isAdmin = access?.capabilities?.has("USER_ADMIN"),
-    cards = manager
-      ? [
-          ["Total Applications", data.total],
-          [`Applied · ${dateLabel}`, data.applied_today],
-          ["Blocked", data.blocked],
-          ...(!isAdmin ? [["Overdue", data.overdue]] : []),
-          ["Interviews", data.interviews],
-        ]
-      : [
-          ["My Assigned Applications", data.my_assigned],
-          [`Applied · ${dateLabel}`, data.applied_today],
-          ["Blocked", data.blocked],
-          ["Interviews", data.interviews],
-        ];
-  return (
-    <section>
-      {isAdmin ? <Title level={2}>Application Workflow</Title> : null}
-      <Row gutter={[16, 16]} className="summary-grid application-counts">
-        {cards.map(([label, value]) => (
-          <Col xs={24} sm={12} lg={8} xl={6} key={label}>
-            <Card>
-              <Statistic title={label} value={Number(value || 0)} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
-    </section>
-  );
-}
 
 export function ApplicationsPage({
   client,
@@ -287,6 +241,21 @@ export function ApplicationsPage({
       </MetaTag>
     ),
   };
+  const screenshotColumn = {
+    title: "Screenshots",
+    dataIndex: "screenshot_count",
+    width: 110,
+    align: "center",
+    sortable: false,
+    render: (value) => {
+      const count = Number(value) || 0;
+      return count ? (
+        <Tag icon={<FileImageOutlined />}>{count}</Tag>
+      ) : (
+        <Text type="secondary">—</Text>
+      );
+    },
+  };
   const managerColumns = useMemo(
     () => [
       noColumn,
@@ -325,6 +294,7 @@ export function ApplicationsPage({
       statusColumn,
       priorityColumn,
       categoryColumn,
+      screenshotColumn,
       {
         title: "Creation",
         dataIndex: "creation_batch_id",
@@ -438,6 +408,7 @@ export function ApplicationsPage({
         ...serverSideColumnFilter,
         render: (value) => <StatusTag value={value} />,
       },
+      screenshotColumn,
       {
         title: "Captured At",
         dataIndex: "captured_at",
@@ -498,7 +469,7 @@ export function ApplicationsPage({
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2346 : 2000,
+    applicationsScrollX = manager ? 2456 : 2110,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   function applyTableFilters(tableFilters) {
@@ -864,12 +835,14 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
   const { modal } = AntApp.useApp(),
     [detail, setDetail] = useState(),
     [appliers, setAppliers] = useState([]),
+    [screenshotCount, setScreenshotCount] = useState(null),
     [message, setMessage] = useState(""),
     [isError, setIsError] = useState(false),
     [busy, setBusy] = useState(false),
     manager = isApplicationManager(access);
   const load = () => {
     setDetail();
+    setScreenshotCount(null);
     setMessage("");
     Promise.all([
       getApplication(client, apiBaseUrl, id),
@@ -1039,6 +1012,16 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         children: formatDate(a.applied_at),
                       },
                       {
+                        key: "screenshots",
+                        label: "Confirmation Screenshots",
+                        children:
+                          screenshotCount == null
+                            ? "Loading…"
+                            : screenshotCount
+                              ? `${screenshotCount} attached`
+                              : "None attached",
+                      },
+                      {
                         key: "creator",
                         label: "Created By",
                         children: name(detail.creator),
@@ -1061,6 +1044,12 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     ]}
                   />
                 </Card>
+                <ApplicationScreenshotsCard
+                  client={client}
+                  apiBaseUrl={apiBaseUrl}
+                  applicationId={id}
+                  onCountChange={setScreenshotCount}
+                />
                 <Card
                   title="Job Description"
                   extra={

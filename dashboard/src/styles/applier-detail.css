@@ -1,0 +1,97 @@
+.applier-detail-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.applier-detail-page .overview-section,
+.applier-detail-page .overview-chart-card,
+.applier-detail-page .applier-detail-grid,
+.applier-detail-page .ant-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.applier-detail-page .overview-chart-scroll {
+  max-width: 100%;
+}
+
+.applier-detail-activity-table-host {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.applier-detail-activity-table-host .ant-table-wrapper {
+  min-width: 760px;
+}
+
+.applier-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.applier-detail-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.applier-detail-meta {
+  display: grid;
+  gap: 6px;
+}
+
+.applier-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.applier-detail-grade-note {
+  font-size: 12px;
+}
+
+.applier-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.applier-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.applier-detail-side-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.applier-detail-profiles-list {
+  display: grid;
+  gap: 8px;
+}
+
+.applier-detail-profile-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e7ebf2;
+  border-radius: 10px;
+  background: #fafbfd;
+}
+
+@media (max-width: 1100px) {
+  .applier-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

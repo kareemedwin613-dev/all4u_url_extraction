@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Card, Empty, Flex, Input, Typography } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { Empty, Typography } from "antd";
 import {
   Bar,
   BarChart,
@@ -14,6 +13,7 @@ import {
   APPLIER_PROFILE_WORKLOAD_METRICS,
   normalizeApplierProfileWorkload,
 } from "./applier-profile-workload.js";
+import { OverviewChartCard, OverviewChartLegend } from "./overview-ui.jsx";
 
 const { Text } = Typography;
 
@@ -97,20 +97,14 @@ export function ApplierProfileWorkloadChart({
     chartMinWidth = Math.max(420, chartData.length * 96);
 
   return (
-    <Card
+    <OverviewChartCard
       title={title}
       extra={<Text type="secondary">{dateLabel}</Text>}
-      style={{ height: "100%" }}
+      search={search}
+      onSearchChange={(event) => setSearch(event.target.value)}
+      searchPlaceholder="Search profile, resume, or Applier"
+      searchAriaLabel={`Search ${title} by profile, resume, or Applier`}
     >
-      <Input
-        allowClear
-        prefix={<SearchOutlined />}
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search profile, resume, or Applier"
-        aria-label={`Search ${title} by profile, resume, or Applier`}
-        style={{ marginBottom: 16 }}
-      />
       {!data.length ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -123,22 +117,7 @@ export function ApplierProfileWorkloadChart({
         />
       ) : (
         <>
-          <Flex gap={12} wrap="wrap" style={{ marginBottom: 12 }}>
-            {APPLIER_PROFILE_WORKLOAD_METRICS.map((metric) => (
-              <Flex key={metric.key} align="center" gap={6}>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 2,
-                    background: metric.color,
-                  }}
-                />
-                <Text>{metric.label}</Text>
-              </Flex>
-            ))}
-          </Flex>
+          <OverviewChartLegend metrics={APPLIER_PROFILE_WORKLOAD_METRICS} />
           <div
             className="overview-chart-scroll"
             role="img"
@@ -180,6 +159,6 @@ export function ApplierProfileWorkloadChart({
           </div>
         </>
       )}
-    </Card>
+    </OverviewChartCard>
   );
 }
