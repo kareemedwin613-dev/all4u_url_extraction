@@ -425,6 +425,33 @@
   color: #d92d20;
 }
 
+.productivity-status-pill--on_track {
+  color: #039855;
+}
+
+.productivity-status-pill--in_progress {
+  color: #dc6803;
+}
+
+.productivity-status-pill--needs_attention {
+  color: #d92d20;
+}
+
+.productivity-status-pill--no_activity {
+  color: #667085;
+}
+
+.productivity-table-tabs--single {
+  display: flex;
+  align-items: center;
+}
+
+.productivity-table-tabs__label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #172033;
+}
+
 .productivity-status-tag {
   border: 0;
   border-radius: 999px;

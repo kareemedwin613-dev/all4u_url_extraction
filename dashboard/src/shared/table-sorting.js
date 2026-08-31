@@ -40,3 +40,15 @@ export function serverSortFromTable(sorter,defaultSort){
   if(!key||!value.order)return defaultSort;
   return `${key}_${value.order==="ascend"?"asc":"desc"}`;
 }
+
+export function tableRowNumberColumn({ page = 1, pageSize = 25 } = {}) {
+  return {
+    title: "No",
+    key: "no",
+    width: 64,
+    align: "center",
+    className: "productivity-row-no-col",
+    sortable: false,
+    render: (_value, _row, index) => (page - 1) * pageSize + index + 1,
+  };
+}

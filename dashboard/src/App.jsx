@@ -67,7 +67,9 @@ import {
   ApplicationCountCards,
   BusinessRecordCards,
 } from "./features/overview/overview-count-cards.jsx";
-import { getApplicationCounts } from "./features/applications/application-service.js";
+import { getApplicationCounts, getApplierProfileWorkload } from "./features/applications/application-service.js";
+import { isApplicationManager } from "./features/applications/validation.js";
+import { ApplierProfileWorkloadPage } from "./features/overview/applier-profile-workload-page.jsx";
 import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, uploadResumeCoverLetter } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -768,6 +770,7 @@ function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange }) {
 
 function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange }) {
   const isAdmin = hasCapability(access, CAPABILITIES.USER_ADMIN);
+  const showProfileWorkload = !isAdmin && !isApplicationManager(access);
   return (
     <>
       <div className="page application-overview">
@@ -783,7 +786,58 @@ function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRan
           dateLabel={period.label}
         />
       ) : null}
+      {showProfileWorkload ? (
+        <ApplierProfileWorkloadSection
+          client={client}
+          apiBaseUrl={apiBaseUrl}
+          reload={reload}
+          dateRange={dateRange}
+          dateLabel={period.label}
+        />
+      ) : null}
     </>
+  );
+}
+
+function ApplierProfileWorkloadSection({
+  client,
+  apiBaseUrl,
+  reload,
+  dateRange,
+  dateLabel,
+}) {
+  const [payload, setPayload] = useState(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setPayload(null);
+    setError("");
+    Promise.all([
+      getApplierProfileWorkload(client, apiBaseUrl, dateRange),
+      getApplicationCounts(client, apiBaseUrl, dateRange),
+    ])
+      .then(([rows, counts]) =>
+        live &&
+        setPayload({
+          rows: Array.isArray(rows) ? rows : [],
+          applicationCounts: counts || {},
+        }),
+      )
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
+  if (error) return <div className="page"><ErrorState message={error} /></div>;
+  if (!payload) return <div className="page"><Loading text="Loading profile workload…" /></div>;
+  return (
+    <div className="page">
+      <ApplierProfileWorkloadPage
+        rows={payload.rows}
+        applicationCounts={payload.applicationCounts}
+        dateLabel={dateLabel}
+      />
+    </div>
   );
 }
 

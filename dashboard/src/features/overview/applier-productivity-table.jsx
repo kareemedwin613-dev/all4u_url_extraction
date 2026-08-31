@@ -13,7 +13,7 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { UserAvatar } from "../../components/user-avatar.jsx";
-import { clientSortColumns } from "../../shared/table-sorting.js";
+import { clientSortColumns, tableRowNumberColumn } from "../../shared/table-sorting.js";
 import { APPLIER_PERFORMANCE_METRICS } from "./applier-performance.js";
 import {
   activeDaysShare,
@@ -93,8 +93,9 @@ function performanceCountColumn(metric) {
   };
 }
 
-function buildColumns(windowDays, client, apiBaseUrl) {
+function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
   return clientSortColumns([
+    tableRowNumberColumn({ page, pageSize }),
     {
       title: "Applier",
       dataIndex: "name",
@@ -269,13 +270,15 @@ export function ApplierProductivityTable({
   dateLabel = "Today",
 }) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const data = useMemo(
     () => normalizeApplierProductivity(rows, { dateRange }),
     [rows, dateRange],
   );
   const columns = useMemo(
-    () => buildColumns(windowDays || data[0]?.windowDays || 1, client, apiBaseUrl),
-    [windowDays, data, client, apiBaseUrl],
+    () => buildColumns(windowDays || data[0]?.windowDays || 1, client, apiBaseUrl, page, pageSize),
+    [windowDays, data, client, apiBaseUrl, page, pageSize],
   );
   const needle = search.trim().toLocaleLowerCase();
   const visible = useMemo(
@@ -306,7 +309,10 @@ export function ApplierProductivityTable({
             allowClear
             prefix={<SearchOutlined />}
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
             placeholder="Search applier..."
             aria-label="Search Applier Productivity by name or email"
           />
@@ -332,11 +338,16 @@ export function ApplierProductivityTable({
             size="middle"
             tableLayout="fixed"
             pagination={{
-              pageSize: 10,
+              current: page,
+              pageSize,
               showSizeChanger: true,
               pageSizeOptions: [10, 25, 50],
               showTotal: (total, range) =>
                 `Showing ${range[0]} to ${range[1]} of ${total} applier${total === 1 ? "" : "s"}`,
+              onChange: (nextPage, nextPageSize) => {
+                setPage(nextPage);
+                setPageSize(nextPageSize);
+              },
             }}
             dataSource={visible}
             columns={columns}

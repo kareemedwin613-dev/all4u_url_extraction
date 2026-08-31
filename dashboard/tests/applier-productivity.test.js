@@ -39,8 +39,7 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
     read("../src/features/overview/applier-productivity-table.jsx"),
   ]);
   assert.match(app, /isAdmin \? \(\s*<ApplierProductivitySection/);
-  assert.doesNotMatch(app, /ApplierProfileWorkloadSection/);
-  assert.doesNotMatch(app, /showProfileWorkload/);
+  assert.match(app, /ApplierProfileWorkloadSection/);
   assert.doesNotMatch(app, /OverviewApplierInsights/);
   assert.match(app, /<ApplierProductivityPage/);
   assert.match(app, /getApplicationCounts\(client, apiBaseUrl, dateRange\)/);
@@ -48,13 +47,14 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(page, /Productivity Leaders/);
   assert.match(page, /Activity Overview/);
   assert.match(table, /title: "Applications"/);
+  assert.match(table, /tableRowNumberColumn/);
   assert.match(table, /children: PRODUCTIVITY_TABLE_METRIC_KEYS/);
   assert.match(table, /title: "Avg \/ Day"/);
   assert.doesNotMatch(table, /title: "Success Rate"/);
   assert.match(table, /title: "Score"/);
   assert.match(table, /productivity-table-scroll/);
   assert.match(table, /showTotal:/);
-  assert.match(table, /pageSize: 10/);
+  assert.match(table, /useState\(10\)/);
   assert.match(table, /productivity-status-pill/);
   assert.match(table, /productivity-score/);
   assert.match(table, /aria-label="Search Applier Productivity by name or email"/);
@@ -126,12 +126,20 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
   assert.equal(getNeedsAttentionAppliers(rows).length, 1);
   assert.equal(getTopPerformers(rows)[0].name, "Alex Applier");
   assert.deepEqual(buildActivityOverviewSegments({
+    assigned: 20,
     total: 20,
     applied_today: 8,
-    in_progress: 5,
+    pending: 6,
     blocked: 2,
     interviews: 1,
-  }).map((segment) => segment.key), ["applied", "in_progress", "blocked", "interviews", "pending"]);
+  }).map((segment) => segment.key), ["assigned", "applied", "blocked", "pending", "interviews"]);
+  assert.deepEqual(buildActivityOverviewSegments({
+    my_assigned: 15,
+    applied_today: 4,
+    pending: 5,
+    blocked: 1,
+    interviews: 0,
+  }).map((segment) => segment.key), ["assigned", "applied", "blocked", "pending"]);
 });
 
 test("computeProductivityScore weights completion, pace, and status", () => {
