@@ -8,7 +8,9 @@ function failure(error:any,fallback:string):never{const raw=String(error?.messag
   status=(u:AuthenticatedUser,id:string,status:string)=>this.rpc(u,"admin_set_user_status",{p_user_id:id,p_status:status},"The account status could not be changed.");
   updateUserProfile=(u:AuthenticatedUser,id:string,name:string)=>this.rpc(u,"admin_update_user_profile",{p_user_id:id,p_full_name:String(name||"").trim()},"The user profile could not be updated.");
   profile=(u:AuthenticatedUser,name:string)=>this.rpc(u,"update_my_profile",{p_full_name:String(name||"").trim()},"The profile could not be updated.");
-  overview=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_business_overview_v30",{p_from:from,p_to:to},"The business overview could not be loaded.");
+  overview=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_business_overview_v31",{p_from:from,p_to:to},"The business overview could not be loaded.");
+  applierScorecard=(u:AuthenticatedUser,id:string,from:string,to:string)=>this.rpc(u,"get_applier_scorecard_v34",{p_applier_id:id,p_from:from,p_to:to},"The Applier scorecard could not be loaded.");
+  async activityLog(u:AuthenticatedUser,q:any){const size=q.pageSize||50,page=q.page||1,data:any[]=await this.rpc(u,"list_admin_activity_log_v33",{p_from:q.from,p_to:q.to,p_applier_id:q.applierId||null,p_application_id:q.applicationId||null,p_action:q.action||null,p_search:q.search||"",p_limit:size,p_offset:(page-1)*size},"The activity log could not be loaded."),total=Number(data?.[0]?.total_count)||0;return{items:(data||[]).map(({total_count,...item})=>item),page,pageSize:size,total,totalPages:Math.ceil(total/size)};}
 }
 @Injectable()export class TailoringService{constructor(@Inject(SupabaseService)private readonly supabase:SupabaseService){}
   private async rpc(u:AuthenticatedUser,name:string,args:any,fallback:string){const{data,error}=await this.supabase.forUser(u.token).rpc(name,args);if(error)failure(error,fallback);return data;}

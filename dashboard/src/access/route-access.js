@@ -20,6 +20,7 @@ export const ROUTE_CAPABILITIES = Object.freeze({
   "assignment-batch-detail": CAPABILITIES.APPLICATION_BULK_MANAGE,
   "applier-workloads": CAPABILITIES.APPLICATION_BULK_MANAGE,
   "applier-directory": CAPABILITIES.APPLICATION_MANAGE,
+  "applier-detail": CAPABILITIES.USER_ADMIN,
   "tailoring-jobs": CAPABILITIES.APPLICATION_MANAGE,
   "tailoring-job-detail": CAPABILITIES.APPLICATION_MANAGE,
   "tailoring-batches": CAPABILITIES.APPLICATION_MANAGE,

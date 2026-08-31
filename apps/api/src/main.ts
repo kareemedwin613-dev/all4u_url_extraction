@@ -20,6 +20,7 @@ export async function createApiApplication(options: { serverless?: boolean } = {
   app.useLogger(logger);
   app.useBodyParser("json", { limit: JSON_BODY_LIMIT });
   app.useBodyParser("urlencoded", { limit: JSON_BODY_LIMIT, extended: true });
+  app.set("trust proxy", 1);
   if (!options.serverless) app.enableShutdownHooks();
   app.setGlobalPrefix(env.API_BASE_PATH, { exclude: ["health", "ready", "api/docs"] });
   const origins = env.CORS_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean);

@@ -5,7 +5,7 @@ import { normalizeApplierProfileWorkload } from "../src/features/overview/applie
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("Applier Overview shows My Profile Workload instead of manager performance charts", async () => {
+test("Profile workload API remains available outside Overview dashboard", async () => {
   const [app, chart, model, sqlLatest, service, controller] = await Promise.all([
     read("../src/App.jsx"),
     read("../src/features/overview/applier-profile-workload-chart.jsx"),
@@ -14,11 +14,10 @@ test("Applier Overview shows My Profile Workload instead of manager performance 
     read("../../apps/api/src/applications/application.service.ts"),
     read("../../apps/api/src/applications/application.controller.ts"),
   ]);
-  assert.match(app, /showProfileWorkload/);
-  assert.match(app, /USER_ADMIN/);
-  assert.match(app, /title=\{isAdmin \? "Profile Workload" : "My Profile Workload"\}/);
-  assert.match(app, /<ApplierProfileWorkloadChart/);
-  assert.match(chart, /aria-label=\{`Search \$\{title\}/);
+  assert.doesNotMatch(app, /ApplierProfileWorkloadSection/);
+  assert.doesNotMatch(app, /showProfileWorkload/);
+  assert.match(chart, /ApplierProfileWorkloadChart/);
+  assert.match(chart, /searchAriaLabel=\{`Search \$\{title\} by profile, resume, or Applier`\}/);
   assert.match(chart, /from "recharts"/);
   assert.match(chart, /BarChart/);
   for (const label of ["Total", "Applied", "Pending", "Blocked", "Interview"]) {
