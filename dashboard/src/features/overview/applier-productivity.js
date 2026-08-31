@@ -235,18 +235,23 @@ export function getTopPerformers(rows = [], limit = 5) {
 }
 
 export function buildActivityOverviewSegments(counts = {}) {
+  const assigned = count(counts.assigned ?? counts.my_assigned ?? counts.total);
   const applied = count(counts.applied_today);
-  const inProgress = count(counts.in_progress);
   const blocked = count(counts.blocked);
   const interviews = count(counts.interviews);
-  const total = count(counts.total);
-  const pending = Math.max(0, total - applied - inProgress - blocked - interviews);
+  const pending =
+    counts.pending != null || counts.pending_count != null
+      ? count(counts.pending ?? counts.pending_count)
+      : Math.max(
+          0,
+          assigned - applied - count(counts.in_progress) - blocked - interviews,
+        );
   return [
+    { key: "assigned", label: "Assigned", value: assigned, color: "#8c8c8c" },
     { key: "applied", label: "Applied", value: applied, color: "#52c41a" },
-    { key: "in_progress", label: "In Progress", value: inProgress, color: "#1677ff" },
     { key: "blocked", label: "Blocked", value: blocked, color: "#fa8c16" },
+    { key: "pending", label: "Pending", value: pending, color: "#1677ff" },
     { key: "interviews", label: "Interviews", value: interviews, color: "#722ed1" },
-    { key: "pending", label: "Pending", value: pending, color: "#8c8c8c" },
   ].filter((segment) => segment.value > 0);
 }
 
