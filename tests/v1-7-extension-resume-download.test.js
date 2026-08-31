@@ -28,18 +28,18 @@ test("extension displays Resume identity and downloads through NestJS",()=>{
 });
 
 test("My Applications resume options come from the status-scoped API payload",()=>{
-  const sql=read("../supabase/migrations/202608270080_v3_20_mine_resume_filter.sql");
+  const sql=read("../supabase/migrations/202608310103_v3_43_applier_mine_status_filter.sql");
   const view=read("../extension/sidepanel/views/MyApplicationsView.jsx");
   const service=read("../extension/services/application-service.js");
   const nest=read("../apps/api/src/applications/application.service.ts");
-  assert.match(sql,/create or replace function public\.list_my_applications_v19/);
+  assert.match(sql,/create or replace function public\.list_my_applications_v20/);
   assert.match(sql,/p_resume_id uuid default null/);
   assert.match(sql,/'resumes', v_resumes/);
   assert.match(sql,/where p_resume_id is null or resume_id = p_resume_id/);
-  assert.match(nest,/list_my_applications_v19/);
+  assert.match(nest,/list_my_applications_v20/);
   assert.match(nest,/p_resume_id:q\.resumeId\|\|null/);
-  assert.match(service,/list_my_applications_v19/);
-  assert.match(service,/client\.rpc\("list_my_applications_v19"/);
+  assert.match(service,/list_my_applications_v20/);
+  assert.match(service,/client\.rpc\("list_my_applications_v20"/);
   assert.match(view,/setResumeFilter\(""\)/);
   assert.doesNotMatch(view,/resumesFromItems/);
   assert.doesNotMatch(service,/supportsResumeFilter/);
@@ -47,11 +47,15 @@ test("My Applications resume options come from the status-scoped API payload",()
 
 test("My Applications status filter shows only core Applier workflow statuses", () => {
   const view = read("../extension/sidepanel/views/MyApplicationsView.jsx");
-  for (const label of ["All Statuses", "Assigned", "Blocked", "Applied"]) {
-    assert.match(view, new RegExp(`label: "${label}"`));
+  const modal = read("../extension/sidepanel/components/ApplicationStatusModal.jsx");
+  const statuses = read("../extension/shared/applier-application-statuses.js");
+  for (const label of ["All Statuses", "Assigned", "Applied", "Blocked"]) {
+    assert.match(statuses, new RegExp(`label: "${label}"`));
   }
-  for (const label of ["In Progress", "Screening", "Interview Scheduled", "Offer Received", "Rejected", "Withdrawn", "Closed", "Cancelled"]) {
-    assert.doesNotMatch(view, new RegExp(`label: "${label}"`));
+  assert.match(view, /APPLIER_STATUS_FILTER_OPTIONS/);
+  assert.match(modal, /APPLIER_STATUS_UPDATE_OPTIONS/);
+  for (const label of ["Screening", "Interview Scheduled", "Offer Received", "Rejected", "Withdrawn", "Closed", "Cancelled"]) {
+    assert.doesNotMatch(statuses, new RegExp(`label: "${label}"`));
   }
 });
 

@@ -150,7 +150,7 @@ export function ApplierProfileWorkloadTable({ rows = [], dateLabel = "This perio
       <div className="productivity-table-header">
         <div className="productivity-table-header__top">
           <div className="productivity-table-tabs productivity-table-tabs--single">
-            <span className="productivity-table-tabs__label">My Profiles</span>
+            <span className="productivity-table-tabs__label">My Active Profiles</span>
           </div>
           <span className="productivity-table-period">{dateLabel}</span>
         </div>
@@ -164,7 +164,7 @@ export function ApplierProfileWorkloadTable({ rows = [], dateLabel = "This perio
               setPage(1);
             }}
             placeholder="Search profile..."
-            aria-label="Search My Profiles by profile name"
+            aria-label="Search My Active Profiles by profile name"
           />
         </div>
       </div>

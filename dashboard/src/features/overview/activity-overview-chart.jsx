@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { ProductivityActivityDonut } from "./applier-productivity-table.jsx";
-import { buildActivityOverviewSegments } from "./applier-productivity.js";
+import { buildActivityOverviewSegments, activityOverviewTotal } from "./applier-productivity.js";
 
 export function ActivityOverviewChart({ counts = {} }) {
   const segments = useMemo(() => buildActivityOverviewSegments(counts), [counts]);
-  const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+  const total = useMemo(() => activityOverviewTotal(counts), [counts]);
   if (!total) {
     return <ProductivityActivityDonut segments={[]} />;
   }

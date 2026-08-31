@@ -35,6 +35,10 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.overview-kpi-grid--6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .overview-kpi-card {
   display: flex;
   align-items: flex-start;
@@ -174,7 +178,8 @@
 @media (max-width: 1280px) {
   .overview-kpi-grid--3,
   .overview-kpi-grid--4,
-  .overview-kpi-grid--5 {
+  .overview-kpi-grid--5,
+  .overview-kpi-grid--6 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -191,7 +196,8 @@
   .overview-kpi-grid,
   .overview-kpi-grid--3,
   .overview-kpi-grid--4,
-  .overview-kpi-grid--5 {
+  .overview-kpi-grid--5,
+  .overview-kpi-grid--6 {
     grid-template-columns: 1fr;
   }
 }

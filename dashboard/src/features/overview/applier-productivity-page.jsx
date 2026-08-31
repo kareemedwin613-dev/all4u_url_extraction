@@ -15,6 +15,7 @@ import {
 import { OverviewKpiCard, OverviewKpiGrid, OverviewSection } from "./overview-ui.jsx";
 import {
   getTopPerformers,
+  isActivityScopedReportingWindow,
   normalizeApplierProductivity,
   overviewWindowDays,
   summarizeProductivityKpis,
@@ -35,13 +36,15 @@ export function ApplierProductivityPage({
     [rows, dateRange],
   );
   const windowDays = overviewWindowDays(dateRange);
+  const activityScoped = isActivityScopedReportingWindow(dateRange);
   const kpis = useMemo(
     () =>
       summarizeProductivityKpis(data, {
         windowDays,
-        appliedTotal: applicationCounts.applied_today,
+        activityScoped,
+        applicationCounts,
       }),
-    [data, windowDays, applicationCounts.applied_today],
+    [data, windowDays, activityScoped, applicationCounts],
   );
   const leaders = useMemo(() => getTopPerformers(data), [data]);
 
@@ -49,7 +52,11 @@ export function ApplierProductivityPage({
     <div className="productivity-page">
       <OverviewSection
         title="Applier Productivity"
-        description={`Track how Appliers are working in ${dateLabel.toLowerCase()}. Applications use apply dates; assigned and completed use applications created in this period.`}
+        description={`Track how Appliers are working in ${dateLabel.toLowerCase()}. ${
+          activityScoped
+            ? "Short windows count Applications with activity in the period."
+            : "Applications counts use Applied status for apps created in this period."
+        }`}
       >
         <OverviewKpiGrid columns={5}>
           {[
@@ -75,7 +82,9 @@ export function ApplierProductivityPage({
               icon: <ThunderboltOutlined />,
               value: kpis.applications,
               label: "Applications",
-              meta: "Submitted in this period",
+              meta: activityScoped
+                ? "Applied in this period"
+                : "Applied status · created this period",
             },
             {
               key: "avg",

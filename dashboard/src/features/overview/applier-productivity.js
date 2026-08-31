@@ -8,6 +8,29 @@ export const PRODUCTIVITY_STATUS = Object.freeze({
   INACTIVE: { key: "INACTIVE", label: "Inactive", color: "#ff4d4f" },
 });
 
+export const OVERVIEW_UNASSIGNED_APPLIER_ID =
+  "00000000-0000-4000-8000-000000000000";
+
+export const PRODUCTIVITY_TABLE_METRIC_KEYS = Object.freeze([
+  "assigned",
+  "applied",
+  "blocked",
+  "pending",
+]);
+
+export function sumProductivityMetricTotals(rows = []) {
+  return PRODUCTIVITY_TABLE_METRIC_KEYS.reduce(
+    (totals, key) => {
+      totals[key] = (Array.isArray(rows) ? rows : []).reduce(
+        (sum, row) => sum + Math.max(0, Number(row[key]) || 0),
+        0,
+      );
+      return totals;
+    },
+    { assigned: 0, applied: 0, blocked: 0, pending: 0 },
+  );
+}
+
 export function overviewWindowDays(dateRange) {
   if (!dateRange?.from || !dateRange?.to) return 1;
   const days = Math.round(
@@ -15,6 +38,10 @@ export function overviewWindowDays(dateRange) {
       86400000,
   );
   return Math.max(1, days);
+}
+
+export function isActivityScopedReportingWindow(dateRange) {
+  return overviewWindowDays(dateRange) <= 7;
 }
 
 export function formatLastActivity(value, now = new Date()) {
@@ -152,6 +179,19 @@ export function scoreTone(score) {
   return gradeFromScore(score).tone;
 }
 
+export function applicationsAppliedCount(counts = {}, options = {}) {
+  if (options.activityScoped && counts.applied_today != null) {
+    return count(counts.applied_today);
+  }
+  if (counts.applied != null) {
+    return count(counts.applied);
+  }
+  if (counts.applied_status != null) {
+    return count(counts.applied_status);
+  }
+  return null;
+}
+
 export function summarizeProductivityKpis(rows = [], options = {}) {
   const windowDays = Math.max(1, Number(options.windowDays) || 1);
   const total = rows.length;
@@ -159,10 +199,17 @@ export function summarizeProductivityKpis(rows = [], options = {}) {
     (row) => row.productivityStatus === PRODUCTIVITY_STATUS.ACTIVE.key,
   ).length;
   const rowApplications = rows.reduce((sum, row) => sum + row.applied, 0);
+  const appliedTotal = applicationsAppliedCount(options.applicationCounts, {
+    activityScoped: options.activityScoped,
+  });
   const applications =
-    options.appliedTotal == null
+    rows.length > 0
       ? rowApplications
-      : Math.max(0, Number(options.appliedTotal) || 0);
+      : appliedTotal != null
+        ? appliedTotal
+        : options.appliedTotal != null
+          ? Math.max(0, Number(options.appliedTotal) || 0)
+          : 0;
   const activeDays = rows.reduce((sum, row) => sum + row.activeDays, 0);
   const avgPerDay = activeDays
     ? Math.round((applications / activeDays) * 10) / 10
@@ -215,8 +262,73 @@ export function getNeedsAttentionAppliers(rows = [], limit = 4) {
     }));
 }
 
+export function productivityStatusRank(status) {
+  if (status === PRODUCTIVITY_STATUS.ACTIVE.key) return 0;
+  if (status === PRODUCTIVITY_STATUS.LOW.key) return 1;
+  return 2;
+}
+
+export function sortProductivityRows(rows = [], sorter = {}) {
+  const field = sorter.field || sorter.columnKey || "score";
+  const order = sorter.order === "ascend" ? "ascend" : "descend";
+  const direction = order === "ascend" ? 1 : -1;
+
+  return [...rows].sort((left, right) => {
+    if (field === "productivityStatus") {
+      const statusCompare =
+        productivityStatusRank(left.productivityStatus) -
+        productivityStatusRank(right.productivityStatus);
+      if (statusCompare !== 0) return statusCompare * direction;
+    } else {
+      const statusCompare =
+        productivityStatusRank(left.productivityStatus) -
+        productivityStatusRank(right.productivityStatus);
+      if (statusCompare !== 0) return statusCompare;
+    }
+
+    let valueCompare = 0;
+    switch (field) {
+      case "name":
+        valueCompare = left.name.localeCompare(right.name);
+        break;
+      case "activeDays":
+        valueCompare = left.activeDays - right.activeDays;
+        break;
+      case "assigned":
+        valueCompare = left.assigned - right.assigned;
+        break;
+      case "applied":
+        valueCompare = left.applied - right.applied;
+        break;
+      case "blocked":
+        valueCompare = left.blocked - right.blocked;
+        break;
+      case "pending":
+        valueCompare = left.pending - right.pending;
+        break;
+      case "avgPerDay":
+        valueCompare = left.avgPerDay - right.avgPerDay;
+        break;
+      case "lastActivityAt":
+        valueCompare =
+          new Date(left.lastActivityAt || 0).getTime() -
+          new Date(right.lastActivityAt || 0).getTime();
+        break;
+      case "score":
+      default:
+        valueCompare = left.score - right.score;
+        break;
+    }
+
+    if (valueCompare !== 0) return valueCompare * direction;
+    if (left.score !== right.score) return right.score - left.score;
+    return left.name.localeCompare(right.name);
+  });
+}
+
 export function getTopPerformers(rows = [], limit = 5) {
   return [...rows]
+    .filter((row) => row.productivityStatus === PRODUCTIVITY_STATUS.ACTIVE.key)
     .sort(
       (left, right) =>
         right.applied - left.applied ||
@@ -234,32 +346,85 @@ export function getTopPerformers(rows = [], limit = 5) {
     }));
 }
 
+export function activityOverviewTotal(counts = {}) {
+  return count(counts.assigned ?? counts.my_assigned ?? counts.total);
+}
+
+export const ACTIVITY_OVERVIEW_SEGMENTS = Object.freeze([
+  {
+    key: "unassigned",
+    label: "Unassigned",
+    color: "#595959",
+    value: (counts) => count(counts.unassigned),
+  },
+  {
+    key: "pending",
+    label: "Pending",
+    color: "#1677ff",
+    value: (counts) => count(counts.pending ?? counts.pending_count),
+  },
+  {
+    key: "applied",
+    label: "Applied",
+    color: "#52c41a",
+    value: (counts) => {
+      if (counts.applied_count != null) return count(counts.applied_count);
+      if (counts.applied_status != null && counts.screening != null) {
+        return Math.max(0, count(counts.applied_status) - count(counts.screening));
+      }
+      if (counts.applied_status != null) return count(counts.applied_status);
+      return count(counts.applied_today);
+    },
+  },
+  {
+    key: "screening",
+    label: "Screening",
+    color: "#95de64",
+    value: (counts) => count(counts.screening),
+  },
+  {
+    key: "blocked",
+    label: "Blocked",
+    color: "#fa8c16",
+    value: (counts) => count(counts.blocked),
+  },
+  {
+    key: "interviews",
+    label: "Interviews",
+    color: "#722ed1",
+    value: (counts) => count(counts.interviews),
+  },
+  {
+    key: "closed",
+    label: "Closed",
+    color: "#8c8c8c",
+    value: (counts) => count(counts.closed_status),
+  },
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    color: "#bfbfbf",
+    value: (counts) => count(counts.cancelled_status),
+  },
+]);
+
 export function buildActivityOverviewSegments(counts = {}) {
-  const assigned = count(counts.assigned ?? counts.my_assigned ?? counts.total);
-  const applied = count(counts.applied_today);
-  const blocked = count(counts.blocked);
-  const interviews = count(counts.interviews);
-  const pending =
-    counts.pending != null || counts.pending_count != null
-      ? count(counts.pending ?? counts.pending_count)
-      : Math.max(
-          0,
-          assigned - applied - count(counts.in_progress) - blocked - interviews,
-        );
-  return [
-    { key: "assigned", label: "Assigned", value: assigned, color: "#8c8c8c" },
-    { key: "applied", label: "Applied", value: applied, color: "#52c41a" },
-    { key: "blocked", label: "Blocked", value: blocked, color: "#fa8c16" },
-    { key: "pending", label: "Pending", value: pending, color: "#1677ff" },
-    { key: "interviews", label: "Interviews", value: interviews, color: "#722ed1" },
-  ].filter((segment) => segment.value > 0);
+  return ACTIVITY_OVERVIEW_SEGMENTS.map(({ key, label, color, value }) => ({
+    key,
+    label,
+    color,
+    value: value(counts),
+  })).filter((segment) => segment.value > 0);
 }
 
 export function normalizeApplierProductivity(rows = [], options = {}) {
   const windowDays = overviewWindowDays(options.dateRange);
-  const baseRows = normalizeApplierPerformance(rows);
+  const scopedRows = (Array.isArray(rows) ? rows : []).filter(
+    (row) => String(row.id || "") !== OVERVIEW_UNASSIGNED_APPLIER_ID,
+  );
+  const baseRows = normalizeApplierPerformance(scopedRows);
   return baseRows.map((row, index) => {
-    const raw = (Array.isArray(rows) ? rows : [])[index] || {};
+    const raw = scopedRows[index] || {};
     const activeDays = count(raw.active_days);
     const avgPerDay = Math.max(0, Number(raw.avg_per_day) || 0);
     const lastActivityAt = raw.last_activity_at || null;

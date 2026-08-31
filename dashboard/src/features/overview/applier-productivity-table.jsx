@@ -13,7 +13,7 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { UserAvatar } from "../../components/user-avatar.jsx";
-import { clientSortColumns, tableRowNumberColumn } from "../../shared/table-sorting.js";
+import { tableRowNumberColumn } from "../../shared/table-sorting.js";
 import { APPLIER_PERFORMANCE_METRICS } from "./applier-performance.js";
 import {
   activeDaysShare,
@@ -21,18 +21,18 @@ import {
   formatLastActivityMeta,
   gradeFromScore,
   normalizeApplierProductivity,
+  sortProductivityRows,
   PRODUCTIVITY_STATUS,
+  PRODUCTIVITY_TABLE_METRIC_KEYS,
+  sumProductivityMetricTotals,
 } from "./applier-productivity.js";
 
-const { Text } = Typography;
+const DEFAULT_PRODUCTIVITY_SORT = Object.freeze({
+  field: "score",
+  order: "descend",
+});
 
-const PRODUCTIVITY_TABLE_METRIC_KEYS = [
-  "assigned",
-  "completed",
-  "applied",
-  "blocked",
-  "pending",
-];
+const { Text } = Typography;
 
 const productivityMetricsByKey = new Map(
   APPLIER_PERFORMANCE_METRICS.map((metric) => [metric.key, metric]),
@@ -73,14 +73,16 @@ export function ProductivityScoreBadge({ score, tone, grade, showScore = false }
   );
 }
 
-function performanceCountColumn(metric) {
+function performanceCountColumn(metric, sortedInfo) {
   return {
     title: metric.label,
     dataIndex: metric.key,
+    key: metric.key,
     width: 76,
     align: "center",
     className: `productivity-metric-col productivity-metric-col--${metric.key}`,
-    sorter: (left, right) => left[metric.key] - right[metric.key],
+    sorter: true,
+    sortOrder: sortedInfo.field === metric.key ? sortedInfo.order : null,
     render: (value) => (
       <span
         className={`productivity-metric-value productivity-metric-value--${metric.key}${
@@ -93,12 +95,43 @@ function performanceCountColumn(metric) {
   };
 }
 
-function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
-  return clientSortColumns([
+function ProductivityMetricTotal({ metricKey, value }) {
+  return (
+    <span
+      className={`productivity-metric-value productivity-metric-value--${metricKey} productivity-metric-value--total${
+        metricKey === "blocked" && value ? " productivity-metric-value--danger" : ""
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function ProductivityTableSummary({ totals }) {
+  return (
+    <Table.Summary fixed>
+      <Table.Summary.Row className="productivity-table-summary-row">
+        <Table.Summary.Cell index={0} colSpan={4} />
+        {PRODUCTIVITY_TABLE_METRIC_KEYS.map((key, index) => (
+          <Table.Summary.Cell key={key} index={index + 4} align="center">
+            <ProductivityMetricTotal metricKey={key} value={totals[key]} />
+          </Table.Summary.Cell>
+        ))}
+        <Table.Summary.Cell index={8} colSpan={4} />
+      </Table.Summary.Row>
+    </Table.Summary>
+  );
+}
+
+function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo) {
+  const sortOrder = (field) => (sortedInfo.field === field ? sortedInfo.order : null);
+
+  return [
     tableRowNumberColumn({ page, pageSize }),
     {
       title: "Applier",
       dataIndex: "name",
+      key: "name",
       width: 140,
       className: "productivity-applier-col",
       onHeaderCell: () => ({
@@ -109,7 +142,8 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
         className: "productivity-applier-col",
         style: { textAlign: "left" },
       }),
-      sorter: (left, right) => left.name.localeCompare(right.name),
+      sorter: true,
+      sortOrder: sortOrder("name"),
       render: (value, row) => (
         <div className="productivity-applier-cell">
           <UserAvatar
@@ -134,19 +168,22 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
     {
       title: "Status",
       dataIndex: "productivityStatus",
+      key: "productivityStatus",
       width: 102,
       align: "left",
       className: "productivity-status-col",
-      sorter: (left, right) =>
-        left.productivityStatus.localeCompare(right.productivityStatus),
+      sorter: true,
+      sortOrder: sortOrder("productivityStatus"),
       render: (value) => <ProductivityStatusTag status={value} />,
     },
     {
       title: "Active Days",
       dataIndex: "activeDays",
+      key: "activeDays",
       width: 110,
       align: "center",
-      sorter: (left, right) => left.activeDays - right.activeDays,
+      sorter: true,
+      sortOrder: sortOrder("activeDays"),
       render: (value, row) => {
         const total = row.windowDays || windowDays;
         return (
@@ -167,15 +204,17 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
       sortable: false,
       align: "center",
       children: PRODUCTIVITY_TABLE_METRIC_KEYS.map((key) =>
-        performanceCountColumn(productivityMetricsByKey.get(key)),
+        performanceCountColumn(productivityMetricsByKey.get(key), sortedInfo),
       ),
     },
     {
       title: "Avg / Day",
       dataIndex: "avgPerDay",
+      key: "avgPerDay",
       width: 96,
       align: "center",
-      sorter: (left, right) => left.avgPerDay - right.avgPerDay,
+      sorter: true,
+      sortOrder: sortOrder("avgPerDay"),
       render: (value, row) => {
         const tone = avgPerDayTone(value, row.windowDays || windowDays);
         return (
@@ -188,13 +227,13 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
     {
       title: "Last Activity",
       dataIndex: "lastActivityAt",
+      key: "lastActivityAt",
       width: 118,
       align: "left",
       className: "productivity-activity-col",
       onHeaderCell: () => ({ className: "productivity-header-left" }),
-      sorter: (left, right) =>
-        new Date(left.lastActivityAt || 0).getTime() -
-        new Date(right.lastActivityAt || 0).getTime(),
+      sorter: true,
+      sortOrder: sortOrder("lastActivityAt"),
       render: (_, row) => {
         const meta = formatLastActivityMeta(row.lastActivityAt);
         return (
@@ -208,10 +247,12 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
     {
       title: "Score",
       dataIndex: "score",
+      key: "score",
       width: 72,
       align: "center",
       className: "productivity-score-col",
-      sorter: (left, right) => left.score - right.score,
+      sorter: true,
+      sortOrder: sortOrder("score"),
       render: (value, row) => (
         <ProductivityScoreBadge
           score={row.score}
@@ -258,7 +299,7 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize) {
         </Dropdown>
       ),
     },
-  ]);
+  ];
 }
 
 export function ApplierProductivityTable({
@@ -272,24 +313,33 @@ export function ApplierProductivityTable({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortedInfo, setSortedInfo] = useState(DEFAULT_PRODUCTIVITY_SORT);
   const data = useMemo(
     () => normalizeApplierProductivity(rows, { dateRange }),
     [rows, dateRange],
   );
   const columns = useMemo(
-    () => buildColumns(windowDays || data[0]?.windowDays || 1, client, apiBaseUrl, page, pageSize),
-    [windowDays, data, client, apiBaseUrl, page, pageSize],
+    () =>
+      buildColumns(
+        windowDays || data[0]?.windowDays || 1,
+        client,
+        apiBaseUrl,
+        page,
+        pageSize,
+        sortedInfo,
+      ),
+    [windowDays, data, client, apiBaseUrl, page, pageSize, sortedInfo],
   );
   const needle = search.trim().toLocaleLowerCase();
-  const visible = useMemo(
-    () =>
-      needle
-        ? data.filter((item) =>
-            `${item.name} ${item.email}`.toLocaleLowerCase().includes(needle),
-          )
-        : data,
-    [data, needle],
-  );
+  const visible = useMemo(() => {
+    const filtered = needle
+      ? data.filter((item) =>
+          `${item.name} ${item.email}`.toLocaleLowerCase().includes(needle),
+        )
+      : data;
+    return sortProductivityRows(filtered, sortedInfo);
+  }, [data, needle, sortedInfo]);
+  const metricTotals = useMemo(() => sumProductivityMetricTotals(data), [data]);
 
   return (
     <div className="productivity-table-shell">
@@ -349,9 +399,21 @@ export function ApplierProductivityTable({
                 setPageSize(nextPageSize);
               },
             }}
+            onChange={(_pagination, _filters, sorter) => {
+              const next = Array.isArray(sorter) ? sorter[0] : sorter;
+              if (next?.order) {
+                setSortedInfo({
+                  field: next.columnKey || next.field || DEFAULT_PRODUCTIVITY_SORT.field,
+                  order: next.order,
+                });
+                return;
+              }
+              setSortedInfo(DEFAULT_PRODUCTIVITY_SORT);
+            }}
             dataSource={visible}
             columns={columns}
             scroll={{ x: "max-content" }}
+            summary={() => <ProductivityTableSummary totals={metricTotals} />}
           />
         </div>
       )}

@@ -17,7 +17,7 @@ function normalizeMinePayload(data,limit=100){
   };
 }
 async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="updated_desc",limit=100}={}){
-  const {data,error}=await client.rpc("list_my_applications_v19",{
+  const {data,error}=await client.rpc("list_my_applications_v20",{
     p_status:status||"",
     p_sort:sort||"updated_desc",
     p_limit:Math.min(Number(limit)||100,500),
@@ -27,7 +27,7 @@ async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="upda
     const detail=String(error.message||error.details||error.hint||"");
     throw new AppError(
       String(error.code||"APPLICATIONS_LOAD_FAILED"),
-      detail.includes("list_my_applications_v19")||/could not find the function/i.test(detail)
+      detail.includes("list_my_applications_v20")||/could not find the function/i.test(detail)
         ? "Apply the latest database migrations, then reload the extension."
         : "Your Applications could not be loaded.",
       detail,

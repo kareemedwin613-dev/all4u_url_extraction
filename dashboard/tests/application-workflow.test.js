@@ -61,8 +61,28 @@ test("Application pages expose list, create, detail, history, and empty/loading 
 
 test("manager Application page exposes persistent bulk assignment controls",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
-  for(const text of["Assign / Reassign Selected","applications/bulk-assign","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","CANCELLED","CLOSED","COMPLETED"])assert.match(source,new RegExp(text));
+  for(const text of["Assign / Reassign Selected","Cancel Selected","bulkCancelApplications","Select For Cancellation","storeAssignmentIds","preserveSelectedRowKeys\\s*:\\s*true","CANCELLED","CLOSED","COMPLETED"])assert.match(source,new RegExp(text));
   assert.doesNotMatch(source,/assigned_to != null/);
+});
+
+test("bulk cancel service posts selected application ids to the API",async()=>{
+  let request;
+  const originalFetch=globalThis.fetch;
+  const client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})}};
+  globalThis.fetch=async(url,options)=>{
+    request={url:new URL(url),options,body:options.body?JSON.parse(options.body):null};
+    return new Response(JSON.stringify({data:{total:2,succeeded:2,failed:0,results:[]}}),{status:200,headers:{"content-type":"application/json"}});
+  };
+  try{
+    const { bulkCancelApplications } = await import("../src/features/applications/application-service.js");
+    const result=await bulkCancelApplications(client,"https://api.example.com",{applicationIds:[id,id2]});
+    assert.equal(result.succeeded,2);
+    assert.equal(request.options.method,"POST");
+    assert.equal(request.url.pathname,"/api/v1/applications/bulk-cancel");
+    assert.deepEqual(request.body.applicationIds,[id,id2]);
+  }finally{
+    globalThis.fetch=originalFetch;
+  }
 });
 
 test("Applier Application columns follow the operational priority order",async()=>{
@@ -76,7 +96,8 @@ test("Applier Application columns follow the operational priority order",async()
   assert.ok(section.indexOf("noColumn") < section.indexOf("numberColumn"));
   assert.ok(section.indexOf("numberColumn")<section.indexOf("companyColumn"));
   assert.ok(section.indexOf("companyColumn")<section.indexOf("jobTitleColumn"));
-  assert.ok(section.indexOf("jobTitleColumn")<section.indexOf("resumeColumn"));
+  assert.ok(section.indexOf("jobTitleColumn")<section.indexOf("profileNameColumn"));
+  assert.ok(section.indexOf("profileNameColumn")<section.indexOf("resumeColumn"));
   assert.ok(section.indexOf("resumeColumn")<section.search(/title:\s*"Link"/));
 });
 
@@ -90,6 +111,7 @@ test("manager Application list identifies both sides of the JD and Resume pair",
   assert.match(section,/numberColumn/);
   assert.match(section,/companyColumn/);
   assert.match(section,/jobTitleColumn/);
+  assert.match(section,/profileNameColumn/);
   assert.match(section,/resumeColumn/);
   assert.match(section,/title:\s*"Captured At"/);
   assert.match(section,/title:\s*"Last Updated"/);
@@ -98,16 +120,21 @@ test("manager Application list identifies both sides of the JD and Resume pair",
 test("Application list truncates only Company and Job Title with ellipsis", async () => {
   const source = await readFile(new URL("../src/features/applications/application-pages.jsx", import.meta.url), "utf8");
   const company = source.slice(source.indexOf("const companyColumn ="), source.indexOf("const jobTitleColumn ="));
-  const jobTitle = source.slice(source.indexOf("const jobTitleColumn ="), source.indexOf("const resumeColumn ="));
+  const jobTitle = source.slice(source.indexOf("const jobTitleColumn ="), source.indexOf("const profileNameColumn ="));
+  const profileName = source.slice(source.indexOf("const profileNameColumn ="), source.indexOf("const resumeColumn ="));
   const resume = source.slice(source.indexOf("const resumeColumn ="), source.indexOf("const managerColumns ="));
   const manager = source.slice(source.indexOf("const managerColumns ="), source.indexOf("const applierColumns ="));
   assert.match(company, /EllipsisCell/);
   assert.match(jobTitle, /EllipsisCell/);
+  assert.doesNotMatch(profileName, /EllipsisCell/);
   assert.doesNotMatch(resume, /EllipsisCell/);
-  assert.doesNotMatch(manager, /title:\s*"Applier Profile"[\s\S]*?EllipsisCell/);
-  assert.match(manager, /title:\s*"Applier Profile"[\s\S]*?MetaTag/);
+  assert.doesNotMatch(manager, /title:\s*"Applier"[\s\S]*?EllipsisCell/);
+  assert.match(manager, /title:\s*"Applier"[\s\S]*?MetaTag/);
+  assert.doesNotMatch(manager, /title:\s*"Priority"/);
+  assert.doesNotMatch(source.slice(source.indexOf("const applierColumns =")), /title:\s*"Priority"/);
+  assert.match(source, /openFirstApplicationScreenshot/);
   assert.match(source, /categoryTagColor\(categories/);
-  assert.match(source, /applicationsScrollX = manager \? 2346 : 2000/);
+  assert.match(source, /applicationsScrollX = manager \? 2386 : 2040/);
 });
 
 test("Application Number is visible on the list, detail heading, and search",async()=>{

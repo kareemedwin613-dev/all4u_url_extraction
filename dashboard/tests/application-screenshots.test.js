@@ -33,6 +33,7 @@ test("Application screenshot services use protected API routes", async () => {
   assert.match(service, /getApplicationScreenshotUrl/);
   assert.match(service, /\/screenshots\/\$\{encodeURIComponent\(screenshotId\)\}\/file-url/);
   assert.match(service, /openApplicationScreenshot/);
+  assert.match(service, /openFirstApplicationScreenshot/);
   assert.match(service, /timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS/);
   assert.match(extensionService, /timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS/);
   assert.match(extensionService, /inferScreenshotMime/);
