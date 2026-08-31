@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { DEFAULT_OVERVIEW_WINDOW, formatOverviewDate, formatOverviewRangeLabel, overviewDateBounds } from "../src/features/overview/overview-date.js";
+import { isActivityScopedReportingWindow } from "../src/features/overview/applier-productivity.js";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -16,6 +17,22 @@ test("Overview defaults to today and supports bounded calendar windows", () => {
   assert.equal(new Date(week.from).getDay(), 1);
   assert.equal(new Date(month.from).getDate(), 1);
   assert.equal((new Date(custom.to) - new Date(custom.from)) / 86400000, 4);
+});
+
+test("short Overview windows use activity-scoped reporting semantics", () => {
+  const now = new Date(2026, 7, 13, 14, 30);
+  assert.equal(
+    isActivityScopedReportingWindow(overviewDateBounds(DEFAULT_OVERVIEW_WINDOW, now)),
+    true,
+  );
+  assert.equal(
+    isActivityScopedReportingWindow(overviewDateBounds({ window: "THIS_WEEK" }, now)),
+    true,
+  );
+  assert.equal(
+    isActivityScopedReportingWindow(overviewDateBounds({ window: "THIS_MONTH" }, now)),
+    false,
+  );
 });
 
 test("custom Overview range labels use readable month-day-year spelling", () => {
@@ -35,8 +52,9 @@ test("the sticky top bar owns the shared Overview reporting period", async () =>
   assert.doesNotMatch(app, /jdFinderPerformance/);
   assert.doesNotMatch(app, /CapturedJobUrls|Captured job URLs/);
   assert.doesNotMatch(app, /OverviewApplierInsights/);
-  assert.match(cards, /OverviewKpiGrid/);
-  assert.match(cards, /Application Workflow/);
+  assert.match(cards, /Business Records/);
+  assert.doesNotMatch(app, /ApplicationCountCards/);
+  assert.doesNotMatch(cards, /Application Workflow/);
 });
 
 test("date-windowed Overview RPCs are role checked, bounded, and use canonical Application status", async () => {

@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
 
 const APPLICATION_STATUSES=["UNASSIGNED","ASSIGNED","IN_PROGRESS","BLOCKED","APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"];
+const APPLIER_MINE_STATUSES=["","ASSIGNED","APPLIED","BLOCKED"] as const;
 const PRIORITIES=["LOW","NORMAL","HIGH","URGENT"];
 
 export class ApplicationListQueryDto{
@@ -19,7 +20,7 @@ export class ApplicationListQueryDto{
   @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100,500,1000,5000])pageSize=25;
 }
 export class MyApplicationQueryDto{
-  @IsOptional()@IsIn(["",...APPLICATION_STATUSES])status="";
+  @IsOptional()@IsIn(APPLIER_MINE_STATUSES)status="";
   @IsOptional()@IsUUID("4")resumeId?:string;
   @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","captured_asc","captured_desc"])sort="updated_desc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)@Max(500)limit=100;

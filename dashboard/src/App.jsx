@@ -64,7 +64,6 @@ import { ApplierProductivityPage } from "./features/overview/applier-productivit
 import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
 import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
 import {
-  ApplicationCountCards,
   BusinessRecordCards,
 } from "./features/overview/overview-count-cards.jsx";
 import { getApplicationCounts, getApplierProfileWorkload } from "./features/applications/application-service.js";
@@ -773,9 +772,6 @@ function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRan
   const showProfileWorkload = !isAdmin && !isApplicationManager(access);
   return (
     <>
-      <div className="page application-overview">
-        <ApplicationCountCards client={client} apiBaseUrl={apiBaseUrl} access={access} reload={reload} dateRange={dateRange} dateLabel={period.label} />
-      </div>
       <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} />
       {isAdmin ? (
         <ApplierProductivitySection

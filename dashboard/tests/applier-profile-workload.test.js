@@ -16,7 +16,7 @@ test("Profile workload section appears on Applier Overview dashboard", async () 
     read("../src/features/overview/applier-profile-workload-page.jsx"),
     read("../src/features/overview/applier-profile-workload-table.jsx"),
     read("../src/features/overview/applier-profile-workload.js"),
-    read("../../supabase/migrations/202608270086_v3_26_profile_workload_by_resume.sql"),
+    read("../../supabase/migrations/202608310101_v3_41_profile_workload_assigned_to_applier.sql"),
     read("../../apps/api/src/applications/application.service.ts"),
     read("../../apps/api/src/applications/application.controller.ts"),
   ]);
@@ -28,11 +28,13 @@ test("Profile workload section appears on Applier Overview dashboard", async () 
   assert.match(page, /Activity Overview/);
   assert.match(page, /ActivityOverviewChart/);
   assert.match(table, /ApplierProfileWorkloadTable/);
+  assert.match(table, /My Active Profiles/);
   assert.match(table, /tableRowNumberColumn/);
   assert.doesNotMatch(table, /title: "Resume"/);
   assert.match(table, /"assigned", "applied", "blocked", "pending", "interview"/);
   assert.match(model, /deriveProfileWorkloadStatus/);
   assert.match(sqlLatest, /interview_count/);
+  assert.match(sqlLatest, /a\.assigned_to = arp\.applier_user_id/);
   assert.match(service, /get_applier_resume_profile_workload_v31/);
   assert.match(controller, /profile-workload/);
 });

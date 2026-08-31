@@ -53,6 +53,7 @@ import {
 } from "./query-state.js";
 import {
   createApplication,
+  bulkCancelApplications,
   getApplication,
   getApplicationCounts,
   listActiveAppliers,
@@ -60,6 +61,7 @@ import {
   listApplicationResumes,
   listApplications,
   openApplicationResume,
+  openFirstApplicationScreenshot,
   reassignApplication,
   updateApplication,
 } from "./application-service.js";
@@ -108,7 +110,9 @@ export function ApplicationsPage({
     [selectedIds, setSelectedIds] = useState([]),
     [selectionMode,setSelectionMode]=useState("TAILOR"),
     [tailoringBusy,setTailoringBusy]=useState(false),
+    [cancelBusy,setCancelBusy]=useState(false),
     [localReload, setLocalReload] = useState(0),
+    [openingScreenshotId, setOpeningScreenshotId] = useState(""),
     requestId = useRef(0),
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   useEffect(() => {
@@ -135,6 +139,18 @@ export function ApplicationsPage({
     const text = serializeApplicationQuery({ ...filters, ...patch });
     go(`#/applications${text ? `?${text}` : ""}`);
   };
+  async function openScreenshot(record) {
+    if (openingScreenshotId) return;
+    setOpeningScreenshotId(record.id);
+    setError("");
+    try {
+      await openFirstApplicationScreenshot(client, apiBaseUrl, record.id);
+    } catch (x) {
+      setError(x.message);
+    } finally {
+      setOpeningScreenshotId("");
+    }
+  }
   const searchFiltered = filters.search ? [filters.search] : null;
   const searchPlaceholder = "Application #, company, or job title";
   const sharedSearchKeys = ["application_number", "company", "job_title"];
@@ -187,13 +203,19 @@ export function ApplicationsPage({
     filterIcon: searchFilterIcon,
     render: (value) => <EllipsisCell>{value}</EllipsisCell>,
   };
+  const profileNameColumn = {
+    title: "Profile name",
+    dataIndex: "candidate_name",
+    sortKey: "candidate",
+    width: 160,
+    render: (value) => value || "—",
+  };
   const resumeColumn = {
     title: "Resume",
     dataIndex: "resume_name",
     sortKey: "resume",
-    width: 320,
-    render: (value, record) =>
-      `${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`,
+    width: 200,
+    render: (value) => value || "Unnamed Resume",
   };
   const statusColumn = {
     title: "Status",
@@ -206,20 +228,6 @@ export function ApplicationsPage({
     })),
     filterMultiple: false,
     filteredValue: filters.status ? [filters.status] : null,
-    ...serverSideColumnFilter,
-    render: (value) => <StatusTag value={value} />,
-  };
-  const priorityColumn = {
-    title: "Priority",
-    dataIndex: "priority",
-    sortKey: "priority",
-    width: 110,
-    filters: APPLICATION_PRIORITIES.map((value) => ({
-      text: formatLabel(value),
-      value,
-    })),
-    filterMultiple: false,
-    filteredValue: filters.priority ? [filters.priority] : null,
     ...serverSideColumnFilter,
     render: (value) => <StatusTag value={value} />,
   };
@@ -247,12 +255,22 @@ export function ApplicationsPage({
     width: 110,
     align: "center",
     sortable: false,
-    render: (value) => {
+    render: (value, record) => {
       const count = Number(value) || 0;
-      return count ? (
-        <Tag icon={<FileImageOutlined />}>{count}</Tag>
-      ) : (
-        <Text type="secondary">—</Text>
+      if (!count) return <Text type="secondary">—</Text>;
+      const opening = openingScreenshotId === record.id;
+      return (
+        <Tag
+          icon={<FileImageOutlined />}
+          style={{ cursor: opening ? "wait" : "pointer" }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!opening) openScreenshot(record);
+          }}
+        >
+          {opening ? "Opening…" : count}
+        </Tag>
       );
     },
   };
@@ -262,9 +280,10 @@ export function ApplicationsPage({
       numberColumn,
       companyColumn,
       jobTitleColumn,
+      profileNameColumn,
       resumeColumn,
       {
-        title: "Applier Profile",
+        title: "Applier",
         dataIndex: "assignee_name",
         sortKey: "assignee",
         width: 180,
@@ -292,7 +311,6 @@ export function ApplicationsPage({
         },
       },
       statusColumn,
-      priorityColumn,
       categoryColumn,
       screenshotColumn,
       {
@@ -355,6 +373,7 @@ export function ApplicationsPage({
       appliers,
       batches,
       categories,
+      openingScreenshotId,
     ],
   );
   const applierColumns = useMemo(
@@ -363,6 +382,7 @@ export function ApplicationsPage({
       numberColumn,
       companyColumn,
       jobTitleColumn,
+      profileNameColumn,
       resumeColumn,
       {
         title: "Link",
@@ -441,20 +461,6 @@ export function ApplicationsPage({
           </MetaTag>
         ),
       },
-      {
-        title: "Priority",
-        dataIndex: "priority",
-        sortKey: "priority",
-        width: 110,
-        filters: APPLICATION_PRIORITIES.map((value) => ({
-          text: formatLabel(value),
-          value,
-        })),
-        filterMultiple: false,
-        filteredValue: filters.priority ? [filters.priority] : null,
-        ...serverSideColumnFilter,
-        render: (value) => <StatusTag value={value} />,
-      },
       actionColumn,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -463,15 +469,44 @@ export function ApplicationsPage({
       filters.pageSize,
       filters.search,
       filters.status,
-      filters.priority,
       filters.categoryId,
       categories,
+      openingScreenshotId,
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2456 : 2110,
+    applicationsScrollX = manager ? 2386 : 2040,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
+  function cancelSelected(){
+    Modal.confirm({
+      title: `Cancel ${selectedIds.length} Application${selectedIds.length === 1 ? "" : "s"}?`,
+      content: "Cancelled applications are removed from active work but the record and history are retained.",
+      okText: "Cancel Applications",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setCancelBusy(true);
+        setError("");
+        try {
+          const result = await bulkCancelApplications(client, apiBaseUrl, {
+            applicationIds: selectedIds,
+          });
+          setSelectedIds([]);
+          setLocalReload((value) => value + 1);
+          setNotice(
+            result.failed
+              ? `Cancelled ${result.succeeded} of ${result.total} Applications. ${result.failed} could not be cancelled.`
+              : `Cancelled ${result.succeeded} Application${result.succeeded === 1 ? "" : "s"}.`,
+          );
+        } catch (x) {
+          setError(x.message);
+          throw x;
+        } finally {
+          setCancelBusy(false);
+        }
+      },
+    });
+  }
   function applyTableFilters(tableFilters) {
     let search = filters.search;
     try {
@@ -511,13 +546,21 @@ export function ApplicationsPage({
       {manager ? (
         <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
           <Space wrap>
-            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"}]} style={{minWidth:220}}/>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"},{value:"CANCEL",label:"Select For Cancellation"}]} style={{minWidth:220}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
               onClick={() => setSelectedIds([])}
             >
               Clear selection
+            </Button>
+            <Button
+              danger
+              disabled={!selectedIds.length || cancelBusy}
+              loading={cancelBusy}
+              onClick={cancelSelected}
+            >
+              Cancel Selected
             </Button>
             <Button
               disabled={selectionMode!=="ASSIGN"||!selectedIds.length || tooMany}
@@ -598,7 +641,10 @@ export function ApplicationsPage({
                       preserveSelectedRowKeys: true,
                       onChange: setSelectedIds,
                       getCheckboxProps: (record) => ({
-                        disabled: selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status),
+                        disabled:
+                          (selectionMode === "ASSIGN" &&
+                            ["CANCELLED", "CLOSED", "COMPLETED"].includes(record.status)) ||
+                          (selectionMode === "CANCEL" && record.status === "CANCELLED"),
                       }),
                     }
                   : undefined

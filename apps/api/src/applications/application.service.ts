@@ -51,7 +51,7 @@ function failure(error:any,fallback:string):never{
     };
   }
   async mine(user:AuthenticatedUser,q:any){
-    const data:any=await this.rpc(user,"list_my_applications_v19",{
+    const data:any=await this.rpc(user,"list_my_applications_v20",{
       p_status:q.status||"",
       p_sort:q.sort||"updated_desc",
       p_limit:Math.min(Number(q.limit)||100,500),
@@ -88,6 +88,14 @@ function failure(error:any,fallback:string):never{
   async resumeAccess(u:AuthenticatedUser,id:string){const context:any=await this.extensionContext(u,id);if(!context?.permissions?.canLoadResume||context?.resume?.status!=="ACTIVE")throw new ApiException("APPLICATION_RESUME_UNAVAILABLE","The active Resume is not available for this Application.",HttpStatus.CONFLICT);const file:any=await this.extensionRpc(u,"get_application_resume_file",{p_application_id:id},"The Resume is not available for this Application.");const mimeType=String(context.resume.mimeType||""),fileSizeBytes=Number(context.resume.fileSizeBytes),filename=String(context.resume.originalFilename||file?.filename||"");if(!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(mimeType)||!Number.isSafeInteger(fileSizeBytes)||fileSizeBytes<1||fileSizeBytes>5242880||!filename||file?.filename!==filename)throw new ApiException("APPLICATION_RESUME_METADATA_INVALID","The Resume metadata is invalid or does not match this Application.",HttpStatus.CONFLICT);const expiresInSeconds=60,{data,error}=await this.supabase.forUser(u.token).storage.from(file.bucket).createSignedUrl(file.path,expiresInSeconds);if(error||!data?.signedUrl)failure(error,"The private Resume file could not be opened.");return{signedUrl:data.signedUrl,filename,mimeType,fileSizeBytes,expiresAt:new Date(Date.now()+expiresInSeconds*1000).toISOString()};}
   update=(u:AuthenticatedUser,id:string,m:any)=>this.rpc(u,"update_application_status_v101",{p_application_id:id,p_status:m.status,p_application_url:m.applicationUrl||null,p_applied_at:m.appliedAt||null,p_notes:m.notes==null?null:String(m.notes),p_priority:m.priority??null,p_due_at:m.dueAt??null},"The Application could not be updated.");
   assign=(u:AuthenticatedUser,id:string,m:any)=>this.rpc(u,"reassign_application",{p_application_id:id,p_new_assignee_id:m.newAssigneeId||null,p_reason:m.reason||null},"The assignment could not be changed.");
+  async bulkCancel(user:AuthenticatedUser,ids:string[],notes?:string){
+    const unique=[...new Set((ids||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
+    if(!unique.length)throw new ApiException("VALIDATION_ERROR","Select at least one Application.",HttpStatus.BAD_REQUEST);
+    if(unique.length>2000)throw new ApiException("VALIDATION_ERROR","Select no more than 2000 Applications.",HttpStatus.BAD_REQUEST);
+    const data:any=await this.rpc(user,"bulk_cancel_applications_v315",{p_application_ids:unique,p_notes:notes?.trim()||null},"The selected Applications could not be cancelled.");
+    const payload=data&&typeof data==="object"?data:{};
+    return{total:Number(payload.total)||unique.length,succeeded:Number(payload.succeeded)||0,failed:Number(payload.failed)||0,results:Array.isArray(payload.results)?payload.results:[]};
+  }
   preview=(u:AuthenticatedUser,m:any)=>this.rpc(u,"preview_bulk_applications",{p_selected_jd_ids:[...new Set(m.jobDescriptionIds)]},"The bulk preview could not be generated.");
   bulkCreate=(u:AuthenticatedUser,m:any)=>this.rpc(u,"create_applications_bulk",{p_combinations:m.combinations,p_batch_name:String(m.batchName||"").trim()||null},"The bulk Applications could not be created.");
   async batches(u:AuthenticatedUser,q:any){const size=q.pageSize||25,page=q.page||1,data:any=await this.rpc(u,"list_application_batches_v2",{p_search:q.search||"",p_status:q.status||"",p_sort:q.sort||"created_desc",p_limit:size,p_offset:(page-1)*size},"Application batches could not be loaded."),total=Number(data?.total)||0,pageCount=total?Math.ceil(total/size):0;return{...data,total,page:pageCount?Math.min(page,pageCount):1,pageSize:size,pageCount,from:total?(page-1)*size+1:0,to:Math.min(page*size,total),hasPrevious:page>1,hasNext:page<pageCount};}

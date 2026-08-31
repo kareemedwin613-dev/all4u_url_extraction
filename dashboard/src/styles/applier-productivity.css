@@ -293,8 +293,21 @@
 }
 
 .productivity-table .ant-table-pagination {
+  margin: 12px 16px 16px !important;
   padding: 12px 16px 16px;
-  margin: 0 !important;
+}
+
+.productivity-table .ant-table-summary > tr > td {
+  background: #f8fafc !important;
+  border-top: 1px solid #dbe3ee !important;
+  border-bottom: 1px solid #eef2f7 !important;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  vertical-align: middle;
+}
+
+.productivity-metric-value--total {
+  font-weight: 700;
 }
 
 .productivity-stack-cell {

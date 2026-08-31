@@ -3,14 +3,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   buildActivityOverviewSegments,
+  activityOverviewTotal,
   computeProductivityScore,
   deriveProductivityStatus,
   formatLastActivity,
   getNeedsAttentionAppliers,
   getTopPerformers,
+  applicationsAppliedCount,
   normalizeApplierProductivity,
   overviewWindowDays,
   PRODUCTIVITY_STATUS,
+  sortProductivityRows,
+  sumProductivityMetricTotals,
   summarizeProductivityKpis,
 } from "../src/features/overview/applier-productivity.js";
 
@@ -52,16 +56,55 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(table, /title: "Avg \/ Day"/);
   assert.doesNotMatch(table, /title: "Success Rate"/);
   assert.match(table, /title: "Score"/);
+  assert.match(table, /sortProductivityRows/);
+  assert.match(table, /DEFAULT_PRODUCTIVITY_SORT/);
   assert.match(table, /productivity-table-scroll/);
   assert.match(table, /showTotal:/);
   assert.match(table, /useState\(10\)/);
   assert.match(table, /productivity-status-pill/);
   assert.match(table, /productivity-score/);
+  assert.match(table, /Table\.Summary/);
+  assert.match(table, /sumProductivityMetricTotals/);
   assert.match(table, /aria-label="Search Applier Productivity by name or email"/);
 });
 
+test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, and Pending columns", () => {
+  const rows = normalizeApplierProductivity(
+    [
+      { ...sampleRow, assigned_count: 10, applied_count: 8, blocked_count: 1, pending_count: 2 },
+      {
+        ...sampleRow,
+        id: "a2",
+        assigned_count: 5,
+        applied_count: 3,
+        blocked_count: 2,
+        pending_count: 1,
+      },
+    ],
+    {
+      dateRange: {
+        from: "2026-08-25T04:00:00.000Z",
+        to: "2026-08-29T04:00:00.000Z",
+      },
+    },
+  );
+  assert.deepEqual(sumProductivityMetricTotals(rows), {
+    assigned: 15,
+    applied: 11,
+    blocked: 3,
+    pending: 3,
+  });
+});
+
 test("normalizeApplierProductivity maps productivity metrics from overview rows", () => {
-  const [row] = normalizeApplierProductivity([sampleRow], {
+  const [row] = normalizeApplierProductivity(
+    [
+      {
+        ...sampleRow,
+        last_activity_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ],
+    {
     dateRange: {
       from: "2026-08-25T04:00:00.000Z",
       to: "2026-08-29T04:00:00.000Z",
@@ -90,10 +133,83 @@ test("gradeFromScore maps numeric scores to letter grades", async () => {
   assert.equal(gradeFromScore(54).grade, "C");
 });
 
+test("getTopPerformers includes only active Appliers", () => {
+  const rows = normalizeApplierProductivity(
+    [
+      {
+        ...sampleRow,
+        id: "inactive-leader",
+        applier_name: "Inactive Leader",
+        profile_status: "INACTIVE",
+        applied_count: 999,
+        completion_rate: 95,
+        last_activity_at: "2026-08-31T10:00:00.000Z",
+      },
+      {
+        ...sampleRow,
+        last_activity_at: "2026-08-31T10:00:00.000Z",
+      },
+    ],
+    {
+      dateRange: {
+        from: "2026-08-25T04:00:00.000Z",
+        to: "2026-08-29T04:00:00.000Z",
+      },
+    },
+  );
+  const leaders = getTopPerformers(rows);
+  assert.equal(leaders.length, 1);
+  assert.equal(leaders[0].name, "Alex Applier");
+});
+
+test("applicationsAppliedCount uses Applied status totals for Applications KPI", () => {
+  assert.equal(applicationsAppliedCount({ applied: 3159 }), 3159);
+  assert.equal(applicationsAppliedCount({ applied_status: 3160 }), 3160);
+  assert.equal(
+    applicationsAppliedCount({ applied: 0, applied_today: 12 }, { activityScoped: true }),
+    12,
+  );
+  assert.equal(applicationsAppliedCount({ applied_today: 3210 }), null);
+  const rows = normalizeApplierProductivity([sampleRow], {
+    dateRange: {
+      from: "2026-08-25T04:00:00.000Z",
+      to: "2026-08-29T04:00:00.000Z",
+    },
+  });
+  const kpis = summarizeProductivityKpis(rows, {
+    windowDays: 4,
+    applicationCounts: { applied: 3159, applied_today: 3210 },
+  });
+  assert.equal(kpis.applications, 8);
+});
+
+test("summarizeProductivityKpis Applications KPI matches table Applied row sum", () => {
+  const rows = normalizeApplierProductivity(
+    [
+      { ...sampleRow, applied_count: 10 },
+      { ...sampleRow, id: "a2", applier_name: "Beta", applied_count: 5 },
+    ],
+    {
+      dateRange: {
+        from: "2026-08-25T04:00:00.000Z",
+        to: "2026-08-29T04:00:00.000Z",
+      },
+    },
+  );
+  const kpis = summarizeProductivityKpis(rows, {
+    windowDays: 4,
+    applicationCounts: { applied: 999 },
+  });
+  assert.equal(kpis.applications, 15);
+});
+
 test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", () => {
   const rows = normalizeApplierProductivity(
     [
-      sampleRow,
+      {
+        ...sampleRow,
+        last_activity_at: new Date(Date.now() - 3600000).toISOString(),
+      },
       {
         ...sampleRow,
         id: "a2",
@@ -118,9 +234,9 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
   assert.equal(kpis.applications, 8);
   const kpisWithCounts = summarizeProductivityKpis(rows, {
     windowDays: 4,
-    appliedTotal: 10,
+    applicationCounts: { applied: 10 },
   });
-  assert.equal(kpisWithCounts.applications, 10);
+  assert.equal(kpisWithCounts.applications, 8);
   assert.equal(kpisWithCounts.windowDays, 4);
   assert.ok(kpis.avgSuccessRate > 0);
   assert.equal(getNeedsAttentionAppliers(rows).length, 1);
@@ -128,18 +244,81 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
   assert.deepEqual(buildActivityOverviewSegments({
     assigned: 20,
     total: 20,
-    applied_today: 8,
+    unassigned: 3,
+    applied_count: 8,
+    screening: 2,
     pending: 6,
     blocked: 2,
     interviews: 1,
-  }).map((segment) => segment.key), ["assigned", "applied", "blocked", "pending", "interviews"]);
-  assert.deepEqual(buildActivityOverviewSegments({
-    my_assigned: 15,
-    applied_today: 4,
-    pending: 5,
-    blocked: 1,
-    interviews: 0,
-  }).map((segment) => segment.key), ["assigned", "applied", "blocked", "pending"]);
+    closed_status: 2,
+    cancelled_status: 1,
+  }).map((segment) => segment.key), [
+    "unassigned",
+    "pending",
+    "applied",
+    "screening",
+    "blocked",
+    "interviews",
+    "closed",
+    "cancelled",
+  ]);
+  assert.equal(activityOverviewTotal({ total: 20, assigned: 20 }), 20);
+  assert.deepEqual(
+    buildActivityOverviewSegments({
+      my_assigned: 15,
+      applied_count: 4,
+      pending: 5,
+      blocked: 0,
+      interviews: 0,
+      cancelled_status: 0,
+    })
+      .map((segment) => segment.key)
+      .sort(),
+    ["applied", "pending"],
+  );
+  assert.deepEqual(
+    buildActivityOverviewSegments({
+      pending: 2,
+      blocked: 1,
+      interviews: 3,
+      closed_status: 0,
+    }).map((segment) => segment.key),
+    ["pending", "blocked", "interviews"],
+  );
+});
+
+test("sortProductivityRows keeps active Appliers before inactive when sorting by score", () => {
+  const rows = normalizeApplierProductivity(
+    [
+      {
+        ...sampleRow,
+        id: "inactive-high",
+        applier_name: "Inactive High",
+        profile_status: "INACTIVE",
+        applied_count: 20,
+        completion_rate: 80,
+        last_activity_at: "2026-08-31T10:00:00.000Z",
+      },
+      {
+        ...sampleRow,
+        id: "active-low",
+        applier_name: "Active Low",
+        applied_count: 2,
+        completion_rate: 20,
+        avg_per_day: 0.5,
+        last_activity_at: "2026-08-31T10:00:00.000Z",
+      },
+    ],
+    {
+      dateRange: {
+        from: "2026-08-25T04:00:00.000Z",
+        to: "2026-08-29T04:00:00.000Z",
+      },
+    },
+  );
+  const sorted = sortProductivityRows(rows, { field: "score", order: "descend" });
+  assert.equal(sorted[0].name, "Active Low");
+  assert.equal(sorted.at(-1).name, "Inactive High");
 });
 
 test("computeProductivityScore weights completion, pace, and status", () => {
@@ -199,10 +378,35 @@ test("overviewWindowDays derives inclusive calendar span from API bounds", () =>
 
 test("applier productivity RPC extends business overview with bounded activity metrics", async () => {
   const sql = await read(
-    "../../supabase/migrations/202608280091_v3_31_overview_applier_productivity.sql",
+    "../../supabase/migrations/202608310106_v3_46_overview_activity_scoped_short_windows.sql",
   );
   assert.match(sql, /get_business_overview_v31\(p_from timestamptz,p_to timestamptz\)/);
+  assert.match(sql, /v_activity_scoped/);
+  assert.match(sql, /period_apps/);
   assert.match(sql, /active_days/);
   assert.match(sql, /avg_per_day/);
   assert.match(sql, /last_activity_at/);
+  assert.doesNotMatch(sql, /unassigned_row/);
+});
+
+test("normalizeApplierProductivity drops the synthetic Unassigned row", () => {
+  const rows = normalizeApplierProductivity(
+    [
+      sampleRow,
+      {
+        ...sampleRow,
+        id: "00000000-0000-4000-8000-000000000000",
+        applier_name: "Unassigned",
+        applied_count: 198,
+      },
+    ],
+    {
+      dateRange: {
+        from: "2026-08-25T04:00:00.000Z",
+        to: "2026-08-29T04:00:00.000Z",
+      },
+    },
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, "Alex Applier");
 });
