@@ -11,6 +11,8 @@ export function parseApplicationQuery(query=""){
     status:allowed(p.get("status")||"",APPLICATION_STATUSES),
     priority:allowed(p.get("priority")||"",APPLICATION_PRIORITIES),
     company:(p.get("company")||"").trim().slice(0,100),
+    profileName:(p.get("profileName")||"").trim().slice(0,100),
+    resumeName:(p.get("resumeName")||"").trim().slice(0,100),
     categoryId:uuid(p.get("categoryId")),
     dueFilter:allowed(p.get("dueFilter")||"",DUE_FILTERS.map(x=>x[0])),
     creationBatchId:uuid(p.get("creationBatchId")),
@@ -19,9 +21,20 @@ export function parseApplicationQuery(query=""){
     pageSize,
   };
 }
+export function countActiveApplicationFilters(filters={}){
+  let count=0;
+  if(filters.search)count++;
+  if(filters.company)count++;
+  if(filters.profileName)count++;
+  if(filters.resumeName)count++;
+  if(filters.status)count++;
+  if(filters.categoryId)count++;
+  if(filters.assignedTo)count++;
+  return count;
+}
 export function serializeApplicationQuery(value){
   const p=new URLSearchParams();
-  for(const key of ["search","assignedTo","status","priority","company","categoryId","dueFilter","creationBatchId","creationMode","page","pageSize"]){
+  for(const key of ["search","assignedTo","status","priority","company","profileName","resumeName","categoryId","dueFilter","creationBatchId","creationMode","page","pageSize"]){
     const v=value[key];
     if(v===""||v==null)continue;
     if(key==="pageSize"&&Number(v)===25)continue;

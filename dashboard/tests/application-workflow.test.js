@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {applicationActions,validateApplicationCreate,validateApplicationProgress} from "../src/features/applications/validation.js";
-import {parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
+import {countActiveApplicationFilters,parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
 import {createApplication,listApplications,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
 import {capabilitiesForRoles} from "../src/access/capabilities.js";
 import {readFile} from "node:fs/promises";
@@ -36,6 +36,12 @@ test("application query state is allowlisted and serializable",()=>{
   assert.equal(parseApplicationQuery("pageSize=999").pageSize, 25);
 });
 
+test("application filter panel counts active server-side filters",()=>{
+  assert.equal(countActiveApplicationFilters({}),0);
+  assert.equal(countActiveApplicationFilters({search:"Acme",status:"BLOCKED",profileName:"Jordan"}),3);
+  assert.equal(countActiveApplicationFilters({resumeName:"Main Resume"}),1);
+});
+
 test("application services use protected RPC contracts",async()=>{
   const calls=[],originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};
   globalThis.fetch=async(url,options)=>{calls.push({url:new URL(url),options,body:options.body?JSON.parse(options.body):null});return new Response(JSON.stringify({data:String(url).includes("/api/v1/applications?")||String(url).endsWith("/api/v1/applications")?{items:[{id}],total:1,page:1,pageSize:25,pageCount:1,from:1,to:1}:{id}}),{status:200});};
@@ -57,6 +63,11 @@ test("database errors become user-friendly application messages",()=>{
 test("Application pages expose list, create, detail, history, and empty/loading states",async()=>{
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   for(const text of ["ApplicationsPage","CreateApplicationPage","ApplicationDetailPage","Create Application","Assignment History","Status History","No Applications","Loading..."])assert.match(source,new RegExp(text));
+  assert.match(source,/<FilterPanel/);
+  for(const text of ["Profile name","Resume","Company","Clear filters"])assert.match(source,new RegExp(text));
+  assert.doesNotMatch(source,/label>\s*\n\s*Due/);
+  assert.doesNotMatch(source,/label>\s*\n\s*Priority/);
+  assert.doesNotMatch(source,/label>\s*\n\s*Creation/);
 });
 
 test("manager Application page exposes persistent bulk assignment controls",async()=>{
