@@ -35,6 +35,7 @@ import { useTableBodyHeight } from "../../shared/use-table-body-height.js";
 import {
   ErrorState,
   EllipsisCell,
+  FilterPanel,
   LoadingState,
   MetaTag,
   StatusTag,
@@ -43,11 +44,11 @@ import {
   categoryTagColor,
 } from "../../components/ui.jsx";
 import {
-  APPLICATION_PRIORITIES,
   APPLICATION_STATUSES,
 } from "./constants.js";
 import { applicationActions, isApplicationManager } from "./validation.js";
 import {
+  countActiveApplicationFilters,
   parseApplicationQuery,
   serializeApplicationQuery,
 } from "./query-state.js";
@@ -92,6 +93,179 @@ const Notice = ({ message, error = false }) =>
       message={message}
     />
   ) : null;
+
+function ApplicationListFilters({
+  filters,
+  manager,
+  categories,
+  appliers,
+  onChange,
+}) {
+  const field = { xs: 24, sm: 12, lg: 8, xl: 6 },
+    activeCount = countActiveApplicationFilters(filters),
+    [searchDraft, setSearchDraft] = useState(filters.search),
+    [companyDraft, setCompanyDraft] = useState(filters.company),
+    [profileNameDraft, setProfileNameDraft] = useState(filters.profileName),
+    [resumeNameDraft, setResumeNameDraft] = useState(filters.resumeName);
+  useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search]);
+  useEffect(() => {
+    setCompanyDraft(filters.company);
+  }, [filters.company]);
+  useEffect(() => {
+    setProfileNameDraft(filters.profileName);
+  }, [filters.profileName]);
+  useEffect(() => {
+    setResumeNameDraft(filters.resumeName);
+  }, [filters.resumeName]);
+  function clearFilters() {
+    onChange({
+      search: "",
+      company: "",
+      profileName: "",
+      resumeName: "",
+      status: "",
+      categoryId: "",
+      assignedTo: "",
+      page: 1,
+    });
+  }
+  return (
+    <FilterPanel activeCount={activeCount} defaultOpen={activeCount > 0}>
+      <Row gutter={[12, 12]}>
+        <Col {...field}>
+          <label>
+            Search
+            <Input.Search
+              allowClear
+              value={searchDraft}
+              placeholder="Application #, company, or job title"
+              onChange={(event) => setSearchDraft(event.target.value)}
+              onSearch={(search) =>
+                onChange({ search: search.trim().slice(0, 100), page: 1 })
+              }
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Company
+            <Input.Search
+              allowClear
+              value={companyDraft}
+              placeholder="Company name"
+              onChange={(event) => setCompanyDraft(event.target.value)}
+              onSearch={(company) =>
+                onChange({ company: company.trim().slice(0, 100), page: 1 })
+              }
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Status
+            <Select
+              allowClear
+              value={filters.status || undefined}
+              placeholder="All statuses"
+              onChange={(status) => onChange({ status: status || "", page: 1 })}
+              options={APPLICATION_STATUSES.map((value) => ({
+                value,
+                label: formatLabel(value),
+              }))}
+              style={{ width: "100%" }}
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Primary Category
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              value={filters.categoryId || undefined}
+              placeholder="All categories"
+              onChange={(categoryId) =>
+                onChange({ categoryId: categoryId || "", page: 1 })
+              }
+              options={(categories?.primary || []).map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              style={{ width: "100%" }}
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Profile name
+            <Input.Search
+              allowClear
+              value={profileNameDraft}
+              placeholder="Candidate profile name"
+              onChange={(event) => setProfileNameDraft(event.target.value)}
+              onSearch={(profileName) =>
+                onChange({
+                  profileName: profileName.trim().slice(0, 100),
+                  page: 1,
+                })
+              }
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Resume
+            <Input.Search
+              allowClear
+              value={resumeNameDraft}
+              placeholder="Resume name"
+              onChange={(event) => setResumeNameDraft(event.target.value)}
+              onSearch={(resumeName) =>
+                onChange({
+                  resumeName: resumeName.trim().slice(0, 100),
+                  page: 1,
+                })
+              }
+            />
+          </label>
+        </Col>
+        {manager ? (
+          <Col {...field}>
+            <label>
+              Applier
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                value={filters.assignedTo || undefined}
+                placeholder="All appliers"
+                onChange={(assignedTo) =>
+                  onChange({ assignedTo: assignedTo || "", page: 1 })
+                }
+                options={[
+                  { value: UNASSIGNED_APPLIER_ID, label: "Unassigned" },
+                  ...appliers.map((item) => ({
+                    value: item.id,
+                    label: name(item),
+                  })),
+                ]}
+                style={{ width: "100%" }}
+              />
+            </label>
+          </Col>
+        ) : null}
+        <Col {...field} className="filter-actions">
+          <Button disabled={!activeCount} onClick={clearFilters}>
+            Clear filters
+          </Button>
+        </Col>
+      </Row>
+    </FilterPanel>
+  );
+}
 
 export function ApplicationsPage({
   client,
@@ -535,9 +709,11 @@ export function ApplicationsPage({
         : filters.assignedTo,
       status: firstFilterValue(tableFilters, "status", ""),
       priority: firstFilterValue(tableFilters, "priority", ""),
-      company: "",
+      company: filters.company,
+      profileName: filters.profileName,
+      resumeName: filters.resumeName,
       categoryId: firstFilterValue(tableFilters, "category_id", ""),
-      dueFilter: firstFilterValue(tableFilters, "due_at", ""),
+      dueFilter: filters.dueFilter,
       creationMode: manager ? creationMode : "",
       creationBatchId: manager ? creationBatchId : "",
       page: 1,
@@ -594,6 +770,13 @@ export function ApplicationsPage({
           message="Select no more than 2,000 Applications for one assignment."
         />
       )}
+      <ApplicationListFilters
+        filters={filters}
+        manager={manager}
+        categories={categories}
+        appliers={appliers}
+        onChange={update}
+      />
       {error && !data ? (
         <ErrorState message={error} />
       ) : !data ? (

@@ -27,6 +27,8 @@ function failure(error:any,fallback:string):never{
         p_application_status:f.application,
         p_priority:q.priority||"",
         p_company:q.company||"",
+        ...(q.profileName?{p_profile_name:q.profileName}:{}),
+        ...(q.resumeName?{p_resume_name:q.resumeName}:{}),
         p_category_id:q.categoryId||null,
         p_due_filter:dueFilter,
         p_sort:q.sort||"updated_desc",

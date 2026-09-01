@@ -11,6 +11,8 @@ export class ApplicationListQueryDto{
   @IsOptional()@IsIn(["",...APPLICATION_STATUSES])status="";
   @IsOptional()@IsIn(["",...PRIORITIES])priority="";
   @IsOptional()@IsString()@MaxLength(100)company="";
+  @IsOptional()@IsString()@MaxLength(100)profileName="";
+  @IsOptional()@IsString()@MaxLength(100)resumeName="";
   @IsOptional()@IsUUID("4")categoryId?:string;
   @IsOptional()@IsIn(["","TODAY","DUE_TODAY","OVERDUE","NEXT_7_DAYS","NO_DUE_DATE"])dueFilter="";
   @IsOptional()@IsUUID("4")creationBatchId?:string;
