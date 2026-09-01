@@ -78,6 +78,17 @@ export function specializeOutputSchema(schema:Record<string,any>,input:Tailoring
   return result;
 }
 
+export function completeAtsSkills(generatedSkills:string[],jobSkills:string[]){
+  const seen=new Set<string>(),result:string[]=[];
+  for(const raw of [...jobSkills,...generatedSkills]){
+    const skill=raw.trim().replace(/\s+/g," "),key=skill.toLocaleLowerCase();
+    if(!skill||seen.has(key))continue;
+    seen.add(key);result.push(skill);
+    if(result.length===250)break;
+  }
+  return result;
+}
+
 export async function runTailoringProof(rawInput:unknown,options:RunProofOptions):Promise<TailoringPreview>{
   const input=validateTailoringInput(rawInput),workspace=await mkdtemp(resolve(tmpdir(),"resume-tailoring-v12-"));
   const schemaSource=resolve(options.schemaPath||OUTPUT_SCHEMA_PATH),schemaPath=resolve(workspace,"tailoring-output.schema.json"),resultPath=resolve(workspace,"codex-result.json"),prompt=buildTailoringPrompt(input),schema=specializeOutputSchema(JSON.parse(await readFile(schemaSource,"utf8")),input);
@@ -88,8 +99,9 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
       writeFile(schemaPath,`${JSON.stringify(schema,null,2)}\n`,"utf8")
     ]);
     await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
-    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input);}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
-    const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:(options.now?.()||new Date()).toISOString(),result};
+    const generatedAt=options.now?.()||new Date();
+    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input,generatedAt);result={...result,skills:completeAtsSkills(result.skills,input.jobDescription.skills)};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
+    const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),result};
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;
   }finally{

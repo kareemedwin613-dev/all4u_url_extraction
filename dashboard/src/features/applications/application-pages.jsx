@@ -80,7 +80,9 @@ const { Text, Title } = Typography,
   fromLocal = (value) => (value ? new Date(value).toISOString() : null),
   name = (user) => user?.display_name || user?.email || "Unassigned",
   PAGE_SIZES = [25, 50, 100, 500, 1000, 5000],
-  UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000";
+  UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000",
+  FINAL_TAILORING_STATUSES = new Set(["APPROVED", "MATERIALIZING", "COMPLETED"]),
+  tailoringIsFinal = (record) => FINAL_TAILORING_STATUSES.has(record?.tailoring_status);
 const Notice = ({ message, error = false }) =>
   message ? (
     <Alert

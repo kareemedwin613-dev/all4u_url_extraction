@@ -55,7 +55,7 @@ async function main(){
   if(ticketMode&&!apiBaseUrl)throw new Error("Ticket mode requires --api-base-url (or TAILORING_API_BASE_URL).");
   if(batchMode&&!apiBaseUrl)throw new Error("Batch ticket mode requires --api-base-url (or TAILORING_API_BASE_URL).");
   if(tickets.length>5||new Set(tickets).size!==tickets.length)throw new Error("Bulk ticket mode accepts between 1 and 5 unique tickets.");
-  if(!ticketMode&&!requestedOutput)throw new Error("Fixture and authenticated job modes require --output <new-json-file>.");
+  if((fixtureMode||apiMode)&&!requestedOutput)throw new Error("Fixture and authenticated job modes require --output <new-json-file>.");
   const invocationDirectory=resolve(process.env.INIT_CWD||process.cwd());
   if(batchMode){await runBatch(apiBaseUrl,batchTicket,args,invocationDirectory);return;}
   if(ticketMode){

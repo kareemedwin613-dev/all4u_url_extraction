@@ -27,6 +27,7 @@ import { ExperienceEditor } from "./experience-editor.jsx";
 import { CertificationEditor, EducationEditor } from "./education-editor.jsx";
 import { resolveSubcategoryId } from "./resume-structure.js";
 import { TabbedSections } from "../../components/ui.jsx";
+import { skillsFromResumeSection } from "../../../../extension/shared/skill-detection.js";
 
 const { Text, Title } = Typography,
   { Dragger } = Upload,
@@ -84,6 +85,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
     setSection = (name, value) =>
       setDraft((current) => ({
         ...current,
+        ...(name === "skills" ? { skills: skillsFromResumeSection(value).join(", ") } : {}),
         structuredContent: { ...current.structuredContent, [name]: value },
         reviewConfirmed: false,
       }));
@@ -443,7 +445,7 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                       </Col>
                       <Col xs={24} md={12}>
                         <label>
-                          Detected skills, comma-separated
+                          Original Skills section entries, comma-separated
                           <Input
                             value={draft.skills}
                             onChange={(event) =>

@@ -2,6 +2,7 @@ import {SENIORITIES} from "../../shared/constants.js";
 import {PDF_MIME,validatePdfFile} from "./resume-upload-constants.js";
 import {cleanStructuredResumeV2} from "./resume-structure.js";
 import {authenticatedApiRequest} from "../../services/api-client.js";
+import {preserveSkills} from "../../../../extension/shared/skill-detection.js";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const split=value=>[...new Set(String(value||"").split(",").map(item=>item.trim()).filter(Boolean))];
@@ -54,7 +55,8 @@ export async function findResumesByIdentity(client,apiBaseUrl,value={}){
 export async function uploadAdminResume(client,apiBaseUrl,userId,value,file){
   if(!UUID.test(String(userId||"")))throw new Error("Your authenticated user ID is invalid.");
   const check=validateResumeUpload(value,file);if(!check.valid)throw new Error(Object.values(check.errors).join(" "));
-  const metadata={...value,skills:split(value.skills),industries:split(value.industries),structuredContent:cleanStructuredResumeV2(value.structuredContent),structuredSchemaVersion:2};
+  const skills=preserveSkills(split(value.skills));
+  const metadata={...value,skills,industries:split(value.industries),structuredContent:cleanStructuredResumeV2(value.structuredContent),structuredSchemaVersion:2};
   const body=new FormData();body.append("metadata",JSON.stringify(metadata));body.append("file",file,file.name);
   return(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/resumes",method:"POST",body})).payload.data;
 }
