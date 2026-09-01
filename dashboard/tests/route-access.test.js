@@ -39,8 +39,8 @@ test("navigation is exact for technical, business, admin, and multi-role users",
   assert.deepEqual(navigationForAccess(access(["JD_FINDER"])).map(x=>x.label),["Overview","Job Descriptions","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER","DEVELOPER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Applier Directory","Tailoring Reviews","Tailoring Batches","Job Descriptions","Resumes","Users","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Applier Directory","Tailoring Reviews","Tailoring Batches","Job Descriptions","Resumes","Upload Resume","Users","Roles","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Applier Directory","Tailored Resumes","Tailoring Batches","Job Descriptions","Resumes","Users","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Applier Directory","Tailored Resumes","Tailoring Batches","Job Descriptions","Resumes","Upload Resume","Users","Roles","My Profile"]);
 });
 
 test("applier directory route is available to managers and admins",()=>{

@@ -251,7 +251,7 @@ export interface JobDescriptionCapturer {
 }
 
 export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"MATERIALIZING"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";
-export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1";
+export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1"|"EXECUTIVE_V1"|"TECHNICAL_V1"|"MINIMAL_V1"|"CORPORATE_V1"|"ELEGANT_V1"|"SLATE_V1"|"EMERALD_V1"|"ACADEMIC_V1"|"IMPACT_V1";
 export interface TailoredResumeTemplateOption {key:TailoredResumeTemplateKey;name:string;description:string;}
 export interface SelectTailoringTemplateRequest {renderTemplateKey:TailoredResumeTemplateKey;expectedUpdatedAt:string;}
 export interface TailoringTemplateSelection {jobId:string;renderTemplateKey:TailoredResumeTemplateKey;selectedBy:string;selectedAt:string;updatedAt:string;}
@@ -266,11 +266,12 @@ export interface ApplicationTailoringInput {
   sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:TailoringSourceExperience[]};
 }
 export interface TailoredExperiencePreview { sourceExperienceId:string;tailoredDetails:string; }
-export interface TailoringPreviewResult { summary:string;professionalExperience:TailoredExperiencePreview[];skills:string[];changeSummary:string[];unsupportedRequirements:string[];warnings:string[]; }
+export interface TailoredSkillGroup {name:string;skills:string[];}
+export interface TailoringPreviewResult { summary:string;professionalExperience:TailoredExperiencePreview[];skills:string[];skillGroups?:TailoredSkillGroup[];changeSummary:string[];unsupportedRequirements:string[];warnings:string[]; }
 export interface ApplicationTailoringRequest { id:string;applicationId:string;applicationNumber:number;sourceResumeId:string;sourceResumeNumber:number;status:TailoringJobStatus;inputSchemaVersion:1; }
 export interface TailoringWorkerInput { jobId:string;input:ApplicationTailoringInput; }
 export interface SubmitTailoringPreviewRequest { generatedAt:string;result:TailoringPreviewResult; }
-export interface TailoringPreviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW";outputSchemaVersion:1;previewGeneratedAt:string; }
+export interface TailoringPreviewReceipt { jobId:string;applicationId:string;status:"COMPLETED";tailoredResumeId:string;tailoredResumeNumber:number;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:"DOCX"|"PDF";automaticMaterialization:true; }
 export type TailoringReviewAction="SAVE_DRAFT"|"APPROVE"|"REJECT";
 export interface ReviewTailoringPreviewRequest { action:TailoringReviewAction;preview:TailoringPreviewResult;notes?:string;expectedUpdatedAt:string; }
 export interface TailoringReviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW"|"APPROVED"|"REJECTED";action:TailoringReviewAction;reviewedBy:string|null;reviewedAt:string|null;updatedAt:string; }
@@ -283,9 +284,9 @@ export interface BulkTailoringRunnerTicketResult {ticketId?:string;jobId:string;
 export interface TailoringInputContract { contractVersion:"1.2";application:{id:string;applicationNumber:number};jobDescription:{id:string;company:string;jobTitle:string;descriptionText:string;skills:string[]};sourceResume:{id:string;resumeNumber:number;resumeType:"ORIGINAL";summary:string;skills:string[];professionalExperience:Array<{id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string}>}; }
 export interface TailoringMaterializationReceipt { jobId:string;applicationId:string;status:"COMPLETED";sourceResumeId?:string;sourceResumeNumber?:number;tailoredResumeId:string;tailoredResumeNumber:number;filename?:string;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:TailoredResumeRenderFormat;alreadyMaterialized:boolean; }
 export type TailoringBatchStatus="PENDING"|"RUNNING"|"PAUSED_RATE_LIMIT"|"COMPLETED"|"COMPLETED_WITH_FAILURES"|"CANCELLED";
-export type TailoringBatchItemStatus="PENDING"|"PROCESSING"|"WAITING_RETRY"|"NEEDS_REVIEW"|"FAILED"|"SKIPPED"|"CANCELLED";
+export type TailoringBatchItemStatus="PENDING"|"PROCESSING"|"WAITING_RETRY"|"NEEDS_REVIEW"|"COMPLETED"|"FAILED"|"SKIPPED"|"CANCELLED";
 export interface CreateTailoringBatchRequest{applicationIds:string[];name?:string;}
-export interface TailoringBatchSummary{id:string;name:string|null;status:TailoringBatchStatus;selected_count:number;pending_count:number;processing_count:number;waiting_retry_count:number;review_count:number;failed_count:number;skipped_count:number;cancelled_count:number;rate_limit_count:number;next_retry_at:string|null;created_at:string;completed_at:string|null;}
+export interface TailoringBatchSummary{id:string;name:string|null;status:TailoringBatchStatus;selected_count:number;pending_count:number;processing_count:number;waiting_retry_count:number;review_count:number;completed_count:number;failed_count:number;skipped_count:number;cancelled_count:number;rate_limit_count:number;next_retry_at:string|null;created_at:string;completed_at:string|null;}
 export interface TailoringBatchItem{id:string;batch_id:string;tailoring_job_id:string|null;application_id:string;ordinal:number;status:TailoringBatchItemStatus;attempt_count:number;rate_limit_count:number;failure_stage:string|null;failure_code:string|null;failure_message:string|null;retryable:boolean;duration_ms:number|null;}
 export interface TailoringBatchRunnerTicketReceipt{ticketId:string;batchId:string;ticket:string;expiresAt:string;}
 export interface ResumeIdentity {

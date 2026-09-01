@@ -18,14 +18,14 @@ async function runBatch(apiBaseUrl:string,ticket:string,args:Record<string,strin
       process.stderr.write(`Provider rate limit reached. Batch paused until ${retryAt.toISOString()}; the same command will resume automatically.\n`);
       let remaining=delay;while(remaining>0){const duration=Math.min(60000,remaining);await wait(duration);remaining-=duration;}continue;
     }
-    if(["COMPLETED","COMPLETED_WITH_FAILURES","CANCELLED"].includes(next.state)){const result=next as Record<string,unknown>;process.stdout.write(`Tailoring batch finished with status ${next.state}. Review=${result.reviewCount||0}, failed=${result.failedCount||0}, skipped=${result.skippedCount||0}.\n`);return;}
+    if(["COMPLETED","COMPLETED_WITH_FAILURES","CANCELLED"].includes(next.state)){const result=next as Record<string,unknown>;process.stdout.write(`Tailoring batch finished with status ${next.state}. Failed=${result.failedCount||0}, skipped=${result.skippedCount||0}.\n`);return;}
     if(next.state!=="JOB")throw new Error(`Unexpected tailoring batch state: ${next.state}`);
     const outputPath=resolve(invocationDirectory,`apps/tailoring-worker/artifacts/job-${next.jobId}-${Date.now()}.preview.json`);await mkdir(dirname(outputPath),{recursive:true});
     const started=Date.now();let stage="CODEX_GENERATION";
     try{
       const preview=await runTailoringProof(next.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});stage="API_SUBMISSION";
-      await submitTailoringBatchPreview(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
-      process.stdout.write(`Tailoring preview saved for review for Application #${preview.applicationNumber} from Resume #${preview.sourceResumeNumber}: ${outputPath}\n`);
+      const created:any=await submitTailoringBatchPreview(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
+      process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
     }catch(error){
       const message=error instanceof Error?error.message:String(error),rateLimited=isRateLimitFailure(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED";
       await reportTailoringBatchFailure(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),{stage:validation?"OUTPUT_VALIDATION":stage,code,message,retryable:!validation,rateLimited,retryAfterSeconds:rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined}).catch(reportError=>process.stderr.write(`Failure diagnostics could not be recorded: ${reportError instanceof Error?reportError.message:String(reportError)}\n`));
@@ -65,8 +65,8 @@ async function main(){
       try{
         const outputPath=resolve(invocationDirectory,`apps/tailoring-worker/artifacts/job-${activeJobId}-${Date.now()}.preview.json`);await mkdir(dirname(outputPath),{recursive:true});phase="GENERATE";
         const preview=await runTailoringProof(claim.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});phase="SUBMIT";
-        await submitTailoringRunnerPreview(apiBaseUrl,ticket,preview);completed++;
-        process.stdout.write(`Tailoring preview saved for review for Application #${preview.applicationNumber} from Resume #${preview.sourceResumeNumber}: ${outputPath}\n`);
+        const created:any=await submitTailoringRunnerPreview(apiBaseUrl,ticket,preview);completed++;
+        process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
       }catch(error){const message=error instanceof Error?error.message:String(error),code=phase==="GENERATE"?(message.startsWith("TAILORING_VALIDATION_FAILED:")?"VALIDATION_FAILED":"CODEX_FAILED"):phase==="SUBMIT"?"API_SUBMISSION_FAILED":"WORKER_FAILED";await reportTailoringRunnerFailure(apiBaseUrl,ticket,code).catch(()=>undefined);failures.push(`${activeJobId}: ${message}`);process.stderr.write(`Tailoring job ${activeJobId} failed: ${message}\n`);}
     }
     process.stdout.write(`Bulk tailoring finished: ${completed} completed, ${failures.length} failed.\n`);if(failures.length)throw new Error(`Bulk tailoring completed with failures (${failures.length}/${tickets.length}).`);return;
@@ -77,8 +77,8 @@ async function main(){
     await mkdir(dirname(outputPath),{recursive:true});
     const input=fixtureMode?await loadFixture(resolve(invocationDirectory,fixture),applicationId):await loadTailoringJobInput(apiBaseUrl,accessToken,jobId);
     const preview=await runTailoringProof(input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});
-    if(apiMode)await submitTailoringJobPreview(apiBaseUrl,accessToken,jobId,preview);
-    process.stdout.write(`Tailoring preview ${fixtureMode?"created":"saved for review"} for Application #${preview.applicationNumber} from Resume #${preview.sourceResumeNumber}: ${outputPath}\n`);
+    const created:any=apiMode?await submitTailoringJobPreview(apiBaseUrl,accessToken,jobId,preview):null;
+    process.stdout.write(fixtureMode?`Tailoring preview created for Application #${preview.applicationNumber} from Resume #${preview.sourceResumeNumber}: ${outputPath}\n`:`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
   }catch(error){
     throw error;
   }

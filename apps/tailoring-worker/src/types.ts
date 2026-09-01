@@ -42,10 +42,16 @@ export interface TailoredExperience {
   tailoredDetails: string;
 }
 
+export interface TailoredSkillGroup {
+  name: string;
+  skills: string[];
+}
+
 export interface TailoringOutput {
   summary: string;
   professionalExperience: TailoredExperience[];
   skills: string[];
+  skillGroups: TailoredSkillGroup[];
   changeSummary: string[];
   unsupportedRequirements: string[];
   warnings: string[];

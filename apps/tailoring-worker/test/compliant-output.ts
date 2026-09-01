@@ -28,6 +28,12 @@ export function compliantOutput(input:TailoringInput):TailoringOutput{
       }
     ],
     skills:["Python","SQL","Snowflake","AWS","SSIS","Jenkins","GitHub Actions","Data Quality"],
+    skillGroups:[
+      {name:"Languages & Runtimes",skills:["Python"]},
+      {name:"Cloud & DevOps",skills:["AWS","Jenkins","GitHub Actions"]},
+      {name:"Data & Databases",skills:["SQL","Snowflake","SSIS"]},
+      {name:"Testing & Quality",skills:["Data Quality"]}
+    ],
     changeSummary:["Rebuilt source evidence into JD-aligned project narratives."],
     unsupportedRequirements:["Kubernetes"],
     warnings:["Quantified evidence is unavailable for contoso-data-engineer."]
