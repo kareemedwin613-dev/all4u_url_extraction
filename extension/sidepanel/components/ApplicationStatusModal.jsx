@@ -8,19 +8,7 @@ import {
   updateApplicationProgress,
   openApplicationScreenshot,
 } from "../../services/application-service.js";
-
-const STATUS_OPTIONS = [
-  { value: "ASSIGNED", label: "Assigned" },
-  { value: "IN_PROGRESS", label: "In Progress" },
-  { value: "BLOCKED", label: "Blocked" },
-  { value: "APPLIED", label: "Applied" },
-  { value: "SCREENING", label: "Screening" },
-  { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
-  { value: "OFFER_RECEIVED", label: "Offer Received" },
-  { value: "REJECTED", label: "Rejected" },
-  { value: "WITHDRAWN", label: "Withdrawn" },
-  { value: "CLOSED", label: "Closed" },
-];
+import { APPLIER_STATUS_UPDATE_OPTIONS } from "../../shared/applier-application-statuses.js";
 
 export function ApplicationStatusModal({ application, client, backendBaseUrl, onClose, onSaved, onError, onStatus }) {
   const { modal } = AntdApp.useApp();
@@ -118,7 +106,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         onFinish={submit}
       >
         <Form.Item label="Status" name="status">
-          <Select options={STATUS_OPTIONS} />
+          <Select options={APPLIER_STATUS_UPDATE_OPTIONS} />
         </Form.Item>
         <Form.Item
           label="Notes"

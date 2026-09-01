@@ -17,7 +17,7 @@ function normalizeMinePayload(data,limit=100){
   };
 }
 async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="updated_desc",limit=100}={}){
-  const {data,error}=await client.rpc("list_my_applications_v19",{
+  const {data,error}=await client.rpc("list_my_applications_v20",{
     p_status:status||"",
     p_sort:sort||"updated_desc",
     p_limit:Math.min(Number(limit)||100,500),
@@ -27,7 +27,7 @@ async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="upda
     const detail=String(error.message||error.details||error.hint||"");
     throw new AppError(
       String(error.code||"APPLICATIONS_LOAD_FAILED"),
-      detail.includes("list_my_applications_v19")||/could not find the function/i.test(detail)
+      detail.includes("list_my_applications_v20")||/could not find the function/i.test(detail)
         ? "Apply the latest database migrations, then reload the extension."
         : "Your Applications could not be loaded.",
       detail,
@@ -68,8 +68,10 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
   return{...data,downloadId};
 }
 export const listApplicationScreenshots=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`);
-const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),MAX_SCREENSHOT_SIZE=5*1024*1024;
-export function validateApplicationScreenshotFile(file){const errors={};if(!file)errors.file="Choose a screenshot file.";else if(!SCREENSHOT_MIME_TYPES.has(file.type))errors.file="Use a PNG, JPG, WEBP, or PDF file.";else if(!file.size||file.size>MAX_SCREENSHOT_SIZE)errors.file="Screenshot must be between 1 byte and 5 MiB.";return{valid:!Object.keys(errors).length,errors};}
-export async function attachApplicationScreenshot(client,baseUrl,applicationId,file){const check=validateApplicationScreenshotFile(file);if(!check.valid)throw new AppError("APPLICATION_SCREENSHOT_INVALID",Object.values(check.errors).join(" "));const body=new FormData();body.append("file",file,file.name);return call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`,{method:"POST",body});}
+const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,SCREENSHOT_UPLOAD_TIMEOUT_MS=60000;
+function inferScreenshotMime(file){if(file?.type&&SCREENSHOT_MIME_TYPES.has(file.type))return file.type;const ext=String(file?.name||"").split(".").pop()?.toLowerCase();return SCREENSHOT_MIME_BY_EXT[ext]||"";}
+function screenshotUploadFile(file){const mime=inferScreenshotMime(file);if(!mime) return null;if(file?.type===mime) return file;return new File([file],file.name,{type:mime});}
+export function validateApplicationScreenshotFile(file){const errors={};const mime=inferScreenshotMime(file);if(!file)errors.file="Choose a screenshot file.";else if(!mime)errors.file="Use a PNG, JPG, WEBP, or PDF file.";else if(!file.size||file.size>MAX_SCREENSHOT_SIZE)errors.file="Screenshot must be between 1 byte and 5 MiB.";return{valid:!Object.keys(errors).length,errors,mime};}
+export async function attachApplicationScreenshot(client,baseUrl,applicationId,file){const check=validateApplicationScreenshotFile(file);if(!check.valid)throw new AppError("APPLICATION_SCREENSHOT_INVALID",Object.values(check.errors).join(" "));const uploadFile=screenshotUploadFile(file);if(!uploadFile)throw new AppError("APPLICATION_SCREENSHOT_INVALID","Use a PNG, JPG, WEBP, or PDF file.");const body=new FormData();body.append("file",uploadFile,uploadFile.name);return call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`,{method:"POST",body,timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS});}
 export const removeApplicationScreenshot=(client,baseUrl,applicationId,screenshot)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots/${screenshot.id}`,{method:"DELETE"});
 export async function openApplicationScreenshot(client,baseUrl,applicationId,screenshot){const data=await call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots/${screenshot.id}/file-url`),a=document.createElement("a");a.href=data.signedUrl;a.download=screenshot.original_filename||"application-screenshot";a.target="_blank";a.rel="noopener";a.click();}

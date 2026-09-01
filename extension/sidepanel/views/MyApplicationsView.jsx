@@ -3,17 +3,11 @@ import { Button, Card, Empty, Select, Space, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { createApplicationExtensionSession, downloadApplicationResume, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
+import { APPLIER_STATUS_FILTER_OPTIONS } from "../../shared/applier-application-statuses.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
 
 const { Text } = Typography;
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All Statuses" },
-  { value: "ASSIGNED", label: "Assigned" },
-  { value: "BLOCKED", label: "Blocked" },
-  { value: "APPLIED", label: "Applied" },
-];
 
 export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }) {
   const [status, setStatus] = useState("");
@@ -105,7 +99,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
           <Select
             style={{ width: 200 }}
             value={status}
-            options={STATUS_OPTIONS}
+            options={APPLIER_STATUS_FILTER_OPTIONS}
             onChange={(value) => {
               setStatus(value);
               setResumeFilter("");

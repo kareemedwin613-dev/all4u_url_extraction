@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Card, Empty, Flex, Input, Typography } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { Empty, Typography } from "antd";
 import {
   Bar,
   BarChart,
@@ -14,6 +13,7 @@ import {
   JD_FINDER_PERFORMANCE_METRICS,
   normalizeJdFinderPerformance,
 } from "./jd-finder-performance.js";
+import { OverviewChartCard, OverviewChartLegend } from "./overview-ui.jsx";
 
 const { Text } = Typography;
 
@@ -81,20 +81,14 @@ export function JdFinderPerformanceChart({ rows = [], dateLabel = "Today" }) {
     chartMinWidth = Math.max(420, chartData.length * 96);
 
   return (
-    <Card
+    <OverviewChartCard
       title="JD Finder Performance"
       extra={<Text type="secondary">{dateLabel}</Text>}
-      style={{ height: "100%" }}
+      search={search}
+      onSearchChange={(event) => setSearch(event.target.value)}
+      searchPlaceholder="Search JD Finder name or email"
+      searchAriaLabel="Search JD Finder Performance by name or email"
     >
-      <Input
-        allowClear
-        prefix={<SearchOutlined />}
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search JD Finder name or email"
-        aria-label="Search JD Finder Performance by name or email"
-        style={{ marginBottom: 16 }}
-      />
       {!data.length ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -107,22 +101,7 @@ export function JdFinderPerformanceChart({ rows = [], dateLabel = "Today" }) {
         />
       ) : (
         <>
-          <Flex gap={12} wrap="wrap" style={{ marginBottom: 12 }}>
-            {JD_FINDER_PERFORMANCE_METRICS.map((metric) => (
-              <Flex key={metric.key} align="center" gap={6}>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 2,
-                    background: metric.color,
-                  }}
-                />
-                <Text>{metric.label}</Text>
-              </Flex>
-            ))}
-          </Flex>
+          <OverviewChartLegend metrics={JD_FINDER_PERFORMANCE_METRICS} />
           <div
             className="overview-chart-scroll"
             role="img"
@@ -164,6 +143,6 @@ export function JdFinderPerformanceChart({ rows = [], dateLabel = "Today" }) {
           </div>
         </>
       )}
-    </Card>
+    </OverviewChartCard>
   );
 }

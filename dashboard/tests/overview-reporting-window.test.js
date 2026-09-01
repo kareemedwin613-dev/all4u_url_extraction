@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { DEFAULT_OVERVIEW_WINDOW, formatOverviewDate, formatOverviewRangeLabel, overviewDateBounds } from "../src/features/overview/overview-date.js";
+import { isActivityScopedReportingWindow } from "../src/features/overview/applier-productivity.js";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -18,6 +19,22 @@ test("Overview defaults to today and supports bounded calendar windows", () => {
   assert.equal((new Date(custom.to) - new Date(custom.from)) / 86400000, 4);
 });
 
+test("short Overview windows use activity-scoped reporting semantics", () => {
+  const now = new Date(2026, 7, 13, 14, 30);
+  assert.equal(
+    isActivityScopedReportingWindow(overviewDateBounds(DEFAULT_OVERVIEW_WINDOW, now)),
+    true,
+  );
+  assert.equal(
+    isActivityScopedReportingWindow(overviewDateBounds({ window: "THIS_WEEK" }, now)),
+    true,
+  );
+  assert.equal(
+    isActivityScopedReportingWindow(overviewDateBounds({ window: "THIS_MONTH" }, now)),
+    false,
+  );
+});
+
 test("custom Overview range labels use readable month-day-year spelling", () => {
   assert.equal(formatOverviewDate("2026-07-29"), "Jul 29, 2026");
   assert.equal(formatOverviewRangeLabel("2026-07-29", "2026-08-11"), "Jul 29, 2026 - Aug 11, 2026");
@@ -25,15 +42,19 @@ test("custom Overview range labels use readable month-day-year spelling", () => 
 
 test("the sticky top bar owns the shared Overview reporting period", async () => {
   const app = await read("../src/App.jsx");
-  const cards = await read("../src/features/applications/application-pages.jsx");
+  const cards = await read("../src/features/overview/overview-count-cards.jsx");
   assert.match(app, /headerExtra=\{route\.name === "overview"/);
   assert.match(app, /<OverviewDateFilter compact value=\{overviewPeriod\} onChange=\{setOverviewPeriod\}/);
   assert.doesNotMatch(app, /<OverviewDateFilter value=\{period\}/);
   assert.match(app, /dateRange=\{dateRange\}/);
-  assert.match(app, /ApplierPerformanceChart rows=\{result\.applierPerformance \|\| \[\]\} dateLabel=\{dateLabel\}/);
-  assert.match(app, /JdFinderPerformanceChart rows=\{result\.jdFinderPerformance \|\| \[\]\} dateLabel=\{dateLabel\}/);
+  assert.doesNotMatch(app, /ApplierPerformanceChart rows=\{result\.applierPerformance/);
+  assert.doesNotMatch(app, /JdFinderPerformanceChart/);
+  assert.doesNotMatch(app, /jdFinderPerformance/);
   assert.doesNotMatch(app, /CapturedJobUrls|Captured job URLs/);
-  assert.match(cards, /dateLabel/);
+  assert.doesNotMatch(app, /OverviewApplierInsights/);
+  assert.match(cards, /Business Records/);
+  assert.doesNotMatch(app, /ApplicationCountCards/);
+  assert.doesNotMatch(cards, /Application Workflow/);
 });
 
 test("date-windowed Overview RPCs are role checked, bounded, and use canonical Application status", async () => {
@@ -48,6 +69,6 @@ test("date-windowed Overview RPCs are role checked, bounded, and use canonical A
 
 test("the API requests the combined role-performance Overview contract", async () => {
   const service = await read("../../apps/api/src/platform/platform.service.ts");
-  assert.match(service, /get_business_overview_v30/);
+  assert.match(service, /get_business_overview_v31/);
   assert.match(service, /\{p_from:from,p_to:to\}/);
 });

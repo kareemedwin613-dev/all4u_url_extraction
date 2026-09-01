@@ -8,7 +8,6 @@ import React, {
 import {
   Alert,
   App as AntApp,
-  Avatar,
   Button,
   Card,
   Col,
@@ -49,6 +48,7 @@ import {
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
+import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
@@ -60,12 +60,15 @@ import {
   removeResumeBannedCompany,
 } from "./services/resume-banned-companies-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
-import { ApplierPerformanceChart } from "./features/overview/applier-performance-chart.jsx";
-import { ApplierProfileWorkloadChart } from "./features/overview/applier-profile-workload-chart.jsx";
-import { JdFinderPerformanceChart } from "./features/overview/jd-finder-performance-chart.jsx";
+import { ApplierProductivityPage } from "./features/overview/applier-productivity-page.jsx";
 import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
 import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
-import { getApplierProfileWorkload } from "./features/applications/application-service.js";
+import {
+  BusinessRecordCards,
+} from "./features/overview/overview-count-cards.jsx";
+import { getApplicationCounts, getApplierProfileWorkload } from "./features/applications/application-service.js";
+import { isApplicationManager } from "./features/applications/validation.js";
+import { ApplierProfileWorkloadPage } from "./features/overview/applier-profile-workload-page.jsx";
 import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, uploadResumeCoverLetter } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -117,8 +120,9 @@ import {
   AdminUserDetailPage,
   AdminUsersPage,
 } from "./pages/admin-pages.jsx";
+import { UserAvatar } from "./components/user-avatar.jsx";
+import { ApplierDetailPage } from "./features/appliers/applier-detail-page.jsx";
 import {
-  ApplicationCountCards,
   ApplicationDetailPage,
   ApplicationsPage,
   CreateApplicationPage,
@@ -164,18 +168,6 @@ const Tags = ({ values, empty }) => (
   <TagList values={cleanTags(values)} empty={empty} />
 );
 const Meta = Metadata;
-const personInitials = (name) => {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!parts.length) return "?";
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-};
 const capturedBy = (job) =>
   personDisplayName({
     displayName: job?.captured_by?.display_name,
@@ -210,6 +202,7 @@ const NAV_ICONS = Object.freeze({
     "assignment-batches": <HistoryOutlined />,
     "applier-workloads": <UserOutlined />,
     "applier-directory": <UserOutlined />,
+    "applier-detail": <UserOutlined />,
     "tailoring-jobs": <FileSearchOutlined />,
     "tailoring-batches": <HistoryOutlined />,
     jobs: <FileSearchOutlined />,
@@ -232,9 +225,10 @@ const NAV_ICONS = Object.freeze({
     "resume-detail": "resumes",
     "candidate-profile": "resumes",
     "admin-user-detail": "admin-users",
+    "applier-detail": "overview",
   });
 
-function Shell({ route, title, access, logout, headerExtra, children }) {
+function Shell({ route, title, access, logout, headerExtra, client, apiBaseUrl, children }) {
   const [collapsed, setCollapsed] = useState(() => {
       try {
         return localStorage.getItem("dashboard-sider") !== "expanded";
@@ -261,7 +255,6 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
       email: access?.email,
       userId: access?.userId,
     }),
-    headerInitials = personInitials(headerName),
     sectionLabel =
       NAVIGATION.find((item) => item.name === selected)?.label ||
       "Resume JD Operations",
@@ -398,13 +391,16 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
             {headerExtra}
             <Tooltip title={access?.email || undefined}>
               <Space align="center" size="small" className="user-identity">
-                <Avatar
+                <UserAvatar
                   className="user-avatar"
+                  client={client}
+                  apiBaseUrl={apiBaseUrl}
+                  userId={access?.userId}
+                  name={headerName}
                   size={36}
-                  style={{ backgroundColor: "#1677ff", flex: "none" }}
-                >
-                  {headerInitials}
-                </Avatar>
+                  hasAvatar={access?.hasAvatar}
+                  avatarUpdatedAt={access?.avatarUpdatedAt}
+                />
                 <Space orientation="vertical" size={0}>
                   <Text strong className="user-name">
                     {headerName}
@@ -430,7 +426,7 @@ function Shell({ route, title, access, logout, headerExtra, children }) {
   );
 }
 
-function Login({ client, onSignedIn, passwordRecovery = false, onPasswordUpdated }) {
+function Login({ client, apiBaseUrl, onSignedIn, passwordRecovery = false, onPasswordUpdated }) {
   const [mode, setMode] = useState(passwordRecovery ? "reset" : "signin"),
     [message, setMessage] = useState(""),
     [success, setSuccess] = useState(""),
@@ -528,7 +524,9 @@ function Login({ client, onSignedIn, passwordRecovery = false, onPasswordUpdated
     }
     setBusy(true);
     try {
-      onSignedIn(await signIn(client, values.email, values.password));
+      const nextSession = await signIn(client, values.email, values.password);
+      void recordLogin(client, apiBaseUrl, "DASHBOARD");
+      onSignedIn(nextSession);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -740,13 +738,12 @@ function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
 /** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
 const serverSideColumnFilter = { onFilter: () => true };
 
-function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateLabel }) {
+function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange }) {
   const showBusinessRecords = hasCapability(access, CAPABILITIES.USER_ADMIN),
-    showApplierPerformance = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
     [result, setResult] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
-    if (!showBusinessRecords && !showApplierPerformance) return undefined;
+    if (!showBusinessRecords) return undefined;
     let live = true;
     setResult(null);
     setError("");
@@ -756,63 +753,35 @@ function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, dateL
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, showBusinessRecords, showApplierPerformance]);
-  if (!showBusinessRecords && !showApplierPerformance) return null;
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, showBusinessRecords]);
+  if (!showBusinessRecords) return null;
   if (error) return <ErrorState message={error} />;
   if (!result) return <Loading text="Loading dashboard…" />;
-  const jobs = result.jobCounts.total,
-    activeJobs = result.jobCounts.active,
-    resumes = result.resumeCounts.total,
-    activeResumes = result.resumeCounts.active;
   return (
     <div className="page">
-      {showBusinessRecords ? (
-        <section>
-          <Title level={2}>Business Records</Title>
-          <Row gutter={[16, 16]} className="summary-grid">
-            {[
-              ["Total Job Descriptions", jobs],
-              ["Active Job Descriptions", activeJobs],
-              ["Total Resumes", resumes],
-              ["Active Resumes", activeResumes],
-            ].map(([label, count]) => (
-              <Col xs={24} sm={12} xl={6} key={label}>
-                <Card>
-                  <Statistic title={label} value={count} />
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </section>
-      ) : null}
-      {showApplierPerformance ? (
-        <section>
-          <Row gutter={[16, 16]} className="summary-grid">
-            <Col xs={24} xl={12}>
-              <ApplierPerformanceChart rows={result.applierPerformance || []} dateLabel={dateLabel} />
-            </Col>
-            <Col xs={24} xl={12}>
-              <JdFinderPerformanceChart rows={result.jdFinderPerformance || []} dateLabel={dateLabel} />
-            </Col>
-          </Row>
-        </section>
-      ) : null}
+      <BusinessRecordCards
+        jobCounts={result.jobCounts}
+        resumeCounts={result.resumeCounts}
+      />
     </div>
   );
 }
 
 function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange }) {
-  const isAdmin = hasCapability(access, CAPABILITIES.USER_ADMIN),
-    showOwnProfileWorkload =
-      hasCapability(access, CAPABILITIES.APPLICATION_VIEW) &&
-      !hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
-    showProfileWorkload = isAdmin || showOwnProfileWorkload;
+  const isAdmin = hasCapability(access, CAPABILITIES.USER_ADMIN);
+  const showProfileWorkload = !isAdmin && !isApplicationManager(access);
   return (
     <>
-      <div className="page application-overview">
-        <ApplicationCountCards client={client} apiBaseUrl={apiBaseUrl} access={access} reload={reload} dateRange={dateRange} dateLabel={period.label} />
-      </div>
-      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} dateLabel={period.label} />
+      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} />
+      {isAdmin ? (
+        <ApplierProductivitySection
+          client={client}
+          apiBaseUrl={apiBaseUrl}
+          reload={reload}
+          dateRange={dateRange}
+          dateLabel={period.label}
+        />
+      ) : null}
       {showProfileWorkload ? (
         <ApplierProfileWorkloadSection
           client={client}
@@ -820,12 +789,6 @@ function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRan
           reload={reload}
           dateRange={dateRange}
           dateLabel={period.label}
-          title={isAdmin ? "Profile Workload" : "My Profile Workload"}
-          emptyDescription={
-            isAdmin
-              ? "No Resume profiles have been mapped to Appliers yet."
-              : "No Resume profiles are assigned to you yet."
-          }
         />
       ) : null}
     </>
@@ -838,31 +801,82 @@ function ApplierProfileWorkloadSection({
   reload,
   dateRange,
   dateLabel,
-  title = "My Profile Workload",
-  emptyDescription = "No Resume profiles are assigned to you yet.",
 }) {
-  const [rows, setRows] = useState(null),
+  const [payload, setPayload] = useState(null),
     [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    setRows(null);
+    setPayload(null);
     setError("");
-    getApplierProfileWorkload(client, apiBaseUrl, dateRange)
-      .then((value) => live && setRows(Array.isArray(value) ? value : []))
+    Promise.all([
+      getApplierProfileWorkload(client, apiBaseUrl, dateRange),
+      getApplicationCounts(client, apiBaseUrl, dateRange),
+    ])
+      .then(([rows, counts]) =>
+        live &&
+        setPayload({
+          rows: Array.isArray(rows) ? rows : [],
+          applicationCounts: counts || {},
+        }),
+      )
       .catch((value) => live && setError(value.message));
     return () => {
       live = false;
     };
   }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
   if (error) return <div className="page"><ErrorState message={error} /></div>;
-  if (!rows) return <div className="page"><Loading text="Loading profile workload…" /></div>;
+  if (!payload) return <div className="page"><Loading text="Loading profile workload…" /></div>;
   return (
     <div className="page">
-      <ApplierProfileWorkloadChart
-        rows={rows}
+      <ApplierProfileWorkloadPage
+        rows={payload.rows}
+        applicationCounts={payload.applicationCounts}
         dateLabel={dateLabel}
-        title={title}
-        emptyDescription={emptyDescription}
+      />
+    </div>
+  );
+}
+
+function ApplierProductivitySection({
+  client,
+  apiBaseUrl,
+  reload,
+  dateRange,
+  dateLabel,
+}) {
+  const [payload, setPayload] = useState(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setPayload(null);
+    setError("");
+    Promise.all([
+      getBusinessOverview(client, apiBaseUrl, dateRange),
+      getApplicationCounts(client, apiBaseUrl, dateRange),
+    ])
+      .then(([overview, counts]) =>
+        live &&
+        setPayload({
+          rows: overview?.applierPerformance || [],
+          applicationCounts: counts || {},
+        }),
+      )
+      .catch((value) => live && setError(value.message));
+    return () => {
+      live = false;
+    };
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
+  if (error) return <div className="page"><ErrorState message={error} /></div>;
+  if (!payload) return <div className="page"><Loading text="Loading Applier productivity…" /></div>;
+  return (
+    <div className="page">
+      <ApplierProductivityPage
+        client={client}
+        apiBaseUrl={apiBaseUrl}
+        rows={payload.rows}
+        applicationCounts={payload.applicationCounts}
+        dateLabel={dateLabel}
+        dateRange={dateRange}
       />
     </div>
   );
@@ -2649,6 +2663,7 @@ export function App({ client, apiBaseUrl }) {
     return (
       <Login
         client={client}
+        apiBaseUrl={apiBaseUrl}
         passwordRecovery={passwordRecovery}
         onSignedIn={(next) => {
           setPasswordRecovery(false);
@@ -2678,6 +2693,8 @@ export function App({ client, apiBaseUrl }) {
         title="Access Error"
         access={{ email: session.user.email, status: "INACTIVE", roles: [] }}
         logout={logout}
+        client={client}
+        apiBaseUrl={apiBaseUrl}
       >
         <AccessLoadErrorPage error={accessError} retry={reloadAccess} />
       </Shell>
@@ -2691,6 +2708,8 @@ export function App({ client, apiBaseUrl }) {
         title="Pending Access"
         access={access}
         logout={logout}
+        client={client}
+        apiBaseUrl={apiBaseUrl}
       >
         <PendingAccessPage />
       </Shell>
@@ -2702,6 +2721,8 @@ export function App({ client, apiBaseUrl }) {
         title="Account Inactive"
         access={access}
         logout={logout}
+        client={client}
+        apiBaseUrl={apiBaseUrl}
       >
         <InactiveAccountPage />
       </Shell>
@@ -2713,6 +2734,8 @@ export function App({ client, apiBaseUrl }) {
         title="Access Denied"
         access={access}
         logout={logout}
+        client={client}
+        apiBaseUrl={apiBaseUrl}
       >
         <AccessDeniedPage />
       </Shell>
@@ -2893,6 +2916,14 @@ export function App({ client, apiBaseUrl }) {
     );
   else if (route.name === "admin-roles")
     page = <AdminRolesPage roles={roles} />;
+  else if (route.name === "applier-detail")
+    page = (
+      <ApplierDetailPage
+        client={client}
+        apiBaseUrl={apiBaseUrl}
+        id={route.id}
+      />
+    );
   else
     page = (
       <div className="page">
@@ -2919,6 +2950,8 @@ export function App({ client, apiBaseUrl }) {
       title={formatLabel(route.name)}
       access={access}
       logout={logout}
+      client={client}
+      apiBaseUrl={apiBaseUrl}
       headerExtra={route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} /> : null}
     >
       {page}

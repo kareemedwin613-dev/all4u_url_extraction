@@ -15,6 +15,8 @@ export function normalizeAccessContext(value) {
     userId,
     email: String(raw.email || "").toLowerCase(),
     fullName: String(raw.fullName ?? raw.full_name ?? "").trim(),
+    hasAvatar: Boolean(raw.hasAvatar ?? raw.has_avatar),
+    avatarUpdatedAt: raw.avatarUpdatedAt ?? raw.avatar_updated_at ?? null,
     status,
     roles,
     capabilities: capabilitiesForRoles(roles, status),

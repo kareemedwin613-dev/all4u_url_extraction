@@ -20,6 +20,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { FileImageOutlined } from "@ant-design/icons";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";
@@ -52,6 +53,7 @@ import {
 } from "./query-state.js";
 import {
   createApplication,
+  bulkCancelApplications,
   getApplication,
   getApplicationCounts,
   listActiveAppliers,
@@ -59,9 +61,11 @@ import {
   listApplicationResumes,
   listApplications,
   openApplicationResume,
+  openFirstApplicationScreenshot,
   reassignApplication,
   updateApplication,
 } from "./application-service.js";
+import { ApplicationScreenshotsCard } from "./application-screenshots-card.jsx";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
 import { createTailoringBatch,requestApplicationTailoring } from "../tailoring/tailoring-service.js";
@@ -89,54 +93,6 @@ const Notice = ({ message, error = false }) =>
     />
   ) : null;
 
-export function ApplicationCountCards({ client, apiBaseUrl, access, reload, dateRange, dateLabel = "Today" }) {
-  const [data, setData] = useState(),
-    [error, setError] = useState("");
-  useEffect(() => {
-    let live = true;
-    setData(undefined);
-    setError("");
-    getApplicationCounts(client, apiBaseUrl, dateRange)
-      .then((x) => live && setData(x))
-      .catch((x) => live && setError(x.message));
-    return () => {
-      live = false;
-    };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
-  if (error) return <Notice message={error} error />;
-  if (!data) return <LoadingState />;
-  const manager = isApplicationManager(access),
-    isAdmin = access?.capabilities?.has("USER_ADMIN"),
-    cards = manager
-      ? [
-          ["Total Applications", data.total],
-          [`Applied · ${dateLabel}`, data.applied_today],
-          ["Blocked", data.blocked],
-          ...(!isAdmin ? [["Overdue", data.overdue]] : []),
-          ["Interviews", data.interviews],
-        ]
-      : [
-          ["My Assigned Applications", data.my_assigned],
-          [`Applied · ${dateLabel}`, data.applied_today],
-          ["Blocked", data.blocked],
-          ["Interviews", data.interviews],
-        ];
-  return (
-    <section>
-      {isAdmin ? <Title level={2}>Application Workflow</Title> : null}
-      <Row gutter={[16, 16]} className="summary-grid application-counts">
-        {cards.map(([label, value]) => (
-          <Col xs={24} sm={12} lg={8} xl={6} key={label}>
-            <Card>
-              <Statistic title={label} value={Number(value || 0)} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
-    </section>
-  );
-}
-
 export function ApplicationsPage({
   client,
   apiBaseUrl,
@@ -156,7 +112,9 @@ export function ApplicationsPage({
     [selectedIds, setSelectedIds] = useState([]),
     [selectionMode,setSelectionMode]=useState("TAILOR"),
     [tailoringBusy,setTailoringBusy]=useState(false),
+    [cancelBusy,setCancelBusy]=useState(false),
     [localReload, setLocalReload] = useState(0),
+    [openingScreenshotId, setOpeningScreenshotId] = useState(""),
     requestId = useRef(0),
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   useEffect(() => {
@@ -183,6 +141,18 @@ export function ApplicationsPage({
     const text = serializeApplicationQuery({ ...filters, ...patch });
     go(`#/applications${text ? `?${text}` : ""}`);
   };
+  async function openScreenshot(record) {
+    if (openingScreenshotId) return;
+    setOpeningScreenshotId(record.id);
+    setError("");
+    try {
+      await openFirstApplicationScreenshot(client, apiBaseUrl, record.id);
+    } catch (x) {
+      setError(x.message);
+    } finally {
+      setOpeningScreenshotId("");
+    }
+  }
   const searchFiltered = filters.search ? [filters.search] : null;
   const searchPlaceholder = "Application #, company, or job title";
   const sharedSearchKeys = ["application_number", "company", "job_title"];
@@ -235,13 +205,19 @@ export function ApplicationsPage({
     filterIcon: searchFilterIcon,
     render: (value) => <EllipsisCell>{value}</EllipsisCell>,
   };
+  const profileNameColumn = {
+    title: "Profile name",
+    dataIndex: "candidate_name",
+    sortKey: "candidate",
+    width: 160,
+    render: (value) => value || "—",
+  };
   const resumeColumn = {
     title: "Resume",
     dataIndex: "resume_name",
     sortKey: "resume",
-    width: 320,
-    render: (value, record) =>
-      `${value || "Unnamed Resume"}${record.candidate_name ? ` — ${record.candidate_name}` : ""}`,
+    width: 200,
+    render: (value) => value || "Unnamed Resume",
   };
   const statusColumn = {
     title: "Status",
@@ -254,34 +230,6 @@ export function ApplicationsPage({
     })),
     filterMultiple: false,
     filteredValue: filters.status ? [filters.status] : null,
-    ...serverSideColumnFilter,
-    render: (value) => <StatusTag value={value} />,
-  };
-  const tailoringStatusColumn = {
-    title: "Tailoring Status",
-    dataIndex: "tailoring_status",
-    width: 170,
-    sortable: false,
-    render: (value, record) =>
-      value ? (
-        <a href={`#/tailoring-jobs/${record.tailoring_job_id}`}>
-          <StatusTag value={value} />
-        </a>
-      ) : (
-        <Text type="secondary">Not tailored</Text>
-      ),
-  };
-  const priorityColumn = {
-    title: "Priority",
-    dataIndex: "priority",
-    sortKey: "priority",
-    width: 110,
-    filters: APPLICATION_PRIORITIES.map((value) => ({
-      text: formatLabel(value),
-      value,
-    })),
-    filterMultiple: false,
-    filteredValue: filters.priority ? [filters.priority] : null,
     ...serverSideColumnFilter,
     render: (value) => <StatusTag value={value} />,
   };
@@ -303,15 +251,41 @@ export function ApplicationsPage({
       </MetaTag>
     ),
   };
+  const screenshotColumn = {
+    title: "Screenshots",
+    dataIndex: "screenshot_count",
+    width: 110,
+    align: "center",
+    sortable: false,
+    render: (value, record) => {
+      const count = Number(value) || 0;
+      if (!count) return <Text type="secondary">—</Text>;
+      const opening = openingScreenshotId === record.id;
+      return (
+        <Tag
+          icon={<FileImageOutlined />}
+          style={{ cursor: opening ? "wait" : "pointer" }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!opening) openScreenshot(record);
+          }}
+        >
+          {opening ? "Opening…" : count}
+        </Tag>
+      );
+    },
+  };
   const managerColumns = useMemo(
     () => [
       noColumn,
       numberColumn,
       companyColumn,
       jobTitleColumn,
+      profileNameColumn,
       resumeColumn,
       {
-        title: "Applier Profile",
+        title: "Applier",
         dataIndex: "assignee_name",
         sortKey: "assignee",
         width: 180,
@@ -339,9 +313,8 @@ export function ApplicationsPage({
         },
       },
       statusColumn,
-      tailoringStatusColumn,
-      priorityColumn,
       categoryColumn,
+      screenshotColumn,
       {
         title: "Creation",
         dataIndex: "creation_batch_id",
@@ -402,6 +375,7 @@ export function ApplicationsPage({
       appliers,
       batches,
       categories,
+      openingScreenshotId,
     ],
   );
   const applierColumns = useMemo(
@@ -410,6 +384,7 @@ export function ApplicationsPage({
       numberColumn,
       companyColumn,
       jobTitleColumn,
+      profileNameColumn,
       resumeColumn,
       {
         title: "Link",
@@ -455,6 +430,7 @@ export function ApplicationsPage({
         ...serverSideColumnFilter,
         render: (value) => <StatusTag value={value} />,
       },
+      screenshotColumn,
       {
         title: "Captured At",
         dataIndex: "captured_at",
@@ -487,20 +463,6 @@ export function ApplicationsPage({
           </MetaTag>
         ),
       },
-      {
-        title: "Priority",
-        dataIndex: "priority",
-        sortKey: "priority",
-        width: 110,
-        filters: APPLICATION_PRIORITIES.map((value) => ({
-          text: formatLabel(value),
-          value,
-        })),
-        filterMultiple: false,
-        filteredValue: filters.priority ? [filters.priority] : null,
-        ...serverSideColumnFilter,
-        render: (value) => <StatusTag value={value} />,
-      },
       actionColumn,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -509,18 +471,43 @@ export function ApplicationsPage({
       filters.pageSize,
       filters.search,
       filters.status,
-      filters.priority,
       filters.categoryId,
       categories,
+      openingScreenshotId,
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2516 : 2000,
+    applicationsScrollX = manager ? 2386 : 2040,
     tooMany = selectedIds.length > 2000;
-  async function tailorSelected(){
-    const finalIds=new Set((data?.items||[]).filter(tailoringIsFinal).map(record=>record.id)),eligibleIds=selectedIds.filter(id=>!finalIds.has(id));
-    if(!eligibleIds.length){setSelectedIds([]);setError("Every selected Application already has approved tailored content.");return;}
-    setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,eligibleIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}
+  async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
+  function cancelSelected(){
+    Modal.confirm({
+      title: `Cancel ${selectedIds.length} Application${selectedIds.length === 1 ? "" : "s"}?`,
+      content: "Cancelled applications are removed from active work but the record and history are retained.",
+      okText: "Cancel Applications",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setCancelBusy(true);
+        setError("");
+        try {
+          const result = await bulkCancelApplications(client, apiBaseUrl, {
+            applicationIds: selectedIds,
+          });
+          setSelectedIds([]);
+          setLocalReload((value) => value + 1);
+          setNotice(
+            result.failed
+              ? `Cancelled ${result.succeeded} of ${result.total} Applications. ${result.failed} could not be cancelled.`
+              : `Cancelled ${result.succeeded} Application${result.succeeded === 1 ? "" : "s"}.`,
+          );
+        } catch (x) {
+          setError(x.message);
+          throw x;
+        } finally {
+          setCancelBusy(false);
+        }
+      },
+    });
   }
   function applyTableFilters(tableFilters) {
     let search = filters.search;
@@ -561,13 +548,21 @@ export function ApplicationsPage({
       {manager ? (
         <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
           <Space wrap>
-            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"}]} style={{minWidth:220}}/>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"},{value:"CANCEL",label:"Select For Cancellation"}]} style={{minWidth:220}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
               onClick={() => setSelectedIds([])}
             >
               Clear selection
+            </Button>
+            <Button
+              danger
+              disabled={!selectedIds.length || cancelBusy}
+              loading={cancelBusy}
+              onClick={cancelSelected}
+            >
+              Cancel Selected
             </Button>
             <Button
               disabled={selectionMode!=="ASSIGN"||!selectedIds.length || tooMany}
@@ -648,7 +643,10 @@ export function ApplicationsPage({
                       preserveSelectedRowKeys: true,
                       onChange: setSelectedIds,
                       getCheckboxProps: (record) => ({
-                        disabled: (selectionMode==="TAILOR"&&tailoringIsFinal(record))||(selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status)),
+                        disabled:
+                          (selectionMode === "ASSIGN" &&
+                            ["CANCELLED", "CLOSED", "COMPLETED"].includes(record.status)) ||
+                          (selectionMode === "CANCEL" && record.status === "CANCELLED"),
                       }),
                     }
                   : undefined
@@ -885,12 +883,14 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
   const { modal } = AntApp.useApp(),
     [detail, setDetail] = useState(),
     [appliers, setAppliers] = useState([]),
+    [screenshotCount, setScreenshotCount] = useState(null),
     [message, setMessage] = useState(""),
     [isError, setIsError] = useState(false),
     [busy, setBusy] = useState(false),
     manager = isApplicationManager(access);
   const load = () => {
     setDetail();
+    setScreenshotCount(null);
     setMessage("");
     Promise.all([
       getApplication(client, apiBaseUrl, id),
@@ -1060,6 +1060,16 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                         children: formatDate(a.applied_at),
                       },
                       {
+                        key: "screenshots",
+                        label: "Confirmation Screenshots",
+                        children:
+                          screenshotCount == null
+                            ? "Loading…"
+                            : screenshotCount
+                              ? `${screenshotCount} attached`
+                              : "None attached",
+                      },
+                      {
                         key: "creator",
                         label: "Created By",
                         children: name(detail.creator),
@@ -1082,6 +1092,12 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     ]}
                   />
                 </Card>
+                <ApplicationScreenshotsCard
+                  client={client}
+                  apiBaseUrl={apiBaseUrl}
+                  applicationId={id}
+                  onCountChange={setScreenshotCount}
+                />
                 <Card
                   title="Job Description"
                   extra={

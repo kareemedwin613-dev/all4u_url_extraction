@@ -32,6 +32,8 @@ test("parses dashboard routes",()=>{
   assert.equal(parseRoute("#/admin/users").name,"admin-users");
   assert.equal(parseRoute("#/admin/users/"+id).name,"admin-user-detail");
   assert.equal(parseRoute("#/admin/roles").name,"admin-roles");
+  assert.equal(parseRoute("#/appliers/"+id).name,"applier-detail");
+  assert.deepEqual(parseRoute("#/appliers/"+id).id,id);
 });
 test("rejects invalid ids and unknown routes",()=>{assert.equal(parseRoute("#/applications/nope").name,"invalid-id");assert.equal(parseRoute("#/jobs/nope").name,"invalid-id");assert.equal(parseRoute("#/tailoring-jobs/nope").name,"invalid-id");assert.equal(parseRoute("#/unknown").name,"not-found");});
 test("preserves hash query",()=>assert.equal(parseRoute("#/applications?page=2&workStatus=BLOCKED").query,"page=2&workStatus=BLOCKED"));

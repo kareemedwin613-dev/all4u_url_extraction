@@ -18,6 +18,9 @@ function compare(left,right){
 
 export function clientSortColumns(columns=[]){
   return columns.map(column=>{
+    if(Array.isArray(column.children)&&column.children.length){
+      return {...column,children:clientSortColumns(column.children)};
+    }
     if(column.sorter||column.sortable===false||column.key==="action"||column.key==="actions")return column;
     const value=column.sortValue||(row=>column.dataIndex==null?"":row[column.dataIndex]);
     return {...column,sorter:(a,b)=>compare(value(a),value(b)),sortDirections:["ascend","descend"]};
@@ -36,4 +39,16 @@ export function serverSortFromTable(sorter,defaultSort){
   const value=Array.isArray(sorter)?sorter[0]:sorter,key=value?.column?.sortKey;
   if(!key||!value.order)return defaultSort;
   return `${key}_${value.order==="ascend"?"asc":"desc"}`;
+}
+
+export function tableRowNumberColumn({ page = 1, pageSize = 25 } = {}) {
+  return {
+    title: "No",
+    key: "no",
+    width: 64,
+    align: "center",
+    className: "productivity-row-no-col",
+    sortable: false,
+    render: (_value, _row, index) => (page - 1) * pageSize + index + 1,
+  };
 }
