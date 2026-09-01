@@ -7,6 +7,7 @@
     "summary",
     "professionalExperience",
     "skills",
+    "skillGroups",
     "changeSummary",
     "unsupportedRequirements",
     "warnings"
@@ -29,9 +30,44 @@
     },
     "skills": {
       "type": "array",
-      "description": "Comprehensive ATS-readable skills list containing every detected JD skill plus relevant technical keywords from the JD and Resume.",
-      "maxItems": 250,
+      "description": "Prioritized ATS-readable list of up to 80 JD, candidate-fundamental, and project-essential skills.",
+      "maxItems": 80,
       "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+    },
+    "skillGroups": {
+      "type": "array",
+      "description": "Non-empty upper-level presentation groups. Every flat skills item must appear in exactly one group.",
+      "minItems": 1,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "skills"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "Languages & Runtimes",
+              "AI / ML",
+              "Frameworks & Libraries",
+              "Cloud & DevOps",
+              "Data & Databases",
+              "APIs & Web",
+              "Architecture & Security",
+              "Testing & Quality",
+              "Tools & Delivery",
+              "Domain Knowledge",
+              "Additional Skills"
+            ]
+          },
+          "skills": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 80,
+            "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+          }
+        }
+      }
     },
     "changeSummary": {
       "type": "array",

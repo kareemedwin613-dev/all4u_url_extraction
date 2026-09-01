@@ -21,10 +21,11 @@ test("rejects tailored sources and protected or unknown input fields",()=>{
   assert.throws(()=>validateTailoringInput({...fixture,sourceResume:{...fixture.sourceResume,candidateEmail:"private@example.com"}}),/unsupported fields: candidateEmail/);
 });
 
-test("accepts only the three mutable Resume sections and audit notes",()=>{
+test("accepts the mutable Resume sections, grouped presentation, and audit notes",()=>{
   const result=validateTailoringOutput(validOutput,input,validationDate);
   assert.equal(result.professionalExperience.length,input.sourceResume.professionalExperience.length);
   assert.deepEqual(result.skills,validOutput.skills);
+  assert.deepEqual(result.skillGroups,validOutput.skillGroups);
 });
 
 test("allows freely generated skills but rejects unknown experiences, missing experiences, and protected output",()=>{
@@ -32,6 +33,18 @@ test("allows freely generated skills but rejects unknown experiences, missing ex
   assert.throws(()=>validateTailoringOutput({...validOutput,professionalExperience:[{sourceExperienceId:"invented",tailoredDetails:"Invented."},validOutput.professionalExperience[1]]},input,validationDate),/Unknown source experience ID/);
   assert.throws(()=>validateTailoringOutput({...validOutput,professionalExperience:validOutput.professionalExperience.slice(0,1)},input,validationDate),/exactly one tailored entry/);
   assert.throws(()=>validateTailoringOutput({...validOutput,candidateName:"Changed Name"},input,validationDate),/unsupported fields: candidateName/);
+});
+
+test("skill groups use bounded approved upper-level categories without adding factual gates",()=>{
+  assert.throws(()=>validateTailoringOutput({...validOutput,skillGroups:[{name:"Miscellaneous",skills:["Python"]}]},input,validationDate),/approved category/);
+  assert.throws(()=>validateTailoringOutput({...validOutput,skillGroups:[{name:"AI \/ ML",skills:[]}]},input,validationDate),/must not be empty/);
+  assert.doesNotThrow(()=>validateTailoringOutput({...validOutput,skillGroups:[{name:"AI / ML",skills:["Invented Skill"]}]},input,validationDate));
+});
+
+test("limits the generated flat and grouped Skills sections to 80 total items",()=>{
+  const tooMany=Array.from({length:81},(_,index)=>`Skill ${index+1}`);
+  assert.throws(()=>validateTailoringOutput({...validOutput,skills:tooMany},input,validationDate),/at most 80 items/);
+  assert.throws(()=>validateTailoringOutput({...validOutput,skillGroups:[{name:"AI / ML",skills:tooMany.slice(0,41)},{name:"Additional Skills",skills:tooMany.slice(41)}]},input,validationDate),/at most 80 skills in total/);
 });
 
 test("rejects schema-valid refusals without reconciling qualitative requirements",()=>{

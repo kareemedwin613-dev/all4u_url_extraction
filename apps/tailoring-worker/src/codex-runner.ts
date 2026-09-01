@@ -6,6 +6,7 @@ import { basename, delimiter, dirname, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TailoringInput, TailoringOutput, TailoringPreview } from "./types.js";
 import { buildTailoringPrompt } from "./prompt.js";
+import{MAX_TAILORED_SKILLS,reconcileSkillGroups}from"./skill-groups.js";
 import { validateTailoringInput, validateTailoringOutput } from "./validation.js";
 
 const moduleDirectory=dirname(fileURLToPath(import.meta.url));
@@ -39,9 +40,20 @@ export function resolveCodexInvocation(requested=process.env.TAILORING_CODEX_BIN
   return{command:executable,prefixArgs:[]};
 }
 
+const REASONING_EFFORTS=new Set(["none","low","medium","high","xhigh"]);
+export function codexPerformanceArgs(environment:NodeJS.ProcessEnv=process.env){
+  const model=String(environment.TAILORING_CODEX_MODEL||"gpt-5.6-luna").trim();
+  if(!/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model))throw new Error("TAILORING_CODEX_MODEL must be a valid model ID.");
+  const effort=String(environment.TAILORING_CODEX_REASONING_EFFORT||"none").trim().toLowerCase();
+  if(!REASONING_EFFORTS.has(effort))throw new Error("TAILORING_CODEX_REASONING_EFFORT must be none, low, medium, high, or xhigh.");
+  const tier=String(environment.TAILORING_CODEX_SERVICE_TIER||"fast").trim().toLowerCase();
+  if(!["auto","default","fast"].includes(tier))throw new Error("TAILORING_CODEX_SERVICE_TIER must be auto, default, or fast.");
+  return["--model",model,"-c",`model_reasoning_effort="${effort}"`,"-c",'model_reasoning_summary="none"',"-c",`service_tier="${tier}"`];
+}
+
 export const executeCodex:CodexExecutor=async request=>new Promise((accept,reject)=>{
   const invocation=resolveCodexInvocation();
-  const args=["exec","--ephemeral","--sandbox","read-only","--ignore-user-config","--skip-git-repo-check","--output-schema",request.schemaPath,"-o",request.outputPath,"-"];
+  const args=["exec",...codexPerformanceArgs(),"--ephemeral","--sandbox","read-only","--ignore-user-config","--skip-git-repo-check","--output-schema",request.schemaPath,"-o",request.outputPath,"-"];
   const child=spawn(invocation.command,[...invocation.prefixArgs,...args],{cwd:request.workspace,env:codexEnvironment(),stdio:["pipe","pipe","pipe"],windowsHide:true});
   let stdout="",stderr="",settled=false;
   const append=(current:string,value:Buffer)=>`${current}${value.toString("utf8")}`.slice(-MAX_LOG_BYTES);
@@ -78,13 +90,13 @@ export function specializeOutputSchema(schema:Record<string,any>,input:Tailoring
   return result;
 }
 
-export function completeAtsSkills(generatedSkills:string[],jobSkills:string[]){
+export function completeAtsSkills(generatedSkills:string[],jobSkills:string[],sourceSkills:string[]){
   const seen=new Set<string>(),result:string[]=[];
-  for(const raw of [...jobSkills,...generatedSkills]){
+  for(const raw of [...jobSkills,...sourceSkills,...generatedSkills]){
     const skill=raw.trim().replace(/\s+/g," "),key=skill.toLocaleLowerCase();
     if(!skill||seen.has(key))continue;
     seen.add(key);result.push(skill);
-    if(result.length===250)break;
+    if(result.length===MAX_TAILORED_SKILLS)break;
   }
   return result;
 }
@@ -100,7 +112,7 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
     ]);
     await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
     const generatedAt=options.now?.()||new Date();
-    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input,generatedAt);result={...result,skills:completeAtsSkills(result.skills,input.jobDescription.skills)};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
+    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input,generatedAt);const skills=completeAtsSkills([...result.skills,...result.skillGroups.flatMap(group=>group.skills)],input.jobDescription.skills,input.sourceResume.skills);result={...result,skills,skillGroups:reconcileSkillGroups(skills,result.skillGroups)};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
     const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),result};
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;

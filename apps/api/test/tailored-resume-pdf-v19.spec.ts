@@ -1,15 +1,24 @@
 import assert from"node:assert/strict";
 import test from"node:test";
 import{renderTailoredResumePdf}from"../src/platform/tailored-resume-pdf.renderer.js";
+import{TAILORED_RESUME_TEMPLATES}from"../src/platform/tailored-resume.renderer.js";
 import{TailoringService}from"../src/platform/platform.service.js";
 
-const input={applicationNumber:19,renderTemplateKey:"MODERN_V1",candidate:{name:"Alex Example",email:"alex@example.com",phone:"555-0100",city:"Boston",stateRegion:"MA",country:"USA"},sourceStructuredContent:{professional_experience:[{id:"exp-1",company:"Source Co",job_title:"Engineer",experience_details:"Original source",is_current:true}],education:[{institution:"Example University",degree:"BS",field_of_study:"Computer Science"}],certifications:[{name:"AWS Certified"}]},approvedPreview:{summary:"A sufficiently complete approved summary for a tailored Resume artifact.",professionalExperience:[{sourceExperienceId:"exp-1",tailoredDetails:"Delivered supported and measurable engineering improvements.\nImproved platform reliability."}],skills:["SQL","TypeScript"]}};
+const input={applicationNumber:19,renderTemplateKey:"MODERN_V1",candidate:{name:"Alex Example",email:"alex@example.com",phone:"555-0100",city:"Boston",stateRegion:"MA",country:"USA"},sourceStructuredContent:{professional_experience:[{id:"exp-1",company:"Source Co",job_title:"Engineer",experience_details:"Original source",is_current:true}],education:[{institution:"Example University",degree:"BS",field_of_study:"Computer Science"}],certifications:[{name:"AWS Certified"}]},approvedPreview:{summary:"A sufficiently complete approved summary for a tailored Resume artifact.",professionalExperience:[{sourceExperienceId:"exp-1",tailoredDetails:"Delivered supported and measurable engineering improvements.\nImproved platform reliability."}],skills:["SQL","TypeScript"],skillGroups:[{name:"Languages & Runtimes",skills:["TypeScript"]},{name:"Data & Databases",skills:["SQL"]}]}};
+const pdfPageCount=(bytes:Buffer)=>(bytes.toString("latin1").match(/\/Type\s*\/Page\b/g)||[]).length;
 
 test("v1.9 renders a bounded template-aware PDF",async()=>{
   const before=structuredClone(input),bytes=await renderTailoredResumePdf(input);
   assert.equal(bytes.subarray(0,5).toString(),"%PDF-");
   assert.ok(bytes.length>1000&&bytes.length<5242880);
+  assert.equal(pdfPageCount(bytes),1);
   assert.deepEqual(input,before);
+});
+
+test("all template choices render bounded one-page PDFs for the same concise Resume",async()=>{
+  const rendered=await Promise.all(TAILORED_RESUME_TEMPLATES.map(template=>renderTailoredResumePdf({...input,renderTemplateKey:template.key})));
+  for(const bytes of rendered){assert.equal(bytes.subarray(0,5).toString(),"%PDF-");assert.ok(bytes.length>1000&&bytes.length<5242880);assert.equal(pdfPageCount(bytes),1);}
+  assert.equal(new Set(rendered.map(bytes=>bytes.toString("base64"))).size,12);
 });
 
 test("v1.9 PDF materialization stays caller-scoped and finalizes once",async()=>{

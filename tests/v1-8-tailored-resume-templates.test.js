@@ -16,7 +16,7 @@ test("v1.8 migration audits an allowlisted template on jobs and tailored Resumes
 
 test("v1.8 UI loads server-owned templates and records selection before materialization",()=>{
   const page=read("../dashboard/src/features/tailoring/tailoring-pages.jsx"),service=read("../dashboard/src/features/tailoring/tailoring-service.js"),controller=read("../apps/api/src/platform/platform.controller.ts");
-  assert.match(page,/Resume template/);
+  assert.match(page,/Resume Template/i);
   assert.match(page,/selectTailoringTemplate/);
   assert.match(page,/render_template_key/);
   assert.match(service,/\/api\/v1\/tailoring-jobs\/templates/);

@@ -36,7 +36,7 @@ export const NAVIGATION = Object.freeze([
   {name: "applications", label: "Applications", href: "#/applications", capability: CAPABILITIES.APPLICATION_VIEW},
   {name: "application-batches", label: "Application Batches", href: "#/application-batches", capability: CAPABILITIES.APPLICATION_BULK_MANAGE},
   {name: "applier-directory", label: "Applier Directory", href: "#/applier-directory", capability: CAPABILITIES.APPLICATION_MANAGE},
-  {name: "tailoring-jobs", label: "Tailoring Reviews", href: "#/tailoring-jobs", capability: CAPABILITIES.APPLICATION_MANAGE},
+  {name: "tailoring-jobs", label: "Tailored Resumes", href: "#/tailoring-jobs", capability: CAPABILITIES.APPLICATION_MANAGE},
   {name: "tailoring-batches", label: "Tailoring Batches", href: "#/tailoring-batches", capability: CAPABILITIES.APPLICATION_MANAGE},
   {name: "jobs", label: "Job Descriptions", href: "#/jobs", capability: CAPABILITIES.JOB_DESCRIPTION_READ},
   {name: "resumes", label: "Resumes", href: "#/resumes", capability: CAPABILITIES.BUSINESS_DATA_READ},

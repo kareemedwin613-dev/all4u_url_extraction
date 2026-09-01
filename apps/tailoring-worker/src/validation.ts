@@ -1,4 +1,5 @@
-import type { SourceExperience, TailoringInput, TailoringOutput } from "./types.js";
+import{MAX_TAILORED_SKILLS,SKILL_GROUP_NAMES}from"./skill-groups.js";
+import type{SourceExperience,TailoredSkillGroup,TailoringInput,TailoringOutput}from"./types.js";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REFUSAL=/\b(unable to|cannot (?:produce|tailor|complete)|provide (?:the )?(?:contents|input)|without (?:the )?(?:source|input|resume content))\b/i;
@@ -18,6 +19,22 @@ const boundedStrings=(value:unknown,label:string,maxItems:number,maxLength:numbe
   return value.map((item,index)=>boundedText(item,`${label}[${index}]`,1,maxLength));
 };
 const unique=(items:string[])=>new Set(items.map(item=>item.toLocaleLowerCase())).size===items.length;
+const skillGroupNames=new Set<string>(SKILL_GROUP_NAMES);
+
+function validateSkillGroups(value:unknown):TailoredSkillGroup[]{
+  if(!Array.isArray(value)||value.length<1||value.length>SKILL_GROUP_NAMES.length)throw new Error(`skillGroups must contain between 1 and ${SKILL_GROUP_NAMES.length} groups.`);
+  const groups=value.map((item,index)=>{
+    if(!object(item))throw new Error(`skillGroups[${index}] must be an object.`);
+    exactKeys(item,["name","skills"],`skillGroups[${index}]`);
+    const name=boundedText(item.name,`skillGroups[${index}].name`,1,80),skills=boundedStrings(item.skills,`skillGroups[${index}].skills`,MAX_TAILORED_SKILLS,120);
+    if(!skillGroupNames.has(name))throw new Error(`skillGroups[${index}].name must use an approved category.`);
+    if(!skills.length)throw new Error(`skillGroups[${index}].skills must not be empty.`);
+    return{name,skills};
+  });
+  if(!unique(groups.map(group=>group.name)))throw new Error("skillGroups category names must be unique.");
+  if(groups.reduce((total,group)=>total+group.skills.length,0)>MAX_TAILORED_SKILLS)throw new Error(`skillGroups must contain at most ${MAX_TAILORED_SKILLS} skills in total.`);
+  return groups;
+}
 
 function validateExperience(value:unknown,index:number):SourceExperience{
   if(!object(value))throw new Error(`sourceResume.professionalExperience[${index}] must be an object.`);
@@ -60,8 +77,8 @@ export function validateTailoringInput(value:unknown):TailoringInput{
 
 export function validateTailoringOutput(value:unknown,input:TailoringInput,_referenceDate=new Date()):TailoringOutput{
   if(!object(value))throw new Error("Codex output must be a JSON object.");
-  exactKeys(value,["summary","professionalExperience","skills","changeSummary","unsupportedRequirements","warnings"],"Codex output");
-  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",250,120),warnings=boundedStrings(value.warnings,"warnings",100,500);
+  exactKeys(value,["summary","professionalExperience","skills","skillGroups","changeSummary","unsupportedRequirements","warnings"],"Codex output");
+  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",MAX_TAILORED_SKILLS,120),skillGroups=validateSkillGroups(value.skillGroups),warnings=boundedStrings(value.warnings,"warnings",100,500);
   if(REFUSAL.test(summary))throw new Error("Codex returned a refusal or placeholder instead of a tailored summary.");
 
   if(!Array.isArray(value.professionalExperience)||value.professionalExperience.length!==input.sourceResume.professionalExperience.length)throw new Error("Codex must return exactly one tailored entry for every source experience.");
@@ -84,6 +101,7 @@ export function validateTailoringOutput(value:unknown,input:TailoringInput,_refe
     summary,
     professionalExperience,
     skills,
+    skillGroups,
     changeSummary:boundedStrings(value.changeSummary,"changeSummary",100,500),
     unsupportedRequirements:boundedStrings(value.unsupportedRequirements,"unsupportedRequirements",100,500),
     warnings
