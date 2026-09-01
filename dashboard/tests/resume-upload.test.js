@@ -25,6 +25,11 @@ test("Resume inference extracts reviewable information without AI",()=>{
   assert.match(result.structuredContent.professional_experience[0].experience_details,/Built data pipelines/);
 });
 
+test("Resume inference sources skills from the original Skills section only",()=>{
+  const source="Jordan Lee\njordan@example.com\nSUMMARY\nFront-end engineer.\nEXPERIENCE\nAcme 2024 - Present\nEngineer\nBuilt Kubernetes automation with Java.\nSKILLS\nLanguages: TypeScript, JavaScript\nFrameworks: React, Custom UI Kit";
+  assert.deepEqual(inferResumeInformation(source,"Jordan-Resume.pdf").skills,["TypeScript","JavaScript","React","Custom UI Kit"]);
+});
+
 test("professional experience parsing preserves multiple companies, dates, and combined details",()=>{const result=parseProfessionalExperiences("Accenture January 2020 - Present\nSenior Full Stack Engineer Remote\n• Built an Azure application.\n• Improved processing by 30%.\nBombora January 2016 - December 2019\nFull Stack Engineer Remote\n• Built event-driven services.");assert.equal(result.length,2);assert.equal(result[0].company,"Accenture");assert.equal(result[0].is_current,true);assert.equal(partialDateInput(result[0].start_date),"2020-01");assert.match(result[0].experience_details,/Built an Azure application[\s\S]*Improved processing/);assert.equal(result[1].company,"Bombora");assert.equal(partialDateInput(result[1].end_date),"2019-12");});
 
 test("numeric month/year ranges parse without treating the year as a bare token",()=>{
@@ -90,7 +95,7 @@ test("duplicate lookup uses normalized candidate identity instead of file checks
 
 test("Admin upload sends a private multipart Resume request to the backend",async()=>{
   let request;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},from:()=>{throw new Error("Direct table insert attempted");},storage:{from:()=>{throw new Error("Direct Storage upload attempted");}}};globalThis.fetch=async(url,options)=>{request={url,options};return new Response(JSON.stringify({data:{id:"created"}}),{status:201});};
-  const value={candidateName:"Jordan Lee",candidateFirstName:"Jordan",candidateMiddleName:"",candidateLastName:"Lee",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"Python, SQL, Python",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64),reviewConfirmed:true,linkedInUrl:"https://linkedin.com/in/jordan"};
+  const value={candidateName:"Jordan Lee",candidateFirstName:"Jordan",candidateMiddleName:"",candidateLastName:"Lee",candidateEmail:"JORDAN.LEE@EXAMPLE.COM",candidatePhone:"(202) 555-0148",resumeName:"Jordan Resume",primaryCategoryId:categoryId,subcategoryId:"",seniority:"SENIOR",skills:"PYTHON, Custom UI Kit, PYTHON",industries:"Healthcare",resumeText:text,structuredContent:inferResumeInformation(text,file.name).structuredContent,checksum:"a".repeat(64),reviewConfirmed:true,linkedInUrl:"https://linkedin.com/in/jordan"};
   const uploadFile=new File([new Uint8Array(1200)],file.name,{type:file.type});const result=await uploadAdminResume(client,"https://api.example.com",userId,value,uploadFile);globalThis.fetch=originalFetch;
-  assert.equal(result.id,"created");assert.equal(new URL(request.url).pathname,"/api/v1/resumes");assert.ok(request.options.body instanceof FormData);const metadata=JSON.parse(request.options.body.get("metadata"));assert.deepEqual(metadata.skills,["Python","SQL"]);assert.equal(metadata.structuredSchemaVersion,2);assert.equal(metadata.structuredContent.professional_experience[0].company,"Acme Health");assert.equal(metadata.reviewConfirmed,true);assert.equal(metadata.candidateFirstName,"Jordan");
+  assert.equal(result.id,"created");assert.equal(new URL(request.url).pathname,"/api/v1/resumes");assert.ok(request.options.body instanceof FormData);const metadata=JSON.parse(request.options.body.get("metadata"));assert.deepEqual(metadata.skills,["PYTHON","Custom UI Kit"]);assert.equal(metadata.structuredSchemaVersion,2);assert.equal(metadata.structuredContent.professional_experience[0].company,"Acme Health");assert.equal(metadata.reviewConfirmed,true);assert.equal(metadata.candidateFirstName,"Jordan");
 });

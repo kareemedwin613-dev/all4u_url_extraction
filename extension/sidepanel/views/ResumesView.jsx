@@ -24,7 +24,7 @@ import {
 } from "../../services/resume-service.js";
 import { parseResumeFile, sha256Hex } from "../../services/resume-parser.js";
 import { parseResumeSections } from "../../shared/structured-parsing.js";
-import { detectSkills } from "../../shared/skill-detection.js";
+import { skillsFromResumeSection } from "../../shared/skill-detection.js";
 import { SENIORITY_VALUES } from "../../shared/seniority.js";
 import { ResumeCard } from "../components/ResumeCard.jsx";
 
@@ -86,7 +86,7 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
         resumeExperience: sections.professional_experience,
         resumeEducation: sections.education,
         resumeSkillsSection: sections.skills,
-        resumeSkills: detectSkills(parsed.text).join(", "),
+        resumeSkills: skillsFromResumeSection(sections.skills, parsed.text).join(", "),
       });
       setUploadProgress("Computing checksum");
       setUploadChecksum(await sha256Hex(buffer));

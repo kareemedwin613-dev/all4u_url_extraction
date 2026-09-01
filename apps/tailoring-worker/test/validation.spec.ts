@@ -3,16 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { validateTailoringInput, validateTailoringOutput } from "../src/validation.js";
+import { compliantOutput, validationDate } from "./compliant-output.js";
 
 const fixturePath=fileURLToPath(new URL("../fixtures/application-19.json",import.meta.url));
 const fixture=JSON.parse(await readFile(fixturePath,"utf8")).applications[0];
 const input=validateTailoringInput(fixture);
-const validOutput={
-  summary:"Senior Data Engineer building reliable Python, SQL, Snowflake, and AWS data platforms with automated data-quality controls.",
-  professionalExperience:input.sourceResume.professionalExperience.map(item=>({sourceExperienceId:item.id,tailoredDetails:item.details})),
-  skills:["Python","SQL","Snowflake","AWS","Data Quality","Jenkins","GitHub Actions"],
-  changeSummary:["Prioritized cloud data-platform experience."],unsupportedRequirements:["Kubernetes"],warnings:[]
-};
+const validOutput=compliantOutput(input);
 
 test("accepts a sanitized ORIGINAL Resume fixture without protected metadata",()=>{
   assert.equal(input.sourceResume.resumeType,"ORIGINAL");
@@ -26,20 +22,48 @@ test("rejects tailored sources and protected or unknown input fields",()=>{
 });
 
 test("accepts only the three mutable Resume sections and audit notes",()=>{
-  const result=validateTailoringOutput(validOutput,input);
+  const result=validateTailoringOutput(validOutput,input,validationDate);
   assert.equal(result.professionalExperience.length,input.sourceResume.professionalExperience.length);
   assert.deepEqual(result.skills,validOutput.skills);
 });
 
-test("rejects invented skills, unknown experiences, missing experiences, and protected output",()=>{
-  assert.throws(()=>validateTailoringOutput({...validOutput,skills:[...validOutput.skills,"Kubernetes"]},input),/not present in the source Resume: Kubernetes/);
-  assert.throws(()=>validateTailoringOutput({...validOutput,professionalExperience:[{sourceExperienceId:"invented",tailoredDetails:"Invented."},validOutput.professionalExperience[1]]},input),/Unknown source experience ID/);
-  assert.throws(()=>validateTailoringOutput({...validOutput,professionalExperience:validOutput.professionalExperience.slice(0,1)},input),/exactly one tailored entry/);
-  assert.throws(()=>validateTailoringOutput({...validOutput,candidateName:"Changed Name"},input),/unsupported fields: candidateName/);
+test("allows freely generated skills but rejects unknown experiences, missing experiences, and protected output",()=>{
+  assert.deepEqual(validateTailoringOutput({...validOutput,skills:["Kubernetes","Platform Engineering"]},input,validationDate).skills,["Kubernetes","Platform Engineering"]);
+  assert.throws(()=>validateTailoringOutput({...validOutput,professionalExperience:[{sourceExperienceId:"invented",tailoredDetails:"Invented."},validOutput.professionalExperience[1]]},input,validationDate),/Unknown source experience ID/);
+  assert.throws(()=>validateTailoringOutput({...validOutput,professionalExperience:validOutput.professionalExperience.slice(0,1)},input,validationDate),/exactly one tailored entry/);
+  assert.throws(()=>validateTailoringOutput({...validOutput,candidateName:"Changed Name"},input,validationDate),/unsupported fields: candidateName/);
 });
 
-test("rejects schema-valid refusals and deterministically reconciles unsupported JD skills",()=>{
-  assert.throws(()=>validateTailoringOutput({...validOutput,summary:"Unable to tailor without the input file."},input),/refusal or placeholder/);
-  assert.deepEqual(validateTailoringOutput({...validOutput,unsupportedRequirements:[]},input).unsupportedRequirements,["Kubernetes"]);
-  assert.throws(()=>validateTailoringOutput({...validOutput,skills:[]},input),/omitted every source skill/);
+test("rejects schema-valid refusals without reconciling qualitative requirements",()=>{
+  assert.throws(()=>validateTailoringOutput({...validOutput,summary:"Unable to tailor without the input file."},input,validationDate),/refusal or placeholder/);
+  assert.deepEqual(validateTailoringOutput({...validOutput,unsupportedRequirements:[]},input,validationDate).unsupportedRequirements,[]);
+  assert.deepEqual(validateTailoringOutput({...validOutput,skills:[]},input,validationDate).skills,[]);
+});
+
+test("allows copied wording, arbitrary bullet counts, repeated verbs, projects, and outcomes",()=>{
+  const copied={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>({...item,tailoredDetails:index?item.tailoredDetails:input.sourceResume.professionalExperience[index].details.split(". ").map((sentence:string)=>`- ${sentence.replace(/\.$/,"")}.`).join("\n")}))};
+  assert.equal(validateTailoringOutput(copied,input,validationDate).professionalExperience[0].tailoredDetails,copied.professionalExperience[0].tailoredDetails);
+  const oneSentenceEdit={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?item:{...item,tailoredDetails:item.tailoredDetails.replace(item.tailoredDetails.split("\n")[0],"- Reframed a reporting platform by migrating SQL Server marts to Snowflake and Redshift.")})};
+  assert.doesNotThrow(()=>validateTailoringOutput(oneSentenceEdit,input,validationDate));
+  const tooShort={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?item:{...item,tailoredDetails:item.tailoredDetails.split("\n").slice(0,4).join("\n")})};
+  assert.doesNotThrow(()=>validateTailoringOutput(tooShort,input,validationDate));
+  const repeated={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?{...item,tailoredDetails:item.tailoredDetails.replace("- Delivered ","- Modernized ")}:item)};
+  assert.doesNotThrow(()=>validateTailoringOutput(repeated,input,validationDate));
+});
+
+test("keeps structural validation weak; ATS skill completion happens after validation",()=>{
+  const inventedMetric={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?item:{...item,tailoredDetails:item.tailoredDetails.replace("platform delivery.","platform delivery with 99% uptime.")})};
+  assert.doesNotThrow(()=>validateTailoringOutput(inventedMetric,input,validationDate));
+  const missingAws={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?item:{...item,tailoredDetails:item.tailoredDetails.replace("AWS event streams","cloud event streams")})};
+  assert.doesNotThrow(()=>validateTailoringOutput(missingAws,input,validationDate));
+  assert.doesNotThrow(()=>validateTailoringOutput({...validOutput,skills:validOutput.skills.slice(0,-1)},input,validationDate));
+  assert.doesNotThrow(()=>validateTailoringOutput({...validOutput,summary:`${validOutput.summary} Improved uptime by 99%.`},input,validationDate));
+});
+
+test("allows short summaries, reordered skills, and ambiguous dates without warnings",()=>{
+  assert.equal(validateTailoringOutput({...validOutput,summary:"Short tailored summary."},input,validationDate).summary,"Short tailored summary.");
+  const reorderedSkills={...validOutput,skills:["Python","SQL","Snowflake","AWS","Data Quality","SSIS","Jenkins","GitHub Actions"]};
+  assert.deepEqual(validateTailoringOutput(reorderedSkills,input,validationDate).skills,reorderedSkills.skills);
+  const ambiguousInput={...input,sourceResume:{...input.sourceResume,professionalExperience:input.sourceResume.professionalExperience.map((item,index)=>index?item:{...item,startDate:"2022"})}},ambiguousOutput={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?item:{...item,tailoredDetails:item.tailoredDetails.split("\n").slice(0,4).join("\n")})};
+  assert.doesNotThrow(()=>validateTailoringOutput({...ambiguousOutput,warnings:[]},ambiguousInput,validationDate));
 });

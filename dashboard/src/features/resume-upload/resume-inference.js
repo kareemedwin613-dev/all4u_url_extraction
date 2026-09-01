@@ -1,6 +1,6 @@
 import {suggestControlledCategory,suggestSeniority} from "../../../../extension/shared/categories.js";
 import {detectIndustryDomain} from "../../../../extension/shared/industry-domain.js";
-import {detectSkills} from "../../../../extension/shared/skill-detection.js";
+import {skillsFromResumeSection} from "../../../../extension/shared/skill-detection.js";
 import {parseResumeSections} from "../../../../extension/shared/structured-parsing.js";
 import {normalizeStructuredResumeV2} from "./resume-structure.js";
 
@@ -39,7 +39,7 @@ export function inferResumeInformation(text,filename="resume.pdf"){
     categorySlug:category.categorySlug||"",subcategorySlug:category.subcategorySlug||"",
     categoryConfidence:category.confidence,reasons:category.reasons,
     seniority:seniorityCode(suggestSeniority(resumeText.slice(0,1500))),
-    skills:detectSkills(resumeText),industries:industry?[domainLabel(industry)]:[],
+    skills:skillsFromResumeSection(structuredContent.skills,resumeText),industries:industry?[domainLabel(industry)]:[],
     resumeText,structuredContent,
   };
 }

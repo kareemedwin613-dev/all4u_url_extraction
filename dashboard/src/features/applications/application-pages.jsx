@@ -76,7 +76,9 @@ const { Text, Title } = Typography,
   fromLocal = (value) => (value ? new Date(value).toISOString() : null),
   name = (user) => user?.display_name || user?.email || "Unassigned",
   PAGE_SIZES = [25, 50, 100, 500, 1000, 5000],
-  UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000";
+  UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000",
+  FINAL_TAILORING_STATUSES = new Set(["APPROVED", "MATERIALIZING", "COMPLETED"]),
+  tailoringIsFinal = (record) => FINAL_TAILORING_STATUSES.has(record?.tailoring_status);
 const Notice = ({ message, error = false }) =>
   message ? (
     <Alert
@@ -255,6 +257,20 @@ export function ApplicationsPage({
     ...serverSideColumnFilter,
     render: (value) => <StatusTag value={value} />,
   };
+  const tailoringStatusColumn = {
+    title: "Tailoring Status",
+    dataIndex: "tailoring_status",
+    width: 170,
+    sortable: false,
+    render: (value, record) =>
+      value ? (
+        <a href={`#/tailoring-jobs/${record.tailoring_job_id}`}>
+          <StatusTag value={value} />
+        </a>
+      ) : (
+        <Text type="secondary">Not tailored</Text>
+      ),
+  };
   const priorityColumn = {
     title: "Priority",
     dataIndex: "priority",
@@ -323,6 +339,7 @@ export function ApplicationsPage({
         },
       },
       statusColumn,
+      tailoringStatusColumn,
       priorityColumn,
       categoryColumn,
       {
@@ -498,9 +515,13 @@ export function ApplicationsPage({
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2346 : 2000,
+    applicationsScrollX = manager ? 2516 : 2000,
     tooMany = selectedIds.length > 2000;
-  async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
+  async function tailorSelected(){
+    const finalIds=new Set((data?.items||[]).filter(tailoringIsFinal).map(record=>record.id)),eligibleIds=selectedIds.filter(id=>!finalIds.has(id));
+    if(!eligibleIds.length){setSelectedIds([]);setError("Every selected Application already has approved tailored content.");return;}
+    setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,eligibleIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}
+  }
   function applyTableFilters(tableFilters) {
     let search = filters.search;
     try {
@@ -627,7 +648,7 @@ export function ApplicationsPage({
                       preserveSelectedRowKeys: true,
                       onChange: setSelectedIds,
                       getCheckboxProps: (record) => ({
-                        disabled: selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status),
+                        disabled: (selectionMode==="TAILOR"&&tailoringIsFinal(record))||(selectionMode==="ASSIGN"&&["CANCELLED","CLOSED","COMPLETED"].includes(record.status)),
                       }),
                     }
                   : undefined

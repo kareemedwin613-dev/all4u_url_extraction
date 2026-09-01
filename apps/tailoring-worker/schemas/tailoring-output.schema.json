@@ -29,6 +29,7 @@
     },
     "skills": {
       "type": "array",
+      "description": "Comprehensive ATS-readable skills list containing every detected JD skill plus relevant technical keywords from the JD and Resume.",
       "maxItems": 250,
       "items": { "type": "string", "minLength": 1, "maxLength": 120 }
     },

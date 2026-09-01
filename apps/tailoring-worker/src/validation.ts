@@ -58,33 +58,34 @@ export function validateTailoringInput(value:unknown):TailoringInput{
   };
 }
 
-export function validateTailoringOutput(value:unknown,input:TailoringInput):TailoringOutput{
+export function validateTailoringOutput(value:unknown,input:TailoringInput,_referenceDate=new Date()):TailoringOutput{
   if(!object(value))throw new Error("Codex output must be a JSON object.");
   exactKeys(value,["summary","professionalExperience","skills","changeSummary","unsupportedRequirements","warnings"],"Codex output");
-  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",250,120);
+  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",250,120),warnings=boundedStrings(value.warnings,"warnings",100,500);
   if(REFUSAL.test(summary))throw new Error("Codex returned a refusal or placeholder instead of a tailored summary.");
-  if(!unique(skills))throw new Error("Tailored skills must not contain duplicates.");
-  const sourceSkills=new Set(input.sourceResume.skills.map(item=>item.toLocaleLowerCase()));
-  const invented=skills.filter(item=>!sourceSkills.has(item.toLocaleLowerCase()));
-  if(invented.length)throw new Error(`Tailored skills are not present in the source Resume: ${invented.join(", ")}.`);
-  const relevantSourceSkills=input.sourceResume.skills.filter(skill=>input.jobDescription.descriptionText.toLocaleLowerCase().includes(skill.toLocaleLowerCase()));
-  if(relevantSourceSkills.length&&!skills.some(skill=>relevantSourceSkills.some(source=>source.toLocaleLowerCase()===skill.toLocaleLowerCase())))throw new Error("Codex omitted every source skill that is explicitly relevant to the JD.");
+
   if(!Array.isArray(value.professionalExperience)||value.professionalExperience.length!==input.sourceResume.professionalExperience.length)throw new Error("Codex must return exactly one tailored entry for every source experience.");
-  const expected=new Set(input.sourceResume.professionalExperience.map(item=>item.id));
-  const seen=new Set<string>();
+  const expected=new Set(input.sourceResume.professionalExperience.map(item=>item.id)),seen=new Set<string>();
   const professionalExperience=value.professionalExperience.map((item,index)=>{
     if(!object(item))throw new Error(`professionalExperience[${index}] must be an object.`);
     exactKeys(item,["sourceExperienceId","tailoredDetails"],`professionalExperience[${index}]`);
     const sourceExperienceId=boundedText(item.sourceExperienceId,`professionalExperience[${index}].sourceExperienceId`,1,120);
     if(!expected.has(sourceExperienceId))throw new Error(`Unknown source experience ID: ${sourceExperienceId}.`);
     if(seen.has(sourceExperienceId))throw new Error(`Duplicate source experience ID: ${sourceExperienceId}.`);
+    if(sourceExperienceId!==input.sourceResume.professionalExperience[index].id)throw new Error("Codex must preserve professional experiences in source order.");
     seen.add(sourceExperienceId);
     const tailoredDetails=boundedText(item.tailoredDetails,`professionalExperience[${index}].tailoredDetails`,1,12000);
     if(REFUSAL.test(tailoredDetails))throw new Error(`Codex returned a refusal or placeholder for source experience ${sourceExperienceId}.`);
+
     return{sourceExperienceId,tailoredDetails};
   });
-  const unsupportedRequirements=boundedStrings(value.unsupportedRequirements,"unsupportedRequirements",100,500),sourceCorpus=[input.sourceResume.summary,...input.sourceResume.skills,...input.sourceResume.professionalExperience.map(item=>item.details)].join("\n").toLocaleLowerCase(),unsubstantiatedSkills=input.jobDescription.skills.filter(skill=>!sourceCorpus.includes(skill.toLocaleLowerCase())),unsupportedCorpus=unsupportedRequirements.join("\n").toLocaleLowerCase(),unreported=unsubstantiatedSkills.filter(skill=>!unsupportedCorpus.includes(skill.toLocaleLowerCase()));
-  const normalizedUnsupported=[...unsupportedRequirements];for(const skill of unreported)if(!normalizedUnsupported.some(item=>item.toLocaleLowerCase()===skill.toLocaleLowerCase()))normalizedUnsupported.push(skill);
-  if(normalizedUnsupported.length>100)throw new Error("unsupportedRequirements exceeds 100 items after deterministic evidence reconciliation.");
-  return{summary,professionalExperience,skills,changeSummary:boundedStrings(value.changeSummary,"changeSummary",100,500),unsupportedRequirements:normalizedUnsupported,warnings:boundedStrings(value.warnings,"warnings",100,500)};
+
+  return{
+    summary,
+    professionalExperience,
+    skills,
+    changeSummary:boundedStrings(value.changeSummary,"changeSummary",100,500),
+    unsupportedRequirements:boundedStrings(value.unsupportedRequirements,"unsupportedRequirements",100,500),
+    warnings
+  };
 }

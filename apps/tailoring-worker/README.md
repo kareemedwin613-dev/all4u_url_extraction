@@ -40,6 +40,8 @@ npm run proof:tailoring -- `
 
 The output directory is ignored by Git. The command refuses to overwrite an existing preview. Delete or rename an earlier preview intentionally before rerunning.
 
+Generated previews pass only structural validation before they can be saved or submitted. The worker protects the output shape, preserves the exact source-experience ID/count/order mapping used to render employer, title, and date fields, and rejects refusals. Skills, facts, metrics, project narratives, outcomes, keyword coverage, bullet style/count, action verbs, wording similarity, summary length, and warning content are not quality-gated.
+
 ## Legacy v1.3 API mode
 
 First request an Application tailoring job through `POST /api/v1/tailoring-jobs/application/:applicationId`. Then run the worker with a short-lived authenticated user session:

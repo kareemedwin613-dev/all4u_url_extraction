@@ -32,11 +32,14 @@ function failure(error:any,fallback:string):never{
         p_limit:size,
         p_offset:(page-1)*size,
       },"Applications could not be loaded."),
+      rawItems:any[]=Array.isArray(data?.items)?data.items:[],
+      tailoringRows:any[]=rawItems.length?await this.rpc(user,"get_application_tailoring_statuses_v32",{p_application_ids:rawItems.map((row:any)=>row.id)},"Tailoring statuses could not be loaded."):[],
+      tailoringByApplication=new Map(tailoringRows.map((row:any)=>[String(row.applicationId||row.application_id),row])),
       total=Number(data?.total)||0,
       pageCount=total?Math.ceil(total/size):0,
       safePage=pageCount?Math.min(page,pageCount):1;
     return{
-      items:(data?.items||[]).map((x:any)=>this.normalized(x)),
+      items:rawItems.map((x:any)=>{const tailoring=tailoringByApplication.get(String(x.id));return{...this.normalized(x),tailoring_status:tailoring?.status||null,tailoring_job_id:tailoring?.tailoringJobId||tailoring?.tailoring_job_id||null};}),
       total,
       page:safePage,
       pageSize:size,
