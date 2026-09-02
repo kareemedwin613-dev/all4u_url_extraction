@@ -2,7 +2,6 @@ import{createHash}from"node:crypto";
 import{HttpStatus}from"@nestjs/common";
 import{ApiException}from"../common/errors/api.exception.js";
 import{renderTailoredResumePdf}from"./tailored-resume-pdf.renderer.js";
-import{renderTailoredResumeDocx}from"./tailored-resume.renderer.js";
 
 type Phase="RENDER_FAILED"|"UPLOAD_FAILED"|"FINALIZE_FAILED";
 interface MaterializationCallbacks{
@@ -14,10 +13,10 @@ export async function materializeTailoredResumeArtifact(client:any,started:any,c
   if(started?.alreadyMaterialized)return started;
   let uploaded=false,phase:Phase="RENDER_FAILED";
   try{
-    if(!["DOCX","PDF"].includes(started?.renderFormat))throw new ApiException("TAILORING_FORMAT_INVALID","The reserved artifact format is invalid.",HttpStatus.BAD_GATEWAY);
-    const isPdf=started.renderFormat==="PDF",mimeType=isPdf?"application/pdf":"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    const bytes=isPdf?await renderTailoredResumePdf(started):await renderTailoredResumeDocx(started);
-    if(!bytes.length||bytes.length>5242880)throw new ApiException("TAILORING_ARTIFACT_INVALID",`The rendered ${isPdf?"PDF":"DOCX"} must be between 1 byte and 5 MiB.`,HttpStatus.BAD_GATEWAY);
+    if(started?.renderFormat!=="PDF")throw new ApiException("TAILORING_FORMAT_INVALID","Tailored Resumes can only be created as PDF files.",HttpStatus.BAD_GATEWAY);
+    const mimeType="application/pdf";
+    const bytes=await renderTailoredResumePdf(started);
+    if(!bytes.length||bytes.length>5242880)throw new ApiException("TAILORING_ARTIFACT_INVALID","The rendered PDF must be between 1 byte and 5 MiB.",HttpStatus.BAD_GATEWAY);
     phase="UPLOAD_FAILED";
     await client.storage.from(started.targetBucket).remove([started.targetPath]);
     const upload=await client.storage.from(started.targetBucket).upload(started.targetPath,bytes,{contentType:mimeType,upsert:false});

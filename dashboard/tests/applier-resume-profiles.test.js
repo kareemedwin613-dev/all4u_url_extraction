@@ -22,7 +22,7 @@ test("applier directory manages exclusive resume profiles", () => {
 test("bulk assignment preview surfaces profile mismatch exclusions", () => {
   assert.match(wizard, /RESUME_PROFILE_MISSING/);
   assert.match(wizard, /strategy: "PROFILE"/);
-  assert.match(wizard, /Resume has no Applier profile/);
+  assert.match(wizard, /original Resume has no Applier profile/);
 });
 
 test("migration enforces exclusive unique resume mapping and assignment gates", () => {

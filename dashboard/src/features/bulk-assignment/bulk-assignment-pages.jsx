@@ -82,7 +82,7 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
   const exclusionColumns = [
     { title: "Application", dataIndex: "applicationId", render: (value) => <Text code>{value?.slice(0, 8) || "—"}</Text> },
     { title: "Code", dataIndex: "code", render: (value) => <Tag color={value === "RESUME_PROFILE_MISSING" || value === "APPLIER_PROFILE_REQUIRED" || value === "APPLIER_RESUME_NOT_ALLOWED" ? "orange" : undefined}>{value}</Tag> },
-    { title: "Reason", dataIndex: "reason", render: (value, row) => value || (row.code === "RESUME_PROFILE_MISSING" ? "This Resume is not assigned to any Applier profile." : row.code === "APPLIER_PROFILE_REQUIRED" ? "Applier has no profiles." : row.code === "APPLIER_RESUME_NOT_ALLOWED" ? "Resume not assigned to this Applier." : "—") },
+    { title: "Reason", dataIndex: "reason", render: (value, row) => value || (row.code === "RESUME_PROFILE_MISSING" ? "This Resume and its original profile are not assigned to any Applier." : row.code === "APPLIER_PROFILE_REQUIRED" ? "Applier has no profiles." : row.code === "APPLIER_RESUME_NOT_ALLOWED" ? "The original Resume profile is not assigned to this Applier." : "—") },
   ];
   const resultColumns = [
     { title: "Application", dataIndex: "applicationId", render: (value) => <Text code>{value?.slice(0, 8) || "—"}</Text> },
@@ -118,7 +118,7 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
             type="warning"
             showIcon
             style={{ marginBottom: 16, marginTop: 16 }}
-            message={`${profileExclusions.length} Application${profileExclusions.length === 1 ? "" : "s"} excluded because the Resume has no Applier profile, or the mapped Applier cannot receive it.`}
+            message={`${profileExclusions.length} Application${profileExclusions.length === 1 ? "" : "s"} excluded because the original Resume has no Applier profile, or the mapped Applier cannot receive it.`}
           />
         )}
         <Card title="Proposed Assignments" style={{ marginTop: 16 }}>

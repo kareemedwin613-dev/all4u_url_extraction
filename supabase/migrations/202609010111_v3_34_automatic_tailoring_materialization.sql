@@ -46,7 +46,8 @@ begin
   perform public.assert_tailoring_preview_v14(v_job.resume_id,p_preview);
   update public.tailoring_jobs set status='APPROVED',output_schema_version=1,output_preview=p_preview,preview_generated_at=v_now,completed_at=v_now,
     reviewed_by=auth.uid(),reviewed_at=v_now,review_notes='Automatically approved after structural validation.',render_template_key=v_template,
-    template_selected_by=auth.uid(),template_selected_at=v_now,automatic_materialization=true,failure_code=null,failure_message=null where id=v_job.id;
+    template_selected_by=auth.uid(),template_selected_at=v_now,render_format='PDF',format_selected_by=auth.uid(),format_selected_at=v_now,
+    automatic_materialization=true,failure_code=null,failure_message=null where id=v_job.id;
   insert into public.tailoring_job_reviews(tailoring_job_id,application_id,action,previous_status,new_status,previous_preview,resulting_preview,notes,reviewed_by)
   values(v_job.id,v_job.application_id,'APPROVE',v_job.status,'APPROVED',coalesce(v_job.output_preview,'{}'::jsonb),p_preview,'Automatically approved after structural validation.',auth.uid());
   return jsonb_build_object('id',v_job.id,'applicationId',v_job.application_id,'status','APPROVED','renderTemplateKey',v_template,'automaticMaterialization',true,'outputSchemaVersion',1,'previewGeneratedAt',v_now);
@@ -65,7 +66,8 @@ begin
   perform public.assert_tailoring_preview_v14(v_job.resume_id,p_preview);
   update public.tailoring_jobs set status='APPROVED',output_schema_version=1,output_preview=p_preview,preview_generated_at=v_now,completed_at=v_now,
     reviewed_by=v_ticket.created_by,reviewed_at=v_now,review_notes='Automatically approved after structural validation.',render_template_key=v_template,
-    template_selected_by=v_ticket.created_by,template_selected_at=v_now,automatic_materialization=true,failure_code=null,failure_message=null where id=v_job.id;
+    template_selected_by=v_ticket.created_by,template_selected_at=v_now,render_format='PDF',format_selected_by=v_ticket.created_by,format_selected_at=v_now,
+    automatic_materialization=true,failure_code=null,failure_message=null where id=v_job.id;
   insert into public.tailoring_job_reviews(tailoring_job_id,application_id,action,previous_status,new_status,previous_preview,resulting_preview,notes,reviewed_by)
   values(v_job.id,v_job.application_id,'APPROVE',v_job.status,'APPROVED',coalesce(v_job.output_preview,'{}'::jsonb),p_preview,'Automatically approved after structural validation.',v_ticket.created_by);
   return jsonb_build_object('id',v_job.id,'jobId',v_job.id,'applicationId',v_job.application_id,'status','APPROVED','renderTemplateKey',v_template,'automaticMaterialization',true,'outputSchemaVersion',1,'previewGeneratedAt',v_now);
@@ -80,7 +82,8 @@ begin
   select * into v_job from public.tailoring_jobs where id=v_item.tailoring_job_id for update;perform public.assert_tailoring_preview_v14(v_job.resume_id,p_preview);
   update public.tailoring_jobs set status='APPROVED',output_schema_version=1,output_preview=p_preview,preview_generated_at=v_now,completed_at=v_now,
     reviewed_by=v_ticket.created_by,reviewed_at=v_now,review_notes='Automatically approved after structural validation.',render_template_key=v_template,
-    template_selected_by=v_ticket.created_by,template_selected_at=v_now,automatic_materialization=true,failure_code=null,failure_message=null where id=v_job.id;
+    template_selected_by=v_ticket.created_by,template_selected_at=v_now,render_format='PDF',format_selected_by=v_ticket.created_by,format_selected_at=v_now,
+    automatic_materialization=true,failure_code=null,failure_message=null where id=v_job.id;
   insert into public.tailoring_job_reviews(tailoring_job_id,application_id,action,previous_status,new_status,previous_preview,resulting_preview,notes,reviewed_by)
   values(v_job.id,v_job.application_id,'APPROVE',v_job.status,'APPROVED',coalesce(v_job.output_preview,'{}'::jsonb),p_preview,'Automatically approved after structural validation.',v_ticket.created_by);
   return jsonb_build_object('itemId',v_item.id,'jobId',v_job.id,'status','APPROVED','renderTemplateKey',v_template,'automaticMaterialization',true);

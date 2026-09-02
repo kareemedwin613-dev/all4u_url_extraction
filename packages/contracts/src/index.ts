@@ -255,9 +255,10 @@ export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1"|"EXE
 export interface TailoredResumeTemplateOption {key:TailoredResumeTemplateKey;name:string;description:string;}
 export interface SelectTailoringTemplateRequest {renderTemplateKey:TailoredResumeTemplateKey;expectedUpdatedAt:string;}
 export interface TailoringTemplateSelection {jobId:string;renderTemplateKey:TailoredResumeTemplateKey;selectedBy:string;selectedAt:string;updatedAt:string;}
+// The union is retained for reading historical artifacts created before PDF-only output.
 export type TailoredResumeRenderFormat="DOCX"|"PDF";
-export interface SelectTailoringFormatRequest {renderFormat:TailoredResumeRenderFormat;expectedUpdatedAt:string;}
-export interface TailoringFormatSelection {jobId:string;renderFormat:TailoredResumeRenderFormat;selectedBy:string;selectedAt:string;updatedAt:string;}
+export interface SelectTailoringFormatRequest {renderFormat:"PDF";expectedUpdatedAt:string;}
+export interface TailoringFormatSelection {jobId:string;renderFormat:"PDF";selectedBy:string;selectedAt:string;updatedAt:string;}
 export interface TailoringSourceExperience { id:string;company:string;title:string;location:string|null;startDate:string|null;endDate:string|null;details:string; }
 export interface ApplicationTailoringInput {
   contractVersion:"1.2";
@@ -271,7 +272,7 @@ export interface TailoringPreviewResult { summary:string;professionalExperience:
 export interface ApplicationTailoringRequest { id:string;applicationId:string;applicationNumber:number;sourceResumeId:string;sourceResumeNumber:number;status:TailoringJobStatus;inputSchemaVersion:1; }
 export interface TailoringWorkerInput { jobId:string;input:ApplicationTailoringInput; }
 export interface SubmitTailoringPreviewRequest { generatedAt:string;result:TailoringPreviewResult; }
-export interface TailoringPreviewReceipt { jobId:string;applicationId:string;status:"COMPLETED";tailoredResumeId:string;tailoredResumeNumber:number;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:"DOCX"|"PDF";automaticMaterialization:true; }
+export interface TailoringPreviewReceipt { jobId:string;applicationId:string;status:"COMPLETED";tailoredResumeId:string;tailoredResumeNumber:number;renderTemplateKey:TailoredResumeTemplateKey;renderFormat:"PDF";automaticMaterialization:true; }
 export type TailoringReviewAction="SAVE_DRAFT"|"APPROVE"|"REJECT";
 export interface ReviewTailoringPreviewRequest { action:TailoringReviewAction;preview:TailoringPreviewResult;notes?:string;expectedUpdatedAt:string; }
 export interface TailoringReviewReceipt { id:string;applicationId:string;status:"NEEDS_REVIEW"|"APPROVED"|"REJECTED";action:TailoringReviewAction;reviewedBy:string|null;reviewedAt:string|null;updatedAt:string; }
