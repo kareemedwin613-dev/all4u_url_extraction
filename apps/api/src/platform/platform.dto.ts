@@ -25,7 +25,7 @@ export class TailoringPreviewResultDto{
 export class SubmitTailoringPreviewDto{@IsISO8601()generatedAt!:string;@ValidateNested()@Type(()=>TailoringPreviewResultDto)result!:TailoringPreviewResultDto;}
 export class ReviewTailoringPreviewDto{@IsIn(["SAVE_DRAFT","APPROVE","REJECT"])action!:"SAVE_DRAFT"|"APPROVE"|"REJECT";@ValidateNested()@Type(()=>TailoringPreviewResultDto)preview!:TailoringPreviewResultDto;@IsOptional()@IsString()@MaxLength(1000)notes="";@IsISO8601()expectedUpdatedAt!:string;}
 export class SelectTailoringTemplateDto{@IsIn([...TAILORED_RESUME_TEMPLATE_KEYS])renderTemplateKey!:TailoredResumeTemplateKey;@IsISO8601()expectedUpdatedAt!:string;}
-export class SelectTailoringFormatDto{@IsIn(["DOCX","PDF"])renderFormat!:"DOCX"|"PDF";@IsISO8601()expectedUpdatedAt!:string;}
+export class SelectTailoringFormatDto{@IsIn(["PDF"])renderFormat!:"PDF";@IsISO8601()expectedUpdatedAt!:string;}
 export class TailoringRunnerTicketDto{@IsString()@Matches(/^trt_[A-Za-z0-9_-]{43}$/)ticket!:string;}
 export class BulkApplicationTailoringDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(100)@IsUUID("4",{each:true})applicationIds!:string[];}
 export class BulkTailoringRunnerTicketsDto{@IsArray()@ArrayMinSize(1)@ArrayMaxSize(5)@IsUUID("4",{each:true})jobIds!:string[];}
