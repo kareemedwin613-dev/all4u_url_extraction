@@ -1,6 +1,12 @@
 import {AppError} from "../shared/errors.js";import {apiRequest} from "./api-client.js";
 async function token(client){const{data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");return data.session.access_token;}
 async function call(client,baseUrl,path,options={}){return(await apiRequest({baseUrl,path,token:await token(client),...options})).data;}
+function databaseError(error,code,message){
+  const detail=String(error?.message||error?.details||error?.hint||"");
+  const match=detail.match(/([A-Z][A-Z0-9_]+):\s*([^\n]+)/);
+  return new AppError(String(match?.[1]||error?.code||code),String(match?.[2]||message),detail,/fetch|network|timeout|unreachable/i.test(detail));
+}
+function missingRpc(error,name){return new RegExp(`PGRST202|${name}|could not find the function`,`i`).test(`${error?.code||""} ${error?.message||""} ${error?.details||""}`);}
 function normalizeMineResumes(rows){
   return (Array.isArray(rows)?rows:[]).map((row)=>({
     id:String(row?.id||row?.resumeId||row?.resume_id||""),
@@ -43,20 +49,16 @@ async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="upda
   return normalizeMinePayload(data,limit);
 }
 export async function listMyApplications(client,baseUrl,{status="",resumeId="",sort="updated_desc",limit=100}={}){
-  // Prefer Nest when it returns status-scoped resume options. Otherwise use the
-  // already-migrated RPC so options are never derived from the truncated page.
-  if(baseUrl){
-    try{
-      const q=new URLSearchParams({status,sort,limit:String(limit)});
-      if(resumeId)q.set("resumeId",resumeId);
-      const data=await call(client,baseUrl,`/api/v1/applications/mine?${q}`);
-      if(Object.prototype.hasOwnProperty.call(data||{},"resumes"))return normalizeMinePayload(data,limit);
-    }catch(error){
-      if(!(error instanceof AppError))throw error;
-      // Older Nest builds omit resume options / reject resumeId — use RPC instead.
-    }
+  // This is the extension's hottest read. Go straight to Postgres with the
+  // signed-in user's JWT; the security-definer RPC still enforces Applier scope.
+  try{return await listMyApplicationsViaRpc(client,{status,resumeId,sort,limit});}
+  catch(error){
+    // Keep a narrow compatibility fallback while older environments are migrated.
+    if(!baseUrl||!missingRpc(error,"list_my_applications_v20"))throw error;
+    const q=new URLSearchParams({status,sort,limit:String(limit)});
+    if(resumeId)q.set("resumeId",resumeId);
+    return normalizeMinePayload(await call(client,baseUrl,`/api/v1/applications/mine?${q}`),limit);
   }
-  return listMyApplicationsViaRpc(client,{status,resumeId,sort,limit});
 }
 export const getApplicationExtensionContext=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-context`);
 export const getApplicationAutofillContext=(client,baseUrl,applicationId,sessionId,resumeUpdatedAt="")=>{const query=new URLSearchParams({sessionId});if(resumeUpdatedAt)query.set("resumeUpdatedAt",resumeUpdatedAt);return call(client,baseUrl,`/api/v1/applications/${applicationId}/autofill-context?${query}`);};
@@ -65,7 +67,14 @@ export const updateApplicationExtensionSession=(client,baseUrl,sessionId,status,
 export const recordApplicationAutofillTelemetry=(client,baseUrl,sessionId,telemetry)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-telemetry`,{method:"PATCH",body:telemetry});
 export const getApplicationAutofillRecovery=(client,baseUrl,sessionId)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`);
 export const updateApplicationAutofillRecovery=(client,baseUrl,sessionId,recovery)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`,{method:"PATCH",body:recovery});
-export const updateApplicationProgress=(client,baseUrl,id,{status,applicationUrl,notes})=>call(client,baseUrl,`/api/v1/applications/${id}/progress`,{method:"PATCH",body:{status,applicationUrl:applicationUrl||undefined,notes:notes==null?undefined:String(notes)}});
+export async function updateApplicationProgress(client,_baseUrl,id,{status,applicationUrl,notes}){
+  const{data,error}=await client.rpc("update_application_status_v101",{
+    p_application_id:id,p_status:status,p_application_url:applicationUrl||null,p_applied_at:null,
+    p_notes:notes==null?null:String(notes),p_priority:null,p_due_at:null,
+  });
+  if(error)throw databaseError(error,"APPLICATION_UPDATE_FAILED","The Application could not be updated.");
+  return data;
+}
 export function formatMineResumeOptionLabel(resume){return formatMineResumeLabel(resume);}
 const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
 export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType } = {}) {
@@ -94,11 +103,58 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
   return{...data,downloadId};
 }
-export const listApplicationScreenshots=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`);
-const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,SCREENSHOT_UPLOAD_TIMEOUT_MS=60000,SCREENSHOT_DELETE_TIMEOUT_MS=30000;
+export async function listApplicationScreenshots(client,_baseUrl,applicationId){
+  const{data,error}=await client.from("application_screenshots")
+    .select("id,storage_bucket,storage_path,original_filename,mime_type,file_size_bytes,created_at")
+    .eq("application_id",applicationId).order("created_at",{ascending:false});
+  if(error)throw databaseError(error,"APPLICATION_SCREENSHOTS_LOAD_FAILED","Screenshots could not be loaded.");
+  return data||[];
+}
+const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,MIN_SCREENSHOT_COMPRESSION_SIZE=350*1024,MAX_SCREENSHOT_EDGE=2200,SCREENSHOT_WEBP_QUALITY=.84;
 function inferScreenshotMime(file){if(file?.type&&SCREENSHOT_MIME_TYPES.has(file.type))return file.type;const ext=String(file?.name||"").split(".").pop()?.toLowerCase();return SCREENSHOT_MIME_BY_EXT[ext]||"";}
 function screenshotUploadFile(file){const mime=inferScreenshotMime(file);if(!mime) return null;if(file?.type===mime) return file;return new File([file],file.name,{type:mime});}
+function safeScreenshotName(value){return String(value||"screenshot").normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^\.+/,"").slice(-180)||"screenshot";}
+function webpName(value){const base=safeScreenshotName(value).replace(/\.[^.]+$/,"")||"screenshot";return `${base}.webp`;}
 export function validateApplicationScreenshotFile(file){const errors={};const mime=inferScreenshotMime(file);if(!file)errors.file="Choose a screenshot file.";else if(!mime)errors.file="Use a PNG, JPG, WEBP, or PDF file.";else if(!file.size||file.size>MAX_SCREENSHOT_SIZE)errors.file="Screenshot must be between 1 byte and 5 MiB.";return{valid:!Object.keys(errors).length,errors,mime};}
-export async function attachApplicationScreenshot(client,baseUrl,applicationId,file){const check=validateApplicationScreenshotFile(file);if(!check.valid)throw new AppError("APPLICATION_SCREENSHOT_INVALID",Object.values(check.errors).join(" "));const uploadFile=screenshotUploadFile(file);if(!uploadFile)throw new AppError("APPLICATION_SCREENSHOT_INVALID","Use a PNG, JPG, WEBP, or PDF file.");const body=new FormData();body.append("file",uploadFile,uploadFile.name);return call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`,{method:"POST",body,timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS});}
-export const removeApplicationScreenshot=(client,baseUrl,applicationId,screenshot)=>call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/screenshots/${encodeURIComponent(screenshot.id)}`,{method:"DELETE",timeoutMs:SCREENSHOT_DELETE_TIMEOUT_MS});
-export async function openApplicationScreenshot(client,baseUrl,applicationId,screenshot){const data=await call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots/${screenshot.id}/file-url`),a=document.createElement("a");a.href=data.signedUrl;a.download=screenshot.original_filename||"application-screenshot";a.target="_blank";a.rel="noopener";a.click();}
+export async function prepareApplicationScreenshot(file,{createBitmap=globalThis.createImageBitmap,Canvas=globalThis.OffscreenCanvas}={}){
+  const uploadFile=screenshotUploadFile(file),mime=inferScreenshotMime(uploadFile);
+  if(!uploadFile||mime==="application/pdf"||uploadFile.size<MIN_SCREENSHOT_COMPRESSION_SIZE||typeof createBitmap!=="function"||typeof Canvas!=="function")return uploadFile;
+  let bitmap;
+  try{
+    bitmap=await createBitmap(uploadFile);
+    const scale=Math.min(1,MAX_SCREENSHOT_EDGE/Math.max(bitmap.width,bitmap.height));
+    const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
+    const canvas=new Canvas(width,height),context=canvas.getContext("2d");
+    if(!context||typeof canvas.convertToBlob!=="function")return uploadFile;
+    context.drawImage(bitmap,0,0,width,height);
+    const blob=await canvas.convertToBlob({type:"image/webp",quality:SCREENSHOT_WEBP_QUALITY});
+    if(!blob?.size||blob.size>=uploadFile.size||blob.size>MAX_SCREENSHOT_SIZE)return uploadFile;
+    return new File([blob],webpName(uploadFile.name),{type:"image/webp",lastModified:Date.now()});
+  }catch{return uploadFile;}finally{bitmap?.close?.();}
+}
+export async function attachApplicationScreenshot(client,_baseUrl,applicationId,file){
+  const check=validateApplicationScreenshotFile(file);
+  if(!check.valid)throw new AppError("APPLICATION_SCREENSHOT_INVALID",Object.values(check.errors).join(" "));
+  const uploadFile=await prepareApplicationScreenshot(file);
+  if(!uploadFile)throw new AppError("APPLICATION_SCREENSHOT_INVALID","Use a PNG, JPG, WEBP, or PDF file.");
+  const path=`${applicationId}/${crypto.randomUUID()}-${safeScreenshotName(uploadFile.name)}`,bucket="application-screenshots";
+  const{error:uploadError}=await client.storage.from(bucket).upload(path,uploadFile,{contentType:uploadFile.type,upsert:false,cacheControl:"3600"});
+  if(uploadError)throw databaseError(uploadError,"APPLICATION_SCREENSHOT_UPLOAD_FAILED","The screenshot file could not be uploaded.");
+  try{
+    const{data,error}=await client.rpc("attach_application_screenshot",{p_application_id:applicationId,p_storage_path:path,p_original_filename:uploadFile.name,p_mime_type:uploadFile.type,p_file_size_bytes:uploadFile.size});
+    if(error)throw databaseError(error,"APPLICATION_SCREENSHOT_ATTACH_FAILED","The screenshot could not be attached.");
+    return data;
+  }catch(error){await client.storage.from(bucket).remove([path]).catch(()=>{});throw error;}
+}
+export async function removeApplicationScreenshot(client,_baseUrl,_applicationId,screenshot){
+  const{data,error}=await client.rpc("remove_application_screenshot",{p_screenshot_id:screenshot.id});
+  if(error)throw databaseError(error,"APPLICATION_SCREENSHOT_REMOVE_FAILED","The screenshot could not be removed.");
+  const bucket=String(data?.storageBucket||screenshot.storage_bucket||"application-screenshots"),path=String(data?.storagePath||screenshot.storage_path||"");
+  if(path)await client.storage.from(bucket).remove([path]).catch(()=>{});
+  return data;
+}
+export async function openApplicationScreenshot(client,_baseUrl,_applicationId,screenshot){
+  const{data,error}=await client.storage.from(screenshot.storage_bucket||"application-screenshots").createSignedUrl(screenshot.storage_path,90);
+  if(error||!data?.signedUrl)throw databaseError(error,"APPLICATION_SCREENSHOT_OPEN_FAILED","The private screenshot could not be opened.");
+  const a=document.createElement("a");a.href=data.signedUrl;a.download=screenshot.original_filename||"application-screenshot";a.target="_blank";a.rel="noopener";a.click();
+}

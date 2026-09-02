@@ -1,3 +1,8 @@
 import { AppError } from "../shared/errors.js";
-import { apiRequest } from "./api-client.js";
-export async function listCategories(client,baseUrl){const {data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");const payload=await apiRequest({baseUrl,path:"/api/v1/lookups/categories",token:data.session.access_token});return payload.data||[];}
+let cached,expiresAt=0,inFlight;
+export async function listCategories(client,_baseUrl){
+  if(cached&&expiresAt>Date.now())return cached;
+  if(inFlight)return inFlight;
+  inFlight=(async()=>{const{data,error}=await client.from("categories").select("id,slug,name,parent_id,sort_order,active").eq("active",true).order("sort_order");if(error)throw new AppError(String(error.code||"CATEGORIES_LOAD_FAILED"),"Categories could not be loaded.",String(error.message||error.details||""));cached=data||[];expiresAt=Date.now()+5*60_000;return cached;})().finally(()=>{inFlight=null;});
+  return inFlight;
+}
