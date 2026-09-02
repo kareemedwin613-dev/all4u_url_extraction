@@ -56,6 +56,7 @@ import {
 import {
   createApplication,
   bulkCancelApplications,
+  bulkDeleteApplications,
   getApplication,
   getApplicationCounts,
   listActiveAppliers,
@@ -288,10 +289,17 @@ export function ApplicationsPage({
     [selectionMode,setSelectionMode]=useState("TAILOR"),
     [tailoringBusy,setTailoringBusy]=useState(false),
     [cancelBusy,setCancelBusy]=useState(false),
+    [deleteBusy,setDeleteBusy]=useState(false),
     [localReload, setLocalReload] = useState(0),
     [openingScreenshotId, setOpeningScreenshotId] = useState(""),
     requestId = useRef(0),
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
+  useEffect(() => {
+    if (manager && filters.status === "CANCELLED") {
+      setSelectionMode("DELETE");
+      setSelectedIds([]);
+    }
+  }, [manager, filters.status]);
   useEffect(() => {
     const id = ++requestId.current;
     setData();
@@ -684,6 +692,35 @@ export function ApplicationsPage({
       },
     });
   }
+  function deleteSelected(){
+    Modal.confirm({
+      title: `Delete ${selectedIds.length} Application${selectedIds.length === 1 ? "" : "s"} permanently?`,
+      content: "This removes the Application records from the database. Only cancelled Applications can be deleted.",
+      okText: "Delete Permanently",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setDeleteBusy(true);
+        setError("");
+        try {
+          const result = await bulkDeleteApplications(client, apiBaseUrl, {
+            applicationIds: selectedIds,
+          });
+          setSelectedIds([]);
+          setLocalReload((value) => value + 1);
+          setNotice(
+            result.failed
+              ? `Deleted ${result.succeeded} of ${result.total} Applications. ${result.failed} could not be deleted.`
+              : `Deleted ${result.succeeded} Application${result.succeeded === 1 ? "" : "s"}.`,
+          );
+        } catch (x) {
+          setError(x.message);
+          throw x;
+        } finally {
+          setDeleteBusy(false);
+        }
+      },
+    });
+  }
   function applyTableFilters(tableFilters) {
     let search = filters.search;
     try {
@@ -725,7 +762,7 @@ export function ApplicationsPage({
       {manager ? (
         <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
           <Space wrap>
-            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"},{value:"CANCEL",label:"Select For Cancellation"}]} style={{minWidth:220}}/>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"},{value:"CANCEL",label:"Select For Cancellation"},{value:"DELETE",label:"Select For Deletion"}]} style={{minWidth:220}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
@@ -733,14 +770,26 @@ export function ApplicationsPage({
             >
               Clear selection
             </Button>
-            <Button
-              danger
-              disabled={!selectedIds.length || cancelBusy}
-              loading={cancelBusy}
-              onClick={cancelSelected}
-            >
-              Cancel Selected
-            </Button>
+            {selectionMode === "CANCEL" && (
+              <Button
+                danger
+                disabled={!selectedIds.length || cancelBusy || deleteBusy}
+                loading={cancelBusy}
+                onClick={cancelSelected}
+              >
+                Cancel Selected
+              </Button>
+            )}
+            {selectionMode === "DELETE" && (
+              <Button
+                danger
+                disabled={!selectedIds.length || tooMany || deleteBusy || cancelBusy}
+                loading={deleteBusy}
+                onClick={deleteSelected}
+              >
+                Delete Selected
+              </Button>
+            )}
             <Button
               disabled={selectionMode!=="ASSIGN"||!selectedIds.length || tooMany}
               href="#/applications/bulk-assign"
@@ -768,7 +817,11 @@ export function ApplicationsPage({
         <Alert
           type="error"
           showIcon
-          title="Select no more than 2,000 Applications for one assignment."
+          title={
+            selectionMode === "ASSIGN"
+              ? "Select no more than 2,000 Applications for one assignment."
+              : "Select no more than 2,000 Applications for one bulk action."
+          }
         />
       )}
       <ApplicationListFilters
@@ -830,7 +883,8 @@ export function ApplicationsPage({
                         disabled:
                           (selectionMode === "ASSIGN" &&
                             ["CANCELLED", "CLOSED", "COMPLETED"].includes(record.status)) ||
-                          (selectionMode === "CANCEL" && record.status === "CANCELLED"),
+                          (selectionMode === "CANCEL" && record.status === "CANCELLED") ||
+                          (selectionMode === "DELETE" && record.status !== "CANCELLED"),
                       }),
                     }
                   : undefined

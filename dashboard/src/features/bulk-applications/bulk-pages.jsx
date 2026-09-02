@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   Pagination,
+  Popconfirm,
   Result,
   Row,
   Select,
@@ -41,6 +42,7 @@ import {
 } from "../../shared/table-sorting.js";
 import {
   createBulkApplications,
+  deleteApplicationBatches,
   getApplicationBatch,
   listApplicationBatchResults,
   listApplicationBatches,
@@ -57,6 +59,7 @@ import {
 } from "./bulk-state.js";
 
 const { Text, Title } = Typography,
+  MAX_BATCH_DELETE = 100,
   Table = (props) => (
     <AntTable {...props} columns={clientSortColumns(props.columns)} />
   ),
@@ -648,13 +651,19 @@ export function BulkCreatePage({
 }
 
 export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
-  const params = new URLSearchParams(query),
+  const { message } = AntApp.useApp(),
+    params = new URLSearchParams(query),
     [search, setSearch] = useState(params.get("search") || ""),
     [status, setStatus] = useState(params.get("status") || ""),
     [sort, setSort] = useState(params.get("sort") || "created_desc"),
     [page, setPage] = useState(Math.max(1, Number(params.get("page")) || 1)),
     [data, setData] = useState(),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [selectedRowKeys, setSelectedRowKeys] = useState([]),
+    [deleteBusy, setDeleteBusy] = useState(false),
+    [reloadTick, setReloadTick] = useState(0);
+  const selectedCount = selectedRowKeys.length,
+    tooMany = selectedCount > MAX_BATCH_DELETE;
   useEffect(() => {
     let live = true;
     setData();
@@ -665,7 +674,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, search, status, sort, page, reload]);
+  }, [client, apiBaseUrl, search, status, sort, page, reload, reloadTick]);
 
   const searchFiltered = search ? [search] : null;
   const statusOptions = [
@@ -749,6 +758,24 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
     setPage(1);
   }
 
+  async function submitBulkDelete() {
+    setDeleteBusy(true);
+    try {
+      const result = await deleteApplicationBatches(client, apiBaseUrl, { batchIds: selectedRowKeys });
+      setSelectedRowKeys([]);
+      setReloadTick((value) => value + 1);
+      message[result.failed ? "warning" : "success"](
+        result.failed
+          ? `Deleted ${result.succeeded} of ${result.total} batches. ${result.failed} could not be deleted.`
+          : `Deleted ${result.succeeded} batch${result.succeeded === 1 ? "" : "es"}.`,
+      );
+    } catch (cause) {
+      message.error(cause.message || "The selected Application batches could not be deleted.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   return (
     <div className="page">
       {error ? (
@@ -757,8 +784,44 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
         <LoadingState />
       ) : (
         <Card>
+          <Flex className="page-toolbar" justify="space-between" align="center" wrap style={{ marginBottom: 12 }}>
+            <Space wrap>
+              {selectedCount > 0 && (
+                <>
+                  <Text>{selectedCount} selected</Text>
+                  <Popconfirm
+                    title="Delete selected Application batches?"
+                    description="This permanently removes each batch and its cancelled Applications. Cancel any active Applications first."
+                    okText="Delete"
+                    okButtonProps={{ danger: true, loading: deleteBusy }}
+                    cancelButtonProps={{ disabled: deleteBusy }}
+                    onConfirm={submitBulkDelete}
+                    disabled={!selectedCount || tooMany || deleteBusy}
+                  >
+                    <Button danger loading={deleteBusy} disabled={!selectedCount || tooMany}>
+                      Delete Selected
+                    </Button>
+                  </Popconfirm>
+                  <Button onClick={() => setSelectedRowKeys([])} disabled={deleteBusy}>
+                    Clear selection
+                  </Button>
+                </>
+              )}
+              {tooMany && (
+                <Text type="danger">Select no more than {MAX_BATCH_DELETE} batches at once.</Text>
+              )}
+            </Space>
+          </Flex>
           <Table
             rowKey="id"
+            rowSelection={{
+              selectedRowKeys,
+              preserveSelectedRowKeys: true,
+              onChange: setSelectedRowKeys,
+              getCheckboxProps: (row) => ({
+                disabled: row.status === "PROCESSING" || deleteBusy,
+              }),
+            }}
             columns={columns}
             dataSource={data.items}
             pagination={false}
@@ -803,11 +866,13 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
 }
 
 export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
-  const [detail, setDetail] = useState(),
+  const { message } = AntApp.useApp(),
+    [detail, setDetail] = useState(),
     [results, setResults] = useState(),
     [resultPage, setResultPage] = useState(1),
     [outcome, setOutcome] = useState(""),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [deleteBusy, setDeleteBusy] = useState(false);
   useEffect(() => {
     let live = true;
     getApplicationBatch(client, apiBaseUrl, id)
@@ -832,8 +897,26 @@ export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
       </div>
     );
   if (!detail) return <LoadingState />;
-  const batch = detail,
-    columns = [
+  const batch = detail;
+
+  async function submitDelete() {
+    setDeleteBusy(true);
+    try {
+      const result = await deleteApplicationBatches(client, apiBaseUrl, { batchIds: [id] });
+      if (result.failed) {
+        const failure = (result.results || []).find((row) => !row.ok);
+        throw new Error(failure?.message || "This Application batch could not be deleted.");
+      }
+      message.success("Application batch deleted.");
+      go("#/application-batches");
+    } catch (cause) {
+      message.error(cause.message || "This Application batch could not be deleted.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  const columns = [
       {
         title: "Company",
         dataIndex: "company",
@@ -938,12 +1021,25 @@ export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
       <TabbedSections
         items={tabs}
         extra={
-          <Button
-            type="primary"
-            href={`#/applications?creationBatchId=${batch.id}`}
-          >
-            View Created Applications
-          </Button>
+          <Space wrap>
+            <Button type="primary" href={`#/applications?creationBatchId=${batch.id}`}>
+              View Created Applications
+            </Button>
+            {batch.status !== "PROCESSING" && (
+              <Popconfirm
+                title="Delete this Application batch?"
+                description="This permanently removes the batch and its cancelled Applications. Cancel any active Applications first."
+                okText="Delete"
+                okButtonProps={{ danger: true, loading: deleteBusy }}
+                cancelButtonProps={{ disabled: deleteBusy }}
+                onConfirm={submitDelete}
+              >
+                <Button danger loading={deleteBusy}>
+                  Delete Batch
+                </Button>
+              </Popconfirm>
+            )}
+          </Space>
         }
       />
     </div>

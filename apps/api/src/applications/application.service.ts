@@ -101,6 +101,14 @@ function failure(error:any,fallback:string):never{
     const payload=data&&typeof data==="object"?data:{};
     return{total:Number(payload.total)||unique.length,succeeded:Number(payload.succeeded)||0,failed:Number(payload.failed)||0,results:Array.isArray(payload.results)?payload.results:[]};
   }
+  async bulkDelete(user:AuthenticatedUser,ids:string[]){
+    const unique=[...new Set((ids||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
+    if(!unique.length)throw new ApiException("VALIDATION_ERROR","Select at least one Application.",HttpStatus.BAD_REQUEST);
+    if(unique.length>2000)throw new ApiException("VALIDATION_ERROR","Select no more than 2000 Applications.",HttpStatus.BAD_REQUEST);
+    const data:any=await this.rpc(user,"bulk_delete_applications_v317",{p_application_ids:unique},"The selected Applications could not be deleted.");
+    const payload=data&&typeof data==="object"?data:{};
+    return{total:Number(payload.total)||unique.length,succeeded:Number(payload.succeeded)||0,failed:Number(payload.failed)||0,results:Array.isArray(payload.results)?payload.results:[]};
+  }
   preview=(u:AuthenticatedUser,m:any)=>this.rpc(u,"preview_bulk_applications",{p_selected_jd_ids:[...new Set(m.jobDescriptionIds)]},"The bulk preview could not be generated.");
   bulkCreate=(u:AuthenticatedUser,m:any)=>this.rpc(u,"create_applications_bulk",{p_combinations:m.combinations,p_batch_name:String(m.batchName||"").trim()||null},"The bulk Applications could not be created.");
   async batches(u:AuthenticatedUser,q:any){const size=q.pageSize||25,page=q.page||1,data:any=await this.rpc(u,"list_application_batches_v2",{p_search:q.search||"",p_status:q.status||"",p_sort:q.sort||"created_desc",p_limit:size,p_offset:(page-1)*size},"Application batches could not be loaded."),total=Number(data?.total)||0,pageCount=total?Math.ceil(total/size):0;return{...data,total,page:pageCount?Math.min(page,pageCount):1,pageSize:size,pageCount,from:total?(page-1)*size+1:0,to:Math.min(page*size,total),hasPrevious:page>1,hasNext:page<pageCount};}

@@ -10,6 +10,9 @@ const messages = {
   NO_ELIGIBLE_COMBINATIONS: "Select at least one eligible combination.",
   IDEMPOTENCY_CONFLICT: "This retry key was already used for a different bulk request.",
   BATCH_NOT_FOUND: "The Application batch was not found.",
+  BATCH_DELETE_INVALID: "Select at least one Application batch.",
+  BATCH_STILL_PROCESSING: "This batch is still processing and cannot be deleted yet.",
+  BATCH_HAS_ACTIVE_APPLICATIONS: "Cancel every Application in the batch before deleting it.",
   APPLICATION_ACCESS_DENIED: "Applying Manager or Admin access is required.",
   FORBIDDEN: "Applying Manager or Admin access is required.",
   UNAUTHORIZED: "Your session expired. Sign in again.",
@@ -52,4 +55,11 @@ export const getApplicationBatch = async (client, baseUrl, id) => (await api(cli
 export async function listApplicationBatchResults(client, baseUrl, id, { page = 1, limit = 25, outcome = "", company = "", jobTitle = "", candidate = "", resume = "" } = {}) {
   const params = new URLSearchParams({ page: String(page), limit: String(limit), outcome, company, jobTitle, candidate, resume });
   return (await api(client, baseUrl, `/api/v1/application-batches/${encodeURIComponent(id)}/results?${params}`)).data;
+}
+
+export async function deleteApplicationBatches(client, baseUrl, { batchIds } = {}) {
+  const ids = [...new Set((batchIds || []).filter((id) => UUID.test(String(id))))];
+  if (!ids.length) throw normalizeBulkError({ code: "BATCH_DELETE_INVALID", message: "Select at least one Application batch." });
+  if (ids.length > 100) throw normalizeBulkError({ code: "BATCH_DELETE_INVALID", message: "Select no more than 100 Application batches." });
+  return (await api(client, baseUrl, "/api/v1/application-batches/bulk-delete", { method: "POST", body: { batchIds: ids }, timeoutMs: 32_000 })).data;
 }

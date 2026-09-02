@@ -10,6 +10,9 @@ const CODE_MAP: Record<string, { code: string; status: HttpStatus; message: stri
   BULK_NO_COMBINATIONS: { code: "NO_ELIGIBLE_COMBINATIONS", status: HttpStatus.BAD_REQUEST, message: "Select at least one eligible combination." },
   IDEMPOTENCY_CONFLICT: { code: "IDEMPOTENCY_CONFLICT", status: HttpStatus.CONFLICT, message: "This idempotency key was already used with a different request." },
   BULK_BATCH_NOT_FOUND: { code: "BATCH_NOT_FOUND", status: HttpStatus.NOT_FOUND, message: "The Application batch was not found." },
+  BATCH_DELETE_INVALID: { code: "VALIDATION_ERROR", status: HttpStatus.BAD_REQUEST, message: "Select at least one Application batch." },
+  BATCH_STILL_PROCESSING: { code: "BATCH_STILL_PROCESSING", status: HttpStatus.CONFLICT, message: "This batch is still processing and cannot be deleted yet." },
+  BATCH_HAS_ACTIVE_APPLICATIONS: { code: "BATCH_HAS_ACTIVE_APPLICATIONS", status: HttpStatus.CONFLICT, message: "Cancel every Application in the batch before deleting it." },
 };
 
 @Injectable()
