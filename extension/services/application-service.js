@@ -6,7 +6,14 @@ function normalizeMineResumes(rows){
     id:String(row?.id||row?.resumeId||row?.resume_id||""),
     resumeName:String(row?.resumeName||row?.resume_name||"").trim(),
     resumeNumber:Number(row?.resumeNumber||row?.resume_number)||null,
+    candidateName:String(row?.candidateName||row?.candidate_name||"").trim(),
+    applicationCount:Number(row?.applicationCount||row?.application_count)||0,
   })).filter((row)=>row.id&&row.resumeName);
+}
+function formatMineResumeLabel(resume){
+  const name=resume.resumeName||`Resume #${resume.resumeNumber||"?"}`,
+    prefix=resume.candidateName?`${resume.candidateName} · `:"";
+  return `${prefix}${name}${resume.resumeNumber?` #${resume.resumeNumber}`:""}`;
 }
 function normalizeMinePayload(data,limit=100){
   return{
@@ -59,19 +66,39 @@ export const recordApplicationAutofillTelemetry=(client,baseUrl,sessionId,teleme
 export const getApplicationAutofillRecovery=(client,baseUrl,sessionId)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`);
 export const updateApplicationAutofillRecovery=(client,baseUrl,sessionId,recovery)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`,{method:"PATCH",body:recovery});
 export const updateApplicationProgress=(client,baseUrl,id,{status,applicationUrl,notes})=>call(client,baseUrl,`/api/v1/applications/${id}/progress`,{method:"PATCH",body:{status,applicationUrl:applicationUrl||undefined,notes:notes==null?undefined:String(notes)}});
+export function formatMineResumeOptionLabel(resume){return formatMineResumeLabel(resume);}
 const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
+export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType } = {}) {
+  const ext = mimeType === "application/pdf"
+    ? ".pdf"
+    : mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ? ".docx"
+      : mimeType === "text/plain"
+        ? ".txt"
+        : (String(filename || "").match(/\.[^.]+$/) || [".pdf"])[0];
+  const base = String(candidateName || "").trim()
+    ? `${String(candidateName).trim()} Resume`
+    : String(resumeName || "").trim() || String(filename || "Resume").replace(/\.[^.]+$/, "") || "Resume";
+  return safeDownloadName(`${base}${ext}`);
+}
 export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`),url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");
   if(url.protocol!=="https:"||!Number.isSafeInteger(number)||number<1||!["ORIGINAL","TAILORED"].includes(type))throw new AppError("APPLICATION_RESUME_METADATA_INVALID","The attached Resume download metadata is invalid.");
-  const downloadId=await downloadImpl({url:url.toString(),filename:safeDownloadName(data.filename),saveAs:true,conflictAction:"uniquify"});
+  const downloadName=buildApplicationResumeDownloadFilename({
+    candidateName:data?.candidateName||data?.candidate_name,
+    resumeName:data?.resumeName||data?.resume_name,
+    filename:data?.filename,
+    mimeType:data?.mimeType||data?.mime_type,
+  });
+  const downloadId=await downloadImpl({url:url.toString(),filename:downloadName,saveAs:true,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
   return{...data,downloadId};
 }
 export const listApplicationScreenshots=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`);
-const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,SCREENSHOT_UPLOAD_TIMEOUT_MS=60000;
+const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,SCREENSHOT_UPLOAD_TIMEOUT_MS=60000,SCREENSHOT_DELETE_TIMEOUT_MS=30000;
 function inferScreenshotMime(file){if(file?.type&&SCREENSHOT_MIME_TYPES.has(file.type))return file.type;const ext=String(file?.name||"").split(".").pop()?.toLowerCase();return SCREENSHOT_MIME_BY_EXT[ext]||"";}
 function screenshotUploadFile(file){const mime=inferScreenshotMime(file);if(!mime) return null;if(file?.type===mime) return file;return new File([file],file.name,{type:mime});}
 export function validateApplicationScreenshotFile(file){const errors={};const mime=inferScreenshotMime(file);if(!file)errors.file="Choose a screenshot file.";else if(!mime)errors.file="Use a PNG, JPG, WEBP, or PDF file.";else if(!file.size||file.size>MAX_SCREENSHOT_SIZE)errors.file="Screenshot must be between 1 byte and 5 MiB.";return{valid:!Object.keys(errors).length,errors,mime};}
 export async function attachApplicationScreenshot(client,baseUrl,applicationId,file){const check=validateApplicationScreenshotFile(file);if(!check.valid)throw new AppError("APPLICATION_SCREENSHOT_INVALID",Object.values(check.errors).join(" "));const uploadFile=screenshotUploadFile(file);if(!uploadFile)throw new AppError("APPLICATION_SCREENSHOT_INVALID","Use a PNG, JPG, WEBP, or PDF file.");const body=new FormData();body.append("file",uploadFile,uploadFile.name);return call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots`,{method:"POST",body,timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS});}
-export const removeApplicationScreenshot=(client,baseUrl,applicationId,screenshot)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots/${screenshot.id}`,{method:"DELETE"});
+export const removeApplicationScreenshot=(client,baseUrl,applicationId,screenshot)=>call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/screenshots/${encodeURIComponent(screenshot.id)}`,{method:"DELETE",timeoutMs:SCREENSHOT_DELETE_TIMEOUT_MS});
 export async function openApplicationScreenshot(client,baseUrl,applicationId,screenshot){const data=await call(client,baseUrl,`/api/v1/applications/${applicationId}/screenshots/${screenshot.id}/file-url`),a=document.createElement("a");a.href=data.signedUrl;a.download=screenshot.original_filename||"application-screenshot";a.target="_blank";a.rel="noopener";a.click();}
