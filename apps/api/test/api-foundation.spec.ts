@@ -16,6 +16,7 @@ const { CreateJobDescriptionDto } = await import("../src/extension-ingestion/cre
 const { RequestIdMiddleware } = await import("../src/common/middleware/request-id.middleware.js");
 const { AuthGuard } = await import("../src/auth/auth.guard.js");
 const { RolesGuard } = await import("../src/auth/roles.guard.js");
+const { SupabaseService } = await import("../src/supabase/supabase.service.js");
 const { ApiException } = await import("../src/common/errors/api.exception.js");
 const { normalizeSourceUrl, JobDescriptionService } = await import("../src/extension-ingestion/job-description.service.js");
 const { JobDescriptionController } = await import("../src/extension-ingestion/job-description.controller.js");
@@ -101,6 +102,18 @@ test("role guard trusts the database RPC and rejects inactive or unauthorized us
   await assert.rejects(() => make({ status: "ACTIVE", roles: ["APPLIER"] }).canActivate(context), (error: any) => error.code === "FORBIDDEN");
 });
 
+test("access context cache deduplicates role checks for the same signed token", async () => {
+  const originalFetch=globalThis.fetch;let calls=0;
+  globalThis.fetch=(async(_url:any,options:any)=>{calls+=1;assert.match(String(options.headers.Authorization),/^Bearer jwt-/);return new Response(JSON.stringify({status:"ACTIVE",roles:["APPLIER"]}),{status:200,headers:{"content-type":"application/json"}});}) as any;
+  try{
+    const service=new SupabaseService();
+    const [first,second]=await Promise.all([service.accessContext("jwt-one"),service.accessContext("jwt-one")]);
+    assert.deepEqual(first,second);assert.equal(calls,1);
+    await service.accessContext("jwt-one");assert.equal(calls,1);
+    await service.accessContext("jwt-two");assert.equal(calls,2);
+  }finally{globalThis.fetch=originalFetch;}
+});
+
 test("URL normalization provides the database-backed idempotency key", () => {
   assert.equal(normalizeSourceUrl("https://example.com/jobs/1/?utm_source=x&b=2#a"), "https://example.com/jobs/1?b=2");
 });
@@ -121,6 +134,7 @@ test("lookup service loads controlled values through the user-scoped client",asy
   const service=new LookupService({forUser:(token:string)=>{assert.equal(token,"jwt");return {from:(table:string)=>{tables.push(table);return query;}};}} as any);
   assert.equal((await service.categories({id:"u",token:"jwt",claims:{}}))[0].id,"1");
   assert.equal((await service.industryDomains({id:"u",token:"jwt",claims:{}}))[0].id,"1");
+  assert.equal((await service.categories({id:"u",token:"jwt",claims:{}}))[0].id,"1");
   assert.deepEqual(tables,["categories","industry_domain_categories"]);
 });
 

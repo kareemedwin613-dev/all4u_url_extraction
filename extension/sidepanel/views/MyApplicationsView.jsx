@@ -8,6 +8,12 @@ import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
 
 const { Text } = Typography;
+const VISIBLE_STATUSES = new Set(["ASSIGNED", "IN_PROGRESS", "BLOCKED", "APPLIED"]);
+function matchesStatusFilter(applicationStatus, filter) {
+  if (!filter) return VISIBLE_STATUSES.has(applicationStatus);
+  if (filter === "ASSIGNED") return applicationStatus === "ASSIGNED" || applicationStatus === "IN_PROGRESS";
+  return applicationStatus === filter;
+}
 
 export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }) {
   const [status, setStatus] = useState("");
@@ -46,16 +52,14 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
       let activeResumeId = nextResumeId;
       let data = await listMyApplications(client, backendBaseUrl, {
         status: nextStatus,
-        resumeId: "",
+        resumeId: activeResumeId,
       });
       if (activeResumeId && !data.resumes.some((resume) => resume.id === activeResumeId)) {
         activeResumeId = "";
         setResumeFilter("");
-      }
-      if (activeResumeId) {
         data = await listMyApplications(client, backendBaseUrl, {
           status: nextStatus,
-          resumeId: activeResumeId,
+          resumeId: "",
         });
       }
       setItems(data.items);
@@ -64,6 +68,20 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     } catch (error) {
       onError(error);
     }
+  }
+
+  function handleSaved(updated) {
+    setEditingApplication(null);
+    setItems((rows) => {
+      if (!rows) return rows;
+      const index = rows.findIndex((row) => row.id === updated.id);
+      if (index < 0) return rows;
+      if (!matchesStatusFilter(updated.status, status)) {
+        setTotal((value) => Math.max(0, value - 1));
+        return rows.filter((row) => row.id !== updated.id);
+      }
+      return rows.map((row) => row.id === updated.id ? { ...row, ...updated } : row);
+    });
   }
 
   async function downloadResume(application) {
@@ -151,10 +169,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
           client={client}
           backendBaseUrl={backendBaseUrl}
           onClose={() => setEditingApplication(null)}
-          onSaved={() => {
-            setEditingApplication(null);
-            reload();
-          }}
+          onSaved={handleSaved}
           onStatus={onStatus}
           onError={onError}
         />

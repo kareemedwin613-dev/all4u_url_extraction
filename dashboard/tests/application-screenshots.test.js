@@ -20,7 +20,7 @@ test("validateApplicationScreenshotFile accepts common image types and infers MI
   );
 });
 
-test("Application screenshot services use protected API routes", async () => {
+test("Application screenshot services keep dashboard APIs and use the extension's faster RLS path", async () => {
   const [service, extensionService] = await Promise.all([
     read("../src/features/applications/application-service.js"),
     read("../../extension/services/application-service.js"),
@@ -35,7 +35,11 @@ test("Application screenshot services use protected API routes", async () => {
   assert.match(service, /openApplicationScreenshot/);
   assert.match(service, /openFirstApplicationScreenshot/);
   assert.match(service, /timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS/);
-  assert.match(extensionService, /timeoutMs:SCREENSHOT_UPLOAD_TIMEOUT_MS/);
+  assert.match(extensionService, /storage\.from\(bucket\)\.upload/);
+  assert.match(extensionService, /client\.rpc\("attach_application_screenshot"/);
+  assert.match(extensionService, /prepareApplicationScreenshot/);
+  assert.match(extensionService, /OffscreenCanvas/);
+  assert.doesNotMatch(extensionService, /new FormData/);
   assert.match(extensionService, /inferScreenshotMime/);
 });
 

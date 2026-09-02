@@ -46,18 +46,17 @@ test("extension JD service preserves the backend duplicate result instead of rep
   assert.match(view,/kind:"warning"/);
 });
 
-test("extension JD lookups use the backend and never read controlled tables directly",async()=>{
-  const client={auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})},from:()=>{throw new Error("Direct Supabase lookup attempted");}};
-  const originalFetch=globalThis.fetch,calls=[];
-  globalThis.fetch=async(url,options)=>{calls.push({url,options});const data=String(url).endsWith("industry-domains")?[{id:"industry"}]:[{id:"category"}];return new Response(JSON.stringify({data}),{status:200,headers:{"content-type":"application/json"}});};
-  try{
-    assert.equal((await listCategories(client,"https://api.example.com"))[0].id,"category");
-    assert.equal((await listIndustryDomains(client,"https://api.example.com"))[0].id,"industry");
-    assert.deepEqual(calls.map(call=>new URL(call.url).pathname),["/api/v1/lookups/categories","/api/v1/lookups/industry-domains"]);
-    assert.ok(calls.every(call=>call.options.headers.Authorization==="Bearer session-token"));
-  }finally{globalThis.fetch=originalFetch;}
+test("extension JD lookups use cached user-scoped Supabase reads without a Vercel hop",async()=>{
+  const calls=[];
+  const client={from:(table)=>{calls.push(table);const query={select:()=>query,eq:()=>query,order:()=>query,then:(resolve)=>Promise.resolve({data:[{id:table==="categories"?"category":"industry"}],error:null}).then(resolve)};return query;}};
+  assert.equal((await listCategories(client,"https://api.example.com"))[0].id,"category");
+  assert.equal((await listIndustryDomains(client,"https://api.example.com"))[0].id,"industry");
+  assert.equal((await listCategories(client,"https://api.example.com"))[0].id,"category");
+  assert.equal((await listIndustryDomains(client,"https://api.example.com"))[0].id,"industry");
+  assert.deepEqual(calls,["categories","industry_domain_categories"]);
   const [categories,industries]=await Promise.all([readFile(new URL("../extension/services/category-service.js",import.meta.url),"utf8"),readFile(new URL("../extension/services/industry-domain-service.js",import.meta.url),"utf8")]);
-  assert.doesNotMatch(`${categories}${industries}`,/\.from\(["'](?:categories|industry_domain_categories)["']\)/);
+  assert.match(`${categories}${industries}`,/\.from\(["'](?:categories|industry_domain_categories)["']\)/);
+  assert.doesNotMatch(`${categories}${industries}`,/apiRequest|\/api\/v1\/lookups/);
 });
 
 test("extension maps standardized validation and expired-session errors",async()=>{

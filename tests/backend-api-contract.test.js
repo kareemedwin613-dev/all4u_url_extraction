@@ -23,11 +23,15 @@ test("shared contracts and required API documentation exist",async()=>{
   for(const document of [architecture,auth,errors,ingestion,jobReads,applications])assert.ok(document.length>200);
 });
 
-test("Application and bulk browser services use the API instead of direct Supabase mutations",async()=>{
+test("dashboard mutations use the API while extension hot paths use caller-scoped RLS",async()=>{
   const [dashboardApplications,dashboardBulk,extensionApplications]=await Promise.all([read("../dashboard/src/features/applications/application-service.js"),read("../dashboard/src/features/bulk-applications/bulk-service.js"),read("../extension/services/application-service.js")]);
-  const source=`${dashboardApplications}${dashboardBulk}${extensionApplications}`;
-  assert.match(source,/\/api\/v1\/applications/);assert.match(source,/\/api\/v1\/applications\/bulk-(?:preview|create)/);assert.match(source,/\/api\/v1\/application-batches/);
-  assert.doesNotMatch(source,/\.rpc\(|\.from\(["']applications?["']\)|\.from\(["']application_screenshots["']\)|\.storage\.from/);
+  const dashboardSource=`${dashboardApplications}${dashboardBulk}`;
+  assert.match(dashboardSource,/\/api\/v1\/applications/);assert.match(dashboardSource,/\/api\/v1\/applications\/bulk-(?:preview|create)/);assert.match(dashboardSource,/\/api\/v1\/application-batches/);
+  assert.doesNotMatch(dashboardSource,/\.rpc\(|\.from\(["']applications?["']\)|\.from\(["']application_screenshots["']\)|\.storage\.from/);
+  assert.match(extensionApplications,/\.rpc\("list_my_applications_v20"/);
+  assert.match(extensionApplications,/\.rpc\("update_application_status_v101"/);
+  assert.match(extensionApplications,/\.from\("application_screenshots"\)/);
+  assert.match(extensionApplications,/storage\.from\(bucket\)\.upload/);
 });
 
 test("all remaining business services use the backend; only Supabase Auth stays client-side",async()=>{

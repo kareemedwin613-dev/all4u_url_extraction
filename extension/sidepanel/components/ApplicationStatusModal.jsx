@@ -32,8 +32,8 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
   async function handleUpload(file) {
     setUploading(true);
     try {
-      await attachApplicationScreenshot(client, backendBaseUrl, application.id, file);
-      setScreenshots(await listApplicationScreenshots(client, backendBaseUrl, application.id));
+      const created = await attachApplicationScreenshot(client, backendBaseUrl, application.id, file);
+      setScreenshots((rows) => [created, ...rows.filter((row) => row.id !== created.id)]);
       onStatus({ message: "Screenshot attached.", kind: "success" });
     } catch (error) {
       onError(error);
@@ -79,13 +79,13 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
     }
     setSaving(true);
     try {
-      await updateApplicationProgress(client, backendBaseUrl, application.id, {
+      const updated = await updateApplicationProgress(client, backendBaseUrl, application.id, {
         status: values.status,
         applicationUrl: values.applicationUrl,
         notes: values.notes,
       });
       onStatus({ message: "Application updated.", kind: "success" });
-      onSaved();
+      onSaved({ ...updated, screenshot_count: screenshots.length });
     } catch (error) {
       onError(error);
     } finally {
@@ -173,7 +173,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
           message="Marking Applied for the first time requires a Confirmation URL and at least one screenshot."
         />
         <Space>
-          <Button type="primary" htmlType="submit" loading={saving}>
+          <Button type="primary" htmlType="submit" loading={saving} disabled={uploading}>
             Save
           </Button>
           <Button onClick={onClose}>Cancel</Button>
