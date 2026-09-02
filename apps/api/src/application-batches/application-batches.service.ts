@@ -58,4 +58,18 @@ export class ApplicationBatchesService {
     const total = Number(raw?.total || 0);
     return { items: (raw?.items || []).map(mapResult), total, page: query.page, pageSize: size, pageCount: total ? Math.ceil(total / size) : 0 };
   }
+  async bulkDelete(user: AuthenticatedUser, ids: string[]) {
+    const unique = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!unique.length) throw new ApiException("VALIDATION_ERROR", "Select at least one Application batch.", HttpStatus.BAD_REQUEST);
+    if (unique.length > 100) throw new ApiException("VALIDATION_ERROR", "Select no more than 100 Application batches.", HttpStatus.BAD_REQUEST);
+    const raw: any = await timeout(this.repository.rpc(user, "bulk_delete_application_batches_v316", { p_batch_ids: unique }, "The selected Application batches could not be deleted."), 30_000);
+    if (!raw || typeof raw !== "object") throw new ApiException("DATABASE_ERROR", "The selected Application batches could not be deleted.", HttpStatus.BAD_GATEWAY);
+    this.logger.log("application_batches.bulk_delete.completed", { userId: user.id, requestedCount: unique.length, succeeded: Number(raw.succeeded) || 0, failed: Number(raw.failed) || 0 });
+    return {
+      total: Number(raw.total) || unique.length,
+      succeeded: Number(raw.succeeded) || 0,
+      failed: Number(raw.failed) || 0,
+      results: Array.isArray(raw.results) ? raw.results : [],
+    };
+  }
 }

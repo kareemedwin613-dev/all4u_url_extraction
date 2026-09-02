@@ -8,6 +8,7 @@ import { ApiException } from "../common/errors/api.exception.js";
 import type { ApiRequest } from "../common/types/request.js";
 import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
 import { ApplicationBatchesService } from "./application-batches.service.js";
+import { BulkApplicationBatchDeleteDto } from "./bulk-application-batch-delete.dto.js";
 import { BatchListQueryDto, BatchResultsQueryDto, BulkCreateDto, BulkPreviewDto } from "./application-batches.dto.js";
 
 const MANAGERS = ["APPLYING_MANAGER", "ADMIN"] as const;
@@ -36,4 +37,9 @@ export class ApplicationBatchesController {
   async detail(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return this.response(request, await this.service.detail(request.user!, id)); }
   @Get("application-batches/:id/results") @ApiOperation({ summary: "Get filtered, paginated batch row outcomes" })
   async results(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Query(new DtoValidationPipe(BatchResultsQueryDto)) query: BatchResultsQueryDto) { return this.response(request, await this.service.results(request.user!, id, query)); }
+
+  @Post("application-batches/bulk-delete") @ApiOperation({ summary: "Permanently delete batches whose Applications are all cancelled" })
+  async bulkDelete(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkApplicationBatchDeleteDto)) body: BulkApplicationBatchDeleteDto) {
+    return this.response(request, await this.service.bulkDelete(request.user!, body.batchIds));
+  }
 }
