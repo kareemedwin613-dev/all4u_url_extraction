@@ -17,11 +17,12 @@ test("v1.9 migration constrains and audits DOCX/PDF without public mutation acce
   assert.doesNotMatch(sql,/grant execute[^;]+to anon/);
 });
 
-test("v1.9 dashboard exposes audited format selection before materialization",()=>{
+test("dashboard fixes all new materialization to PDF while retaining the protected endpoint",()=>{
   const page=read("dashboard/src/features/tailoring/tailoring-pages.jsx"),service=read("dashboard/src/features/tailoring/tailoring-service.js"),api=read("apps/api/src/platform/platform.controller.ts");
-  assert.match(page,/Artifact format/);
-  assert.match(page,/PDF is ready to upload/);
-  assert.match(page,/selectTailoringFormat/);
+  assert.match(page,/Output Format/);
+  assert.match(page,/clean private PDF/);
+  assert.doesNotMatch(page,/selectTailoringFormat/);
+  assert.doesNotMatch(page,/value:"DOCX"/);
   assert.match(service,/\/format/);
   assert.match(api,/@Patch\(":id\/format"\)/);
   assert.match(api,/"APPLYING_MANAGER","ADMIN"/);

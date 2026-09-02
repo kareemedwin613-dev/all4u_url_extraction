@@ -4,7 +4,7 @@ This separately buildable local worker proves the Codex CLI tailoring contract w
 
 v1.3 also supports an authenticated NestJS lifecycle. The worker loads a database-derived, sanitized input and submits only the validated preview. It never connects to Supabase directly.
 
-v1.5 is the normal operator workflow. The dashboard creates a ten-minute, one-job runner ticket and shows the complete command. The worker claims it without a Supabase access token, receives a 30-minute run window, writes a unique local recovery artifact, and submits one validated preview. The API then automatically approves it, randomly chooses one of the twelve ATS-safe templates, renders the DOCX, creates the TAILORED child Resume, and assigns it to the Application.
+v1.5 is the normal operator workflow. The dashboard creates a ten-minute, one-job runner ticket and shows the complete command. The worker claims it without a Supabase access token, receives a 30-minute run window, writes a unique local recovery artifact, and submits one validated preview. The API then automatically approves it, randomly chooses one of the twelve ATS-safe templates, renders a clean PDF, creates the TAILORED child Resume, and assigns it to the Application.
 
 ## v1.5 one-command mode
 
@@ -42,7 +42,7 @@ The output directory is ignored by Git. The command refuses to overwrite an exis
 
 Generated previews pass only structural validation before they can be saved or submitted. The worker protects the output shape, preserves the exact source-experience ID/count/order mapping used to render employer, title, and date fields, and rejects refusals. Skills, facts, metrics, project narratives, outcomes, keyword coverage, bullet style/count, action verbs, wording similarity, summary length, and warning content are not quality-gated.
 
-The preview retains one prioritized flat `skills` list capped at 80 items for ATS coverage and adds `skillGroups` for readable category-aligned DOCX/PDF rendering. Exact JD skills come first, followed by candidate fundamentals and project-essential additions. Missing or legacy group metadata is reconciled automatically without changing the database schema.
+The preview retains one prioritized flat `skills` list capped at 80 items for ATS coverage and adds `skillGroups` for readable category-aligned PDF rendering. Exact JD skills come first, followed by candidate fundamentals and project-essential additions. Missing or legacy group metadata is reconciled automatically without changing the database schema.
 
 ## Legacy v1.3 API mode
 
