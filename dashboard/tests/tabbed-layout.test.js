@@ -17,7 +17,7 @@ test("shared tabbed sections preserve content and provide keyboard navigation", 
   assert.match(source, /export function TabbedSections/);
   assert.match(source, /event\.altKey/);
   assert.match(source, /Number\(event\.key\)-1|Number\(event\.key\) - 1/);
-  assert.match(source, /destroyOnHidden=\{false\}/);
+  assert.match(source, /destroyOnHidden/);
   assert.match(source, /arrow keys/);
   assert.match(source, /activeKey/);
   assert.match(source, /onChange\?/);

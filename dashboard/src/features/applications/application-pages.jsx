@@ -44,6 +44,7 @@ import {
   categoryTagColor,
 } from "../../components/ui.jsx";
 import {
+  APPLICATION_PRIORITIES,
   APPLICATION_STATUSES,
 } from "./constants.js";
 import { applicationActions, isApplicationManager } from "./validation.js";
@@ -90,7 +91,7 @@ const Notice = ({ message, error = false }) =>
       className="ui-alert"
       type={error ? "error" : "success"}
       showIcon
-      message={message}
+      title={message}
     />
   ) : null;
 
@@ -760,14 +761,14 @@ export function ApplicationsPage({
           showIcon
           closable
           onClose={() => setNotice("")}
-          message={notice}
+          title={notice}
         />
       )}
       {tooMany && (
         <Alert
           type="error"
           showIcon
-          message="Select no more than 2,000 Applications for one assignment."
+          title="Select no more than 2,000 Applications for one assignment."
         />
       )}
       <ApplicationListFilters
@@ -787,7 +788,7 @@ export function ApplicationsPage({
             <Alert
               type="error"
               showIcon
-              message={error}
+              title={error}
               style={{ marginBottom: 12 }}
             />
           )}
@@ -1070,7 +1071,11 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
     [message, setMessage] = useState(""),
     [isError, setIsError] = useState(false),
     [busy, setBusy] = useState(false),
+    [activeTab, setActiveTab] = useState("overview"),
     manager = isApplicationManager(access);
+  useEffect(() => {
+    setActiveTab("overview");
+  }, [id]);
   const load = () => {
     setDetail();
     setScreenshotCount(null);
@@ -1185,6 +1190,8 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       </Flex>
       <Notice message={message} error={isError} />
       <TabbedSections
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: "overview",
@@ -1265,7 +1272,6 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                       {
                         key: "notes",
                         label: "Notes",
-                        span: 2,
                         children: a.notes ? (
                           <Text className="long-text">{a.notes}</Text>
                         ) : (

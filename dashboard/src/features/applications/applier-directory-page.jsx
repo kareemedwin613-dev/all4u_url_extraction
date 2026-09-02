@@ -140,7 +140,7 @@ export function ApplierDirectoryPage({ client, apiBaseUrl, reload }) {
         confirmLoading={busy}
         onOk={saveProfiles}
         onCancel={() => !busy && setEdit()}
-        destroyOnClose
+        destroyOnHidden
         width={720}
       >
         <Alert
