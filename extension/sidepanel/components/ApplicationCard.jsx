@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge, Button, Card, Flex, Space, Tag, Typography } from "antd";
-import { DownloadOutlined, PaperClipOutlined } from "@ant-design/icons";
+import { DownloadOutlined, PaperClipOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { normalizeUrl } from "../../shared/normalization.js";
 
 const { Text } = Typography;
@@ -22,9 +22,14 @@ const STATUS_COLORS = {
 export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, extensionBusy }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
+  const isTailored = application.resume_type === "TAILORED";
   const extensionEligible = Boolean(jobUrl && application.resume_id && !["APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"].includes(application.status));
   return (
-    <Card size="small" style={{ marginBottom: 8 }}>
+    <Card
+      size="small"
+      className={isTailored ? "application-card application-card--tailored" : "application-card"}
+      style={{ marginBottom: 8 }}
+    >
       <Flex justify="space-between" align="start" gap={8}>
         <Text strong>
           {application.company} — {application.job_title}
@@ -36,7 +41,17 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
       <div style={{ margin: "4px 0" }}>
         <Text>{application.resume_number ? `Resume #${application.resume_number} · ` : ""}{application.resume_name || "Unnamed Resume"}</Text>
         {application.candidate_name && <Text type="secondary"> · {application.candidate_name}</Text>}
-        {application.resume_type && <Tag color={application.resume_type === "TAILORED" ? "purple" : "default"} style={{ marginInlineStart: 6 }}>{application.resume_type === "TAILORED" ? "Tailored" : "Original"}</Tag>}
+        {application.resume_type && (
+          isTailored ? (
+            <Tag bordered={false} icon={<ThunderboltOutlined />} className="application-resume-tag application-resume-tag--tailored">
+              Tailored
+            </Tag>
+          ) : (
+            <Tag className="application-resume-tag application-resume-tag--original" style={{ marginInlineStart: 6 }}>
+              Original
+            </Tag>
+          )
+        )}
       </div>
       <Space wrap style={{ margin: "4px 0" }}>
         <Tag color={STATUS_COLORS[application.status] || "default"}>
