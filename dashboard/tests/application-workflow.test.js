@@ -152,5 +152,7 @@ test("Application Number is visible on the list, detail heading, and search",asy
   const source=await readFile(new URL("../src/features/applications/application-pages.jsx",import.meta.url),"utf8");
   assert.match(source,/Application #/);
   assert.match(source,/Application Number/);
-  assert.match(source,/Application #, company, or job title/);
+  assert.match(source,/ProgressForm/);
+  assert.match(source,/APPLICATION_PRIORITIES/);
+  assert.match(source,/title=\{message\}/);
 });

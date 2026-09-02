@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -186,7 +186,7 @@ export const ErrorState = ({
     className="ui-alert"
     type="error"
     showIcon
-    message={title}
+    title={title}
     description={message}
     action={
       retry ? (
@@ -338,19 +338,29 @@ export function TabbedSections({
   activeKey,
   onChange,
   extra,
+  destroyOnHidden = true,
 }) {
   const available = items.filter(Boolean),
     first = defaultActiveKey || available[0]?.key,
     [uncontrolledActive, setUncontrolledActive] = useState(first),
     active = activeKey ?? uncontrolledActive,
+    panelHostRef = useRef(null),
     setActive = (key) => {
       if (activeKey === undefined) setUncontrolledActive(key);
       onChange?.(key);
     };
   useEffect(() => {
-    if (!available.some((item) => item.key === active))
-      setActive(available[0]?.key);
+    if (!available.some((item) => item.key === active)) {
+      const next = available[0]?.key;
+      if (next && next !== active) setActive(next);
+    }
   }, [active, available.map((item) => item.key).join("|")]);
+  useEffect(() => {
+    const panel = panelHostRef.current?.querySelector(
+      ".ant-tabs-tabpane-active .tab-panel, .ant-tabs-content-active .tab-panel",
+    );
+    panel?.scrollTo?.({ top: 0 });
+  }, [active]);
   useEffect(() => {
     const keydown = (event) => {
       if (!event.altKey || event.ctrlKey || event.metaKey) return;
@@ -377,6 +387,7 @@ export function TabbedSections({
   }));
   return (
     <Card className="tabbed-page-card">
+      <div ref={panelHostRef}>
       <Flex
         justify="space-between"
         align="center"
@@ -393,8 +404,9 @@ export function TabbedSections({
         activeKey={active}
         onChange={setActive}
         items={tabs}
-        destroyOnHidden={false}
+        destroyOnHidden={destroyOnHidden}
       />
+      </div>
     </Card>
   );
 }

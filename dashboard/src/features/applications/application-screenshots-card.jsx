@@ -274,7 +274,7 @@ export function ApplicationScreenshotsCard({
         }
         onCancel={closePreview}
         width={isImageMime(preview?.screenshot?.mime_type) ? 920 : 720}
-        destroyOnClose
+        destroyOnHidden
       >
         {previewLoading ? (
           <Flex align="center" justify="center" style={{ minHeight: 240 }}>
