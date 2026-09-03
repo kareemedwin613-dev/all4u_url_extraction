@@ -7,6 +7,14 @@
 
 Both scripts require real credentials for a project you choose and explicitly confirm — neither targets anything by default. **Do not point either script at production or a shared free-tier Supabase project without explicit approval**, per the spec's own requirement.
 
+For the current speed workflow, the load tester also covers extension category/domain reads and an optional one-round-trip JD capture duplicate path. Run it against an isolated staging project after applying all migrations:
+
+```powershell
+npm run test:load -- --url=https://PROJECT.supabase.co --key=ANON_KEY --email=TEST_EMAIL --password=TEST_PASSWORD --capture-job-id=OWNED_JD_ID --concurrency=10 --requests=50 --p95-budget-ms=750
+```
+
+The `--capture-job-id` must belong to the signed-in test user and have a normalized URL. The script refuses any other record, which keeps this scenario on the non-mutating duplicate path. Omit it when no safe fixture exists. Run the same command before and after deployment with the same dataset and region; an error or p95 budget breach exits non-zero.
+
 ## Suggested profiles (from the spec, unchanged)
 
 ```text
@@ -26,6 +34,8 @@ Large:  250,000 JDs / 25,000 Resumes / 1,000,000 Applications / 5,000,000 histor
 | Application detail | `get_application_detail` via `loadtest.mjs` | No |
 | Bulk preview (100 JDs / 2,000 combinations) | `preview_bulk_applications` via `loadtest.mjs` | No |
 | Dashboard summary | `get_business_overview` / `get_application_counts` via `loadtest.mjs` | No |
+| Extension lookup warm path | category and industry-domain reads via `loadtest.mjs` | No |
+| Atomic JD capture duplicate | `capture_job_description_v353` via `loadtest.mjs --capture-job-id` | No |
 
 **None of the above were executed.** This environment has no Docker/Supabase CLI and no live project credentials, so I could not run `generate-synthetic-data.mjs`, `loadtest.mjs`, or `EXPLAIN (ANALYZE, BUFFERS)` against real data. Both scripts are written and ready to run; doing so — and recording real before/after numbers in the format below — is the concrete next step for whoever has access to a disposable Supabase project.
 

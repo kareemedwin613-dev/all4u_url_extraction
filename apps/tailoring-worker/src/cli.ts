@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { loadFixture, runTailoringProof } from "./codex-runner.js";
 import { claimTailoringBatchTicket, claimTailoringRunnerTicket, loadTailoringJobInput, nextTailoringBatchItem, reportTailoringBatchFailure, reportTailoringRunnerFailure, submitTailoringBatchPreview, submitTailoringJobPreview, submitTailoringRunnerPreview } from "./api-client.js";
+import { tailoringBatchConcurrency } from "./concurrency.js";
 
 export function isRateLimitFailure(value:unknown){return /(?:\b429\b|rate[ -]?limit|usage limit|too many requests|quota[^.\n]*(?:exceed|reset)|capacity[^.\n]*(?:reached|exceeded))/i.test(value instanceof Error?value.message:String(value));}
 export function retryDelaySeconds(value:unknown,attempt=1){const text=value instanceof Error?value.message:String(value),match=text.match(/retry(?: after| in)?[^\d]{0,20}(\d{1,4})\s*(?:s|sec|seconds?)\b/i),fallback=60*Math.pow(2,Math.max(0,attempt-1));return Math.max(30,Math.min(900,Number(match?.[1]||fallback)));}
@@ -9,17 +10,11 @@ const wait=(milliseconds:number)=>new Promise(resolve=>setTimeout(resolve,millis
 
 async function runBatch(apiBaseUrl:string,ticket:string,args:Record<string,string|boolean>,invocationDirectory:string){
   const claim=await claimTailoringBatchTicket(apiBaseUrl,ticket);
-  process.stdout.write(`Tailoring batch ${claim.batchId} claimed. ${claim.selectedCount||0} Applications selected.\n`);
-  for(;;){
-    const next=await nextTailoringBatchItem(apiBaseUrl,ticket);
-    if(next.state==="SKIPPED"){process.stderr.write(`Skipped batch item ${String(next.itemId||"")}: ${String(next.reason||"invalid source")}\n`);continue;}
-    if(next.state==="RATE_LIMITED"){
-      const retryAt=new Date(String(next.nextRetryAt||Date.now()+60000)),delay=Math.max(1000,retryAt.getTime()-Date.now());
-      process.stderr.write(`Provider rate limit reached. Batch paused until ${retryAt.toISOString()}; the same command will resume automatically.\n`);
-      let remaining=delay;while(remaining>0){const duration=Math.min(60000,remaining);await wait(duration);remaining-=duration;}continue;
-    }
-    if(["COMPLETED","COMPLETED_WITH_FAILURES","CANCELLED"].includes(next.state)){const result=next as Record<string,unknown>;process.stdout.write(`Tailoring batch finished with status ${next.state}. Failed=${result.failedCount||0}, skipped=${result.skippedCount||0}.\n`);return;}
-    if(next.state!=="JOB")throw new Error(`Unexpected tailoring batch state: ${next.state}`);
+  const concurrency=tailoringBatchConcurrency(typeof args.concurrency==="string"?args.concurrency:undefined);
+  process.stdout.write(`Tailoring batch ${claim.batchId} claimed. ${claim.selectedCount||0} Applications selected. Concurrency=${concurrency}.\n`);
+  const active=new Set<Promise<void>>();
+  let providerPauseUntil=0;
+  const processItem=async(next:any)=>{
     const outputPath=resolve(invocationDirectory,`apps/tailoring-worker/artifacts/job-${next.jobId}-${Date.now()}.preview.json`);await mkdir(dirname(outputPath),{recursive:true});
     const started=Date.now();let stage="CODEX_GENERATION";
     try{
@@ -27,10 +22,40 @@ async function runBatch(apiBaseUrl:string,ticket:string,args:Record<string,strin
       const created:any=await submitTailoringBatchPreview(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
       process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
     }catch(error){
-      const message=error instanceof Error?error.message:String(error),rateLimited=isRateLimitFailure(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED";
-      await reportTailoringBatchFailure(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),{stage:validation?"OUTPUT_VALIDATION":stage,code,message,retryable:!validation,rateLimited,retryAfterSeconds:rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined}).catch(reportError=>process.stderr.write(`Failure diagnostics could not be recorded: ${reportError instanceof Error?reportError.message:String(reportError)}\n`));
+      const message=error instanceof Error?error.message:String(error),rateLimited=isRateLimitFailure(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED",retryAfterSeconds=rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined;
+      if(retryAfterSeconds)providerPauseUntil=Math.max(providerPauseUntil,Date.now()+retryAfterSeconds*1000);
+      await reportTailoringBatchFailure(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),{stage:validation?"OUTPUT_VALIDATION":stage,code,message,retryable:!validation,rateLimited,retryAfterSeconds}).catch(reportError=>process.stderr.write(`Failure diagnostics could not be recorded: ${reportError instanceof Error?reportError.message:String(reportError)}\n`));
       process.stderr.write(`Tailoring job ${next.jobId} failed after ${Date.now()-started} ms [${code}]: ${message}\n`);
     }
+  };
+  const startItem=(next:any)=>{
+    let task:Promise<void>;
+    task=processItem(next).finally(()=>active.delete(task));
+    active.add(task);
+  };
+  for(;;){
+    while(active.size>=concurrency)await Promise.race(active);
+    if(providerPauseUntil>Date.now()){
+      const retryAt=new Date(providerPauseUntil);
+      process.stderr.write(`Provider cooldown active until ${retryAt.toISOString()}; no new work will be leased.\n`);
+      let remaining=providerPauseUntil-Date.now();while(remaining>0){const duration=Math.min(60000,remaining);await wait(duration);remaining=providerPauseUntil-Date.now();}
+    }
+    const next=await nextTailoringBatchItem(apiBaseUrl,ticket);
+    if(next.state==="SKIPPED"){process.stderr.write(`Skipped batch item ${String(next.itemId||"")}: ${String(next.reason||"invalid source")}\n`);continue;}
+    if(next.state==="RATE_LIMITED"){
+      const retryAt=new Date(String(next.nextRetryAt||Date.now()+60000)),delay=Math.max(1000,retryAt.getTime()-Date.now());
+      process.stderr.write(`Provider rate limit reached. Batch paused until ${retryAt.toISOString()}; the same command will resume automatically.\n`);
+      let remaining=delay;while(remaining>0){const duration=Math.min(60000,remaining);await wait(duration);remaining-=duration;}continue;
+    }
+    if(["COMPLETED","COMPLETED_WITH_FAILURES","CANCELLED"].includes(next.state)){
+      if(active.size){await Promise.allSettled(active);continue;}
+      const result=next as Record<string,unknown>;process.stdout.write(`Tailoring batch finished with status ${next.state}. Failed=${result.failedCount||0}, skipped=${result.skippedCount||0}.\n`);return;
+    }
+    if(next.state!=="JOB"){
+      if(active.size){await Promise.race(active);continue;}
+      throw new Error(`Unexpected tailoring batch state: ${next.state}`);
+    }
+    startItem(next);
   }
 }
 

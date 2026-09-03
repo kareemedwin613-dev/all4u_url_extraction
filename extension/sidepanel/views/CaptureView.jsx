@@ -395,14 +395,11 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
         const duplicateMessage=saved.duplicate_reason === "COMPANY_JOB_TITLE"
           ? "Not saved: a JD with the same company and job title already exists. The existing JD is shown."
           : "Not saved: this source URL already exists. The existing JD is shown.";
-        onStatus({message:`${duplicateMessage}${saved.workspace_sync?.enabled?` Google Sheets sync: ${saved.workspace_sync.status}.`:""}`,kind:"warning"});
+        onStatus({message:duplicateMessage,kind:"warning"});
         await loadMatches(saved);
         return;
       }
-      const sync=saved.workspace_sync;
-      onStatus(sync?.enabled&&sync.status!=="SUCCEEDED"
-        ?{message:`JD saved to Supabase, but Google Sheets sync ${sync.status==="PENDING"?"is already in progress":"failed"}. Saving this JD again will retry safely.`,kind:"warning"}
-        :{message:`JD saved to ${sync?.status==="SUCCEEDED"?"Supabase and Google Sheets":"Supabase"}: ${saved.company} — ${saved.job_title}.${saved.review_status==="NEEDS_REVIEW"?" It is waiting for manager review.":""}`,kind:"success"});
+      onStatus({message:`JD saved to Supabase: ${saved.company} — ${saved.job_title}.${saved.review_status==="NEEDS_REVIEW"?" It is waiting for manager review.":""}`,kind:"success"});
       await loadMatches(saved);
     } catch (error) {
       onError(error);

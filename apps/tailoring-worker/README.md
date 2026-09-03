@@ -64,7 +64,7 @@ On Windows, the worker safely resolves the npm `codex.cmd` shim to `@openai/code
 
 Tailoring defaults to the efficient `TAILORING_CODEX_MODEL=gpt-5.6-luna`, `TAILORING_CODEX_REASONING_EFFORT=none`, disabled reasoning summaries, and `TAILORING_CODEX_SERVICE_TIER=fast` because generation is schema-bound, high-volume, and tool-free. Override the model with `gpt-5.6-terra` or `gpt-5.6-sol`, or set reasoning to `low`, `medium`, `high`, or `xhigh`, when a different latency/quality tradeoff is needed. Set the service tier to `default` or `auto` to opt out of Fast priority processing.
 
-For a bounded bulk run, select up to five pending jobs in **Tailoring**, create the bulk runner command, and run it once from the repository root. The command uses `--tickets "ticket-1,ticket-2"`, processes jobs sequentially, isolates failures, and automatically creates every successful Application Resume.
+For a bounded bulk run, select up to five pending jobs in **Tailoring**, create the bulk runner command, and run it once from the repository root. The command uses `--tickets "ticket-1,ticket-2"`, isolates failures, and automatically creates every successful Application Resume.
 
 ## v2.1 resumable batch mode
 
@@ -74,6 +74,6 @@ For operational batches, select up to 500 Applications on the Applications page 
 npm run tailoring:run -- --batch-ticket "trb_<short-lived-ticket>" --api-base-url "https://your-dashboard.example"
 ```
 
-The worker leases and processes one item at a time. It stores an isolated recovery artifact, automatically approves the structurally valid result, selects a template independently at random, and materializes the Application Resume before leasing the next item. Provider rate-limit responses pause the batch with an exponential 30–900 second cooldown and resume automatically while the runner remains open. The dashboard shows each item's attempt count, failure stage/code, sanitized message, duration, and retry eligibility.
+The worker leases and processes two items concurrently by default. Set `TAILORING_BATCH_CONCURRENCY=1`, `2`, or `3`, or pass `--concurrency 1|2|3`; two is the recommended balance. Each item keeps an independent lease and recovery artifact, automatically approves a structurally valid result, selects a template independently at random, and materializes the Application Resume. Provider rate-limit responses stop new leases during the exponential 30–900 second cooldown and resume automatically while the runner remains open. The dashboard shows each item's attempt count, failure stage/code, sanitized message, duration, and retry eligibility.
 
 If the terminal closes, create a replacement command from the same batch. The server revokes the old capability and safely requeues its leased item. Validation failures are not automatically retried; other transient worker/API failures can be selected for retry from the batch page.

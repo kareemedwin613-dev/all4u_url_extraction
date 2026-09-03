@@ -13,6 +13,4 @@ The React dashboard and Chrome extension use the NestJS API for the JD read doma
 
 Read endpoints require an active business-data role. Capture accepts Applying Manager, JD Finder, or Admin; lookup endpoints also accept JD Finder. Every endpoint returns the standard request ID and error shape. The browser no longer reads `job_descriptions`, `categories`, or `industry_domain_categories` directly for these workflows.
 
-When the temporary Google Workspace mirror is enabled, ingestion commits Supabase first and then attempts one HMAC-signed Apps Script upsert. `data.workspaceSync` reports `SUCCEEDED`, `FAILED`, `PENDING`, or `DISABLED`. Failed delivery remains recorded for a safe retry when the same JD is saved again; it does not turn a valid Supabase save into an API failure.
-
 No privileged Supabase key is used. Supabase Auth remains browser-facing for session creation and refresh.

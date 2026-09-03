@@ -1,9 +1,10 @@
-import React,{useEffect,useMemo,useState}from"react";
+import React,{useCallback,useEffect,useMemo,useState}from"react";
 import{Alert,App as AntApp,Button,Card,Descriptions,Empty,Flex,Form,Input,Select,Space,Table,Tag,Typography}from"antd";
 import{formatDate,formatLabel}from"../../shared/formatters.js";
 import{EllipsisCell,LoadingState,StatusTag}from"../../components/ui.jsx";
 import{createBulkTailoringRunnerTickets,createTailoringRunnerTicket,getTailoringJob,getTailoringResumeUrl,getTailoringReviews,listTailoringJobs,listTailoringTemplates,materializeTailoredResume,reviewTailoringPreview,selectTailoringTemplate}from"./tailoring-service.js";
 import{MAX_TAILORED_SKILLS,TailoringComparison}from"./tailoring-comparison.jsx";
+import{useRealtimeRefresh}from"../../shared/use-realtime-refresh.js";
 
 const{Text,Title,Paragraph}=Typography;
 const STATUSES=["ALL","PENDING","PROCESSING","NEEDS_REVIEW","APPROVED","MATERIALIZING","COMPLETED","REJECTED","FAILED","CANCELLED"];
@@ -40,9 +41,9 @@ export function TailoringQueuePage({client,apiBaseUrl,reload}){
 
 export function TailoringReviewPage({client,apiBaseUrl,id,reload}){
   const{modal}=AntApp.useApp(),[form]=Form.useForm(),[job,setJob]=useState(),[history,setHistory]=useState([]),[templates,setTemplates]=useState([]),[notes,setNotes]=useState(""),[runner,setRunner]=useState(),[busy,setBusy]=useState(false),[error,setError]=useState(""),[success,setSuccess]=useState("");
-  const load=async()=>{setError("");try{const[data,reviews,availableTemplates]=await Promise.all([getTailoringJob(client,apiBaseUrl,id),getTailoringReviews(client,apiBaseUrl,id),listTailoringTemplates(client,apiBaseUrl).catch(()=>[])]);setJob(data);setHistory(reviews||[]);setTemplates(availableTemplates||[]);setNotes(data.review_notes||"");if(data.output_preview)form.setFieldsValue({summary:data.output_preview.summary,professionalExperience:data.output_preview.professionalExperience,skills:(Array.isArray(data.output_preview.skills)?data.output_preview.skills:[]).slice(0,MAX_TAILORED_SKILLS)});}catch(x){setError(x.message);}};
-  useEffect(()=>{load();},[client,apiBaseUrl,id,reload]);
-  useEffect(()=>{if(!["PENDING","PROCESSING","MATERIALIZING"].includes(job?.status))return;const timer=setInterval(load,4000);return()=>clearInterval(timer);},[job?.status,client,apiBaseUrl,id]);
+  const load=useCallback(async()=>{setError("");try{const[data,reviews,availableTemplates]=await Promise.all([getTailoringJob(client,apiBaseUrl,id),getTailoringReviews(client,apiBaseUrl,id),listTailoringTemplates(client,apiBaseUrl).catch(()=>[])]);setJob(data);setHistory(reviews||[]);setTemplates(availableTemplates||[]);setNotes(data.review_notes||"");if(data.output_preview)form.setFieldsValue({summary:data.output_preview.summary,professionalExperience:data.output_preview.professionalExperience,skills:(Array.isArray(data.output_preview.skills)?data.output_preview.skills:[]).slice(0,MAX_TAILORED_SKILLS)});}catch(x){setError(x.message);}},[client,apiBaseUrl,id,form]);
+  useEffect(()=>{load();},[load,reload]);
+  useRealtimeRefresh({client,table:"tailoring_jobs",filter:`id=eq.${id}`,enabled:["PENDING","PROCESSING","MATERIALIZING"].includes(job?.status),refresh:load});
   if(!job)return <div className="page">{error?<Alert type="error" showIcon message={error}/>:<LoadingState/>}</div>;
   const jd=one(job.job_descriptions),resume=one(job.resumes),tailored=one(job.tailored_resume),application=one(job.applications),editable=job.status==="NEEDS_REVIEW"&&Boolean(job.output_preview);
   async function submit(action){

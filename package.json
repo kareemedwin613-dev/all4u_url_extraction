@@ -20,6 +20,7 @@
     "test:db": "npx supabase test db",
     "test:api": "npm run build:contracts && npm --prefix apps/api test",
     "test:tailoring": "npm --prefix apps/tailoring-worker test",
+    "test:load": "node scripts/performance/loadtest.mjs",
     "proof:tailoring": "npm --prefix apps/tailoring-worker run proof --",
     "tailoring:run": "npm --prefix apps/tailoring-worker run run --",
     "lint": "node scripts/lint.mjs",
