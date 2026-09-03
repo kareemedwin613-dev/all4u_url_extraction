@@ -17,6 +17,8 @@ The dashboard leaves `VITE_API_BASE_URL` unset in Vercel and therefore calls the
 4. Add the environment variables below for Production and Preview.
 5. Deploy, then verify `/health`, `/ready`, sign-in, a dashboard read, and one authorized write.
 
+Fluid Compute is enabled in `vercel.json`. Before the production deploy, open the Supabase project settings and note its AWS region, then select the closest matching **Functions Region** in the Vercel project settings. Do not guess the region and do not configure multiple primary regions for this single-region database.
+
 You can also use the CLI from the repository root:
 
 ```powershell
@@ -44,15 +46,6 @@ LOG_LEVEL=info
 SWAGGER_ENABLED=false
 ```
 
-For the optional migration-time Google Sheets mirror, also configure these API-only variables after completing [the Apps Script setup](../google-workspace/README.md):
-
-```text
-GOOGLE_WORKSPACE_JD_SYNC_ENABLED=true
-GOOGLE_WORKSPACE_JD_SYNC_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
-GOOGLE_WORKSPACE_JD_SYNC_SECRET=YOUR_RANDOM_SECRET_WITH_AT_LEAST_32_CHARACTERS
-GOOGLE_WORKSPACE_JD_SYNC_TIMEOUT_MS=5000
-```
-
 Set these Vite build variables:
 
 ```text
@@ -66,7 +59,9 @@ For local development, keep `VITE_API_BASE_URL=http://localhost:3000` in `dashbo
 
 ## Supabase settings
 
-Add the production and any required preview dashboard URL to Supabase Authentication URL Configuration. Keep the existing database migrations, RLS policies, and private Storage buckets deployed before testing the application.
+Add the production and any required preview dashboard URL to Supabase Authentication URL Configuration. For the Workspace-removal release, deploy the application code first and then apply the pending database migrations. The API's temporary legacy capture fallback and the dashboard's slow status-refresh fallback keep the app working until the atomic capture and Realtime migrations arrive, while deploying code first ensures the old API cannot race the destructive mirror cleanup.
+
+Migration `202609021119_v3_55_remove_google_workspace_mirror.sql` permanently removes the retired Workspace sync functions and their historical sync-state table. After deploying it, delete any obsolete `GOOGLE_WORKSPACE_JD_SYNC_*` variables from the Vercel project.
 
 ## File upload limit
 

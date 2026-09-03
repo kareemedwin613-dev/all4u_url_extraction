@@ -29,6 +29,7 @@ import {
 } from "../access/capabilities.js";
 import { listCategories } from "../services/category-service.js";
 import { listIndustryDomains } from "../services/industry-domain-service.js";
+import { clearLookupCaches } from "../services/lookup-cache.js";
 import { safeError } from "../shared/errors.js";
 import { SettingsView } from "./views/SettingsView.jsx";
 import { AuthView } from "./views/AuthView.jsx";
@@ -339,6 +340,7 @@ export function App() {
 
   async function handleSaveSettings(normalizedConfig, normalizedBackendBaseUrl, score) {
     try {
+      if (config?.projectUrl && config.projectUrl !== normalizedConfig.projectUrl) await clearLookupCaches();
       await chrome.storage.local.set({
         supabaseConfig: normalizedConfig,
         backendConfig: { baseUrl: normalizedBackendBaseUrl },

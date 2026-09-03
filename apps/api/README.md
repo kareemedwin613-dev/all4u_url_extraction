@@ -16,8 +16,6 @@ The v1.6 tailoring slice renders a human-approved preview as an in-memory DOCX, 
 4. Develop: `npm run start:dev`. This loads `.env` when present and automatically restarts the API after backend TypeScript changes.
 5. Build/start: `npm run build && npm start`.
 
-Optional migration-time Google Sheets mirroring uses the four `GOOGLE_WORKSPACE_JD_SYNC_*` settings documented in [`../../google-workspace/README.md`](../../google-workspace/README.md). The HMAC secret belongs only in the API environment and Apps Script properties.
-
 The API fails startup when required configuration is missing or invalid. Swagger is available at `/api/docs` only when enabled outside production. Liveness is `/health`; readiness is `/ready`.
 
 Commands: `npm test`, `npm run typecheck`, and `npm run build`. From repository root, `npm run dev:api` builds shared contracts once and starts the API watcher; `npm run test:api` and `npm run build:api` build shared contracts first.

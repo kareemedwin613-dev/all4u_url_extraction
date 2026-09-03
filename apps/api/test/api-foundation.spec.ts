@@ -172,7 +172,7 @@ test("ingestion derives user_id from the principal, preserves RLS token, and ret
   const inserted: any[] = [], existingRow = { id: "job-id", company: "Example", job_title: "Engineer", source_url: "https://example.com/jobs/1", created_at: new Date().toISOString() };
   let duplicate = false;
   const query: any = { insert: (row: any) => { inserted.push(row); return query; }, select: () => query, single: async () => duplicate ? ({ data: null, error: { code: "23505", message: "duplicate" } }) : ({ data: existingRow, error: null }), eq: () => query, ilike: () => query, order: () => query, limit: () => query, maybeSingle: async () => ({ data: duplicate ? existingRow : null, error: null }) };
-  const service = new JobDescriptionService({ forUser: (token: string) => { assert.equal(token, "user-jwt"); return { from: () => query }; } } as any,{sync:async()=>({enabled:false,status:"DISABLED"})}as any);
+  const service = new JobDescriptionService({ forUser: (token: string) => { assert.equal(token, "user-jwt"); return { from: () => query }; } } as any);
   const input: any = { sourceUrl: "https://example.com/jobs/1", company: "Example", jobTitle: "Engineer", descriptionText: "x".repeat(100), categoryId: "123e4567-e89b-42d3-a456-426614174000" };
   assert.equal((await service.create({ id: "token-user", token: "user-jwt", claims: {} }, input)).duplicate, false);
   assert.equal(inserted[0].user_id, "token-user");
@@ -180,8 +180,17 @@ test("ingestion derives user_id from the principal, preserves RLS token, and ret
   assert.equal((await service.create({ id: "token-user", token: "user-jwt", claims: {} }, input)).duplicate, true);
 });
 
+test("speed-focused ingestion uses one atomic capture RPC with no mirror work",async()=>{
+  const calls:any[]=[];
+  const service=new JobDescriptionService({forUser:(token:string)=>{assert.equal(token,"user-jwt");return{rpc:async(name:string,args:any)=>{calls.push({name,args});return{data:{row:{id:"job-id",company:"Example",job_title:"Engineer",source_url:"https://example.com/job",created_at:"2026-09-02T00:00:00Z"},duplicate:false,duplicateReason:null},error:null};},from:()=>{throw new Error("legacy capture query should not run");}};}}as any);
+  const result=await service.create({id:"token-user",token:"user-jwt",claims:{}},{sourceUrl:"https://example.com/job?utm_source=test",company:"Example",jobTitle:"Engineer",descriptionText:"x".repeat(100),categoryId:"123e4567-e89b-42d3-a456-426614174000"}as any);
+  assert.equal(result.row.id,"job-id");assert.equal("workspaceSync" in result,false);
+  assert.deepEqual(calls.map(call=>call.name),["capture_job_description_v353"]);
+  assert.equal(calls[0].args.p_record.user_id,"token-user");assert.equal(calls[0].args.p_record.normalized_source_url,"https://example.com/job");
+});
+
 test("ingestion maps RLS denial to a safe forbidden error", async () => {
   const query: any = { insert: () => query, select: () => query, eq: () => query, ilike: () => query, order: () => query, limit: () => query, maybeSingle: async () => ({ data: null, error: { code: "42501", message: "raw permission denied" } }), single: async () => ({ data: null, error: { code: "42501", message: "raw permission denied" } }) };
-  const service = new JobDescriptionService({ forUser: () => ({ from: () => query }) } as any,{sync:async()=>({enabled:false,status:"DISABLED"})}as any);
+  const service = new JobDescriptionService({ forUser: () => ({ from: () => query }) } as any);
   await assert.rejects(() => service.create({ id: "u", token: "jwt", claims: {} }, { sourceUrl: "https://example.com/1", company: "A", jobTitle: "B", descriptionText: "x".repeat(100), categoryId: "123e4567-e89b-42d3-a456-426614174000" } as any), (error: unknown) => error instanceof ApiException && error.code === "FORBIDDEN" && error.getStatus() === HttpStatus.FORBIDDEN && !error.message.includes("raw"));
 });

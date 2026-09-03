@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { codexPerformanceArgs, completeAtsSkills, loadFixture, resolveCodexInvocation, runTailoringProof, type CodexExecutor } from "../src/codex-runner.js";
+import { tailoringBatchConcurrency } from "../src/concurrency.js";
 import{MAX_TAILORED_SKILLS,reconcileSkillGroups}from"../src/skill-groups.js";
 import { compliantOutput, validationDate } from "./compliant-output.js";
 
@@ -15,6 +16,14 @@ const cliPath=fileURLToPath(new URL("../src/cli.ts",import.meta.url));
 test("batch and ticket modes do not require an explicit output path",async()=>{
   const source=await readFile(cliPath,"utf8");
   assert.match(source,/if\(\(fixtureMode\|\|apiMode\)&&!requestedOutput\)/);
+});
+
+test("batch concurrency defaults to two and stays within the safe lease bound",()=>{
+  assert.equal(tailoringBatchConcurrency(undefined,{}),2);
+  assert.equal(tailoringBatchConcurrency(undefined,{TAILORING_BATCH_CONCURRENCY:"1"}),1);
+  assert.equal(tailoringBatchConcurrency("3",{TAILORING_BATCH_CONCURRENCY:"1"}),3);
+  assert.throws(()=>tailoringBatchConcurrency("0",{}),/between 1 and 3/);
+  assert.throws(()=>tailoringBatchConcurrency("4",{}),/between 1 and 3/);
 });
 
 test("local proof uses an isolated schema-bound workspace and persists only validated preview JSON",async()=>{
