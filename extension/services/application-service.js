@@ -77,7 +77,7 @@ export async function updateApplicationProgress(client,_baseUrl,id,{status,appli
 }
 export function formatMineResumeOptionLabel(resume){return formatMineResumeLabel(resume);}
 const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
-export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType } = {}) {
+export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType, applicationNumber } = {}) {
   const ext = mimeType === "application/pdf"
     ? ".pdf"
     : mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -88,7 +88,10 @@ export function buildApplicationResumeDownloadFilename({ candidateName, resumeNa
   const base = String(candidateName || "").trim()
     ? `${String(candidateName).trim()} Resume`
     : String(resumeName || "").trim() || String(filename || "Resume").replace(/\.[^.]+$/, "") || "Resume";
-  return safeDownloadName(`${base}${ext}`);
+  const appSuffix = Number.isSafeInteger(Number(applicationNumber)) && Number(applicationNumber) > 0
+    ? ` - App ${Number(applicationNumber)}`
+    : "";
+  return safeDownloadName(`${base}${appSuffix}${ext}`);
 }
 export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`),url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");
@@ -98,6 +101,7 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
     resumeName:data?.resumeName||data?.resume_name,
     filename:data?.filename,
     mimeType:data?.mimeType||data?.mime_type,
+    applicationNumber:data?.applicationNumber||data?.application_number,
   });
   const downloadId=await downloadImpl({url:url.toString(),filename:downloadName,saveAs:true,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");

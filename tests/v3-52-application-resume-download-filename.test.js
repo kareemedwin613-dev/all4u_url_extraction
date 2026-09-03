@@ -12,6 +12,14 @@ test("v3.52 builds human-readable Application resume download filenames", () => 
   assert.match(sql, /get_application_resume_download_v17/);
 });
 
+test("v3.56 includes Application number in download filename", () => {
+  const sql = read("../supabase/migrations/202609031142_v3_56_resume_download_application_id.sql");
+  assert.match(sql, /application_resume_download_filename_v352/);
+  assert.match(sql, /p_application_number/);
+  assert.match(sql, /App /);
+  assert.match(sql, /applicationNumber/);
+});
+
 test("buildApplicationResumeDownloadFilename prefers candidate name plus Resume extension", () => {
   assert.equal(
     buildApplicationResumeDownloadFilename({
@@ -29,5 +37,34 @@ test("buildApplicationResumeDownloadFilename prefers candidate name plus Resume 
       mimeType: "application/pdf",
     }),
     "Andrew Thomas Resume.pdf",
+  );
+});
+
+test("buildApplicationResumeDownloadFilename includes Application number when provided", () => {
+  assert.equal(
+    buildApplicationResumeDownloadFilename({
+      candidateName: "Andrew Thomas",
+      resumeName: "Andrew Thomas Resume",
+      filename: "resume-33-application-13994-tailored.pdf",
+      mimeType: "application/pdf",
+      applicationNumber: 42,
+    }),
+    "Andrew Thomas Resume - App 42.pdf",
+  );
+  assert.equal(
+    buildApplicationResumeDownloadFilename({
+      resumeName: "My Resume",
+      mimeType: "application/pdf",
+      applicationNumber: 7,
+    }),
+    "My Resume - App 7.pdf",
+  );
+  assert.equal(
+    buildApplicationResumeDownloadFilename({
+      candidateName: "Jane Doe",
+      mimeType: "application/pdf",
+      applicationNumber: null,
+    }),
+    "Jane Doe Resume.pdf",
   );
 });

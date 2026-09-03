@@ -54,6 +54,7 @@ import { categoryName, loadCategories } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
+import { updateResumeMetadata } from "./services/resume-metadata-service.js";
 import {
   addResumeBannedCompany,
   listResumeBannedCompanies,
@@ -2319,6 +2320,12 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     [statusBusy, setStatusBusy] = useState(false),
     [coverBusy, setCoverBusy] = useState(false),
     coverInputRef = useRef(null);
+
+  const [editMetadataForm] = Form.useForm(),
+    editPrimaryCategoryId = Form.useWatch("primaryCategoryId", editMetadataForm),
+    [editingMetadata, setEditingMetadata] = useState(false),
+    [metadataBusy, setMetadataBusy] = useState(false);
+
   useEffect(() => {
     getResume(client, apiBaseUrl, id)
       .then(setResume)
@@ -2332,7 +2339,39 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     );
   const canManage = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
     isOriginal = resume.resume_type === "ORIGINAL",
-    hasCoverLetter = Boolean(resume.cover_letter_storage_path);
+    hasCoverLetter = Boolean(resume.cover_letter_storage_path),
+    canEditProfileMetadata = hasCapability(access, CAPABILITIES.USER_ADMIN) && isOriginal;
+
+  function beginEditProfileMetadata() {
+    editMetadataForm.setFieldsValue({
+      primaryCategoryId: resume.primary_category_id,
+      subcategoryId: resume.subcategory_id || undefined,
+      seniority: resume.seniority || "UNSPECIFIED",
+    });
+    setEditingMetadata(true);
+  }
+
+  async function submitEditProfileMetadata(values) {
+    setMetadataBusy(true);
+    try {
+      const next = await updateResumeMetadata(client, apiBaseUrl, resume.id, {
+        candidateName: resume.candidate_name,
+        resumeName: resume.resume_name,
+        primaryCategoryId: values.primaryCategoryId,
+        subcategoryId: values.subcategoryId || null,
+        seniority: values.seniority,
+        skills: resume.skills || [],
+        industries: resume.industries || [],
+      });
+      setResume(next);
+      setEditingMetadata(false);
+      toast("success", "Resume metadata updated.");
+    } catch (value) {
+      toast("error", value.message || "Could not update resume metadata.");
+    } finally {
+      setMetadataBusy(false);
+    }
+  }
   async function open() {
     try {
       const url = await createResumeSignedUrl(client, {id:resume.id,apiBaseUrl});
@@ -2444,6 +2483,70 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                 ] : []),
               ]}
             />
+            {canEditProfileMetadata && (
+              <Card size="small" title="Profile metadata" style={{ marginTop: 12 }}>
+                {editingMetadata ? (
+                  <Form
+                    form={editMetadataForm}
+                    layout="vertical"
+                    onFinish={submitEditProfileMetadata}
+                  >
+                    <Form.Item
+                      label="Primary category"
+                      name="primaryCategoryId"
+                      rules={[{ required: true, message: "Select a primary category." }]}
+                    >
+                      <Select
+                        options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))}
+                        onChange={() => editMetadataForm.setFieldValue("subcategoryId", undefined)}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      label={
+                        <>
+                          Subcategory <Text type="secondary">(optional)</Text>
+                        </>
+                      }
+                      name="subcategoryId"
+                    >
+                      <Select
+                        allowClear
+                        options={(categories?.childrenByParent?.get(editPrimaryCategoryId) || []).map((item) => ({
+                          value: item.id,
+                          label: item.name,
+                        }))}
+                      />
+                    </Form.Item>
+                    <Form.Item label="Seniority" name="seniority" rules={[{ required: true }]}>
+                      <Select options={SENIORITIES.map((value) => ({ value, label: formatLabel(value) }))} />
+                    </Form.Item>
+                    <Space wrap>
+                      <Button type="primary" htmlType="submit" loading={metadataBusy}>
+                        Save changes
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setEditingMetadata(false);
+                          editMetadataForm.resetFields();
+                        }}
+                        disabled={metadataBusy}
+                      >
+                        Cancel
+                      </Button>
+                    </Space>
+                  </Form>
+                ) : (
+                  <Space wrap align="center">
+                    <Button size="small" onClick={beginEditProfileMetadata} loading={metadataBusy}>
+                      Edit profile metadata
+                    </Button>
+                    <Text type="secondary">
+                      Primary category, subcategory, and seniority.
+                    </Text>
+                  </Space>
+                )}
+              </Card>
+            )}
             <Card size="small" title="Skills">
               <Tags values={resume.skills} empty="No skills recorded" />
             </Card>
