@@ -65,12 +65,12 @@ test("My Applications status filter shows only core Applier workflow statuses", 
 
 test("download validates variant identity and delegates to Chrome download manager",async()=>{
   const originalFetch=globalThis.fetch,requests=[];
-  globalThis.fetch=async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({data:{signedUrl:"https://project.supabase.co/storage/v1/object/sign/tailored-resumes/file",filename:"Andrew Thomas Resume.pdf",candidateName:"Andrew Thomas",resumeName:"Andrew Thomas Resume",resumeNumber:42,resumeType:"TAILORED",mimeType:"application/pdf",fileSizeBytes:1234}}),{status:200,headers:{"content-type":"application/json"}});};
+  globalThis.fetch=async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify({data:{signedUrl:"https://project.supabase.co/storage/v1/object/sign/tailored-resumes/file",filename:"Andrew Thomas Resume - App 42.pdf",candidateName:"Andrew Thomas",resumeName:"Andrew Thomas Resume",resumeNumber:42,resumeType:"TAILORED",mimeType:"application/pdf",fileSizeBytes:1234,applicationNumber:42}}),{status:200,headers:{"content-type":"application/json"}});};
   try{
     let downloadOptions;
     const result=await downloadApplicationResume({auth:{getSession:async()=>({data:{session:{access_token:"token-value"}},error:null})}},"https://api.example.com","7c0bcc36-feb5-4bf3-872c-aca688def302",async(options)=>{downloadOptions=options;return 7;});
     assert.equal(result.resumeNumber,42);
-    assert.equal(downloadOptions.filename,"Andrew Thomas Resume.pdf");
+    assert.equal(downloadOptions.filename,"Andrew Thomas Resume - App 42.pdf");
     assert.equal(downloadOptions.saveAs,true);
     assert.equal(requests.length,1);
     assert.match(requests[0].url,/\/api\/v1\/applications\/7c0bcc36-feb5-4bf3-872c-aca688def302\/resume-file-url$/);
