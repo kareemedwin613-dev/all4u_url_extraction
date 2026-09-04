@@ -11,20 +11,26 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const SORTS:any={number_asc:["resume_number",true],number_desc:["resume_number",false],candidate_asc:["candidate_name",true],candidate_desc:["candidate_name",false],name_asc:["resume_name",true],name_desc:["resume_name",false],category_asc:["primary_category_id",true],category_desc:["primary_category_id",false],subcategory_asc:["subcategory_id",true],subcategory_desc:["subcategory_id",false],seniority_asc:["seniority",true],seniority_desc:["seniority",false],status_asc:["status",true],status_desc:["status",false],mime_asc:["mime_type",true],mime_desc:["mime_type",false],updated_asc:["updated_at",true],updated_desc:["updated_at",false]};
 const clean=(value:any)=>String(value??"").trim(),array=(value:any)=>[...new Set((Array.isArray(value)?value:String(value||"").split(",")).map(clean).filter(Boolean))];
 const ids=(value:any)=>[...new Set((Array.isArray(value)?value:[value]).map(clean).filter((item)=>UUID.test(item)))];
+type ResumeStackInput={primaryCategoryId:string;subcategoryId:string|null};
 function hasStackInput(m:any){return Array.isArray(m?.techStacks)||Array.isArray(m?.primaryCategoryIds)||Boolean(m?.primaryCategoryId);}
-async function resolveStacks(client:any,m:any){
+async function resolveStacks(client:any,m:any):Promise<ResumeStackInput[]>{
   if(Array.isArray(m?.techStacks)&&m.techStacks.length){
-    const stacks=m.techStacks.map((row:any)=>({primaryCategoryId:clean(row?.primaryCategoryId||row?.primary_category_id),subcategoryId:clean(row?.subcategoryId||row?.subcategory_id)||null})).filter((row:any)=>UUID.test(row.primaryCategoryId)).slice(0,12);
+    const stacks:ResumeStackInput[]=m.techStacks.map((row:any)=>({primaryCategoryId:clean(row?.primaryCategoryId||row?.primary_category_id),subcategoryId:clean(row?.subcategoryId||row?.subcategory_id)||null})).filter((row:ResumeStackInput)=>UUID.test(row.primaryCategoryId)).slice(0,12);
     if(!stacks.length)throw new ApiException("VALIDATION_ERROR","Select at least one primary category.",HttpStatus.BAD_REQUEST);
     return stacks;
   }
   const primaries=ids(m?.primaryCategoryIds?.length?m.primaryCategoryIds:m?.primaryCategoryId),subs=ids(m?.subcategoryIds?.length?m.subcategoryIds:m?.subcategoryId);
   if(!primaries.length)throw new ApiException("VALIDATION_ERROR","Select at least one primary category.",HttpStatus.BAD_REQUEST);
-  if(!subs.length)return primaries.map((id)=>({primaryCategoryId:id,subcategoryId:null as string|null}));
+  if(!subs.length)return primaries.map((id):ResumeStackInput=>({primaryCategoryId:id,subcategoryId:null}));
   const{data,error}=await client.from("categories").select("id,parent_id").in("id",[...primaries,...subs]);
   if(error)fail(error,"Categories could not be loaded.");
   const parent=new Map((data||[]).map((row:any)=>[row.id,row.parent_id]));
-  return primaries.flatMap((primaryId:string)=>{const children=subs.filter((id)=>parent.get(id)===primaryId);return children.length?children.map((subcategoryId)=>({primaryCategoryId:primaryId,subcategoryId})):[{primaryCategoryId:primaryId,subcategoryId:null}];});
+  return primaries.flatMap((primaryId:string):ResumeStackInput[]=>{
+    const children=subs.filter((id)=>parent.get(id)===primaryId);
+    return children.length
+      ?children.map((subcategoryId):ResumeStackInput=>({primaryCategoryId:primaryId,subcategoryId}))
+      :[{primaryCategoryId:primaryId,subcategoryId:null}];
+  });
 }
 async function saveStacks(client:any,resumeId:string,stacks:any[]){
   const{error}=await client.rpc("replace_resume_tech_stacks_v357",{p_resume_id:resumeId,p_stacks:stacks});
