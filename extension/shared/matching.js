@@ -1,9 +1,11 @@
 import { seniorityCompatibility } from "./seniority.js";
+import { matchingTechStacks } from "./tech-stacks.js";
 export function scoreMatch(job,resume,threshold=60) {
-  if (job.categoryId!==resume.primaryCategoryId) return {eligible:false,total:0,reason:"different-category"};
+  const stacks=matchingTechStacks(job,resume);
+  if (!stacks.length) return {eligible:false,total:0,reason:"different-category"};
   const category={matched:true,points:50,maximum:50};
-  const exactSub=job.subcategoryId&&resume.subcategoryId&&job.subcategoryId===resume.subcategoryId;
-  const unspecified=!job.subcategoryId||!resume.subcategoryId;
+  const exactSub=job.subcategoryId&&stacks.some((stack)=>stack.subcategoryId&&stack.subcategoryId===job.subcategoryId);
+  const unspecified=!job.subcategoryId||stacks.some((stack)=>!stack.subcategoryId);
   const subcategory={matched:!!exactSub,points:exactSub?20:unspecified?10:0,maximum:20,reason:exactSub?"exact":unspecified?"one-or-both-unspecified":"different"};
   const compat=seniorityCompatibility(job.seniority,resume.seniority); const seniority={job:job.seniority,resume:resume.seniority,...compat,maximum:15};
   const jd=[...new Set(job.detectedSkills||[])].sort(), rs=new Set(resume.skills||[]), matched=jd.filter((s)=>rs.has(s)), missing=jd.filter((s)=>!rs.has(s));

@@ -45,19 +45,41 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
   const [items, setItems] = useState(null);
 
   const [uploadForm] = Form.useForm();
-  const uploadCategory = Form.useWatch("resumeCategory", uploadForm);
+  const uploadCategories = Form.useWatch("resumeCategories", uploadForm) || [];
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadChecksum, setUploadChecksum] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const [editForm] = Form.useForm();
-  const editCategory = Form.useWatch("primaryCategoryId", editForm);
+  const editCategories = Form.useWatch("primaryCategoryIds", editForm) || [];
   const [editingResume, setEditingResume] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const categoryOptions = categories.filter((c) => !c.parent_id).map((c) => ({ value: c.id, label: c.name }));
   const categoryName = (id) => categories.find((c) => c.id === id)?.name;
+  const stackLabel = (resume) => {
+    const ids = [...new Set((resume.tech_stacks || [{ primary_category_id: resume.primary_category_id }]).map((row) => row.primary_category_id).filter(Boolean))];
+    return ids.map((id) => categoryName(id) || "Unknown").join(", ") || "Unknown";
+  };
+  const subcategoryOptions = (selectedPrimaryIds) =>
+    categories
+      .filter((c) => c.parent_id && (selectedPrimaryIds || []).includes(c.parent_id))
+      .map((c) => ({
+        value: c.id,
+        label: `${categoryName(c.parent_id) || ""} · ${c.name}`.replace(/^ · /, c.name),
+      }));
+  const pruneSubcategories = (form, primaryField, subField, nextPrimaries) => {
+    const allowed = new Set(nextPrimaries || []);
+    const current = form.getFieldValue(subField) || [];
+    form.setFieldValue(
+      subField,
+      current.filter((id) => {
+        const row = categories.find((c) => c.id === id);
+        return row?.parent_id && allowed.has(row.parent_id);
+      }),
+    );
+  };
 
   async function reload() {
     try {
@@ -124,8 +146,10 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
         {
           candidateName: values.candidateName,
           resumeName: values.resumeName,
-          primaryCategoryId: values.resumeCategory,
-          subcategoryId: values.resumeSubcategory,
+          primaryCategoryIds: values.resumeCategories || [],
+          subcategoryIds: values.resumeSubcategories || [],
+          primaryCategoryId: values.resumeCategories?.[0],
+          subcategoryId: values.resumeSubcategories?.[0],
           seniority: values.resumeSeniority,
           skills: split(values.resumeSkills),
           industries: split(values.industries),
@@ -155,11 +179,14 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
   }
 
   function openEdit(resume) {
+    const stacks = resume.tech_stacks?.length
+      ? resume.tech_stacks
+      : [{ primary_category_id: resume.primary_category_id, subcategory_id: resume.subcategory_id }];
     editForm.setFieldsValue({
       candidateName: resume.candidate_name,
       resumeName: resume.resume_name,
-      primaryCategoryId: resume.primary_category_id,
-      subcategoryId: resume.subcategory_id || undefined,
+      primaryCategoryIds: [...new Set(stacks.map((row) => row.primary_category_id).filter(Boolean))],
+      subcategoryIds: [...new Set(stacks.map((row) => row.subcategory_id).filter(Boolean))],
       seniority: resume.seniority,
       skills: resume.skills.join(", "),
       industries: resume.industries.join(", "),
@@ -173,8 +200,8 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
       await updateResumeMetadata(client, backendBaseUrl, editingResume.id, {
         candidateName: values.candidateName,
         resumeName: values.resumeName,
-        primaryCategoryId: values.primaryCategoryId,
-        subcategoryId: values.subcategoryId || null,
+        primaryCategoryIds: values.primaryCategoryIds || [],
+        subcategoryIds: values.subcategoryIds || [],
         seniority: values.seniority,
         skills: split(values.skills),
         industries: split(values.industries),
@@ -248,19 +275,21 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
                     </Form.Item>
                     <Form.Item
                       label="Primary category"
-                      name="resumeCategory"
-                      rules={[{ required: true, message: "Select a primary category." }]}
+                      name="resumeCategories"
+                      rules={[{ required: true, type: "array", min: 1, message: "Select at least one primary category." }]}
                     >
                       <Select
+                        mode="multiple"
                         options={categoryOptions}
-                        onChange={() => uploadForm.setFieldValue("resumeSubcategory", undefined)}
+                        onChange={(value) => pruneSubcategories(uploadForm, "resumeCategories", "resumeSubcategories", value)}
                       />
                     </Form.Item>
-                    <Form.Item label={<>Subcategory <Text type="secondary">(optional)</Text></>} name="resumeSubcategory">
+                    <Form.Item label={<>Subcategory <Text type="secondary">(optional)</Text></>} name="resumeSubcategories">
                       <Select
+                        mode="multiple"
                         allowClear
-                        disabled={!uploadCategory}
-                        options={categories.filter((c) => c.parent_id === uploadCategory).map((c) => ({ value: c.id, label: c.name }))}
+                        disabled={!uploadCategories.length}
+                        options={subcategoryOptions(uploadCategories)}
                       />
                     </Form.Item>
                     <Form.Item label="Seniority" name="resumeSeniority" initialValue="UNSPECIFIED">
@@ -330,7 +359,7 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
           <ResumeCard
             key={resume.id}
             resume={resume}
-            categoryName={categoryName(resume.primary_category_id)}
+            categoryName={stackLabel(resume)}
             canWrite={canWrite}
             onOpen={() =>
               openResumeFile(client, backendBaseUrl, resume.id, resume.original_filename).catch(onError)
@@ -357,14 +386,19 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
             <Form.Item label="Resume name" name="resumeName" rules={[{ required: true, max: 200 }]}>
               <Input maxLength={200} />
             </Form.Item>
-            <Form.Item label="Primary category" name="primaryCategoryId" rules={[{ required: true }]}>
-              <Select options={categoryOptions} onChange={() => editForm.setFieldValue("subcategoryId", undefined)} />
-            </Form.Item>
-            <Form.Item label={<>Subcategory <Text type="secondary">(optional)</Text></>} name="subcategoryId">
+            <Form.Item label="Primary category" name="primaryCategoryIds" rules={[{ required: true, type: "array", min: 1 }]}>
               <Select
+                mode="multiple"
+                options={categoryOptions}
+                onChange={(value) => pruneSubcategories(editForm, "primaryCategoryIds", "subcategoryIds", value)}
+              />
+            </Form.Item>
+            <Form.Item label={<>Subcategory <Text type="secondary">(optional)</Text></>} name="subcategoryIds">
+              <Select
+                mode="multiple"
                 allowClear
-                disabled={!editCategory}
-                options={categories.filter((c) => c.parent_id === editCategory).map((c) => ({ value: c.id, label: c.name }))}
+                disabled={!editCategories.length}
+                options={subcategoryOptions(editCategories)}
               />
             </Form.Item>
             <Form.Item label="Seniority" name="seniority">

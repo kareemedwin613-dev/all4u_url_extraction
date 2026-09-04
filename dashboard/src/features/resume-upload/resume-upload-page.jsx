@@ -50,6 +50,8 @@ const { Text, Title } = Typography,
     resumeName: "",
     primaryCategoryId: "",
     subcategoryId: "",
+    primaryCategoryIds: [],
+    subcategoryIds: [],
     seniority: "UNSPECIFIED",
     skills: "",
     industries: "",
@@ -77,8 +79,8 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
     [activeTab, setActiveTab] = useState("identity"),
     [details, setDetails] = useState();
   const subcategories = useMemo(
-      () => categories.childrenByParent.get(draft.primaryCategoryId) || [],
-      [categories, draft.primaryCategoryId],
+      () => (draft.primaryCategoryIds || []).flatMap((id) => categories.childrenByParent.get(id) || []),
+      [categories, draft.primaryCategoryIds],
     ),
     setField = (name, value) =>
       setDraft((current) => ({ ...current, [name]: value, ...(name === "reviewConfirmed" ? {} : { reviewConfirmed: false }) })),
@@ -128,6 +130,11 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         resumeName: parsed.resumeName,
         primaryCategoryId: primary?.id || "",
         subcategoryId: resolveSubcategoryId(primary, subcategory),
+        primaryCategoryIds: primary?.id ? [primary.id] : [],
+        subcategoryIds: (() => {
+          const id = resolveSubcategoryId(primary, subcategory);
+          return id ? [id] : [];
+        })(),
         seniority: parsed.seniority,
         skills: parsed.skills.join(", "),
         industries: parsed.industries.join(", "),
@@ -195,6 +202,8 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         "resumeName",
         "primaryCategoryId",
         "subcategoryId",
+        "primaryCategoryIds",
+        "subcategoryIds",
         "seniority",
         "linkedInUrl",
         "githubUrl",
@@ -393,14 +402,24 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                         <label>
                           Primary Category
                           <Select
-                            value={draft.primaryCategoryId || undefined}
+                            mode="multiple"
+                            value={draft.primaryCategoryIds || []}
                             onChange={(value) =>
-                              setDraft((current) => ({
-                                ...current,
-                                primaryCategoryId: value,
-                                subcategoryId: "",
-                                reviewConfirmed: false,
-                              }))
+                              setDraft((current) => {
+                                const allowed = new Set(value || []);
+                                const nextSubs = (current.subcategoryIds || []).filter((id) => {
+                                  const row = categories.byId.get(id);
+                                  return row?.parent_id && allowed.has(row.parent_id);
+                                });
+                                return {
+                                  ...current,
+                                  primaryCategoryIds: value || [],
+                                  primaryCategoryId: value?.[0] || "",
+                                  subcategoryIds: nextSubs,
+                                  subcategoryId: nextSubs[0] || "",
+                                  reviewConfirmed: false,
+                                };
+                              })
                             }
                             options={categories.primary.map((item) => ({
                               value: item.id,
@@ -414,17 +433,21 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                         <label>
                           Subcategory (optional)
                           <Select
-                            value={draft.subcategoryId || ""}
+                            mode="multiple"
+                            allowClear
+                            value={draft.subcategoryIds || []}
                             onChange={(value) =>
-                              setField("subcategoryId", value)
+                              setDraft((current) => ({
+                                ...current,
+                                subcategoryIds: value || [],
+                                subcategoryId: value?.[0] || "",
+                                reviewConfirmed: false,
+                              }))
                             }
-                            options={[
-                              { value: "", label: "None" },
-                              ...subcategories.map((item) => ({
-                                value: item.id,
-                                label: item.name,
-                              })),
-                            ]}
+                            options={subcategories.map((item) => ({
+                              value: item.id,
+                              label: `${categories.byId.get(item.parent_id)?.name || ""} · ${item.name}`.replace(/^ · /, item.name),
+                            }))}
                             style={{ width: "100%" }}
                           />
                         </label>
