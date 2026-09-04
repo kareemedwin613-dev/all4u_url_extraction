@@ -104,7 +104,8 @@ export function App() {
 
   const handleError = useCallback((error) => {
     const safe = safeError(error);
-    setStatus({ message: `${safe.message}${safe.details ? ` ${safe.details}` : ""}`, kind: "error" });
+    const detail = safe.retryable ? "" : safe.details;
+    setStatus({ message: `${safe.message}${detail ? ` ${detail}` : ""}`, kind: "error" });
   }, []);
 
   const enterAuthenticated = useCallback(async (activeClient, activeBackendBaseUrl = backendBaseUrl) => {

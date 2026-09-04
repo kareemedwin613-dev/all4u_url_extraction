@@ -52,7 +52,7 @@ test("large screenshots are resized to bounded WebP only when the result is smal
     createBitmap: async () => ({ width: 4000, height: 2000, close: () => { closed = true; } }),
     Canvas,
   });
-  assert.deepEqual(dimensions, [2200, 1100]);
+  assert.deepEqual(dimensions, [1800, 900]);
   assert.equal(prepared.type, "image/webp");
   assert.equal(prepared.name, "confirmation.webp");
   assert.equal(prepared.size, 100);
@@ -79,4 +79,24 @@ test("screenshot upload goes directly to private Storage and then the attachment
   assert.match(calls[0].path, new RegExp(`^${APPLICATION_ID}/`));
   assert.equal(calls[1].name, "attach_application_screenshot");
   assert.equal(calls[1].args.p_file_size_bytes, file.size);
+});
+
+test("screenshot upload retries transient Storage database timeouts", async () => {
+  const calls = [];
+  const file = new File(["image"], "confirmation.png", { type: "image/png" });
+  const client = {
+    storage: { from: () => ({
+      upload: async (path) => {
+        calls.push(path);
+        if (calls.length < 3) return { error: { message: "The connection to the database timed out", statusCode: 544 } };
+        return { error: null };
+      },
+      remove: async () => ({ error: null }),
+    }) },
+    rpc: async (_name, args) => ({ data: { id: "screenshot-2", storage_path: args.p_storage_path }, error: null }),
+  };
+  const result = await attachApplicationScreenshot(client, "https://api.example.com", APPLICATION_ID, file);
+  assert.equal(result.id, "screenshot-2");
+  assert.equal(calls.length, 3);
+  assert.equal(new Set(calls).size, 1);
 });
