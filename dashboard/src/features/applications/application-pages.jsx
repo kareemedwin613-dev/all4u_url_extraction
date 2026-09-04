@@ -44,10 +44,29 @@ import {
   categoryTagColor,
 } from "../../components/ui.jsx";
 import {
+  applicationTechStackIds,
+  applicationTechStackLabels,
+} from "../../services/category-service.js";
+import {
   APPLICATION_PRIORITIES,
   APPLICATION_STATUSES,
 } from "./constants.js";
 import { applicationActions, isApplicationManager } from "./validation.js";
+
+function renderApplicationTechStacks(record, categories) {
+  const names = applicationTechStackLabels(record);
+  const ids = applicationTechStackIds(record);
+  if (!names.length) return <Text type="secondary">Uncategorized</Text>;
+  return (
+    <Space size={4} wrap={false} style={{ whiteSpace: "nowrap" }}>
+      {names.map((name, index) => (
+        <MetaTag key={`${name}-${ids[index] || index}`} color={categoryTagColor(categories, ids[index])}>
+          {name}
+        </MetaTag>
+      ))}
+    </Space>
+  );
+}
 import {
   countActiveApplicationFilters,
   parseApplicationQuery,
@@ -399,7 +418,8 @@ export function ApplicationsPage({
     title: "Resume",
     dataIndex: "resume_name",
     sortKey: "resume",
-    width: 200,
+    width: 360,
+    ellipsis: true,
     render: (value) => value || "Unnamed Resume",
   };
   const statusColumn = {
@@ -420,7 +440,7 @@ export function ApplicationsPage({
     title: "Primary Category",
     dataIndex: "category_id",
     sortKey: "category",
-    width: 200,
+    width: 460,
     filters: (categories?.primary || []).map((item) => ({
       text: item.name,
       value: item.id,
@@ -428,11 +448,7 @@ export function ApplicationsPage({
     filterMultiple: false,
     filteredValue: filters.categoryId ? [filters.categoryId] : null,
     ...serverSideColumnFilter,
-    render: (value, record) => (
-      <MetaTag color={categoryTagColor(categories, value)}>
-        {record.category_name || "Uncategorized"}
-      </MetaTag>
-    ),
+    render: (_value, record) => renderApplicationTechStacks(record, categories),
   };
   const screenshotColumn = {
     title: "Screenshots",
@@ -632,7 +648,7 @@ export function ApplicationsPage({
         title: "Primary Category",
         dataIndex: "category_id",
         sortKey: "category",
-        width: 200,
+        width: 460,
         filters: (categories?.primary || []).map((item) => ({
           text: item.name,
           value: item.id,
@@ -640,11 +656,7 @@ export function ApplicationsPage({
         filterMultiple: false,
         filteredValue: filters.categoryId ? [filters.categoryId] : null,
         ...serverSideColumnFilter,
-        render: (value, record) => (
-          <MetaTag color={categoryTagColor(categories, value)}>
-            {record.category_name || "Uncategorized"}
-          </MetaTag>
-        ),
+        render: (_value, record) => renderApplicationTechStacks(record, categories),
       },
       actionColumn,
     ],

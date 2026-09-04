@@ -355,6 +355,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
               id: r.id,
               primaryCategoryId: r.primary_category_id,
               subcategoryId: r.subcategory_id,
+              tech_stacks: r.tech_stacks,
               seniority: r.seniority,
               skills: r.skills,
               updatedAt: r.updated_at,

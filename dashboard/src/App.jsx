@@ -50,7 +50,7 @@ import { parseRoute } from "./router.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
-import { categoryName, loadCategories } from "./services/category-service.js";
+import { categoryName, formatResumeTechStacks, loadCategories, resumeTechStackRows } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
@@ -1679,14 +1679,13 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
               filterMultiple: false,
               filteredValue: filters.categoryId ? [filters.categoryId] : null,
               ...serverSideColumnFilter,
-              render: (value) => categoryName(categories, value),
+              render: (_value, row) => formatResumeTechStacks(categories, row, "primary"),
             },
             {
               title: "Subcategory",
               dataIndex: "subcategory_id",
               sortKey: "subcategory",
-              render: (value) =>
-                value ? categoryName(categories, value) : "None",
+              render: (_value, row) => formatResumeTechStacks(categories, row, "sub"),
             },
             {
               title: "Seniority",
@@ -2322,7 +2321,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     coverInputRef = useRef(null);
 
   const [editMetadataForm] = Form.useForm(),
-    editPrimaryCategoryId = Form.useWatch("primaryCategoryId", editMetadataForm),
+    editPrimaryCategoryIds = Form.useWatch("primaryCategoryIds", editMetadataForm) || [],
     [editingMetadata, setEditingMetadata] = useState(false),
     [metadataBusy, setMetadataBusy] = useState(false);
 
@@ -2343,9 +2342,10 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
     canEditProfileMetadata = hasCapability(access, CAPABILITIES.USER_ADMIN) && isOriginal;
 
   function beginEditProfileMetadata() {
+    const stacks = resumeTechStackRows(resume);
     editMetadataForm.setFieldsValue({
-      primaryCategoryId: resume.primary_category_id,
-      subcategoryId: resume.subcategory_id || undefined,
+      primaryCategoryIds: [...new Set(stacks.map((row) => row.primary_category_id).filter(Boolean))],
+      subcategoryIds: [...new Set(stacks.map((row) => row.subcategory_id).filter(Boolean))],
       seniority: resume.seniority || "UNSPECIFIED",
     });
     setEditingMetadata(true);
@@ -2357,8 +2357,8 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       const next = await updateResumeMetadata(client, apiBaseUrl, resume.id, {
         candidateName: resume.candidate_name,
         resumeName: resume.resume_name,
-        primaryCategoryId: values.primaryCategoryId,
-        subcategoryId: values.subcategoryId || null,
+        primaryCategoryIds: values.primaryCategoryIds || [],
+        subcategoryIds: values.subcategoryIds || [],
         seniority: values.seniority,
         skills: resume.skills || [],
         industries: resume.industries || [],
@@ -2453,13 +2453,11 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                 ["Metadata Reviewed At", formatDate(resume.profile_reviewed_at)],
                 [
                   "Primary Category",
-                  categoryName(categories, resume.primary_category_id),
+                  formatResumeTechStacks(categories, resume, "primary"),
                 ],
                 [
                   "Subcategory",
-                  resume.subcategory_id
-                    ? categoryName(categories, resume.subcategory_id)
-                    : "None",
+                  formatResumeTechStacks(categories, resume, "sub"),
                 ],
                 ["Seniority", formatLabel(resume.seniority)],
                 [
@@ -2493,12 +2491,23 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                   >
                     <Form.Item
                       label="Primary category"
-                      name="primaryCategoryId"
-                      rules={[{ required: true, message: "Select a primary category." }]}
+                      name="primaryCategoryIds"
+                      rules={[{ required: true, type: "array", min: 1, message: "Select at least one primary category." }]}
                     >
                       <Select
+                        mode="multiple"
                         options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))}
-                        onChange={() => editMetadataForm.setFieldValue("subcategoryId", undefined)}
+                        onChange={(value) => {
+                          const allowed = new Set(value || []);
+                          const current = editMetadataForm.getFieldValue("subcategoryIds") || [];
+                          editMetadataForm.setFieldValue(
+                            "subcategoryIds",
+                            current.filter((id) => {
+                              const row = categories?.byId?.get(id);
+                              return row?.parent_id && allowed.has(row.parent_id);
+                            }),
+                          );
+                        }}
                       />
                     </Form.Item>
                     <Form.Item
@@ -2507,14 +2516,17 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                           Subcategory <Text type="secondary">(optional)</Text>
                         </>
                       }
-                      name="subcategoryId"
+                      name="subcategoryIds"
                     >
                       <Select
+                        mode="multiple"
                         allowClear
-                        options={(categories?.childrenByParent?.get(editPrimaryCategoryId) || []).map((item) => ({
-                          value: item.id,
-                          label: item.name,
-                        }))}
+                        options={editPrimaryCategoryIds.flatMap((id) =>
+                          (categories?.childrenByParent?.get(id) || []).map((item) => ({
+                            value: item.id,
+                            label: `${categories?.byId?.get(id)?.name || ""} · ${item.name}`.replace(/^ · /, item.name),
+                          })),
+                        )}
                       />
                     </Form.Item>
                     <Form.Item label="Seniority" name="seniority" rules={[{ required: true }]}>
@@ -2540,9 +2552,9 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                     <Button size="small" onClick={beginEditProfileMetadata} loading={metadataBusy}>
                       Edit profile metadata
                     </Button>
-                    <Text type="secondary">
-                      Primary category, subcategory, and seniority.
-                    </Text>
+                     <Text type="secondary">
+                       Primary categories, subcategories, and seniority.
+                     </Text>
                   </Space>
                 )}
               </Card>

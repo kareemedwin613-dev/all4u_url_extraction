@@ -19,6 +19,14 @@ const STATUS_COLORS = {
   CANCELLED: "default",
 };
 
+function techStackLabels(application = {}) {
+  const names = Array.isArray(application.resume_category_names)
+    ? application.resume_category_names.filter(Boolean)
+    : [];
+  if (names.length) return names;
+  return application.category_name ? [application.category_name] : [];
+}
+
 export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, extensionBusy }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
@@ -57,7 +65,9 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
         <Tag color={STATUS_COLORS[application.status] || "default"}>
           {String(application.status || "").replaceAll("_", " ")}
         </Tag>
-        {application.category_name && <Tag>{application.category_name}</Tag>}
+        {techStackLabels(application).map((name) => (
+          <Tag key={name}>{name}</Tag>
+        ))}
         {application.screenshot_count > 0 && (
           <Badge count={application.screenshot_count} size="small" color="#5cadff">
             <Tag icon={<PaperClipOutlined />}>Screenshots</Tag>

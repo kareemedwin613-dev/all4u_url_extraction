@@ -17,8 +17,10 @@ export function validateResumeUpload(value={},file){
   const phoneDigits=String(value.candidatePhone||"").replace(/[^0-9]/g,"");
   if(phoneDigits.length<7||phoneDigits.length>15)errors.candidatePhone="Enter the candidate's phone number.";
   if(!String(value.resumeName||"").trim())errors.resumeName="Resume name is required.";
-  if(!UUID.test(String(value.primaryCategoryId||"")))errors.primaryCategoryId="Select a primary category.";
-  if(value.subcategoryId&&!UUID.test(String(value.subcategoryId)))errors.subcategoryId="Select a valid subcategory.";
+  const primaryIds=[...new Set([...(Array.isArray(value.primaryCategoryIds)?value.primaryCategoryIds:[]),value.primaryCategoryId].map(item=>String(item||"").trim()).filter(Boolean))];
+  if(!primaryIds.length||primaryIds.some(id=>!UUID.test(id)))errors.primaryCategoryId="Select at least one primary category.";
+  const subcategoryIds=[...new Set([...(Array.isArray(value.subcategoryIds)?value.subcategoryIds:[]),value.subcategoryId].map(item=>String(item||"").trim()).filter(Boolean))];
+  if(subcategoryIds.some(id=>!UUID.test(id)))errors.subcategoryId="Select a valid subcategory.";
   if(!SENIORITIES.includes(value.seniority))errors.seniority="Select a valid seniority.";
   const text=String(value.resumeText||"").trim();if(text.length<100||text.length>300000)errors.resumeText="Extracted Resume text must contain 100-300,000 characters.";
   const sections=value.structuredContent;
@@ -57,6 +59,12 @@ export async function uploadAdminResume(client,apiBaseUrl,userId,value,file){
   const check=validateResumeUpload(value,file);if(!check.valid)throw new Error(Object.values(check.errors).join(" "));
   const skills=preserveSkills(split(value.skills));
   const metadata={...value,skills,industries:split(value.industries),structuredContent:cleanStructuredResumeV2(value.structuredContent),structuredSchemaVersion:2};
+  const primaryCategoryIds=[...new Set([...(Array.isArray(value.primaryCategoryIds)?value.primaryCategoryIds:[]),value.primaryCategoryId].map(item=>String(item||"").trim()).filter(Boolean))];
+  const subcategoryIds=[...new Set([...(Array.isArray(value.subcategoryIds)?value.subcategoryIds:[]),value.subcategoryId].map(item=>String(item||"").trim()).filter(Boolean))];
+  metadata.primaryCategoryIds=primaryCategoryIds;
+  metadata.subcategoryIds=subcategoryIds;
+  metadata.primaryCategoryId=primaryCategoryIds[0]||"";
+  metadata.subcategoryId=subcategoryIds[0]||"";
   const body=new FormData();body.append("metadata",JSON.stringify(metadata));body.append("file",file,file.name);
   return(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/resumes",method:"POST",body})).payload.data;
 }
