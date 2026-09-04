@@ -1,11 +1,21 @@
 import {AppError} from "../shared/errors.js";import {apiRequest} from "./api-client.js";
 async function token(client){const{data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");return data.session.access_token;}
 async function call(client,baseUrl,path,options={}){return(await apiRequest({baseUrl,path,token:await token(client),...options})).data;}
-function databaseError(error,code,message){
-  const detail=String(error?.message||error?.details||error?.hint||"");
-  const match=detail.match(/([A-Z][A-Z0-9_]+):\s*([^\n]+)/);
-  return new AppError(String(match?.[1]||error?.code||code),String(match?.[2]||message),detail,/fetch|network|timeout|unreachable/i.test(detail));
+function storageErrorDetail(error){return String(error?.message||error?.details||error?.hint||error?.error||"");}
+function isRetryableStorageError(error){
+  const detail=storageErrorDetail(error),status=Number(error?.statusCode||error?.status||0);
+  return status===544||status===503||status===504||/fetch|network|timeout|unreachable|connection to the database timed out|database.?timeout|temporar|try again/i.test(detail);
 }
+function databaseError(error,code,message){
+  const detail=storageErrorDetail(error);
+  const match=detail.match(/([A-Z][A-Z0-9_]+):\s*([^\n]+)/);
+  const retryable=isRetryableStorageError(error)||/fetch|network|timeout|unreachable/i.test(detail);
+  if(retryable&&/UPLOAD/i.test(code)){
+    return new AppError("APPLICATION_SCREENSHOT_UPLOAD_TIMEOUT","The screenshot upload timed out. Try again in a moment.",detail,true);
+  }
+  return new AppError(String(match?.[1]||error?.code||code),String(match?.[2]||message),detail,retryable);
+}
+function delay(ms){return new Promise((resolve)=>setTimeout(resolve,ms));}
 function missingRpc(error,name){return new RegExp(`PGRST202|${name}|could not find the function`,`i`).test(`${error?.code||""} ${error?.message||""} ${error?.details||""}`);}
 function normalizeMineResumes(rows){
   return (Array.isArray(rows)?rows:[]).map((row)=>({
@@ -114,7 +124,7 @@ export async function listApplicationScreenshots(client,_baseUrl,applicationId){
   if(error)throw databaseError(error,"APPLICATION_SCREENSHOTS_LOAD_FAILED","Screenshots could not be loaded.");
   return data||[];
 }
-const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,MIN_SCREENSHOT_COMPRESSION_SIZE=350*1024,MAX_SCREENSHOT_EDGE=2200,SCREENSHOT_WEBP_QUALITY=.84;
+const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,MIN_SCREENSHOT_COMPRESSION_SIZE=200*1024,MAX_SCREENSHOT_EDGE=1800,SCREENSHOT_WEBP_QUALITY=.72,SCREENSHOT_UPLOAD_ATTEMPTS=3,SCREENSHOT_UPLOAD_RETRY_BASE_MS=500;
 function inferScreenshotMime(file){if(file?.type&&SCREENSHOT_MIME_TYPES.has(file.type))return file.type;const ext=String(file?.name||"").split(".").pop()?.toLowerCase();return SCREENSHOT_MIME_BY_EXT[ext]||"";}
 function screenshotUploadFile(file){const mime=inferScreenshotMime(file);if(!mime) return null;if(file?.type===mime) return file;return new File([file],file.name,{type:mime});}
 function safeScreenshotName(value){return String(value||"screenshot").normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^\.+/,"").slice(-180)||"screenshot";}
@@ -142,7 +152,16 @@ export async function attachApplicationScreenshot(client,_baseUrl,applicationId,
   const uploadFile=await prepareApplicationScreenshot(file);
   if(!uploadFile)throw new AppError("APPLICATION_SCREENSHOT_INVALID","Use a PNG, JPG, WEBP, or PDF file.");
   const path=`${applicationId}/${crypto.randomUUID()}-${safeScreenshotName(uploadFile.name)}`,bucket="application-screenshots";
-  const{error:uploadError}=await client.storage.from(bucket).upload(path,uploadFile,{contentType:uploadFile.type,upsert:false,cacheControl:"3600"});
+  let uploadError=null;
+  for(let attempt=0;attempt<SCREENSHOT_UPLOAD_ATTEMPTS;attempt+=1){
+    const result=await client.storage.from(bucket).upload(path,uploadFile,{contentType:uploadFile.type,upsert:false,cacheControl:"3600"});
+    uploadError=result?.error||null;
+    if(!uploadError)break;
+    // A prior attempt may have committed before the client saw the timeout.
+    if(/already exists|duplicate|resource already exists/i.test(storageErrorDetail(uploadError))){uploadError=null;break;}
+    if(!isRetryableStorageError(uploadError)||attempt===SCREENSHOT_UPLOAD_ATTEMPTS-1)break;
+    await delay(SCREENSHOT_UPLOAD_RETRY_BASE_MS*(2**attempt));
+  }
   if(uploadError)throw databaseError(uploadError,"APPLICATION_SCREENSHOT_UPLOAD_FAILED","The screenshot file could not be uploaded.");
   try{
     const{data,error}=await client.rpc("attach_application_screenshot",{p_application_id:applicationId,p_storage_path:path,p_original_filename:uploadFile.name,p_mime_type:uploadFile.type,p_file_size_bytes:uploadFile.size});
