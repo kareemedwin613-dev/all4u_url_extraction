@@ -103,8 +103,49 @@ export function buildApplicationResumeDownloadFilename({ candidateName, resumeNa
     : "";
   return safeDownloadName(`${base}${appSuffix}${ext}`);
 }
+const RESUME_DOWNLOAD_MIMES=new Set(["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"]),RESUME_SIGNED_URL_ATTEMPTS=3,RESUME_SIGNED_URL_RETRY_BASE_MS=400;
+async function createResumeSignedUrl(client,bucket,path){
+  let storageError=null;
+  for(let attempt=0;attempt<RESUME_SIGNED_URL_ATTEMPTS;attempt+=1){
+    const result=await client.storage.from(bucket).createSignedUrl(path,90);
+    if(!result?.error&&result?.data?.signedUrl)return result.data.signedUrl;
+    storageError=result?.error||null;
+    if(!isRetryableStorageError(storageError)||attempt===RESUME_SIGNED_URL_ATTEMPTS-1)break;
+    await delay(RESUME_SIGNED_URL_RETRY_BASE_MS*(2**attempt));
+  }
+  throw databaseError(storageError,"APPLICATION_RESUME_OPEN_FAILED","The private Resume file could not be opened.");
+}
+async function applicationResumeDownloadViaRpc(client,applicationId){
+  const{data:file,error}=await client.rpc("get_application_resume_download_v17",{p_application_id:applicationId});
+  if(error)throw databaseError(error,"APPLICATION_RESUME_UNAVAILABLE","The Resume is not available for this Application.");
+  const number=Number(file?.resumeNumber),type=String(file?.resumeType||""),mime=String(file?.mimeType||""),size=Number(file?.fileSizeBytes);
+  if(!file?.bucket||!file?.path||!file?.filename||!Number.isSafeInteger(number)||number<1||!["ORIGINAL","TAILORED"].includes(type)||!RESUME_DOWNLOAD_MIMES.has(mime)||!Number.isSafeInteger(size)||size<1||size>5242880){
+    throw new AppError("APPLICATION_RESUME_METADATA_INVALID","The attached Resume download metadata is invalid.");
+  }
+  const signedUrl=await createResumeSignedUrl(client,file.bucket,file.path);
+  return{
+    signedUrl,
+    expiresInSeconds:90,
+    filename:file.filename,
+    mimeType:mime,
+    fileSizeBytes:size,
+    resumeNumber:number,
+    resumeType:type,
+    candidateName:file.candidateName||null,
+    resumeName:file.resumeName||null,
+    applicationNumber:Number(file?.applicationNumber)||null,
+  };
+}
 export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
-  const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`),url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");
+  let data;
+  try{
+    data=await applicationResumeDownloadViaRpc(client,applicationId);
+  }catch(error){
+    // Keep a narrow Nest fallback while older environments lack the download RPC.
+    if(!baseUrl||!missingRpc(error,"get_application_resume_download_v17"))throw error;
+    data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`,{timeoutMs:30000});
+  }
+  const url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");
   if(url.protocol!=="https:"||!Number.isSafeInteger(number)||number<1||!["ORIGINAL","TAILORED"].includes(type))throw new AppError("APPLICATION_RESUME_METADATA_INVALID","The attached Resume download metadata is invalid.");
   const downloadName=buildApplicationResumeDownloadFilename({
     candidateName:data?.candidateName||data?.candidate_name,
@@ -113,9 +154,11 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
     mimeType:data?.mimeType||data?.mime_type,
     applicationNumber:data?.applicationNumber||data?.application_number,
   });
-  const downloadId=await downloadImpl({url:url.toString(),filename:downloadName,saveAs:true,conflictAction:"uniquify"});
+  // Avoid Chrome's Save As dialog: with a large Downloads folder it can take
+  // 10–30s to open. The generated filename already includes candidate + App ID.
+  const downloadId=await downloadImpl({url:url.toString(),filename:downloadName,saveAs:false,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
-  return{...data,downloadId};
+  return{...data,downloadId,downloadName};
 }
 export async function listApplicationScreenshots(client,_baseUrl,applicationId){
   const{data,error}=await client.from("application_screenshots")

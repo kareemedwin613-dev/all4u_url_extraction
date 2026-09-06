@@ -87,9 +87,13 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
   async function downloadResume(application) {
     const key = `${application.id}:DOWNLOAD_RESUME`;
     setExtensionBusy(key);
+    onStatus({ message: "Preparing Resume download…", kind: "info" });
     try {
       const result = await downloadApplicationResume(client, backendBaseUrl, application.id);
-      onStatus({ message: `${result.resumeType === "TAILORED" ? "Tailored" : "Original"} Resume #${result.resumeNumber} download started.`, kind: "success" });
+      onStatus({
+        message: `${result.resumeType === "TAILORED" ? "Tailored" : "Original"} Resume #${result.resumeNumber} saved to Downloads as ${result.downloadName||result.filename}.`,
+        kind: "success",
+      });
     } catch (error) { onError(error); }
     finally { setExtensionBusy(""); }
   }
