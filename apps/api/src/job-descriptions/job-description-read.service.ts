@@ -79,10 +79,13 @@ export class JobDescriptionReadService {
     if (filters.capturedByUserId) query = query.eq("user_id", filters.capturedByUserId);
     if (filters.capturedFrom) query = query.gte("created_at", filters.capturedFrom);
     if (filters.capturedTo) query = query.lt("created_at", filters.capturedTo);
-    const { data, error, count } = await query.order(sort.column, { ascending: sort.ascending }).range(from, from + pageSize - 1);
+    const [listResult, capturers] = await Promise.all([
+      query.order(sort.column, { ascending: sort.ascending }).range(from, from + pageSize - 1),
+      this.capturers(user).catch(() => []),
+    ]);
+    const { data, error, count } = listResult;
     if (error) databaseError(error, "Job descriptions could not be loaded.");
     const total = Math.max(0, Number(count) || 0), pageCount = total ? Math.ceil(total / pageSize) : 0, safePage = pageCount ? Math.min(page, pageCount) : 1;
-    const capturers = await this.capturers(user).catch(() => []);
     return { items: applyCapturerNames((data || []).map(normalizeJob), capturers), total, page: safePage, pageSize, pageCount, from: total ? (safePage - 1) * pageSize + 1 : 0, to: total ? Math.min(safePage * pageSize, total) : 0, hasPrevious: safePage > 1, hasNext: safePage < pageCount };
   }
 

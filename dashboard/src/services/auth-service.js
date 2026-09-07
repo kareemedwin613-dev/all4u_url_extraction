@@ -9,7 +9,11 @@ export async function getSession(client){
 export async function signIn(client,email,password){
   const {data,error}=await client.auth.signInWithPassword({email:email.trim(),password});
   if(error){
-    if(/invalid login credentials/i.test(error.message))throw {code:"AUTH_INVALID_CREDENTIALS",message:"The email or password is incorrect.",retryable:false};
+    const raw=String(error.message||error.code||"");
+    if(/invalid login credentials/i.test(raw))throw {code:"AUTH_INVALID_CREDENTIALS",message:"The email or password is incorrect.",retryable:false};
+    if(/email not confirmed|email_not_confirmed/i.test(raw)||error.code==="email_not_confirmed"){
+      throw {code:"AUTH_EMAIL_NOT_CONFIRMED",message:"Confirm this email before signing in. Check the inbox (and spam) for the confirmation link, or ask an administrator to confirm the account.",retryable:false};
+    }
     throw normalizeError(error,"Unable to sign in.");
   }
   return data.session;
