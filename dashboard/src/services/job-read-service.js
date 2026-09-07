@@ -1,7 +1,7 @@
 import {authenticatedApiRequest} from "./api-client.js";
 
 const params=value=>{const query=new URLSearchParams();for(const [key,item] of Object.entries(value||{}))if(item!==""&&item!==null&&item!==undefined)query.set(key,String(item));const text=query.toString();return text?`?${text}`:"";};
-const request=async(client,apiBaseUrl,path)=>{const {payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path});return payload.data;};
+const request=async(client,apiBaseUrl,path,{timeoutMs}={})=>{const {payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path,timeoutMs});return payload.data;};
 
 const localMidnight=value=>new Date(value.getFullYear(),value.getMonth(),value.getDate());
 export function capturedDateBounds(filters={},now=new Date()){
@@ -12,11 +12,11 @@ export function capturedDateBounds(filters={},now=new Date()){
   else if(window==="CUSTOM"&&filters.capturedFrom&&filters.capturedTo){const[startYear,startMonth,startDay]=filters.capturedFrom.split("-").map(Number),[endYear,endMonth,endDay]=filters.capturedTo.split("-").map(Number);from=new Date(startYear,startMonth-1,startDay);to=new Date(endYear,endMonth-1,endDay);to.setDate(to.getDate()+1);}
   return from&&to?{capturedFrom:from.toISOString(),capturedTo:to.toISOString()}:{};
 }
-export const listJobs=(client,apiBaseUrl,filters)=>{const{capturedWindow:_,capturedFrom:__,capturedTo:___,...query}=filters||{};return request(client,apiBaseUrl,`/api/v1/job-descriptions${params({...query,...capturedDateBounds(filters)})}`);};
+export const listJobs=(client,apiBaseUrl,filters)=>{const{capturedWindow:_,capturedFrom:__,capturedTo:___,...query}=filters||{};return request(client,apiBaseUrl,`/api/v1/job-descriptions${params({...query,...capturedDateBounds(filters)})}`,{timeoutMs:30000});};
 export const getJob=(client,apiBaseUrl,id)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/${encodeURIComponent(id)}`);
 export const jobCount=(client,apiBaseUrl,status="")=>request(client,apiBaseUrl,`/api/v1/job-descriptions/count${params({status})}`);
 export const recentJobs=(client,apiBaseUrl,limit=5)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/recent${params({limit})}`);
-export const listJobCapturers=(client,apiBaseUrl)=>request(client,apiBaseUrl,"/api/v1/job-descriptions/capturers");
+export const listJobCapturers=(client,apiBaseUrl)=>request(client,apiBaseUrl,"/api/v1/job-descriptions/capturers",{timeoutMs:30000});
 export const setJobStatus=async(client,apiBaseUrl,id,status,reason)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/status`,method:"PATCH",body:{status,...(reason?{reason}:{})}})).payload.data;
 export const reviewJob=async(client,apiBaseUrl,id,decision)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/review`,method:"PATCH",body:decision})).payload.data;
 export async function bulkReviewJobs(client,apiBaseUrl,{jobDescriptionIds,reviewStatus,declineReason,comment}={}){
