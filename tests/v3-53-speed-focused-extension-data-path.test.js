@@ -35,6 +35,7 @@ test("speed path lists and updates My Applications through one caller-scoped RPC
   assert.equal((await listMyApplications(client, "https://api.example.com")).items[0].id, APPLICATION_ID);
   assert.equal((await updateApplicationProgress(client, "https://api.example.com", APPLICATION_ID, { status: "IN_PROGRESS", applicationUrl: "", notes: "Working" })).status, "IN_PROGRESS");
   assert.deepEqual(calls.map((call) => call.name), ["list_my_applications_v20", "update_application_status_v101"]);
+  assert.equal(calls[0].args.p_sort, "captured_desc");
 });
 
 test("large screenshots are resized to bounded WebP only when the result is smaller", async () => {

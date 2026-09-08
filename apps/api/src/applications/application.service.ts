@@ -58,7 +58,7 @@ function failure(error:any,fallback:string):never{
   async mine(user:AuthenticatedUser,q:any){
     const data:any=await this.rpc(user,"list_my_applications_v20",{
       p_status:q.status||"",
-      p_sort:q.sort||"updated_desc",
+      p_sort:q.sort||"captured_desc",
       p_limit:Math.min(Number(q.limit)||100,500),
       p_resume_id:q.resumeId||null,
     },"Your Applications could not be loaded.");

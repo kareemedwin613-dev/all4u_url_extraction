@@ -6,5 +6,8 @@ major_version = 15
 [auth]
 enabled = true
 enable_signup = false
+[auth.email]
+enable_confirmations = false
+enable_signup = true
 [storage]
 enabled = true

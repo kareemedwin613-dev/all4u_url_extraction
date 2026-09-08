@@ -507,7 +507,7 @@ function Login({ client, apiBaseUrl, onSignedIn, passwordRecovery = false, onPas
         else {
           setSuccess(
             result.message ||
-              "Registration received. Sign in after confirming your email if required. An administrator must approve your account.",
+              "Registration received. An administrator must approve your account and assign a role before you can use the workspace.",
           );
           setMode("signin");
         }

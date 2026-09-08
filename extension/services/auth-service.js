@@ -4,7 +4,7 @@ export async function signIn(client,email,password){
   if(error){
     const raw=String(error.message||error.code||"");
     if(/email not confirmed|email_not_confirmed/i.test(raw)||error.code==="email_not_confirmed"){
-      throw new AppError("AUTH_EMAIL_NOT_CONFIRMED","Confirm this email before signing in. Check the inbox (and spam) for the confirmation link, or ask an administrator to confirm the account.");
+      throw new AppError("AUTH_EMAIL_NOT_CONFIRMED","This account is not ready to sign in yet. Ask an administrator to approve the account, then try again.");
     }
     throw new AppError("INVALID_CREDENTIALS","The email or password is incorrect.");
   }
