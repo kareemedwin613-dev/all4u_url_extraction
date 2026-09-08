@@ -12,7 +12,7 @@ export async function signIn(client,email,password){
     const raw=String(error.message||error.code||"");
     if(/invalid login credentials/i.test(raw))throw {code:"AUTH_INVALID_CREDENTIALS",message:"The email or password is incorrect.",retryable:false};
     if(/email not confirmed|email_not_confirmed/i.test(raw)||error.code==="email_not_confirmed"){
-      throw {code:"AUTH_EMAIL_NOT_CONFIRMED",message:"Confirm this email before signing in. Check the inbox (and spam) for the confirmation link, or ask an administrator to confirm the account.",retryable:false};
+      throw {code:"AUTH_EMAIL_NOT_CONFIRMED",message:"This account is not ready to sign in yet. Ask an administrator to approve the account, then try again.",retryable:false};
     }
     throw normalizeError(error,"Unable to sign in.");
   }
@@ -42,8 +42,8 @@ export async function signUp(client,{email,password,fullName}){
   if(data.session)return {session:data.session,needsEmailConfirmation:false};
   return {
     session:null,
-    needsEmailConfirmation:true,
-    message:"Registration received. Confirm your email if required, then sign in. An administrator must assign a role before you can use the workspace.",
+    needsEmailConfirmation:false,
+    message:"Registration received. An administrator must approve your account and assign a role before you can use the workspace.",
   };
 }
 

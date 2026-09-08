@@ -53,6 +53,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
       let data = await listMyApplications(client, backendBaseUrl, {
         status: nextStatus,
         resumeId: activeResumeId,
+        sort: "captured_desc",
       });
       if (activeResumeId && !data.resumes.some((resume) => resume.id === activeResumeId)) {
         activeResumeId = "";
@@ -60,6 +61,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         data = await listMyApplications(client, backendBaseUrl, {
           status: nextStatus,
           resumeId: "",
+          sort: "captured_desc",
         });
       }
       setItems(data.items);
