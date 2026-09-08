@@ -45,6 +45,7 @@ function databaseError(error: any, fallback: string): never {
   if (/JOB_DUPLICATE/i.test(raw)) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
   if (/JOB_NOT_FOUND/i.test(raw)) throw new ApiException("JOB_NOT_FOUND", "The job description was not found or is no longer accessible.", HttpStatus.NOT_FOUND);
   if (/JOB_HAS_APPLICATIONS/i.test(raw)) throw new ApiException("JOB_HAS_APPLICATIONS", raw.replace(/^JOB_HAS_APPLICATIONS:\s*/i, ""), HttpStatus.CONFLICT);
+  if (/JOB_DELETE_INVALID/i.test(raw)) throw new ApiException("JOB_DELETE_INVALID", raw.replace(/^JOB_DELETE_INVALID:\s*/i, ""), HttpStatus.BAD_REQUEST);
   const known = raw.match(/^(JOB_REVIEW_[A-Z_]+):\s*(.+)$/i);
   if (known) throw new ApiException(known[1].toUpperCase(), known[2], HttpStatus.BAD_REQUEST);
   if (/PGRST202|could not find the function|function .* does not exist/i.test(raw) || error?.code === "PGRST202") {
@@ -161,6 +162,24 @@ export class JobDescriptionReadService {
       total: Number(payload.total) || unique.length,
       succeeded: Number(payload.succeeded) || 0,
       failed: Number(payload.failed) || 0,
+      results: Array.isArray(payload.results) ? payload.results : [],
+    };
+  }
+
+  async bulkRemoveExpired(user: AuthenticatedUser, ids: string[]) {
+    const unique = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!unique.length) throw new ApiException("VALIDATION_ERROR", "Select at least one Job Description.", HttpStatus.BAD_REQUEST);
+    if (unique.length > 1000) throw new ApiException("VALIDATION_ERROR", "Select no more than 1000 Job Descriptions.", HttpStatus.BAD_REQUEST);
+    const { data, error } = await this.supabase.forUser(user.token).rpc("remove_expired_job_descriptions_v364", {
+      p_job_description_ids: unique,
+    });
+    if (error) databaseError(error, "Expired Job URLs could not be removed.");
+    const payload = data && typeof data === "object" ? data as any : {};
+    return {
+      total: Number(payload.total) || unique.length,
+      succeeded: Number(payload.succeeded) || 0,
+      failed: Number(payload.failed) || 0,
+      deletedApplications: Number(payload.deletedApplications) || 0,
       results: Array.isArray(payload.results) ? payload.results : [],
     };
   }

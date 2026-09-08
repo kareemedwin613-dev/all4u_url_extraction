@@ -48,5 +48,17 @@ export async function bulkDeleteJobs(client,apiBaseUrl,{jobDescriptionIds}={}){
     body:{jobDescriptionIds:ids},
   })).payload.data;
 }
+export async function removeExpiredJobs(client,apiBaseUrl,{jobDescriptionIds}={}){
+  const ids=[...new Set((jobDescriptionIds||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
+  if(!ids.length)throw{code:"VALIDATION_ERROR",message:"Select at least one Job Description.",retryable:false};
+  if(ids.length>1000)throw{code:"VALIDATION_ERROR",message:"Select no more than 1000 Job Descriptions.",retryable:false};
+  return(await authenticatedApiRequest(client,{
+    baseUrl:apiBaseUrl,
+    path:"/api/v1/job-descriptions/bulk-remove-expired",
+    method:"POST",
+    timeoutMs:60000,
+    body:{jobDescriptionIds:ids},
+  })).payload.data;
+}
 export const updateOwnJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/correction`,method:"PATCH",body})).payload.data;
 export const updateManagedJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/manager-edit`,method:"PATCH",body})).payload.data;

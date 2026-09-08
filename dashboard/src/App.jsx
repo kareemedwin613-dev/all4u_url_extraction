@@ -51,7 +51,7 @@ import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePasswo
 import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, formatResumeTechStacks, loadCategories, resumeTechStackRows } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, removeExpiredJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { updateResumeMetadata } from "./services/resume-metadata-service.js";
@@ -1082,6 +1082,35 @@ function Jobs({
       setDeleteBusy(false);
     }
   }
+  async function submitRemoveExpired() {
+    if (!selectedJobIds.length) return;
+    setDeleteBusy(true);
+    try {
+      const result = await removeExpiredJobs(client, apiBaseUrl, {
+        jobDescriptionIds: selectedJobIds,
+      });
+      const deletedJobs = (result.results || []).filter((row) => row?.ok && row?.data?.jobDeleted).length;
+      const keptJobs = (result.results || []).filter((row) => row?.ok && row?.data && !row.data.jobDeleted).length;
+      const deletedApps = Number(result.deletedApplications) || 0;
+      clearJobSelection();
+      setListReload((value) => value + 1);
+      const parts = [
+        `Deleted ${deletedJobs} Job Description${deletedJobs === 1 ? "" : "s"}`,
+        `removed ${deletedApps} application${deletedApps === 1 ? "" : "s"}`,
+      ];
+      if (keptJobs) parts.push(`kept ${keptJobs} with Applied/Blocked or later applications`);
+      toast(
+        result.failed ? "warning" : "success",
+        result.failed
+          ? `${parts.join("; ")}. ${result.failed} could not be processed.`
+          : `${parts.join("; ")}.`,
+      );
+    } catch (value) {
+      toast("error", value.message || "Expired Job URLs could not be removed.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
   const update = (patch) => {
       const next = { ...filters, ...patch };
       if (patch.capturedWindow !== undefined && patch.capturedWindow !== "CUSTOM") {
@@ -1342,6 +1371,23 @@ function Jobs({
                   disabled={!selectedCount || tooMany || reviewBusy || openUrlsBusy}
                 >
                   Delete Selected
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title="Remove expired Job URLs?"
+                description="Deletes Unassigned, Assigned, and In Progress applications for the selection. Keeps Applied, Blocked, and later statuses. Deletes each Job Description only when no applications remain."
+                okText="Remove"
+                okButtonProps={{ danger: true, loading: deleteBusy }}
+                cancelButtonProps={{ disabled: deleteBusy }}
+                onConfirm={submitRemoveExpired}
+                disabled={!selectedCount || tooMany || reviewBusy || deleteBusy || openUrlsBusy}
+              >
+                <Button
+                  danger
+                  loading={deleteBusy}
+                  disabled={!selectedCount || tooMany || reviewBusy || openUrlsBusy}
+                >
+                  Remove Expired Job URLs
                 </Button>
               </Popconfirm>
               <Button

@@ -51,6 +51,14 @@ export class JobDescriptionReadController {
     };
   }
 
+  @Post("bulk-remove-expired") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Remove expired job URLs by deleting pre-apply applications, then JDs with none left" })
+  async bulkRemoveExpired(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobDescriptionDeleteDto)) body: BulkJobDescriptionDeleteDto) {
+    return {
+      data: await this.jobs.bulkRemoveExpired(request.user!, body.jobDescriptionIds),
+      requestId: request.requestId,
+    };
+  }
+
   @Patch(":id/status") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Decline/archive or restore a captured job URL" })
   async status(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionStatusDto)) body: JobDescriptionStatusDto) { return { data: await this.jobs.status(request.user!, id, body.status, body.reason), requestId: request.requestId }; }
 

@@ -38,7 +38,9 @@ test("Application screenshot services keep dashboard APIs and use the extension'
   assert.match(extensionService, /storage\.from\(bucket\)\.upload/);
   assert.match(extensionService, /client\.rpc\("attach_application_screenshot"/);
   assert.match(extensionService, /prepareApplicationScreenshot/);
-  assert.match(extensionService, /OffscreenCanvas/);
+  assert.match(extensionService, /Upload the original file as-is/);
+  assert.doesNotMatch(extensionService, /OffscreenCanvas/);
+  assert.doesNotMatch(extensionService, /image\/webp",quality/);
   assert.doesNotMatch(extensionService, /new FormData/);
   assert.match(extensionService, /inferScreenshotMime/);
 });
