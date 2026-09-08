@@ -167,27 +167,14 @@ export async function listApplicationScreenshots(client,_baseUrl,applicationId){
   if(error)throw databaseError(error,"APPLICATION_SCREENSHOTS_LOAD_FAILED","Screenshots could not be loaded.");
   return data||[];
 }
-const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,MIN_SCREENSHOT_COMPRESSION_SIZE=200*1024,MAX_SCREENSHOT_EDGE=1800,SCREENSHOT_WEBP_QUALITY=.72,SCREENSHOT_UPLOAD_ATTEMPTS=3,SCREENSHOT_UPLOAD_RETRY_BASE_MS=500;
+const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]),SCREENSHOT_MIME_BY_EXT=Object.freeze({png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"}),MAX_SCREENSHOT_SIZE=5*1024*1024,SCREENSHOT_UPLOAD_ATTEMPTS=3,SCREENSHOT_UPLOAD_RETRY_BASE_MS=500;
 function inferScreenshotMime(file){if(file?.type&&SCREENSHOT_MIME_TYPES.has(file.type))return file.type;const ext=String(file?.name||"").split(".").pop()?.toLowerCase();return SCREENSHOT_MIME_BY_EXT[ext]||"";}
 function screenshotUploadFile(file){const mime=inferScreenshotMime(file);if(!mime) return null;if(file?.type===mime) return file;return new File([file],file.name,{type:mime});}
 function safeScreenshotName(value){return String(value||"screenshot").normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^\.+/,"").slice(-180)||"screenshot";}
-function webpName(value){const base=safeScreenshotName(value).replace(/\.[^.]+$/,"")||"screenshot";return `${base}.webp`;}
 export function validateApplicationScreenshotFile(file){const errors={};const mime=inferScreenshotMime(file);if(!file)errors.file="Choose a screenshot file.";else if(!mime)errors.file="Use a PNG, JPG, WEBP, or PDF file.";else if(!file.size||file.size>MAX_SCREENSHOT_SIZE)errors.file="Screenshot must be between 1 byte and 5 MiB.";return{valid:!Object.keys(errors).length,errors,mime};}
-export async function prepareApplicationScreenshot(file,{createBitmap=globalThis.createImageBitmap,Canvas=globalThis.OffscreenCanvas}={}){
-  const uploadFile=screenshotUploadFile(file),mime=inferScreenshotMime(uploadFile);
-  if(!uploadFile||mime==="application/pdf"||uploadFile.size<MIN_SCREENSHOT_COMPRESSION_SIZE||typeof createBitmap!=="function"||typeof Canvas!=="function")return uploadFile;
-  let bitmap;
-  try{
-    bitmap=await createBitmap(uploadFile);
-    const scale=Math.min(1,MAX_SCREENSHOT_EDGE/Math.max(bitmap.width,bitmap.height));
-    const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
-    const canvas=new Canvas(width,height),context=canvas.getContext("2d");
-    if(!context||typeof canvas.convertToBlob!=="function")return uploadFile;
-    context.drawImage(bitmap,0,0,width,height);
-    const blob=await canvas.convertToBlob({type:"image/webp",quality:SCREENSHOT_WEBP_QUALITY});
-    if(!blob?.size||blob.size>=uploadFile.size||blob.size>MAX_SCREENSHOT_SIZE)return uploadFile;
-    return new File([blob],webpName(uploadFile.name),{type:"image/webp",lastModified:Date.now()});
-  }catch{return uploadFile;}finally{bitmap?.close?.();}
+export async function prepareApplicationScreenshot(file){
+  // Upload the original file as-is (MIME normalized only). No resize/WebP conversion.
+  return screenshotUploadFile(file);
 }
 export async function attachApplicationScreenshot(client,_baseUrl,applicationId,file){
   const check=validateApplicationScreenshotFile(file);

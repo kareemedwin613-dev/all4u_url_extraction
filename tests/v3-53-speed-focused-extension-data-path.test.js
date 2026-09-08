@@ -38,26 +38,20 @@ test("speed path lists and updates My Applications through one caller-scoped RPC
   assert.equal(calls[0].args.p_sort, "captured_desc");
 });
 
-test("large screenshots are resized to bounded WebP only when the result is smaller", async () => {
-  let dimensions, closed = false;
-  class Canvas {
-    constructor(width, height) { dimensions = [width, height]; }
-    getContext() { return { drawImage() {} }; }
-    async convertToBlob(options) {
-      assert.equal(options.type, "image/webp");
-      return new Blob([new Uint8Array(100)], { type: "image/webp" });
-    }
-  }
+test("screenshots are uploaded as the original file without WebP conversion", async () => {
   const original = new File([new Uint8Array(400_000)], "confirmation.png", { type: "image/png" });
   const prepared = await prepareApplicationScreenshot(original, {
-    createBitmap: async () => ({ width: 4000, height: 2000, close: () => { closed = true; } }),
-    Canvas,
+    createBitmap: async () => {
+      throw new Error("createBitmap should not be used");
+    },
+    Canvas: class {
+      constructor() { throw new Error("Canvas should not be used"); }
+    },
   });
-  assert.deepEqual(dimensions, [1800, 900]);
-  assert.equal(prepared.type, "image/webp");
-  assert.equal(prepared.name, "confirmation.webp");
-  assert.equal(prepared.size, 100);
-  assert.equal(closed, true);
+  assert.equal(prepared, original);
+  assert.equal(prepared.type, "image/png");
+  assert.equal(prepared.name, "confirmation.png");
+  assert.equal(prepared.size, 400_000);
 });
 
 test("screenshot upload goes directly to private Storage and then the attachment RPC", async () => {
