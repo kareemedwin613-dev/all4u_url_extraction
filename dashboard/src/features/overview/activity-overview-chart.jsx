@@ -1,10 +1,15 @@
 import React, { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { ProductivityActivityDonut } from "./applier-productivity-table.jsx";
-import { buildActivityOverviewSegments, activityOverviewTotal } from "./applier-productivity.js";
+import {
+  activityOverviewTotal,
+  buildActivityOverviewSegments,
+  buildActivityResumeTypeSegments,
+} from "./applier-productivity.js";
 
 export function ActivityOverviewChart({ counts = {} }) {
   const segments = useMemo(() => buildActivityOverviewSegments(counts), [counts]);
+  const resumeTypes = useMemo(() => buildActivityResumeTypeSegments(counts), [counts]);
   const total = useMemo(() => activityOverviewTotal(counts), [counts]);
   if (!total) {
     return <ProductivityActivityDonut segments={[]} />;
@@ -48,6 +53,21 @@ export function ActivityOverviewChart({ counts = {} }) {
             </strong>
           </div>
         ))}
+        <div className="productivity-donut__resume-types" aria-label="Applied applications by resume type">
+          <div className="productivity-donut__resume-types-title">Applied by resume type</div>
+          {resumeTypes.map((segment) => (
+            <div key={segment.key} className="productivity-donut__legend-item">
+              <span className="productivity-donut__legend-label">
+                <span
+                  className="productivity-donut__swatch"
+                  style={{ background: segment.color }}
+                />
+                <span>{segment.label}</span>
+              </span>
+              <strong>{segment.value}</strong>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

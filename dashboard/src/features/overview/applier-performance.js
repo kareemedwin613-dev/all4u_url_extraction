@@ -6,6 +6,9 @@ export const APPLIER_PERFORMANCE_METRICS = Object.freeze([
   { key: "blocked", label: "Blocked", color: "#ff4d4f" },
   { key: "completed", label: "Completed", color: "#52c41a" },
   { key: "applied", label: "Applied", color: "#722ed1" },
+  { key: "interviews", label: "Interviews", color: "#9254de" },
+  { key: "tailored", label: "Tailored", color: "#13c2c2" },
+  { key: "nonTailored", label: "Non-tailored", color: "#595959" },
 ]);
 
 const count = (value) => Math.max(0, Number(value) || 0);
@@ -29,6 +32,9 @@ export function normalizeApplierPerformance(rows = []) {
       blocked: count(row.blocked_count),
       completed: count(row.completed_count),
       applied: count(row.applied_count),
+      interviews: count(row.interviews_count),
+      tailored: count(row.tailored_count),
+      nonTailored: count(row.non_tailored_count),
       completionRate: Math.max(
         0,
         Math.min(100, Number(row.completion_rate) || 0),

@@ -77,6 +77,9 @@ test("normalizeApplierPerformance maps overview rows for the grouped bar chart",
     blocked: 2,
     completed: 2,
     applied: 3,
+    interviews: 0,
+    tailored: 0,
+    nonTailored: 0,
     completionRate: 50,
   });
 });

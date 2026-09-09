@@ -47,6 +47,14 @@ export function ApplierProductivityPage({
     [data, windowDays, activityScoped, applicationCounts],
   );
   const leaders = useMemo(() => getTopPerformers(data), [data]);
+  const tailoredTotal = useMemo(
+    () => data.reduce((sum, row) => sum + Math.max(0, Number(row.tailored) || 0), 0),
+    [data],
+  );
+  const nonTailoredTotal = useMemo(
+    () => data.reduce((sum, row) => sum + Math.max(0, Number(row.nonTailored) || 0), 0),
+    [data],
+  );
 
   return (
     <div className="productivity-page">
@@ -82,9 +90,7 @@ export function ApplierProductivityPage({
               icon: <ThunderboltOutlined />,
               value: kpis.applications,
               label: "Applications",
-              meta: activityScoped
-                ? "Applied in this period"
-                : "Applied status · created this period",
+              meta: `${tailoredTotal} tailored · ${nonTailoredTotal} non-tailored`,
             },
             {
               key: "avg",
