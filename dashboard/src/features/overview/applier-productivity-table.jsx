@@ -28,7 +28,7 @@ import {
 } from "./applier-productivity.js";
 
 const DEFAULT_PRODUCTIVITY_SORT = Object.freeze({
-  field: "score",
+  field: "applied",
   order: "descend",
 });
 
@@ -74,11 +74,12 @@ export function ProductivityScoreBadge({ score, tone, grade, showScore = false }
 }
 
 function performanceCountColumn(metric, sortedInfo) {
+  const wide = metric.key === "nonTailored" || metric.key === "tailored" || metric.key === "interviews";
   return {
     title: metric.label,
     dataIndex: metric.key,
     key: metric.key,
-    width: 76,
+    width: wide ? 92 : 76,
     align: "center",
     className: `productivity-metric-col productivity-metric-col--${metric.key}`,
     sorter: true,
@@ -108,6 +109,7 @@ function ProductivityMetricTotal({ metricKey, value }) {
 }
 
 function ProductivityTableSummary({ totals }) {
+  const metricCount = PRODUCTIVITY_TABLE_METRIC_KEYS.length;
   return (
     <Table.Summary fixed>
       <Table.Summary.Row className="productivity-table-summary-row">
@@ -117,7 +119,7 @@ function ProductivityTableSummary({ totals }) {
             <ProductivityMetricTotal metricKey={key} value={totals[key]} />
           </Table.Summary.Cell>
         ))}
-        <Table.Summary.Cell index={8} colSpan={4} />
+        <Table.Summary.Cell index={4 + metricCount} colSpan={3} />
       </Table.Summary.Row>
     </Table.Summary>
   );
@@ -243,24 +245,6 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
           </div>
         );
       },
-    },
-    {
-      title: "Score",
-      dataIndex: "score",
-      key: "score",
-      width: 72,
-      align: "center",
-      className: "productivity-score-col",
-      sorter: true,
-      sortOrder: sortOrder("score"),
-      render: (value, row) => (
-        <ProductivityScoreBadge
-          score={row.score}
-          tone={row.scoreTone}
-          grade={row.grade}
-          showScore
-        />
-      ),
     },
     {
       title: "",

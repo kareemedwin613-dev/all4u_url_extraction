@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   buildActivityOverviewSegments,
+  buildActivityResumeTypeSegments,
   activityOverviewTotal,
   computeProductivityScore,
   deriveProductivityStatus,
@@ -36,6 +37,57 @@ const sampleRow = {
   completion_rate: 60,
 };
 
+test("Activity Overview and productivity table expose tailored vs non-tailored counts", async () => {
+  const [page, chart, table, migration] = await Promise.all([
+    read("../src/features/overview/applier-productivity-page.jsx"),
+    read("../src/features/overview/activity-overview-chart.jsx"),
+    read("../src/features/overview/applier-productivity-table.jsx"),
+    read("../../supabase/migrations/202609090830_v3_66_overview_tailored_equals_applied.sql"),
+  ]);
+  assert.match(page, /tailored · .* non-tailored/);
+  assert.match(chart, /buildActivityResumeTypeSegments/);
+  assert.match(chart, /Applied by resume type/);
+  assert.match(table, /"tailored"/);
+  assert.match(table, /"nonTailored"/);
+  assert.match(table, /"interviews"/);
+  assert.match(migration, /status = 'APPLIED' and resume_type = 'TAILORED'/);
+  assert.match(migration, /status = 'APPLIED' and resume_type = 'ORIGINAL'/);
+  assert.match(migration, /tailored_count/);
+  assert.match(migration, /non_tailored_count/);
+  assert.match(migration, /sum equals applied_count/);
+});
+
+test("tailored plus non-tailored equals applied for productivity rows", () => {
+  const rows = normalizeApplierProductivity(
+    [
+      {
+        ...sampleRow,
+        applied_count: 8,
+        tailored_count: 3,
+        non_tailored_count: 5,
+      },
+      {
+        ...sampleRow,
+        id: "a2",
+        applied_count: 4,
+        tailored_count: 1,
+        non_tailored_count: 3,
+      },
+    ],
+    {
+      dateRange: {
+        from: "2026-08-25T04:00:00.000Z",
+        to: "2026-08-29T04:00:00.000Z",
+      },
+    },
+  );
+  for (const row of rows) {
+    assert.equal(row.tailored + row.nonTailored, row.applied);
+  }
+  const totals = sumProductivityMetricTotals(rows);
+  assert.equal(totals.tailored + totals.nonTailored, totals.applied);
+});
+
 test("Admin Overview includes the redesigned Applier Productivity page", async () => {
   const [app, page, table] = await Promise.all([
     read("../src/App.jsx"),
@@ -55,23 +107,31 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(table, /children: PRODUCTIVITY_TABLE_METRIC_KEYS/);
   assert.match(table, /title: "Avg \/ Day"/);
   assert.doesNotMatch(table, /title: "Success Rate"/);
-  assert.match(table, /title: "Score"/);
+  assert.doesNotMatch(table, /title: "Score"/);
   assert.match(table, /sortProductivityRows/);
   assert.match(table, /DEFAULT_PRODUCTIVITY_SORT/);
   assert.match(table, /productivity-table-scroll/);
   assert.match(table, /showTotal:/);
   assert.match(table, /useState\(10\)/);
   assert.match(table, /productivity-status-pill/);
-  assert.match(table, /productivity-score/);
   assert.match(table, /Table\.Summary/);
   assert.match(table, /sumProductivityMetricTotals/);
   assert.match(table, /aria-label="Search Applier Productivity by name or email"/);
 });
 
-test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, and Pending columns", () => {
+test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, Pending, Interviews, Tailored, and Non-tailored columns", () => {
   const rows = normalizeApplierProductivity(
     [
-      { ...sampleRow, assigned_count: 10, applied_count: 8, blocked_count: 1, pending_count: 2 },
+      {
+        ...sampleRow,
+        assigned_count: 10,
+        applied_count: 8,
+        blocked_count: 1,
+        pending_count: 2,
+        interviews_count: 2,
+        tailored_count: 3,
+        non_tailored_count: 5,
+      },
       {
         ...sampleRow,
         id: "a2",
@@ -79,6 +139,9 @@ test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, and Pending c
         applied_count: 3,
         blocked_count: 2,
         pending_count: 1,
+        interviews_count: 1,
+        tailored_count: 1,
+        non_tailored_count: 2,
       },
     ],
     {
@@ -93,6 +156,9 @@ test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, and Pending c
     applied: 11,
     blocked: 3,
     pending: 3,
+    interviews: 3,
+    tailored: 4,
+    nonTailored: 7,
   });
 });
 
@@ -118,6 +184,9 @@ test("normalizeApplierProductivity maps productivity metrics from overview rows"
   assert.equal(row.pending, 2);
   assert.equal(row.blocked, 1);
   assert.equal(row.completed, 6);
+  assert.equal(row.interviews, 0);
+  assert.equal(row.tailored, 0);
+  assert.equal(row.nonTailored, 0);
   assert.equal(row.completionRate, 60);
   assert.ok(row.score >= 0 && row.score <= 100);
   assert.match(row.grade, /^[ABC]$/);
@@ -134,6 +203,7 @@ test("gradeFromScore maps numeric scores to letter grades", async () => {
 });
 
 test("getTopPerformers includes only active Appliers", () => {
+  const recentActivity = new Date(Date.now() - 3600000).toISOString();
   const rows = normalizeApplierProductivity(
     [
       {
@@ -143,11 +213,11 @@ test("getTopPerformers includes only active Appliers", () => {
         profile_status: "INACTIVE",
         applied_count: 999,
         completion_rate: 95,
-        last_activity_at: "2026-08-31T10:00:00.000Z",
+        last_activity_at: recentActivity,
       },
       {
         ...sampleRow,
-        last_activity_at: "2026-08-31T10:00:00.000Z",
+        last_activity_at: recentActivity,
       },
     ],
     {
@@ -264,6 +334,16 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
   ]);
   assert.equal(activityOverviewTotal({ total: 20, assigned: 20 }), 20);
   assert.deepEqual(
+    buildActivityResumeTypeSegments({ tailored: 5, non_tailored: 15 }).map((segment) => ({
+      key: segment.key,
+      value: segment.value,
+    })),
+    [
+      { key: "tailored", value: 5 },
+      { key: "non_tailored", value: 15 },
+    ],
+  );
+  assert.deepEqual(
     buildActivityOverviewSegments({
       my_assigned: 15,
       applied_count: 4,
@@ -288,6 +368,7 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
 });
 
 test("sortProductivityRows keeps active Appliers before inactive when sorting by score", () => {
+  const recentActivity = new Date(Date.now() - 3600000).toISOString();
   const rows = normalizeApplierProductivity(
     [
       {
@@ -297,7 +378,7 @@ test("sortProductivityRows keeps active Appliers before inactive when sorting by
         profile_status: "INACTIVE",
         applied_count: 20,
         completion_rate: 80,
-        last_activity_at: "2026-08-31T10:00:00.000Z",
+        last_activity_at: recentActivity,
       },
       {
         ...sampleRow,
@@ -306,7 +387,7 @@ test("sortProductivityRows keeps active Appliers before inactive when sorting by
         applied_count: 2,
         completion_rate: 20,
         avg_per_day: 0.5,
-        last_activity_at: "2026-08-31T10:00:00.000Z",
+        last_activity_at: recentActivity,
       },
     ],
     {

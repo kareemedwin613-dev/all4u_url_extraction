@@ -16,6 +16,9 @@ export const PRODUCTIVITY_TABLE_METRIC_KEYS = Object.freeze([
   "applied",
   "blocked",
   "pending",
+  "interviews",
+  "tailored",
+  "nonTailored",
 ]);
 
 export function sumProductivityMetricTotals(rows = []) {
@@ -27,7 +30,15 @@ export function sumProductivityMetricTotals(rows = []) {
       );
       return totals;
     },
-    { assigned: 0, applied: 0, blocked: 0, pending: 0 },
+    {
+      assigned: 0,
+      applied: 0,
+      blocked: 0,
+      pending: 0,
+      interviews: 0,
+      tailored: 0,
+      nonTailored: 0,
+    },
   );
 }
 
@@ -306,6 +317,15 @@ export function sortProductivityRows(rows = [], sorter = {}) {
       case "pending":
         valueCompare = left.pending - right.pending;
         break;
+      case "interviews":
+        valueCompare = left.interviews - right.interviews;
+        break;
+      case "tailored":
+        valueCompare = left.tailored - right.tailored;
+        break;
+      case "nonTailored":
+        valueCompare = left.nonTailored - right.nonTailored;
+        break;
       case "avgPerDay":
         valueCompare = left.avgPerDay - right.avgPerDay;
         break;
@@ -408,6 +428,21 @@ export const ACTIVITY_OVERVIEW_SEGMENTS = Object.freeze([
   },
 ]);
 
+export const ACTIVITY_RESUME_TYPE_SEGMENTS = Object.freeze([
+  {
+    key: "tailored",
+    label: "Tailored",
+    color: "#13c2c2",
+    value: (counts) => count(counts.tailored),
+  },
+  {
+    key: "non_tailored",
+    label: "Non-tailored",
+    color: "#595959",
+    value: (counts) => count(counts.non_tailored),
+  },
+]);
+
 export function buildActivityOverviewSegments(counts = {}) {
   return ACTIVITY_OVERVIEW_SEGMENTS.map(({ key, label, color, value }) => ({
     key,
@@ -415,6 +450,15 @@ export function buildActivityOverviewSegments(counts = {}) {
     color,
     value: value(counts),
   })).filter((segment) => segment.value > 0);
+}
+
+export function buildActivityResumeTypeSegments(counts = {}) {
+  return ACTIVITY_RESUME_TYPE_SEGMENTS.map(({ key, label, color, value }) => ({
+    key,
+    label,
+    color,
+    value: value(counts),
+  }));
 }
 
 export function normalizeApplierProductivity(rows = [], options = {}) {

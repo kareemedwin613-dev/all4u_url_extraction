@@ -597,6 +597,22 @@
   flex: none;
 }
 
+.productivity-donut__resume-types {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
+}
+
+.productivity-donut__resume-types-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8c8c8c;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .productivity-attention-list,
 .productivity-leaders-list {
   display: grid;
