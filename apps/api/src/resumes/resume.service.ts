@@ -76,21 +76,19 @@ export class ResumeService{
   constructor(@Inject(SupabaseService)private readonly supabase:SupabaseService){}
   async list(user:AuthenticatedUser,q:any){
     const client=this.supabase.forUser(user.token),requestedPage=Number(q.page),requestedSize=Number(q.pageSize),page=Number.isInteger(requestedPage)&&requestedPage>0?requestedPage:1,size=[10,25,50,100].includes(requestedSize)?requestedSize:25,sort=SORTS[q.sort]||SORTS.candidate_asc,search=clean(q.search).slice(0,100),numberSearch=search.replace(/^(resume[- ]?|#)/i,""),status=q.status==="ARCHIVED"?"ARCHIVED":q.status==="ALL"?"":"ACTIVE";
-    let x:any=client.from("resumes").select(RESUME_LIST_FIELDS,{count:"exact"}).eq("resume_type","ORIGINAL");
+    const categoryId=q.categoryId&&UUID.test(String(q.categoryId))?String(q.categoryId):"";
+    // Filter via inner join so large categories do not build a huge `.in(id, …)` URL (that returns Bad Request).
+    const select=categoryId?`${RESUME_LIST_FIELDS},resume_tech_stacks!inner(primary_category_id)`:RESUME_LIST_FIELDS;
+    let x:any=client.from("resumes").select(select,{count:"exact"}).eq("resume_type","ORIGINAL");
     if(status)x=x.eq("status",status);
     if(search){if(/^\d+$/.test(numberSearch))x=x.eq("resume_number",Number(numberSearch));else x=x.textSearch("search_vector",search,{type:"websearch",config:"english"});}
-    if(q.categoryId&&UUID.test(String(q.categoryId))){
-      const{data:stackRows,error:stackError}=await client.from("resume_tech_stacks").select("resume_id").eq("primary_category_id",q.categoryId);
-      if(stackError)fail(stackError,"Resumes could not be loaded.");
-      const stackIds=[...new Set((stackRows||[]).map((row:any)=>row.resume_id))];
-      if(!stackIds.length)return{items:[],total:0,page:1,pageSize:size,pageCount:0,from:0,to:0,hasPrevious:false,hasNext:false};
-      x=x.in("id",stackIds);
-    }
+    if(categoryId)x=x.eq("resume_tech_stacks.primary_category_id",categoryId);
     for(const [key,column,allowed]of [["seniority","seniority",["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL","MANAGER","DIRECTOR","EXECUTIVE","UNSPECIFIED"]],["mimeType","mime_type",COVER_LETTER_MIMES]]as any[])if(q[key]&&(!allowed||allowed.includes(q[key])))x=x.eq(column,q[key]);
     const {data,error,count}=await x.order(sort[0],{ascending:sort[1]}).range((page-1)*size,page*size-1);
     if(error)fail(error,"Resumes could not be loaded.");
+    const rows=(data||[]).map((row:any)=>{const{resume_tech_stacks:_stacks,...rest}=row;return rest;});
     const total=Number(count)||0,pages=total?Math.ceil(total/size):0;
-    return{items:await attachStacks(client,data||[]),total,page:pages?Math.min(page,pages):1,pageSize:size,pageCount:pages,from:total?(page-1)*size+1:0,to:Math.min(page*size,total),hasPrevious:page>1,hasNext:page<pages};
+    return{items:await attachStacks(client,rows),total,page:pages?Math.min(page,pages):1,pageSize:size,pageCount:pages,from:total?(page-1)*size+1:0,to:Math.min(page*size,total),hasPrevious:page>1,hasNext:page<pages};
   }
   async detail(user:AuthenticatedUser,id:string){const client=this.supabase.forUser(user.token),{data,error}=await client.from("resumes").select(RESUME_DETAIL_FIELDS).eq("id",id).maybeSingle();if(error)fail(error,"The Resume could not be loaded.");if(!data)return data;const decorated=await attachStacks(client,data);return{...decorated,candidate_profile:{id:data.id,review_status:data.profile_review_status}};}
   async count(user:AuthenticatedUser,status?:string){let q:any=this.supabase.forUser(user.token).from("resumes").select("id",{count:"exact",head:true}).eq("resume_type","ORIGINAL");if(status)q=q.eq("status",status);const{count,error}=await q;if(error)fail(error,"The Resume count could not be loaded.");return Number(count)||0;}
