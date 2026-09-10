@@ -145,7 +145,7 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.doesNotMatch(source.slice(source.indexOf("const applierColumns =")), /title:\s*"Priority"/);
   assert.match(source, /openFirstApplicationScreenshot/);
   assert.match(source, /categoryTagColor\(categories/);
-  assert.match(source, /applicationsScrollX = manager \? 2386 : 2040/);
+  assert.match(source, /applicationsScrollX = manager \? 2556 : 2040/);
 });
 
 test("Application Number is visible on the list, detail heading, and search",async()=>{

@@ -107,3 +107,26 @@ export function validateTailoringOutput(value:unknown,input:TailoringInput,_refe
     warnings
   };
 }
+
+export function validateTailoringModelOutput(value:unknown,input:TailoringInput):Pick<TailoringOutput,"summary"|"professionalExperience"|"skills">{
+  if(!object(value))throw new Error("Codex output must be a JSON object.");
+  exactKeys(value,["summary","professionalExperience","skills"],"Codex output");
+  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",24,120);
+  if(REFUSAL.test(summary))throw new Error("Codex returned a refusal or placeholder instead of a tailored summary.");
+  if(!unique(skills))throw new Error("Codex skills must not contain duplicates.");
+  if(!Array.isArray(value.professionalExperience)||value.professionalExperience.length!==input.sourceResume.professionalExperience.length)throw new Error("Codex must return exactly one tailored entry for every source experience.");
+  const expected=new Set(input.sourceResume.professionalExperience.map(item=>item.id)),seen=new Set<string>();
+  const professionalExperience=value.professionalExperience.map((item,index)=>{
+    if(!object(item))throw new Error(`professionalExperience[${index}] must be an object.`);
+    exactKeys(item,["sourceExperienceId","tailoredDetails"],`professionalExperience[${index}]`);
+    const sourceExperienceId=boundedText(item.sourceExperienceId,`professionalExperience[${index}].sourceExperienceId`,1,120);
+    if(!expected.has(sourceExperienceId))throw new Error(`Unknown source experience ID: ${sourceExperienceId}.`);
+    if(seen.has(sourceExperienceId))throw new Error(`Duplicate source experience ID: ${sourceExperienceId}.`);
+    if(sourceExperienceId!==input.sourceResume.professionalExperience[index].id)throw new Error("Codex must preserve professional experiences in source order.");
+    seen.add(sourceExperienceId);
+    const tailoredDetails=boundedText(item.tailoredDetails,`professionalExperience[${index}].tailoredDetails`,1,12000);
+    if(REFUSAL.test(tailoredDetails))throw new Error(`Codex returned a refusal or placeholder for source experience ${sourceExperienceId}.`);
+    return{sourceExperienceId,tailoredDetails};
+  });
+  return{summary,professionalExperience,skills};
+}

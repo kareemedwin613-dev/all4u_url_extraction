@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migration=await readFile(new URL("../supabase/migrations/202609010110_v3_33_expanded_tailored_resume_templates.sql",import.meta.url),"utf8"),
-  renderer=await readFile(new URL("../apps/api/src/platform/tailored-resume.renderer.ts",import.meta.url),"utf8"),
+  renderer=await readFile(new URL("../apps/api/src/platform/tailored-resume-templates.ts",import.meta.url),"utf8"),
   dto=await readFile(new URL("../apps/api/src/platform/platform.dto.ts",import.meta.url),"utf8");
 const keys=[
   "CLASSIC_V1","MODERN_V1","COMPACT_V1","EXECUTIVE_V1","TECHNICAL_V1","MINIMAL_V1",

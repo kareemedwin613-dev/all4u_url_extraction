@@ -11,8 +11,15 @@ export function tailoringRoleTargets(input:TailoringInput,referenceDate=new Date
   });
 }
 
+export function tailoringModelContext(input:TailoringInput){
+  return{
+    jobDescription:{company:input.jobDescription.company,jobTitle:input.jobDescription.jobTitle,descriptionText:input.jobDescription.descriptionText,skills:input.jobDescription.skills},
+    sourceResume:{skills:input.sourceResume.skills,professionalExperience:input.sourceResume.professionalExperience.map(({id,company,title,location,startDate,endDate})=>({id,company,title,location,startDate,endDate}))},
+  };
+}
+
 export function buildTailoringPrompt(input:TailoringInput,referenceDate=new Date()){
-  const context=JSON.stringify(input);
+  const context=JSON.stringify(tailoringModelContext(input));
   const roleTargets=JSON.stringify(tailoringRoleTargets(input,referenceDate));
   return `Create a concise JD-tailored Resume preview in the required JSON schema.
 
@@ -21,19 +28,16 @@ SAFETY AND FORMAT
 - Return JSON only. Omit personal data and role metadata; the renderer copies them from the source.
 
 TAILORING
-1. Silently inventory distinct skills, responsibilities, and keywords from the full JD and Resume.
+1. Silently inventory distinct skills, responsibilities, and keywords from the full JD and candidate skill list.
 2. Rewrite the summary and bullets from scratch around realistic JD-aligned projects. Maximize natural coverage of exact JD keywords throughout the Resume; avoid stuffing and repetition.
 3. Follow ROLE_TARGETS_JSON exactly. For each sourceExperienceId, reconstruct the specified number of projects and return exactly the specified number of bullets.
 4. Start bullets with "- " and a strong action verb. Avoid repeated opening verbs. Include situation, technical design, collaboration, quantified impact, and outcome where useful.
-5. Build a comprehensive ATS Skills section with at most 80 unique items. Prioritize exact and repeated jobDescription.skills, then sourceResume.skills fundamentals, then role-relevant languages, runtimes, frameworks, libraries, APIs, data formats, databases, operating systems, cloud services, containers, IaC, version control, CI/CD, testing, security/observability, methodologies, standards, and domain keywords fundamental to the reconstructed projects.
-6. Group every skills item exactly once under the best nonempty category: Languages & Runtimes; AI / ML; Frameworks & Libraries; Cloud & DevOps; Data & Databases; APIs & Web; Architecture & Security; Testing & Quality; Tools & Delivery; Domain Knowledge; Additional Skills.
-7. Preserve exact JD spelling and acronyms, order required and repeated JD skills first, deduplicate case-insensitively, collapse aliases, and exclude company names, duties, and generic prose.
+5. Return at most 24 additional role-relevant technologies that are fundamental to the reconstructed projects but absent from jobDescription.skills and sourceResume.skills. Preserve exact spelling, deduplicate case-insensitively, and exclude company names, duties, and generic prose. The worker adds and groups all supplied JD and candidate skills deterministically.
 
 OUTPUT
 - summary: one concise JD-focused paragraph.
 - professionalExperience: exactly one item per source role, with the same sourceExperienceId and source order; tailoredDetails contains the bullets only.
-- skills: the prioritized flat list of at most 80 items; skillGroups: category objects with name and skills.
-- changeSummary, unsupportedRequirements, warnings: always [].
+- skills: only the additional technologies described above. Do not repeat supplied skills.
 
 ROLE_TARGETS_JSON
 ${roleTargets}

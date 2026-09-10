@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import{resolveTailoredResumeTemplate}from"./tailored-resume.renderer.js";
+import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
 import{resolveTailoredSkillGroups}from"./tailored-skill-groups.js";
 
 type JsonRecord=Record<string,any>;

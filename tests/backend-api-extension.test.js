@@ -22,24 +22,30 @@ test("extension API client sends bearer, request ID, and idempotency headers",as
   assert.match(request.options.headers["X-Request-ID"],/^ext_/);
 });
 
-test("extension JD service uses the current session and never writes the table directly",async()=>{
+test("extension JD service writes through the protected atomic Supabase RPC",async()=>{
   globalThis.chrome={runtime:{getManifest:()=>({version:"0.7.2"})}};
-  const client={auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})},from:()=>{throw new Error("Direct Supabase write attempted");}};
-  const originalFetch=globalThis.fetch;
-  globalThis.fetch=async(_url,options)=>{assert.equal(options.headers.Authorization,"Bearer session-token");return new Response(JSON.stringify({data:{id:"job",company:"Example",jobTitle:"Engineer",sourceUrl:"https://example.com/job",createdAt:"2026-07-27T00:00:00Z",duplicate:false,categoryId:"cat",subcategoryId:null,industryDomainCategoryId:null,seniority:"SENIOR",locationText:null,workArrangement:"REMOTE",clearanceRequirements:[],travelRequired:null,travelDetails:null,salaryMin:null,salaryMax:null,salaryCurrency:null,salaryPeriod:null,salaryText:null,sourceWebsite:"example.com",descriptionText:"x".repeat(100),detectedSkills:[],captureMethod:"dom",extractionConfidence:"high"},requestId:"req_1"}),{status:201,headers:{"content-type":"application/json"}});};
-  try { assert.equal((await createJob(client,"https://api.example.com",{sourceUrl:"https://example.com/job",sourceSite:"example.com",company:"Example",jobTitle:"Engineer",descriptionText:"x".repeat(100),categoryId:"cat",seniority:"SENIOR",workArrangement:"REMOTE",clearanceRequirements:[],detectedSkills:[],captureMethod:"dom",extractionConfidence:"high"})).id,"job"); }
-  finally { globalThis.fetch=originalFetch; delete globalThis.chrome; }
+  let call;
+  const client={
+    auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})},
+    rpc:async(name,args)=>{call={name,args};return{data:{row:{id:"job",company:"Example",job_title:"Engineer"},duplicate:false,duplicateReason:null},error:null};},
+    from:()=>{throw new Error("Direct table write attempted");},
+  };
+  try { assert.equal((await createJob(client,"https://api.example.com",{sourceUrl:"https://example.com/job",sourceSite:"example.com",company:"Example",jobTitle:"Engineer",descriptionText:"x".repeat(100),categoryId:"11111111-1111-4111-8111-111111111111",seniority:"SENIOR",workArrangement:"REMOTE",clearanceRequirements:[],detectedSkills:[],captureMethod:"dom",extractionConfidence:"high"})).id,"job"); }
+  finally { delete globalThis.chrome; }
+  assert.equal(call.name,"capture_job_description_v353");
+  assert.equal(call.args.p_record.job_title,"Engineer");
+  assert.equal(call.args.p_record.normalized_source_url,"https://example.com/job");
   const source=await readFile(new URL("../extension/services/job-service.js",import.meta.url),"utf8");
   assert.doesNotMatch(source,/\.from\(["']job_descriptions["']\)/);
-  assert.match(source,/\/api\/v1\/extension\/job-descriptions/);
+  assert.doesNotMatch(source,/apiRequest|\/api\/v1\/extension\/job-descriptions/);
+  assert.match(source,/\.rpc\("capture_job_description_v353"/);
 });
 
 test("extension JD service preserves the backend duplicate result instead of reporting a save",async()=>{
   globalThis.chrome={runtime:{getManifest:()=>({version:"1.9.0"})}};
-  const client={auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})}},originalFetch=globalThis.fetch;
-  globalThis.fetch=async()=>new Response(JSON.stringify({data:{id:"existing-job",company:"Example",jobTitle:"Engineer",sourceUrl:"https://example.com/job",createdAt:"2026-08-14T00:00:00Z",duplicate:true,duplicateReason:"SOURCE_URL"}}),{status:200,headers:{"content-type":"application/json"}});
+  const client={auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})},rpc:async()=>({data:{row:{id:"existing-job",company:"Example",job_title:"Engineer",source_url:"https://example.com/job",created_at:"2026-08-14T00:00:00Z"},duplicate:true,duplicateReason:"SOURCE_URL"},error:null})};
   try{const result=await createJob(client,"https://api.example.com",{sourceUrl:"https://example.com/job",company:"Example",jobTitle:"Engineer"});assert.equal(result.id,"existing-job");assert.equal(result.duplicate,true);assert.equal(result.duplicate_reason,"SOURCE_URL");}
-  finally{globalThis.fetch=originalFetch;delete globalThis.chrome;}
+  finally{delete globalThis.chrome;}
   const view=await readFile(new URL("../extension/sidepanel/views/CaptureView.jsx",import.meta.url),"utf8");
   assert.match(view,/if\(saved\.duplicate\)/);
   assert.match(view,/Not saved: this source URL already exists/);

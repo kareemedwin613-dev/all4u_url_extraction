@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TailoringInput, TailoringOutput, TailoringPreview } from "./types.js";
-import { buildTailoringPrompt } from "./prompt.js";
+import { buildTailoringPrompt, tailoringModelContext } from "./prompt.js";
 import{MAX_TAILORED_SKILLS,reconcileSkillGroups}from"./skill-groups.js";
-import { validateTailoringInput, validateTailoringOutput } from "./validation.js";
+import { validateTailoringInput, validateTailoringModelOutput } from "./validation.js";
 
 const moduleDirectory=dirname(fileURLToPath(import.meta.url));
 export const OUTPUT_SCHEMA_PATH=resolve(moduleDirectory,"../schemas/tailoring-output.schema.json");
@@ -103,16 +103,16 @@ export function completeAtsSkills(generatedSkills:string[],jobSkills:string[],so
 
 export async function runTailoringProof(rawInput:unknown,options:RunProofOptions):Promise<TailoringPreview>{
   const input=validateTailoringInput(rawInput),workspace=await mkdtemp(resolve(tmpdir(),"resume-tailoring-v12-"));
-  const schemaSource=resolve(options.schemaPath||OUTPUT_SCHEMA_PATH),schemaPath=resolve(workspace,"tailoring-output.schema.json"),resultPath=resolve(workspace,"codex-result.json"),prompt=buildTailoringPrompt(input),schema=specializeOutputSchema(JSON.parse(await readFile(schemaSource,"utf8")),input);
+  const schemaSource=resolve(options.schemaPath||OUTPUT_SCHEMA_PATH),schemaPath=resolve(workspace,"tailoring-output.schema.json"),resultPath=resolve(workspace,"codex-result.json"),prompt=buildTailoringPrompt(input),modelContext=tailoringModelContext(input),schema=specializeOutputSchema(JSON.parse(await readFile(schemaSource,"utf8")),input);
   try{
     await Promise.all([
-      writeFile(resolve(workspace,"input.json"),`${JSON.stringify(input,null,2)}\n`,"utf8"),
+      writeFile(resolve(workspace,"input.json"),`${JSON.stringify(modelContext)}\n`,"utf8"),
       writeFile(resolve(workspace,"prompt.md"),`${prompt}\n`,"utf8"),
       writeFile(schemaPath,`${JSON.stringify(schema,null,2)}\n`,"utf8")
     ]);
     await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
     const generatedAt=options.now?.()||new Date();
-    let result:TailoringOutput;try{result=validateTailoringOutput(JSON.parse(await readFile(resultPath,"utf8")),input,generatedAt);const skills=completeAtsSkills([...result.skills,...result.skillGroups.flatMap(group=>group.skills)],input.jobDescription.skills,input.sourceResume.skills);result={...result,skills,skillGroups:reconcileSkillGroups(skills,result.skillGroups)};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
+    let result:TailoringOutput;try{const generated=validateTailoringModelOutput(JSON.parse(await readFile(resultPath,"utf8")),input),skills=completeAtsSkills(generated.skills,input.jobDescription.skills,input.sourceResume.skills);result={...generated,skills,skillGroups:reconcileSkillGroups(skills),changeSummary:[],unsupportedRequirements:[],warnings:[]};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
     const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),result};
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;

@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import { formatDate, formatLabel } from "../shared/formatters.js";
 import { personDisplayName } from "../shared/person-name.js";
 import { listJobs } from "./job-read-service.js";
@@ -62,7 +61,8 @@ export async function fetchAllFilteredJobs(client, apiBaseUrl, filters = {}, { l
   return items.slice(0, total);
 }
 
-export function downloadJobsExcel(rows, { filename, now = new Date() } = {}) {
+export async function downloadJobsExcel(rows, { filename, now = new Date() } = {}) {
+  const XLSX = await import("xlsx");
   const sheet = XLSX.utils.aoa_to_sheet([JOB_EXPORT_HEADERS, ...rows]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Job Descriptions");

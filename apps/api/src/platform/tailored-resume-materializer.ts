@@ -1,7 +1,6 @@
 import{createHash}from"node:crypto";
 import{HttpStatus}from"@nestjs/common";
 import{ApiException}from"../common/errors/api.exception.js";
-import{renderTailoredResumePdf}from"./tailored-resume-pdf.renderer.js";
 
 type Phase="RENDER_FAILED"|"UPLOAD_FAILED"|"FINALIZE_FAILED";
 interface MaterializationCallbacks{
@@ -15,7 +14,7 @@ export async function materializeTailoredResumeArtifact(client:any,started:any,c
   try{
     if(started?.renderFormat!=="PDF")throw new ApiException("TAILORING_FORMAT_INVALID","Tailored Resumes can only be created as PDF files.",HttpStatus.BAD_GATEWAY);
     const mimeType="application/pdf";
-    const bytes=await renderTailoredResumePdf(started);
+    const{renderTailoredResumePdf}=await import("./tailored-resume-pdf.renderer.js"),bytes=await renderTailoredResumePdf(started);
     if(!bytes.length||bytes.length>5242880)throw new ApiException("TAILORING_ARTIFACT_INVALID","The rendered PDF must be between 1 byte and 5 MiB.",HttpStatus.BAD_GATEWAY);
     phase="UPLOAD_FAILED";
     await client.storage.from(started.targetBucket).remove([started.targetPath]);
