@@ -17,7 +17,10 @@ export async function createJob(client,_apiBaseUrl,job) {
   if(!normalizedSourceUrl)throw new AppError("VALIDATION_ERROR","The source URL must use HTTP or HTTPS.");
   const record={
     company:String(job.company||"").replace(/\s+/g," ").trim(),job_title:String(job.jobTitle||"").replace(/\s+/g," ").trim(),
-    category_id:job.categoryId,subcategory_id:job.subcategoryId||null,industry_domain_category_id:job.industryDomainCategoryId||null,
+    category_id:job.categoryId,
+    subcategory_id:job.subcategoryId||(Array.isArray(job.subcategoryIds)?job.subcategoryIds[0]:null)||null,
+    subcategory_ids:[...new Set([...(Array.isArray(job.subcategoryIds)?job.subcategoryIds:[]),job.subcategoryId].map((id)=>String(id||"").trim()).filter(Boolean))],
+    industry_domain_category_id:job.industryDomainCategoryId||null,
     seniority:job.seniority||"UNSPECIFIED",location_text:job.locationText||null,work_arrangement:job.workArrangement||"UNSPECIFIED",
     clearance_requirements:cleanArray(job.clearanceRequirements),travel_required:job.travelRequired??null,travel_details:job.travelDetails||null,
     salary_min:job.salaryMin??null,salary_max:job.salaryMax??null,salary_currency:job.salaryCurrency||null,salary_period:job.salaryPeriod||null,salary_text:job.salaryText||null,

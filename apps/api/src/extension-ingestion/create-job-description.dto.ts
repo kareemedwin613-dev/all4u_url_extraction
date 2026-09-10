@@ -14,6 +14,7 @@ export class CreateJobDescriptionDto {
   @Transform(trim) @IsString() @MinLength(100) @MaxLength(200000) descriptionText!: string;
   @IsUUID() categoryId!: string;
   @IsOptional() @IsUUID() subcategoryId?: string | null;
+  @IsOptional() @IsArray() @ArrayMaxSize(12) @IsUUID("4", { each: true }) subcategoryIds?: string[];
   @IsOptional() @IsUUID() industryDomainCategoryId?: string | null;
   @IsOptional() @IsEnum(SeniorityDto) seniority?: SeniorityDto;
   @Transform(nullableTrim) @IsOptional() @IsString() @MaxLength(300) locationText?: string | null;

@@ -7,34 +7,60 @@ import {
   JOB_EXPORT_PAGE_SIZE,
   fetchAllFilteredJobs,
   jobsToWorkbookRows,
+  parseJobSubcategoryImportRows,
 } from "../src/services/job-export-service.js";
 
-test("job export workbook rows use the locked column order", () => {
+test("job export workbook rows include Job ID and Subcategories", () => {
   assert.deepEqual(JOB_EXPORT_HEADERS, [
+    "Job ID",
     "Company Name",
-    "Role Name",
-    "Job Description URL",
-    "Founded By",
-    "Founded Date",
-    "Status",
+    "Job Title",
+    "Job Posting URL",
+    "Subcategories",
   ]);
-  const [row] = jobsToWorkbookRows([
+  const categories = {
+    byId: new Map([
+      ["sub-1", { id: "sub-1", name: "Backend Engineering" }],
+      ["sub-2", { id: "sub-2", name: "Python Engineering" }],
+    ]),
+  };
+  const [row] = jobsToWorkbookRows(
+    [
+      {
+        id: "b7653950-0156-48dc-a230-6450e0ac2048",
+        company: "Acme",
+        job_title: "Engineer",
+        source_url: "https://example.com/jobs/1",
+        subcategory_ids: ["sub-1", "sub-2"],
+      },
+    ],
+    categories,
+  );
+  assert.equal(row[0], "b7653950-0156-48dc-a230-6450e0ac2048");
+  assert.equal(row[1], "Acme");
+  assert.equal(row[2], "Engineer");
+  assert.equal(row[3], "https://example.com/jobs/1");
+  assert.equal(row[4], "Backend Engineering; Python Engineering");
+});
+
+test("parseJobSubcategoryImportRows maps Job ID and Subcategories", () => {
+  const updates = parseJobSubcategoryImportRows([
+    ["Job ID", "Company Name", "Job Title", "Job Posting URL", "Subcategories"],
+    [
+      "b7653950-0156-48dc-a230-6450e0ac2048",
+      "Acme",
+      "Engineer",
+      "https://example.com/jobs/1",
+      "Backend Engineering; Python Engineering",
+    ],
+    ["", "Skip", "Me", "", ""],
+  ]);
+  assert.deepEqual(updates, [
     {
-      company: "Acme",
-      job_title: "Engineer",
-      source_url: "https://example.com/jobs/1",
-      created_at: "2026-08-24T12:00:00.000Z",
-      review_status: "NEEDS_REVIEW",
-      user_id: "123e4567-e89b-42d3-a456-426614174000",
-      captured_by: { display_name: "Naira", email: "naira@example.com" },
+      jobDescriptionId: "b7653950-0156-48dc-a230-6450e0ac2048",
+      subcategories: "Backend Engineering; Python Engineering",
     },
   ]);
-  assert.equal(row[0], "Acme");
-  assert.equal(row[1], "Engineer");
-  assert.equal(row[2], "https://example.com/jobs/1");
-  assert.equal(row[3], "Naira");
-  assert.match(String(row[4]), /2026/);
-  assert.equal(row[5], "Needs Review");
 });
 
 test("fetchAllFilteredJobs pages through every matching result", async () => {
@@ -80,9 +106,11 @@ test("fetchAllFilteredJobs rejects exports above the soft cap", async () => {
   );
 });
 
-test("Jobs page wires Download Excel to the export helper", async () => {
+test("Jobs page wires Download Excel and Upload Subcategories Excel", async () => {
   const source = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   assert.match(source, /Download Excel/);
+  assert.match(source, /Upload Subcategories Excel/);
   assert.match(source, /exportFilteredJobsExcel/);
-  assert.match(source, /from "\.\/services\/job-export-service\.js"/);
+  assert.match(source, /readJobSubcategoryImportFile/);
+  assert.match(source, /importJobSubcategories/);
 });

@@ -62,3 +62,15 @@ export async function removeExpiredJobs(client,apiBaseUrl,{jobDescriptionIds}={}
 }
 export const updateOwnJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/correction`,method:"PATCH",body})).payload.data;
 export const updateManagedJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/manager-edit`,method:"PATCH",body})).payload.data;
+export async function importJobSubcategories(client,apiBaseUrl,updates){
+  const rows=[...((updates||[]))];
+  if(!rows.length)throw{code:"VALIDATION_ERROR",message:"The spreadsheet has no data rows.",retryable:false};
+  if(rows.length>2000)throw{code:"VALIDATION_ERROR",message:"Import at most 2000 rows at a time.",retryable:false};
+  return(await authenticatedApiRequest(client,{
+    baseUrl:apiBaseUrl,
+    path:"/api/v1/job-descriptions/bulk-subcategories",
+    method:"POST",
+    timeoutMs:120000,
+    body:{updates:rows},
+  })).payload.data;
+}

@@ -12,6 +12,7 @@ import { JobDescriptionReviewDto } from "./job-description-review.dto.js";
 import { BulkJobDescriptionReviewDto } from "./bulk-job-description-review.dto.js";
 import { BulkJobDescriptionDeleteDto } from "./bulk-job-description-delete.dto.js";
 import { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
+import { BulkJobSubcategoryImportDto } from "./bulk-job-subcategory-import.dto.js";
 
 const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "JD_FINDER", "ADMIN"] as const;
 
@@ -34,6 +35,14 @@ export class JobDescriptionReadController {
 
   @Get("capturers") @ApiOperation({ summary: "List users who captured accessible job descriptions" })
   async capturers(@Req() request: ApiRequest) { return { data: await this.jobs.capturers(request.user!), requestId: request.requestId }; }
+
+  @Post("bulk-subcategories") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Bulk set subcategories from an Excel review sheet" })
+  async bulkSubcategories(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobSubcategoryImportDto)) body: BulkJobSubcategoryImportDto) {
+    return {
+      data: await this.jobs.bulkSetSubcategories(request.user!, body.updates),
+      requestId: request.requestId,
+    };
+  }
 
   @Post("bulk-review") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Apply one review decision to many job descriptions" })
   async bulkReview(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobDescriptionReviewDto)) body: BulkJobDescriptionReviewDto) {

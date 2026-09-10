@@ -6,7 +6,7 @@ import type { JobCountQueryDto, JobDescriptionQueryDto, RecentJobsQueryDto } fro
 import type { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
 import { normalizeSourceUrl } from "../extension-ingestion/job-description.service.js";
 
-export const JOB_LIST_FIELDS = "id,user_id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,source_site,source_url,status,review_status,review_comment,review_decline_reason,reviewed_by,reviewed_at,created_at,updated_at,primary_category:categories!job_descriptions_category_id_fkey(name),industry_domain:industry_domain_categories!job_descriptions_industry_domain_category_fkey(name,slug),captured_by:user_profiles!job_descriptions_user_profile_fkey(display_name,email)";
+export const JOB_LIST_FIELDS = "id,user_id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,source_site,source_url,status,review_status,review_comment,review_decline_reason,reviewed_by,reviewed_at,created_at,updated_at,primary_category:categories!job_descriptions_category_id_fkey(name),industry_domain:industry_domain_categories!job_descriptions_industry_domain_category_fkey(name,slug),captured_by:user_profiles!job_descriptions_user_profile_fkey(display_name,email),job_description_subcategories(subcategory_id,sort_order)";
 export const JOB_DETAIL_FIELDS = `${JOB_LIST_FIELDS},description_text,detected_skills,clearance_requirements,travel_required,travel_details,salary_min,salary_max,salary_currency,salary_period,salary_text,capture_method,extraction_confidence,archived_at,archived_by,archive_reason`;
 const SORTS: Record<string, { column: string; ascending: boolean }> = {};
 for (const [key, column] of Object.entries({ company:"company", title:"job_title", category:"category_id", subcategory:"subcategory_id", seniority:"seniority", source:"source_url", capturer:"user_id", status:"status", review:"review_status", created:"created_at" })) {
@@ -14,12 +14,42 @@ for (const [key, column] of Object.entries({ company:"company", title:"job_title
   SORTS[`${key}_desc`] = { column, ascending: false };
 }
 
+function normalizeSubcategoryIds(job: any): string[] {
+  const rows = Array.isArray(job?.job_description_subcategories) ? job.job_description_subcategories : [];
+  const fromJunction = [...rows]
+    .sort((a, b) => Number(a?.sort_order || 0) - Number(b?.sort_order || 0))
+    .map((row) => String(row?.subcategory_id || "").trim())
+    .filter(Boolean);
+  if (fromJunction.length) return [...new Set(fromJunction)];
+  if (job?.subcategory_ids && Array.isArray(job.subcategory_ids)) {
+    return [...new Set(job.subcategory_ids.map((id: unknown) => String(id || "").trim()).filter(Boolean))];
+  }
+  if (job?.subcategory_id) return [String(job.subcategory_id)];
+  return [];
+}
+
 function normalizeJob(job: any) {
   if (!job) return job;
   const category = Array.isArray(job.primary_category) ? job.primary_category[0] : job.primary_category;
   const industry = Array.isArray(job.industry_domain) ? job.industry_domain[0] : job.industry_domain;
-  const { primary_category: _primaryCategory, ...rest } = job;
-  return { ...rest, category_name: category?.name || null, industry_domain: industry?.name || null };
+  const subcategoryIds = normalizeSubcategoryIds(job);
+  const { primary_category: _primaryCategory, job_description_subcategories: _subs, ...rest } = job;
+  return {
+    ...rest,
+    subcategory_id: subcategoryIds[0] || rest.subcategory_id || null,
+    subcategory_ids: subcategoryIds,
+    category_name: category?.name || null,
+    industry_domain: industry?.name || null,
+  };
+}
+
+function resolveCorrectionSubcategoryIds(input: JobDescriptionCorrectionDto): string[] {
+  const fromArray = Array.isArray(input.subcategoryIds)
+    ? input.subcategoryIds.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
+  if (fromArray.length) return [...new Set(fromArray)].slice(0, 12);
+  if (input.subcategoryId) return [String(input.subcategoryId)];
+  return [];
 }
 
 function applyCapturerNames(items: any[], capturers: Array<{ id: string; displayName: string; email: string }>) {
@@ -45,6 +75,7 @@ function databaseError(error: any, fallback: string): never {
   if (/JOB_DUPLICATE/i.test(raw)) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
   if (/JOB_NOT_FOUND/i.test(raw)) throw new ApiException("JOB_NOT_FOUND", "The job description was not found or is no longer accessible.", HttpStatus.NOT_FOUND);
   if (/JOB_HAS_APPLICATIONS/i.test(raw)) throw new ApiException("JOB_HAS_APPLICATIONS", raw.replace(/^JOB_HAS_APPLICATIONS:\s*/i, ""), HttpStatus.CONFLICT);
+  if (/JOB_EDIT_INVALID/i.test(raw)) throw new ApiException("JOB_EDIT_INVALID", raw.replace(/^JOB_EDIT_INVALID:\s*/i, "") || "Required job-description fields are invalid.", HttpStatus.BAD_REQUEST);
   if (/JOB_DELETE_INVALID/i.test(raw)) throw new ApiException("JOB_DELETE_INVALID", raw.replace(/^JOB_DELETE_INVALID:\s*/i, ""), HttpStatus.BAD_REQUEST);
   const known = raw.match(/^(JOB_REVIEW_[A-Z_]+):\s*(.+)$/i);
   if (known) throw new ApiException(known[1].toUpperCase(), known[2], HttpStatus.BAD_REQUEST);
@@ -124,6 +155,27 @@ export class JobDescriptionReadService {
     });
     if (error) databaseError(error, "The job-description review decision could not be saved.");
     return data;
+  }
+
+  async bulkSetSubcategories(user: AuthenticatedUser, updates: Array<{ jobDescriptionId: string; subcategoryIds?: string[]; subcategories?: string }>) {
+    const payload = (updates || []).map((row) => ({
+      jobDescriptionId: String(row.jobDescriptionId || "").trim(),
+      ...(Array.isArray(row.subcategoryIds) ? { subcategoryIds: row.subcategoryIds } : {}),
+      ...(row.subcategories != null ? { subcategories: String(row.subcategories) } : {}),
+    })).filter((row) => row.jobDescriptionId);
+    if (!payload.length) throw new ApiException("VALIDATION_ERROR", "The spreadsheet has no data rows.", HttpStatus.BAD_REQUEST);
+    if (payload.length > 2000) throw new ApiException("VALIDATION_ERROR", "Import at most 2000 rows at a time.", HttpStatus.BAD_REQUEST);
+    const { data, error } = await this.supabase.forUser(user.token).rpc("manager_bulk_set_job_subcategories_v371", {
+      p_updates: payload,
+    });
+    if (error) databaseError(error, "The subcategory import could not be saved.");
+    const body = data && typeof data === "object" ? data as any : {};
+    return {
+      total: Number(body.total) || payload.length,
+      succeeded: Number(body.succeeded) || 0,
+      failed: Number(body.failed) || 0,
+      results: Array.isArray(body.results) ? body.results : [],
+    };
   }
 
   async bulkReview(user: AuthenticatedUser, ids: string[], reviewStatus: string, declineReason?: string, comment?: string) {
@@ -237,12 +289,14 @@ export class JobDescriptionReadService {
   ) {
     if (input.salaryMin != null && input.salaryMax != null && input.salaryMax < input.salaryMin) throw new ApiException("VALIDATION_ERROR", "The request contains invalid fields.", HttpStatus.BAD_REQUEST, undefined, { salaryMax: ["Salary maximum must be at least the minimum."] });
     const sourceUrl = input.sourceUrl.trim(), normalizedUrl = normalizeSourceUrl(sourceUrl);
+    const subcategoryIds = resolveCorrectionSubcategoryIds(input);
     const { data, error } = await this.supabase.forUser(user.token).rpc(rpcName, {
       p_job_description_id: id,
       p_company: input.company,
       p_job_title: input.jobTitle,
       p_category_id: input.categoryId,
-      p_subcategory_id: input.subcategoryId || null,
+      p_subcategory_id: subcategoryIds[0] || null,
+      p_subcategory_ids: subcategoryIds,
       p_seniority: input.seniority || "UNSPECIFIED",
       p_location_text: input.locationText || null,
       p_work_arrangement: input.workArrangement || "UNSPECIFIED",
@@ -261,7 +315,7 @@ export class JobDescriptionReadService {
       p_salary_text: input.salaryText || null,
     });
     if (error) databaseError(error, "The job-description correction could not be saved.");
-    return data;
+    return normalizeJob(data);
   }
 
   async count(user: AuthenticatedUser, filters: JobCountQueryDto) {
