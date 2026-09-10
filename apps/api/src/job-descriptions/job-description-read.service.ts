@@ -22,7 +22,10 @@ function normalizeSubcategoryIds(job: any): string[] {
     .filter(Boolean);
   if (fromJunction.length) return [...new Set(fromJunction)];
   if (job?.subcategory_ids && Array.isArray(job.subcategory_ids)) {
-    return [...new Set(job.subcategory_ids.map((id: unknown) => String(id || "").trim()).filter(Boolean))];
+    const ids = (job.subcategory_ids as unknown[])
+      .map((id) => String(id || "").trim())
+      .filter((id): id is string => id.length > 0);
+    return [...new Set(ids)];
   }
   if (job?.subcategory_id) return [String(job.subcategory_id)];
   return [];
