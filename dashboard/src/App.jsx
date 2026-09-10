@@ -1,4 +1,6 @@
 import React, {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -61,7 +63,6 @@ import {
   removeResumeBannedCompany,
 } from "./services/resume-banned-companies-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
-import { ApplierProductivityPage } from "./features/overview/applier-productivity-page.jsx";
 import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
 import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
 import {
@@ -69,7 +70,6 @@ import {
 } from "./features/overview/overview-count-cards.jsx";
 import { getApplicationCounts, getApplierProfileWorkload } from "./features/applications/application-service.js";
 import { isApplicationManager } from "./features/applications/validation.js";
-import { ApplierProfileWorkloadPage } from "./features/overview/applier-profile-workload-page.jsx";
 import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, uploadResumeCoverLetter } from "./services/storage-read-service.js";
 import {
   getMyAccessContext,
@@ -116,32 +116,8 @@ import {
   ProfilePage,
   TechnicalOverview,
 } from "./pages/access-pages.jsx";
-import {
-  AdminRolesPage,
-  AdminUserDetailPage,
-  AdminUsersPage,
-} from "./pages/admin-pages.jsx";
 import { UserAvatar } from "./components/user-avatar.jsx";
-import { ApplierDetailPage } from "./features/appliers/applier-detail-page.jsx";
-import {
-  ApplicationDetailPage,
-  ApplicationsPage,
-  CreateApplicationPage,
-} from "./features/applications/application-pages.jsx";
-import {
-  ApplicationBatchDetailPage,
-  ApplicationBatchesPage,
-  BulkCreatePage,
-} from "./features/bulk-applications/bulk-pages.jsx";
 import { MAX_BULK_JDS, MAX_OPEN_JOB_URLS } from "./features/bulk-applications/bulk-state.js";
-import { ApplierDirectoryPage } from "./features/applications/applier-directory-page.jsx";
-import { AdminResumeUploadPage } from "./features/resume-upload/resume-upload-page.jsx";
-import { ApplierWorkloadsPage, AssignmentBatchDetailPage, AssignmentBatchesPage, BulkAssignmentWizardPage } from "./features/bulk-assignment/bulk-assignment-pages.jsx";
-import { StructuredResumeView } from "./features/resume-upload/structured-resume-view.jsx";
-import { CandidateProfilePage } from "./features/candidates/candidate-profile-page.jsx";
-import { ResumeAnswerLibrary } from "./features/resume-answers/resume-answer-library.jsx";
-import { TailoringQueuePage, TailoringReviewPage } from "./features/tailoring/tailoring-pages.jsx";
-import { TailoringBatchDetailPage, TailoringBatchesPage } from "./features/tailoring/tailoring-batch-pages.jsx";
 import {
   DataPagination,
   EllipsisCell,
@@ -157,6 +133,40 @@ import {
   TagList,
   categoryTagColor,
 } from "./components/ui.jsx";
+
+const lazyNamed = (loader, name) =>
+  lazy(() => loader().then((module) => ({ default: module[name] })));
+const ApplierProductivityPage = lazyNamed(
+  () => import("./features/overview/applier-productivity-page.jsx"),
+  "ApplierProductivityPage",
+);
+const ApplierProfileWorkloadPage = lazyNamed(
+  () => import("./features/overview/applier-profile-workload-page.jsx"),
+  "ApplierProfileWorkloadPage",
+);
+const AdminRolesPage = lazyNamed(() => import("./pages/admin-pages.jsx"), "AdminRolesPage");
+const AdminUserDetailPage = lazyNamed(() => import("./pages/admin-pages.jsx"), "AdminUserDetailPage");
+const AdminUsersPage = lazyNamed(() => import("./pages/admin-pages.jsx"), "AdminUsersPage");
+const ApplierDetailPage = lazyNamed(() => import("./features/appliers/applier-detail-page.jsx"), "ApplierDetailPage");
+const ApplicationDetailPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "ApplicationDetailPage");
+const ApplicationsPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "ApplicationsPage");
+const CreateApplicationPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "CreateApplicationPage");
+const ApplicationBatchDetailPage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "ApplicationBatchDetailPage");
+const ApplicationBatchesPage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "ApplicationBatchesPage");
+const BulkCreatePage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "BulkCreatePage");
+const ApplierDirectoryPage = lazyNamed(() => import("./features/applications/applier-directory-page.jsx"), "ApplierDirectoryPage");
+const AdminResumeUploadPage = lazyNamed(() => import("./features/resume-upload/resume-upload-page.jsx"), "AdminResumeUploadPage");
+const ApplierWorkloadsPage = lazyNamed(() => import("./features/bulk-assignment/bulk-assignment-pages.jsx"), "ApplierWorkloadsPage");
+const AssignmentBatchDetailPage = lazyNamed(() => import("./features/bulk-assignment/bulk-assignment-pages.jsx"), "AssignmentBatchDetailPage");
+const AssignmentBatchesPage = lazyNamed(() => import("./features/bulk-assignment/bulk-assignment-pages.jsx"), "AssignmentBatchesPage");
+const BulkAssignmentWizardPage = lazyNamed(() => import("./features/bulk-assignment/bulk-assignment-pages.jsx"), "BulkAssignmentWizardPage");
+const StructuredResumeView = lazyNamed(() => import("./features/resume-upload/structured-resume-view.jsx"), "StructuredResumeView");
+const CandidateProfilePage = lazyNamed(() => import("./features/candidates/candidate-profile-page.jsx"), "CandidateProfilePage");
+const ResumeAnswerLibrary = lazyNamed(() => import("./features/resume-answers/resume-answer-library.jsx"), "ResumeAnswerLibrary");
+const TailoringQueuePage = lazyNamed(() => import("./features/tailoring/tailoring-pages.jsx"), "TailoringQueuePage");
+const TailoringReviewPage = lazyNamed(() => import("./features/tailoring/tailoring-pages.jsx"), "TailoringReviewPage");
+const TailoringBatchDetailPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchDetailPage");
+const TailoringBatchesPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchesPage");
 
 const go = (hash, replace = false) =>
   replace ? location.replace(hash) : location.assign(hash);
@@ -3115,7 +3125,7 @@ export function App({ client, apiBaseUrl }) {
       apiBaseUrl={apiBaseUrl}
       headerExtra={route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} /> : null}
     >
-      {page}
+      <Suspense fallback={<Loading text="Loading workspace…" />}>{page}</Suspense>
     </Shell>
   );
 }

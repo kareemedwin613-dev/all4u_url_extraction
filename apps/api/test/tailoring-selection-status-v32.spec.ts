@@ -9,11 +9,11 @@ test("Application lists include the existing tailoring status and review job",as
   const calls:string[]=[];
   const service=new ApplicationService({forUser:()=>({rpc:async(name:string)=>{
     calls.push(name);
-    if(name==="list_applications_v07")return{data:{items:[{id:applicationId,status:"ASSIGNED"}],total:1},error:null};
-    return{data:[{applicationId,tailoringJobId:jobId,status:"APPROVED"}],error:null};
+    if(name==="list_applications_v360")return{data:{items:[{id:applicationId,status:"ASSIGNED",tailoring_status:"APPROVED",tailoring_job_id:jobId}],total:1},error:null};
+    return{data:null,error:{message:"Unexpected RPC"}};
   }})}as any);
   const result=await service.list(user,{page:1,pageSize:25});
-  assert.deepEqual(calls,["list_applications_v07","get_application_tailoring_statuses_v32"]);
+  assert.deepEqual(calls,["list_applications_v360"]);
   assert.equal(result.items[0].tailoring_status,"APPROVED");
   assert.equal(result.items[0].tailoring_job_id,jobId);
 });

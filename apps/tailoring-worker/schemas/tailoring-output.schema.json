@@ -1,16 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Resume tailoring output v1.2",
+  "title": "Resume tailoring generation output v1.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "summary",
     "professionalExperience",
-    "skills",
-    "skillGroups",
-    "changeSummary",
-    "unsupportedRequirements",
-    "warnings"
+    "skills"
   ],
   "properties": {
     "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
@@ -30,59 +26,9 @@
     },
     "skills": {
       "type": "array",
-      "description": "Prioritized ATS-readable list of up to 80 JD, candidate-fundamental, and project-essential skills.",
-      "maxItems": 80,
+      "description": "Additional project-essential technologies that are absent from the supplied JD and candidate skill lists.",
+      "maxItems": 24,
       "items": { "type": "string", "minLength": 1, "maxLength": 120 }
-    },
-    "skillGroups": {
-      "type": "array",
-      "description": "Non-empty upper-level presentation groups. Every flat skills item must appear in exactly one group.",
-      "minItems": 1,
-      "maxItems": 11,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "skills"],
-        "properties": {
-          "name": {
-            "type": "string",
-            "enum": [
-              "Languages & Runtimes",
-              "AI / ML",
-              "Frameworks & Libraries",
-              "Cloud & DevOps",
-              "Data & Databases",
-              "APIs & Web",
-              "Architecture & Security",
-              "Testing & Quality",
-              "Tools & Delivery",
-              "Domain Knowledge",
-              "Additional Skills"
-            ]
-          },
-          "skills": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 80,
-            "items": { "type": "string", "minLength": 1, "maxLength": 120 }
-          }
-        }
-      }
-    },
-    "changeSummary": {
-      "type": "array",
-      "maxItems": 100,
-      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
-    },
-    "unsupportedRequirements": {
-      "type": "array",
-      "maxItems": 100,
-      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
-    },
-    "warnings": {
-      "type": "array",
-      "maxItems": 100,
-      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
     }
   }
 }

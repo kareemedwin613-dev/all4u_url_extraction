@@ -20,7 +20,7 @@ function failure(error:any,fallback:string):never{
       size=q.pageSize||25,
       page=q.page||1,
       dueFilter=q.dueFilter==="TODAY"?"DUE_TODAY":(q.dueFilter||""),
-      data:any=await this.rpc(user,"list_applications_v07",{
+      data:any=await this.rpc(user,"list_applications_v360",{
         p_search:q.search||"",
         p_assigned_to:q.assignedTo||null,
         p_work_status:f.work,
@@ -38,13 +38,11 @@ function failure(error:any,fallback:string):never{
         p_offset:(page-1)*size,
       },"Applications could not be loaded."),
       rawItems:any[]=Array.isArray(data?.items)?data.items:[],
-      tailoringRows:any[]=rawItems.length?await this.rpc(user,"get_application_tailoring_statuses_v32",{p_application_ids:rawItems.map((row:any)=>row.id)},"Tailoring statuses could not be loaded."):[],
-      tailoringByApplication=new Map(tailoringRows.map((row:any)=>[String(row.applicationId||row.application_id),row])),
       total=Number(data?.total)||0,
       pageCount=total?Math.ceil(total/size):0,
       safePage=pageCount?Math.min(page,pageCount):1;
     return{
-      items:rawItems.map((x:any)=>{const tailoring=tailoringByApplication.get(String(x.id));return{...this.normalized(x),tailoring_status:tailoring?.status||null,tailoring_job_id:tailoring?.tailoringJobId||tailoring?.tailoring_job_id||null};}),
+      items:rawItems.map((x:any)=>this.normalized(x)),
       total,
       page:safePage,
       pageSize:size,
