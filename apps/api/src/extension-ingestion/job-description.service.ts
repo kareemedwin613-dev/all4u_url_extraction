@@ -87,12 +87,16 @@ export class JobDescriptionService {
     const { data, error } = await client.from("job_descriptions").insert(insertRow).select(FIELDS).single();
     if (!error) {
       if (subcategoryIds.length && data?.id) {
-        await client.rpc("replace_job_description_subcategories", {
-          p_job_description_id: data.id,
-          p_category_id: input.categoryId,
-          p_subcategory_ids: subcategoryIds,
-          p_enforce_se_required: false,
-        }).catch(() => null);
+        try {
+          await client.rpc("replace_job_description_subcategories", {
+            p_job_description_id: data.id,
+            p_category_id: input.categoryId,
+            p_subcategory_ids: subcategoryIds,
+            p_enforce_se_required: false,
+          });
+        } catch {
+          // Best-effort sync for the legacy insert path.
+        }
       }
       return this.completed({ ...data, subcategory_ids: subcategoryIds },false,null);
     }
