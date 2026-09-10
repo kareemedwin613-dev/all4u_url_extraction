@@ -32,6 +32,8 @@ test("retired Workspace mirroring is removed from capture and dropped by migrati
   assert.match(removal,/drop function if exists public\.begin_google_workspace_jd_sync/);
   assert.match(removal,/drop table if exists public\.job_description_workspace_syncs/);
   assert.doesNotMatch(`${module}${controller}${contract}${extension}`,/GoogleWorkspace|workspaceSync|workspace_sync/);
+  assert.match(extension,/client\.rpc\("capture_job_description_v353"/);
+  assert.doesNotMatch(extension,/apiRequest|\/api\/v1\/extension\/job-descriptions/);
 });
 
 test("tailoring pages use Realtime updates with a slow visibility-aware fallback",async()=>{

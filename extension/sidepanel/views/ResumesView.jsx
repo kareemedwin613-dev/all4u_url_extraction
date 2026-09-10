@@ -22,7 +22,6 @@ import {
   updateResumeMetadata,
   openResumeFile,
 } from "../../services/resume-service.js";
-import { parseResumeFile, sha256Hex } from "../../services/resume-parser.js";
 import { parseResumeSections } from "../../shared/structured-parsing.js";
 import { skillsFromResumeSection } from "../../shared/skill-detection.js";
 import { SENIORITY_VALUES } from "../../shared/seniority.js";
@@ -99,8 +98,11 @@ export function ResumesView({ client, backendBaseUrl, userId, categories, canWri
     setUploadFile(file);
     setUploadProgress("Reading file · Extracting text");
     try {
-      const buffer = await file.arrayBuffer();
-      const parsed = await parseResumeFile(file);
+      const [{ parseResumeFile, sha256Hex }, buffer] = await Promise.all([
+        import("../../services/resume-parser.js"),
+        file.arrayBuffer(),
+      ]);
+      const parsed = await parseResumeFile(file, buffer);
       const sections = parseResumeSections(parsed.text);
       uploadForm.setFieldsValue({
         resumeText: parsed.text,

@@ -512,6 +512,23 @@ export function ApplicationsPage({
         },
       },
       statusColumn,
+      {
+        title: "Tailoring Status",
+        dataIndex: "tailoring_status",
+        width: 170,
+        render: (value, record) =>
+          value ? (
+            record.tailoring_job_id ? (
+              <a href={`#/tailoring-jobs/${record.tailoring_job_id}`}>
+                <StatusTag value={value} />
+              </a>
+            ) : (
+              <StatusTag value={value} />
+            )
+          ) : (
+            <Text type="secondary">Not tailored</Text>
+          ),
+      },
       categoryColumn,
       screenshotColumn,
       {
@@ -672,7 +689,7 @@ export function ApplicationsPage({
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2386 : 2040,
+    applicationsScrollX = manager ? 2556 : 2040,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   function cancelSelected(){
@@ -893,6 +910,7 @@ export function ApplicationsPage({
                       onChange: setSelectedIds,
                       getCheckboxProps: (record) => ({
                         disabled:
+                          (selectionMode==="TAILOR"&&tailoringIsFinal(record)) ||
                           (selectionMode === "ASSIGN" &&
                             ["CANCELLED", "CLOSED", "COMPLETED"].includes(record.status)) ||
                           (selectionMode === "CANCEL" && record.status === "CANCELLED") ||
