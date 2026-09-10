@@ -1,4 +1,5 @@
-const CACHE_PREFIX="lookup-cache-v1:";
+const CACHE_PREFIX="lookup-cache-v2:";
+const LEGACY_CACHE_PREFIXES=["lookup-cache-v1:"];
 const FRESH_MS=30*60_000;
 const MAX_STALE_MS=24*60*60_000;
 const memory=new Map(),inFlight=new Map();
@@ -42,6 +43,8 @@ export async function loadCachedLookup(client,name,loader){
 export async function clearLookupCaches(storage=globalThis.chrome?.storage?.local){
   memory.clear();inFlight.clear();
   if(!storage)return;
-  const values=await storage.get(null),keys=Object.keys(values).filter(key=>key.startsWith(CACHE_PREFIX));
+  const values=await storage.get(null),keys=Object.keys(values).filter((key)=>
+    key.startsWith(CACHE_PREFIX)||LEGACY_CACHE_PREFIXES.some((prefix)=>key.startsWith(prefix))
+  );
   if(keys.length)await storage.remove(keys);
 }

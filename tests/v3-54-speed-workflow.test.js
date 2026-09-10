@@ -74,7 +74,7 @@ test("extension lookups can return a project-scoped persistent cache without a n
     remove:async(keys)=>{for(const key of Array.isArray(keys)?keys:[keys])delete values[key];},
   };
   globalThis.chrome={storage:{local:storage}};
-  const key="lookup-cache-v1:project.supabase.co:persisted-test";
+  const key="lookup-cache-v2:project.supabase.co:persisted-test";
   values[key]={storedAt:Date.now(),rows:[{id:"cached"}]};
   try{
     const rows=await loadCachedLookup({supabaseUrl:"https://project.supabase.co"},"persisted-test",async()=>{throw new Error("network should not run");});
