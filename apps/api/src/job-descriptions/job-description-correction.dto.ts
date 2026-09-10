@@ -12,6 +12,7 @@ export class JobDescriptionCorrectionDto {
   @Transform(trim) @IsString() @Length(1, 200) jobTitle!: string;
   @IsUUID() categoryId!: string;
   @IsOptional() @IsUUID() subcategoryId?: string | null;
+  @IsOptional() @IsArray() @ArrayMaxSize(12) @IsUUID("4", { each: true }) subcategoryIds?: string[];
   @IsOptional() @IsEnum(CorrectionSeniority) seniority?: CorrectionSeniority;
   @Transform(nullableTrim) @IsOptional() @IsString() @MaxLength(300) locationText?: string | null;
   @IsOptional() @IsEnum(CorrectionWorkArrangement) workArrangement?: CorrectionWorkArrangement;

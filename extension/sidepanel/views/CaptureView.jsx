@@ -88,7 +88,7 @@ const DEFAULT_VALUES = {
   company: "",
   jobTitle: "",
   jobCategory: undefined,
-  jobSubcategory: undefined,
+  jobSubcategories: [],
   industryDomain: "",
   jobSeniority: "UNSPECIFIED",
   jobLocation: "",
@@ -201,7 +201,8 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       company: (values.company || "").trim(),
       jobTitle: (values.jobTitle || "").trim(),
       categoryId: values.jobCategory,
-      subcategoryId: values.jobSubcategory || null,
+      subcategoryIds: [...new Set((values.jobSubcategories || []).filter(Boolean))],
+      subcategoryId: values.jobSubcategories?.[0] || null,
       industryDomainCategoryId: values.industryDomain || null,
       seniority: values.jobSeniority,
       locationText: (values.jobLocation || "").trim() || null,
@@ -294,7 +295,8 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       if (category && suggestion.confidence !== "low") {
         form.setFieldValue("jobCategory", category.id);
         const sub = categories.find((c) => c.parent_id === category.id && c.slug === suggestion.subcategorySlug);
-        if (sub) form.setFieldValue("jobSubcategory", sub.id);
+        if (sub) form.setFieldValue("jobSubcategories", [sub.id]);
+        else form.setFieldValue("jobSubcategories", []);
       }
       const nextActiveUrl = normalizeUrl(d.sourceUrl) || d.sourceUrl;
       setActiveUrl(nextActiveUrl);
@@ -503,14 +505,29 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
             <Select
               options={categoryOptions}
               placeholder="Select category"
-              onChange={() => form.setFieldValue("jobSubcategory", undefined)}
+              onChange={() => form.setFieldValue("jobSubcategories", [])}
             />
           </Form.Item>
           <Form.Item
-            label={<>Subcategory <Text type="secondary">(optional)</Text></>}
-            name="jobSubcategory"
+            label={
+              categories.find((c) => c.id === jobCategoryValue)?.slug === "software-engineering"
+                ? "Subcategories"
+                : <>Subcategories <Text type="secondary">(optional)</Text></>
+            }
+            name="jobSubcategories"
+            rules={
+              categories.find((c) => c.id === jobCategoryValue)?.slug === "software-engineering"
+                ? [{ type: "array", min: 1, message: "Select at least one Software Engineering subcategory." }]
+                : []
+            }
           >
-            <Select options={subcategoryOptions} placeholder="None" allowClear disabled={!jobCategoryValue} />
+            <Select
+              mode="multiple"
+              options={subcategoryOptions}
+              placeholder="Select subcategories"
+              allowClear
+              disabled={!jobCategoryValue}
+            />
           </Form.Item>
           <Form.Item label="Industry domain" name="industryDomain">
             <Select options={industryOptions} />

@@ -52,9 +52,9 @@ import { parseRoute } from "./router.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
-import { categoryName, formatResumeTechStacks, loadCategories, resumeTechStackRows } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, removeExpiredJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
-import { exportFilteredJobsExcel } from "./services/job-export-service.js";
+import { categoryName, formatJobSubcategories, formatResumeTechStacks, jobSubcategoryIds, loadCategories, resumeTechStackRows } from "./services/category-service.js";
+import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, importJobSubcategories, removeExpiredJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
+import { exportFilteredJobsExcel, readJobSubcategoryImportFile } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { updateResumeMetadata } from "./services/resume-metadata-service.js";
 import {
@@ -910,6 +910,8 @@ function Jobs({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [exportBusy, setExportBusy] = useState(false),
+    [importBusy, setImportBusy] = useState(false),
+    importInputRef = useRef(null),
     [capturers, setCapturers] = useState([]),
     [capturerError, setCapturerError] = useState(""),
     [reviewBusy, setReviewBusy] = useState(false),
@@ -1186,6 +1188,15 @@ function Jobs({
               ),
             },
             {
+              title: "Subcategory",
+              dataIndex: "subcategory_id",
+              sortKey: "subcategory",
+              width: 220,
+              render: (_value, job) => (
+                <EllipsisCell>{formatJobSubcategories(categories, job)}</EllipsisCell>
+              ),
+            },
+            {
               title: "Seniority",
               dataIndex: "seniority",
               sortKey: "seniority",
@@ -1326,12 +1337,38 @@ function Jobs({
   async function downloadExcel() {
     setExportBusy(true);
     try {
-      await exportFilteredJobsExcel(client, apiBaseUrl, filters);
+      await exportFilteredJobsExcel(client, apiBaseUrl, filters, { categories });
       toast("success", "Excel download started.");
     } catch (value) {
       toast("error", value.message || "Job Descriptions could not be exported.");
     } finally {
       setExportBusy(false);
+    }
+  }
+  async function uploadSubcategoryExcel(event) {
+    const file = event?.target?.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setImportBusy(true);
+    try {
+      const updates = await readJobSubcategoryImportFile(file);
+      const result = await importJobSubcategories(client, apiBaseUrl, updates);
+      const failed = Number(result?.failed) || 0;
+      const succeeded = Number(result?.succeeded) || 0;
+      if (failed) {
+        const firstError = (result?.results || []).find((row) => row && row.ok === false);
+        toast(
+          "warning",
+          `Updated ${succeeded} of ${result?.total || updates.length}. ${failed} failed${firstError?.message ? `: ${firstError.message}` : "."}`,
+        );
+      } else {
+        toast("success", `Updated subcategories on ${succeeded} Job Descriptions.`);
+      }
+      setListReload((value) => value + 1);
+    } catch (value) {
+      toast("error", value.message || "The subcategory spreadsheet could not be imported.");
+    } finally {
+      setImportBusy(false);
     }
   }
   return (
@@ -1340,11 +1377,29 @@ function Jobs({
         <Space wrap>
           <Button
             loading={exportBusy}
-            disabled={!data?.total || loading}
+            disabled={!data?.total || loading || importBusy}
             onClick={downloadExcel}
           >
             Download Excel
           </Button>
+          {canReview && (
+            <>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                style={{ display: "none" }}
+                onChange={uploadSubcategoryExcel}
+              />
+              <Button
+                loading={importBusy}
+                disabled={loading || exportBusy || reviewBusy || deleteBusy}
+                onClick={() => importInputRef.current?.click()}
+              >
+                Upload Subcategories Excel
+              </Button>
+            </>
+          )}
           {canSelect && (
             <>
               <Text>{selectedCount} selected</Text>
@@ -1946,9 +2001,7 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
               ["Primary Category", categoryName(categories, job.category_id)],
               [
                 "Subcategory",
-                job.subcategory_id
-                  ? categoryName(categories, job.subcategory_id)
-                  : "None",
+                formatJobSubcategories(categories, job),
               ],
               ["Industry Domain", formatLabel(job.industry_domain)],
               ["Seniority", formatLabel(job.seniority)],
@@ -2063,9 +2116,10 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     canEditJd = finderCanEdit || managerCanEdit;
   function openEdit() {
     const skills = Array.isArray(job.detected_skills) ? job.detected_skills.join(", ") : "";
+    const subcategoryIds = jobSubcategoryIds(job);
     editForm.setFieldsValue({
       company: job.company, jobTitle: job.job_title, categoryId: job.category_id,
-      subcategoryId: job.subcategory_id || undefined, seniority: job.seniority || "UNSPECIFIED",
+      subcategoryIds, seniority: job.seniority || "UNSPECIFIED",
       locationText: job.location_text || "", workArrangement: job.work_arrangement || "UNSPECIFIED",
       sourceUrl: job.source_url, descriptionText: job.description_text, detectedSkills: skills,
       salaryText: job.salary_text || "",
@@ -2077,9 +2131,11 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     try {
       const values = await editForm.validateFields();
       setEditBusy(true);
+      const subcategoryIds = [...new Set((values.subcategoryIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
       const payload = {
         ...values,
-        subcategoryId: values.subcategoryId || null,
+        subcategoryIds,
+        subcategoryId: subcategoryIds[0] || null,
         locationText: values.locationText || null,
         detectedSkills: cleanTags(String(values.detectedSkills || "").split(",")),
         clearanceRequirements: job.clearance_requirements || [],
@@ -2252,8 +2308,25 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Item name="company" label="Company" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
             <Col xs={24} md={12}><Form.Item name="jobTitle" label="Job Title" rules={[{ required: true }, { max: 200 }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="categoryId" label="Primary Category" rules={[{ required: true }]}><Select options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { setEditCategoryId(value); editForm.setFieldValue("subcategoryId", undefined); }} /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="subcategoryId" label="Subcategory (optional)"><Select allowClear options={(categories?.childrenByParent?.get(editCategoryId) || []).map((item) => ({ value: item.id, label: item.name }))} /></Form.Item></Col>
+            <Col xs={24} md={12}><Form.Item name="categoryId" label="Primary Category" rules={[{ required: true }]}><Select options={(categories?.primary || []).map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => { setEditCategoryId(value); editForm.setFieldValue("subcategoryIds", []); }} /></Form.Item></Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="subcategoryIds"
+                label={categories?.byId?.get(editCategoryId)?.slug === "software-engineering" ? "Subcategories" : "Subcategories (optional)"}
+                rules={
+                  categories?.byId?.get(editCategoryId)?.slug === "software-engineering"
+                    ? [{ type: "array", min: 1, message: "Select at least one Software Engineering subcategory." }]
+                    : []
+                }
+              >
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Select subcategories"
+                  options={(categories?.childrenByParent?.get(editCategoryId) || []).map((item) => ({ value: item.id, label: item.name }))}
+                />
+              </Form.Item>
+            </Col>
             <Col xs={24} md={12}><Form.Item name="seniority" label="Seniority"><Select options={SENIORITIES.map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
             <Col xs={24} md={12}><Form.Item name="workArrangement" label="Work Arrangement"><Select options={["REMOTE","HYBRID","ONSITE","UNSPECIFIED"].map((value) => ({ value, label: formatLabel(value) }))} /></Form.Item></Col>
             <Col xs={24} md={12}><Form.Item name="locationText" label="Location"><Input maxLength={300} /></Form.Item></Col>

@@ -1,6 +1,16 @@
 import {authenticatedApiRequest} from "./api-client.js";
 export async function loadCategories(client,apiBaseUrl){const {payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/lookups/categories"});const rows=payload.data||[],byId=new Map(rows.map(x=>[x.id,x])),bySlug=new Map(rows.map(x=>[x.slug,x])),primary=rows.filter(x=>!x.parent_id),childrenByParent=new Map();for(const row of rows.filter(x=>x.parent_id)){const list=childrenByParent.get(row.parent_id)||[];list.push(row);childrenByParent.set(row.parent_id,list);}return {byId,bySlug,primary,childrenByParent};}
 export const categoryName=(cache,id)=>cache?.byId.get(id)?.name||"Unknown category";
+export function jobSubcategoryIds(job={}){
+  const fromArray=Array.isArray(job.subcategory_ids)?job.subcategory_ids.map((id)=>String(id||"").trim()).filter(Boolean):[];
+  if(fromArray.length)return[...new Set(fromArray)];
+  return job.subcategory_id?[String(job.subcategory_id)]: [];
+}
+export function formatJobSubcategories(cache,job){
+  const ids=jobSubcategoryIds(job);
+  if(!ids.length)return"None";
+  return ids.map((id)=>categoryName(cache,id)).join(", ");
+}
 export function resumeTechStackRows(resume={}){
   if(Array.isArray(resume.tech_stacks)&&resume.tech_stacks.length)return resume.tech_stacks;
   return resume.primary_category_id?[{primary_category_id:resume.primary_category_id,subcategory_id:resume.subcategory_id||null}]:[];

@@ -22,12 +22,17 @@ export class JobDescriptionService {
   private completed(row:any,duplicate:boolean,duplicateReason:"SOURCE_URL"|"COMPANY_JOB_TITLE"|null){return{row,duplicate,duplicateReason};}
   async create(user: AuthenticatedUser, input: CreateJobDescriptionDto) {
     if (input.salaryMin != null && input.salaryMax != null && input.salaryMax < input.salaryMin) throw new ApiException("VALIDATION_ERROR", "The request contains invalid fields.", HttpStatus.BAD_REQUEST, undefined, { salaryMax: ["Salary maximum must be at least the minimum."] });
+    const subcategoryIds = [...new Set([
+      ...(Array.isArray(input.subcategoryIds) ? input.subcategoryIds : []),
+      ...(input.subcategoryId ? [input.subcategoryId] : []),
+    ].map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 12);
     const normalizedUrl = normalizeSourceUrl(input.sourceUrl), normalizedCompany = normalizeIdentityText(input.company), normalizedJobTitle = normalizeIdentityText(input.jobTitle), client = this.supabase.forUser(user.token), row = {
       user_id: user.id,
       company: normalizedCompany,
       job_title: normalizedJobTitle,
       category_id: input.categoryId,
-      subcategory_id: input.subcategoryId || null,
+      subcategory_id: subcategoryIds[0] || null,
+      subcategory_ids: subcategoryIds,
       industry_domain_category_id: input.industryDomainCategoryId || null,
       seniority: input.seniority || "UNSPECIFIED",
       location_text: input.locationText || null,
@@ -66,6 +71,7 @@ export class JobDescriptionService {
     }
     // Compatibility path for deployments where the API reaches production
     // before the v3.53 database migration.
+    const { subcategory_ids: _subIds, ...insertRow } = row as any;
     const urlMatch = await client.from("job_descriptions").select(FIELDS).eq("user_id", user.id).eq("normalized_source_url", normalizedUrl).limit(1).maybeSingle();
     if (urlMatch.error) {
       if (urlMatch.error.code === "42501" || /row-level security|permission denied/i.test(urlMatch.error.message)) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
@@ -78,8 +84,18 @@ export class JobDescriptionService {
       throw new ApiException("DATABASE_ERROR", "Duplicate checking could not be completed.", HttpStatus.BAD_GATEWAY);
     }
     if (identityMatch.data) return this.completed(identityMatch.data,true,"COMPANY_JOB_TITLE");
-    const { data, error } = await client.from("job_descriptions").insert(row).select(FIELDS).single();
-    if (!error) return this.completed(data,false,null);
+    const { data, error } = await client.from("job_descriptions").insert(insertRow).select(FIELDS).single();
+    if (!error) {
+      if (subcategoryIds.length && data?.id) {
+        await client.rpc("replace_job_description_subcategories", {
+          p_job_description_id: data.id,
+          p_category_id: input.categoryId,
+          p_subcategory_ids: subcategoryIds,
+          p_enforce_se_required: false,
+        }).catch(() => null);
+      }
+      return this.completed({ ...data, subcategory_ids: subcategoryIds },false,null);
+    }
     if (error.code === "23505") {
       const existing = await client.from("job_descriptions").select(FIELDS).eq("user_id", user.id).eq("normalized_source_url", normalizedUrl).maybeSingle();
       if (existing.error || !existing.data) throw new ApiException("DATABASE_ERROR", "The existing job description could not be loaded.", HttpStatus.BAD_GATEWAY);
