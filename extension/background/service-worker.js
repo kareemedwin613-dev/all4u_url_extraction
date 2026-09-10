@@ -4,7 +4,12 @@ import { normalizeUrl,hostnameFromUrl } from "../shared/normalization.js";
 import { apiRequest } from "../services/api-client.js";
 import { downloadResumeBytes,MemoryResumeStore } from "./resume-loader.js";
 import { sanitizeScreeningAnswers } from "../autofill/screening-field-adapter.js";
-chrome.runtime.onInstalled.addListener(()=>chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{}));
+import { clearLookupCaches } from "../services/lookup-cache.js";
+chrome.runtime.onInstalled.addListener(()=>{
+  chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{});
+  // Drop stale category/industry lookup caches so dropdowns pick up DB changes after extension updates.
+  clearLookupCaches().catch(()=>{});
+});
 const fail=(code,message,details="")=>({ok:false,error:{code,message,details}});
 const activeTab=async()=> (await chrome.tabs.query({active:true,lastFocusedWindow:true}))[0];
 const restricted=(url="")=>/^(chrome|edge|about|chrome-extension):/.test(url)||/^https:\/\/chromewebstore\.google\.com\//.test(url);

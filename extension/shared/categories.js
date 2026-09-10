@@ -1,6 +1,7 @@
 export const JOB_CATEGORIES = Object.freeze([
   "Data Engineering", "AI / Machine Learning", "Software Engineering", "Backend Engineering",
-  "Frontend Engineering", "Full Stack Engineering", "Data Analytics / BI", "Cloud / DevOps / SRE",
+  "Frontend Engineering", "Full Stack Engineering", "Python Engineering", "Ruby on Rails Engineering",
+  "Golang Engineering", "Full-Stack/AI Engineering", "Data Analytics / BI", "Cloud / DevOps / SRE",
   "Cybersecurity", "Database Engineering", "Financial / Business Analysis", "Product / Program Management",
   "Quality Assurance", "Other", "Uncategorized"
 ]);
@@ -17,6 +18,10 @@ const KEYWORDS = {
   "Backend Engineering": ["backend engineer", "api development", "microservices", "spring boot", "golang", "distributed systems", "server-side"],
   "Frontend Engineering": ["frontend engineer", "front-end engineer", "ui engineer", "web ui"],
   "Full Stack Engineering": ["full stack", "full-stack", "frontend and backend", "react", "angular", "vue", "typescript", "node.js"],
+  "Python Engineering": ["python engineer", "python developer", "django", "flask", "fastapi", "python backend"],
+  "Ruby on Rails Engineering": ["ruby on rails", "rails engineer", "rails developer", "ror"],
+  "Golang Engineering": ["golang", "go engineer", "go developer", "golang engineer"],
+  "Full-Stack/AI Engineering": ["full stack ai", "full-stack ai", "ai full stack", "llm engineer full stack", "generative ai full stack"],
   "Data Analytics / BI": ["data analyst", "business intelligence", "tableau", "power bi", "sigma", "dashboard", "reporting", "sql analyst"],
   "Cloud / DevOps / SRE": ["devops", "site reliability", "sre", "kubernetes", "terraform", "infrastructure as code", "ci/cd", "observability", "cloud engineer", "platform engineer"],
   Cybersecurity: ["cybersecurity", "security engineer", "information security", "soc analyst"],
@@ -63,15 +68,23 @@ export function suggestSubcategory(title = "", description = "", category = "") 
 }
 
 const CONTROLLED_CATEGORY_SLUGS = Object.freeze({
-  "Data Engineering":"data-engineering","AI / Machine Learning":"ai-machine-learning","Software Engineering":"software-engineering","Backend Engineering":"software-engineering","Frontend Engineering":"software-engineering","Full Stack Engineering":"software-engineering","Data Analytics / BI":"business-intelligence-analytics","Cloud / DevOps / SRE":"cloud-devops-reliability","Cybersecurity":"cybersecurity","Financial / Business Analysis":"business-project-roles"
+  "Data Engineering":"data-engineering","AI / Machine Learning":"ai-machine-learning","Software Engineering":"software-engineering","Backend Engineering":"software-engineering","Frontend Engineering":"software-engineering","Full Stack Engineering":"software-engineering","Python Engineering":"software-engineering","Ruby on Rails Engineering":"software-engineering","Golang Engineering":"software-engineering","Full-Stack/AI Engineering":"software-engineering","Data Analytics / BI":"business-intelligence-analytics","Cloud / DevOps / SRE":"cloud-devops-reliability","Cybersecurity":"cybersecurity","Financial / Business Analysis":"business-project-roles"
 });
-const CONTROLLED_SUBCATEGORY_SLUGS = Object.freeze({"Azure / Databricks":"databricks","Snowflake / dbt":"snowflake","AWS":"aws-data-engineering","Data Platform":"etl-data-warehousing","Cybersecurity":"security-engineering","Risk / Compliance":"governance-risk-compliance"});
+const CONTROLLED_SUBCATEGORY_SLUGS = Object.freeze({
+  "Azure / Databricks":"databricks","Snowflake / dbt":"snowflake","AWS":"aws-data-engineering","Data Platform":"etl-data-warehousing","Cybersecurity":"security-engineering","Risk / Compliance":"governance-risk-compliance",
+  "Backend Engineering":"backend-engineering","Frontend Engineering":"frontend-engineering","Full Stack Engineering":"full-stack-engineering",
+  "Python Engineering":"python-engineering","Ruby on Rails Engineering":"ruby-on-rails-engineering","Golang Engineering":"golang-engineering","Full-Stack/AI Engineering":"full-stack-ai-engineering"
+});
 export function suggestControlledCategory(title="",description="") {
   const category=suggestCategory(title,description),categorySlug=CONTROLLED_CATEGORY_SLUGS[category]||null;
   if(!categorySlug)return {categorySlug:null,subcategorySlug:null,confidence:"low",reasons:[]};
-  const subcategory=suggestSubcategory(title,description,category),subcategorySlug=CONTROLLED_SUBCATEGORY_SLUGS[subcategory]||null;
+  // Prefer tech-stack style subcategory when the controlled category itself maps to Software Engineering.
+  const subcategorySlugFromCategory=["Backend Engineering","Frontend Engineering","Full Stack Engineering","Python Engineering","Ruby on Rails Engineering","Golang Engineering","Full-Stack/AI Engineering"].includes(category)
+    ? CONTROLLED_SUBCATEGORY_SLUGS[category]||null
+    : null;
+  const subcategory=suggestSubcategory(title,description,category),subcategorySlug=subcategorySlugFromCategory||CONTROLLED_SUBCATEGORY_SLUGS[subcategory]||null;
   const titleMatched=suggestCategory(title,"")===category;
-  return {categorySlug,subcategorySlug,confidence:titleMatched?"high":"medium",reasons:[titleMatched?`job title indicates ${category}`:`description indicates ${category}`,...(subcategorySlug?[`description indicates ${subcategory}`]:[])]};
+  return {categorySlug,subcategorySlug,confidence:titleMatched?"high":"medium",reasons:[titleMatched?`job title indicates ${category}`:`description indicates ${category}`,...(subcategorySlug?[`description indicates ${subcategory||category}`]:[])]};
 }
 
 const SENIORITY_PATTERNS = [
