@@ -17,7 +17,8 @@ const jd="123e4567-e89b-42d3-a456-426614174000",resume="223e4567-e89b-42d3-a456-
 
 test("v0.7.4 DTOs bound IDs, pairs, cursors, and reject protected unknown fields",async()=>{
   assert.equal((await validate(plainToInstance(BulkPreviewDto,{jobDescriptionIds:[jd]}))).length,0);
-  assert.ok((await validate(plainToInstance(BulkPreviewDto,{jobDescriptionIds:Array(101).fill(jd)}))).length);
+  assert.equal((await validate(plainToInstance(BulkPreviewDto,{jobDescriptionIds:Array(1000).fill(jd)}))).length,0);
+  assert.ok((await validate(plainToInstance(BulkPreviewDto,{jobDescriptionIds:Array(1001).fill(jd)}))).length);
   assert.equal((await validate(plainToInstance(BulkCreateDto,{combinations:[{jobDescriptionId:jd,resumeId:resume}]}))).length,0);
   assert.ok((await validate(plainToInstance(BulkCreateDto,{combinations:[{jobDescriptionId:"bad",resumeId:resume}]}))).length);
   assert.ok((await validate(plainToInstance(BatchListQueryDto,{sort:"raw_sql"}))).length);

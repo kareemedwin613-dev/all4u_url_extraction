@@ -136,22 +136,47 @@ export interface JobDescriptionIngestionResponse extends RequestMetadata {
   data: JobDescriptionIngestionData;
 }
 
-export interface BulkPreviewRequest { jobDescriptionIds: string[]; }
+export type ApplicationMatchingMode = "SCORE" | "CATEGORY";
+export interface BulkPreviewRequest { jobDescriptionIds: string[]; resumeIds?: string[]; matchingMode?: ApplicationMatchingMode; }
+export type ApplicationMatchStatus = "NOT_ASSESSED" | "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "STALE" | "INSUFFICIENT_DATA" | "NOT_REQUIRED";
+export interface ResumeMatchEvaluation {
+  resumeId: string; resumeName: string; resumeNumber: number; assessmentId: string | null;
+  status: ApplicationMatchStatus; score: number | null; reason: string;
+  components: Record<string, { rating: number | null; reason?: string }>;
+  scoredAt: string | null; modelId: string | null; rubricVersion: string | null; extractorVersion: string | null;
+  isCurrent: boolean; errorCode: string | null;
+}
+export interface ApplicationMatchComparison {
+  applicationId: string; matchingMode: ApplicationMatchingMode | null; creationScore: number | null;
+  creationThreshold: number | null; creationReason: string | null;
+  original: ResumeMatchEvaluation | null; tailored: ResumeMatchEvaluation | null;
+  comparable: boolean; difference: number | null; matchingConfigured: boolean;
+}
+export type MatchDimension = "requiredSkills" | "preferredSkills" | "responsibilities" | "seniority" | "domain";
+export interface RequestApplicationMatches { combinations: BulkCreatePair[]; retryFailed?: boolean; }
+export interface RequestApplicationMatchesData { requestedCount: number; queuedCount: number; reusedOrSkippedCount: number; threshold: number; }
 export interface BulkCombination {
   key: string; jobDescriptionId: string; resumeId: string; company: string; jobTitle: string;
   jobCategoryId: string; jobCategoryName: string; candidateName: string; resumeName: string;
   resumeCategoryId: string; resumeCategoryName: string; eligible: boolean;
   existingApplicationId: string | null; exclusionCode: string | null; exclusionReason: string | null;
+  resumeType: "ORIGINAL"; resumeNumber: number; assessmentId: string | null;
+  matchStatus: ApplicationMatchStatus; matchScore: number | null; matchThreshold: number | null; matchingMode?: ApplicationMatchingMode;
+  matchSummary: string | null; matchBreakdown: Partial<Record<MatchDimension, number | null>> | null;
+  missingRequirements: string[] | null; matchErrorCode: string | null;
 }
 export interface InvalidJobDescription { jobDescriptionId: string; company: string; jobTitle: string; code: string; reason: string; }
 export interface BulkPreviewData {
   selectedJdCount: number; validJdCount: number; invalidJdCount: number; activeResumeCount: number;
   proposedCount: number; eligibleCount: number; duplicateCount: number; excludedCount: number;
   combinations: BulkCombination[]; invalidJds: InvalidJobDescription[];
+  totalCombinationCount: number; truncated: boolean; matchingConfigured: boolean; matchThreshold: number | null; matchingMode?: ApplicationMatchingMode;
+  belowThresholdCount: number; pendingCount: number;
+  resumeOptions: Array<{ resumeId: string; resumeNumber: number; candidateName: string; resumeName: string }>;
 }
 export interface BulkPreviewResponse extends RequestMetadata { data: BulkPreviewData; }
 export interface BulkCreatePair { jobDescriptionId: string; resumeId: string; }
-export interface BulkCreateRequest { batchName?: string; combinations: BulkCreatePair[]; }
+export interface BulkCreateRequest { batchName?: string; combinations: BulkCreatePair[]; matchingMode?: ApplicationMatchingMode; }
 export type BulkCreateOutcome = "CREATED" | "DUPLICATE" | "SKIPPED" | "FAILED";
 export interface BulkCreateRowResult {
   key: string; jobDescriptionId: string; resumeId: string; applicationId: string | null;
@@ -159,6 +184,7 @@ export interface BulkCreateRowResult {
   outcome: BulkCreateOutcome; errorCode: string | null; message: string;
 }
 export interface BulkCreateData {
+  matchingMode?: ApplicationMatchingMode;
   batchId: string; batchName: string; status: string; selectedJdCount: number; requestedCount: number;
   createdCount: number; duplicateCount: number; skippedCount: number; failedCount: number;
   replayed: boolean; results: BulkCreateRowResult[];

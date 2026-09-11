@@ -1,9 +1,12 @@
 import { Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from "class-validator";
 
 export class BulkPreviewDto {
+  @IsOptional() @IsIn(["SCORE", "CATEGORY"]) matchingMode?: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(1000) @IsUUID("4", { each: true })
   jobDescriptionIds!: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(1000) @IsUUID("4", { each: true })
+  resumeIds?: string[];
 }
 
 export class BulkCreatePairDto {
@@ -11,7 +14,14 @@ export class BulkCreatePairDto {
   @IsUUID("4") resumeId!: string;
 }
 
+export class RequestApplicationMatchesDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5000) @ValidateNested({ each: true }) @Type(() => BulkCreatePairDto)
+  combinations!: BulkCreatePairDto[];
+  @IsOptional() @IsBoolean() retryFailed = false;
+}
+
 export class BulkCreateDto {
+  @IsOptional() @IsIn(["SCORE", "CATEGORY"]) matchingMode?: string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5000) @ValidateNested({ each: true }) @Type(() => BulkCreatePairDto)
   combinations!: BulkCreatePairDto[];
   @IsOptional() @IsString() @MaxLength(120) batchName?: string;

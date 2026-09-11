@@ -28,8 +28,9 @@ export class MyApplicationQueryDto{
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)@Max(500)limit=100;
 }
 export class SearchOptionsQueryDto{@IsOptional()@IsString()@MaxLength(100)search="";}
-export class ResumeOptionsQueryDto extends SearchOptionsQueryDto{@IsUUID("4")jobDescriptionId!:string;}
+export class ResumeOptionsQueryDto extends SearchOptionsQueryDto{@IsUUID("4")jobDescriptionId!:string;@IsOptional()@IsIn(["SCORE","CATEGORY"])matchingMode?:string;}
 export class CreateApplicationDto{
+  @IsOptional()@IsIn(["SCORE","CATEGORY"])matchingMode?:string;
   @IsUUID("4")jobDescriptionId!:string;@IsUUID("4")resumeId!:string;
   @IsOptional()@IsUUID("4")assignedTo?:string;@IsIn(PRIORITIES)priority!:string;
   @IsOptional()@IsISO8601()dueAt?:string;@IsOptional()@IsString()@MaxLength(10000)notes?:string;

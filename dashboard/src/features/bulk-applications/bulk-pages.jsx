@@ -47,7 +47,12 @@ import {
   listApplicationBatchResults,
   listApplicationBatches,
   previewBulkApplications,
+  requestApplicationMatches,
+  revokeMatchingRunner,
 } from "./bulk-service.js";
+import { MatchScore, MatchingModeSelect, MatchingRunnerCommand } from "../application-matching/match-components.jsx";
+import { canRunMatch, categoryMatchingDescription, hasPendingMatches, reconcileMatchSelection } from "../application-matching/match-state.js";
+import { startMatchPreviewPolling, previewFailureMessage } from "../application-matching/preview-polling.js";
 import {
   BULK_PAGE_SIZES,
   bulkConfirmationCounts,
@@ -85,6 +90,7 @@ function PreviewSummary({ preview }) {
     ["Active Matching Resumes", preview.activeResumeCount],
     ["Proposed Applications", preview.proposedCount],
     ["Existing Duplicates", preview.duplicateCount],
+    ...(preview.matchingMode === "CATEGORY" ? [] : [["Below Threshold", preview.belowThresholdCount], ["Scoring In Progress", preview.pendingCount]]),
     ["Invalid Or Excluded", preview.excludedCount],
   ];
   return (
@@ -301,6 +307,8 @@ export function BulkCreatePage({
 }) {
   const { modal } = AntApp.useApp(),
     submitLock = useRef(false),
+    previewRef = useRef(null),
+    previewRequestRef = useRef(null),
     idempotencyAttempt = useRef({ key: "", fingerprint: "" }),
     [preview, setPreview] = useState(),
     [selected, setSelected] = useState(new Set()),
@@ -310,38 +318,70 @@ export function BulkCreatePage({
     [pageSize, setPageSize] = useState(25),
     [batchName, setBatchName] = useState(""),
     [error, setError] = useState(""),
+    [previewError, setPreviewError] = useState(""),
+    [previewRetry, setPreviewRetry] = useState(0),
     [loading, setLoading] = useState(false),
     [submitting, setSubmitting] = useState(false),
+    [scoring, setScoring] = useState(false),
+    [matchingRunner, setMatchingRunner] = useState(null),
+    [matchingMode, setMatchingMode] = useState("SCORE"),
+    [matchRefresh, setMatchRefresh] = useState(0),
+    [loadedScope, setLoadedScope] = useState(""),
     [result, setResult] = useState();
   const ids = useMemo(
     () => [...new Set(selectedJobIds || [])],
     [selectedJobIds],
   );
+  const previewScope = `${apiBaseUrl}|${matchingMode}|${ids.join("|")}`;
   useEffect(() => {
-    let live = true;
     if (!ids.length) return;
     setLoading(true);
-    setError("");
-    previewBulkApplications(client, apiBaseUrl, ids)
-      .then((value) => {
-        if (live) {
-          setPreview(value);
-          const resumeIds = [...new Set((value.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => row.resumeId))];
-          setSelectedResumeIds(resumeIds);
-          setSelected(defaultEligibleSelection({ ...value, combinations: (value.combinations || []).filter((row) => resumeIds.includes(row.resumeId)) }));
-        }
-      })
-      .catch((cause) => live && setError(cause.message))
-      .finally(() => live && setLoading(false));
-    return () => {
-      live = false;
-    };
-  }, [client, apiBaseUrl, ids.join("|")]);
+    setLoadedScope(""); setPreview(undefined); previewRef.current = null; setSelected(new Set());
+    setError(""); setPreviewError("");
+    return startMatchPreviewPolling({
+      load: () => previewBulkApplications(client, apiBaseUrl, ids, undefined, matchingMode),
+      shouldPoll: () => false,
+      onSuccess: (value) => {
+        setPreview(value);
+        previewRef.current = value;
+        const resumeIds = value.resumeOptions?.map(row => row.resumeId) || [...new Set((value.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => row.resumeId))];
+        previewRequestRef.current = { scope: previewScope, resumes: resumeIds.join("|"), refresh: matchRefresh };
+        setSelectedResumeIds(resumeIds);
+        setLoadedScope(previewScope);
+        setSelected(defaultEligibleSelection({ ...value, combinations: (value.combinations || []).filter((row) => resumeIds.includes(row.resumeId)) }));
+        setPreviewError(""); setLoading(false);
+      },
+      onError: (cause, retryDelayMs) => { setPreviewError(previewFailureMessage(cause, retryDelayMs)); setLoading(false); },
+    });
+  }, [client, apiBaseUrl, previewScope, previewRetry]);
+  useEffect(() => {
+    if (!loadedScope || loadedScope !== previewScope) return;
+    const request = { scope: previewScope, resumes: selectedResumeIds.join("|"), refresh: matchRefresh };
+    const previousRequest = previewRequestRef.current;
+    const current = previousRequest?.scope === request.scope && previousRequest.resumes === request.resumes && previousRequest.refresh === request.refresh;
+    const shouldPoll = value => matchingMode === "SCORE" && hasPendingMatches(value?.combinations || []);
+    // The initial response already contains all selected Resumes; don't fetch it twice.
+    if (current && !shouldPoll(previewRef.current)) return;
+    return startMatchPreviewPolling({
+      load: () => previewBulkApplications(client, apiBaseUrl, ids, selectedResumeIds, matchingMode),
+      initialDelay: current ? 5000 : 0,
+      shouldPoll,
+      onSuccess: (value) => {
+        const previous = previewRef.current?.combinations || [];
+        previewRef.current = value;
+        previewRequestRef.current = request;
+        setPreview(value);
+        setPreviewError("");
+        setSelected(current => reconcileMatchSelection(previous, value.combinations || [], current));
+      },
+      onError: (cause, retryDelayMs) => setPreviewError(previewFailureMessage(cause, retryDelayMs)),
+    });
+  }, [client, apiBaseUrl, previewScope, selectedResumeIds.join("|"), loadedScope, matchRefresh]);
   const scopedRows = useMemo(
       () => (preview?.combinations || []).filter((row) => selectedResumeIds.includes(row.resumeId) && row.resumeType === "ORIGINAL"),
       [preview, selectedResumeIds],
     ),
-    scopedPreview = useMemo(() => preview ? { ...preview, combinations: scopedRows, duplicateCount: scopedRows.filter((row) => !row.eligible).length } : preview, [preview, scopedRows]),
+    scopedPreview = useMemo(() => preview ? { ...preview, combinations: scopedRows, duplicateCount: scopedRows.filter((row) => row.exclusionCode === "EXISTING_APPLICATION").length } : preview, [preview, scopedRows]),
     filtered = useMemo(
       () => filterBulkCombinations(scopedRows, filters),
       [scopedRows, filters],
@@ -349,6 +389,22 @@ export function BulkCreatePage({
     visible = filtered.slice((page - 1) * pageSize, page * pageSize),
     counts = bulkConfirmationCounts(scopedPreview, selected);
   useEffect(() => setPage(1), [filters]);
+  const matchingScope = `${apiBaseUrl}|${ids.join(",")}|${selectedResumeIds.join(",")}|${matchingMode}`;
+  async function scoreSelected() {
+    if (matchingMode !== "SCORE" || loadedScope !== previewScope) return;
+    if (preview?.truncated) { setError("Choose fewer JDs or Resumes so all pairs fit within the 5000-pair scoring limit."); return; }
+    const pairs = scopedRows.filter(canRunMatch);
+    if (!pairs.length) return;
+    setScoring(true); setError("");
+    try { const value = await requestApplicationMatches(client, apiBaseUrl, pairs, true); setMatchingRunner(value.runner ? { ...value.runner, scope: matchingScope } : null); setMatchRefresh(value => value + 1); }
+    catch (cause) { setError(cause.message); }
+    finally { setScoring(false); }
+  }
+  async function revokeScoring() {
+    setScoring(true); setError("");
+    try { await revokeMatchingRunner(client, apiBaseUrl, matchingRunner.ticketId); setMatchingRunner(null); setMatchRefresh(value => value + 1); }
+    catch (cause) { setError(cause.message); } finally { setScoring(false); }
+  }
   if (result)
     return (
       <BulkResult
@@ -375,6 +431,8 @@ export function BulkCreatePage({
     );
   async function submit() {
     if (submitLock.current) return;
+    if (loadedScope !== previewScope) { setError("Wait for the selected matching method's preview."); return; }
+    if (preview?.truncated) { setError("Narrow the selection to 5000 pairs or fewer before creating Applications."); return; }
     const payload = creationPayload(scopedPreview, selected);
     if (!payload.length) {
       setError("Select at least one eligible combination.");
@@ -384,10 +442,10 @@ export function BulkCreatePage({
     setSubmitting(true);
     setError("");
     try {
-      const fingerprint = JSON.stringify({ payload, batchName: batchName.trim() });
+      const fingerprint = JSON.stringify({ payload, batchName: batchName.trim(), matchingMode });
       if (idempotencyAttempt.current.fingerprint !== fingerprint)
         idempotencyAttempt.current = { key: crypto.randomUUID(), fingerprint };
-      const created = await createBulkApplications(client, apiBaseUrl, payload, batchName, idempotencyAttempt.current.key);
+      const created = await createBulkApplications(client, apiBaseUrl, payload, batchName, idempotencyAttempt.current.key, matchingMode);
       idempotencyAttempt.current = { key: "", fingerprint: "" };
       setResult(created);
       onClearJobSelection();
@@ -399,6 +457,8 @@ export function BulkCreatePage({
     }
   }
   function confirm() {
+    if (loadedScope !== previewScope) return;
+    if (preview?.truncated) { setError("Narrow the selection to 5000 pairs or fewer before creating Applications."); return; }
     if (!counts.applicationCount) {
       setError("Select at least one eligible combination.");
       return;
@@ -408,6 +468,7 @@ export function BulkCreatePage({
       width: 560,
       content: (
         <div>
+          <p>Matching method: <strong>{matchingMode === "CATEGORY" ? "Category/subcategory — no AI evaluation" : "AI score"}</strong></p>
           <p>
             Selected JDs: <strong>{counts.selectedJdCount}</strong>
           </p>
@@ -441,6 +502,7 @@ export function BulkCreatePage({
     { title: "Candidate", dataIndex: "candidateName" },
     { title: "Resume", dataIndex: "resumeName" },
     { title: "Resume Category", dataIndex: "resumeCategoryName" },
+    { title: matchingMode === "CATEGORY" ? "Matching method" : "Match score", dataIndex: "matchScore", render: (_, row) => <MatchScore row={row} /> },
     {
       title: "Eligibility",
       dataIndex: "eligible",
@@ -464,6 +526,13 @@ export function BulkCreatePage({
         eyebrow="Review JD–Resume combinations"
         extra={<Button href="#/jobs">Back to Job Descriptions</Button>}
       />
+      <MatchingModeSelect value={matchingMode} disabled={submitting || scoring} onChange={value => {
+        setMatchingMode(value); setLoadedScope(""); setPreview(undefined); previewRef.current = null;
+        setSelected(new Set()); setSelectedResumeIds([]); setFilters(emptyFilters); setPage(1); setError(""); setPreviewError("");
+      }} />
+      {previewError && <Alert type="warning" showIcon message={previewError}
+        description={preview ? "The counts below are from the last successful preview and may be out of date." : undefined}
+        action={<Button size="small" onClick={() => loadedScope === previewScope ? setMatchRefresh(value => value + 1) : setPreviewRetry(value => value + 1)}>Refresh preview</Button>} />}
       {error && <Alert type="error" showIcon message={error} />}{" "}
       {loading ? (
         <LoadingState text="Generating secure bulk preview…" />
@@ -471,8 +540,11 @@ export function BulkCreatePage({
         preview && (
           <>
             <PreviewSummary preview={preview} />
+            <Alert type="info" showIcon message={matchingMode === "CATEGORY" ? categoryMatchingDescription : `Candidates must share a primary category with the JD. Only these pairs are scored; Application creation requires ${preview.matchThreshold ?? 70} or higher. Subcategories are ignored.`} style={{ marginTop: 12 }} />
+            {matchingMode === "SCORE" && !preview.matchingConfigured && <Alert type="warning" showIcon message="Set the scoring model in Supabase settings, then create a scoring command here. The runner uses the same API as tailoring; no private Supabase key is needed." />}
+            {preview.truncated && <Alert type="warning" showIcon message={`Showing 5000 of ${preview.totalCombinationCount} pairs. Narrow the JD or Resume selection before scoring or creating.`} />}
             <Card title="Select Resumes" style={{ marginTop: 16, marginBottom: 16 }}>
-              <Text type="secondary">Only active original Resumes are available. Choose the Resumes that should be paired with the selected Job Descriptions.</Text>
+              <Text type="secondary">{matchingMode === "CATEGORY" ? "Only active original Resumes matching the selected JDs under the previous category/subcategory rules are available. No AI score is required." : "Only active original Resumes sharing a primary category with at least one selected JD are available. Each Resume is paired only with JDs matching any of its primary categories."}</Text>
               <Select
                 mode="multiple"
                 allowClear
@@ -481,13 +553,18 @@ export function BulkCreatePage({
                 value={selectedResumeIds}
                 style={{ width: "100%", marginTop: 12 }}
                 placeholder="Select one or more original Resumes"
-                options={[...new Map((preview.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => [row.resumeId, { value: row.resumeId, label: `${row.candidateName} - ${row.resumeName}${row.resumeNumber ? ` #${row.resumeNumber}` : ""}` }])).values()]}
+                options={[...new Map((preview.resumeOptions || preview.combinations || []).map((row) => [row.resumeId, { value: row.resumeId, label: `${row.candidateName} - ${row.resumeName}${row.resumeNumber ? ` #${row.resumeNumber}` : ""}` }])).values()]}
                 onChange={(resumeIds) => {
                   setSelectedResumeIds(resumeIds);
                   const rows = (preview.combinations || []).filter((row) => resumeIds.includes(row.resumeId) && row.resumeType === "ORIGINAL");
                   setSelected(defaultEligibleSelection({ ...preview, combinations: rows }));
                 }}
               />
+              <Space style={{ marginTop: 12 }}>
+                {matchingMode === "SCORE" && <Button type="primary" loading={scoring} disabled={!preview.matchingConfigured || preview.truncated || !scopedRows.some(canRunMatch)} onClick={scoreSelected}>Create / resume scoring command</Button>}
+                <Button onClick={() => setMatchRefresh(value => value + 1)}>Refresh {matchingMode === "SCORE" ? "scores" : "eligibility"}</Button>
+              </Space>
+              {matchingMode === "SCORE" && matchingRunner?.scope === matchingScope && <MatchingRunnerCommand runner={matchingRunner} apiBaseUrl={apiBaseUrl} onRevoke={revokeScoring} busy={scoring} />}
               {!selectedResumeIds.length && <Alert type="warning" showIcon message="Select at least one original Resume to create Applications." style={{ marginTop: 12 }} />}
             </Card>
             <TabbedSections
@@ -631,7 +708,7 @@ export function BulkCreatePage({
                         </Form.Item>
                         <Button
                           type="primary"
-                          disabled={!selected.size || submitting}
+                          disabled={!selected.size || submitting || preview.truncated}
                           loading={submitting}
                           onClick={confirm}
                         >

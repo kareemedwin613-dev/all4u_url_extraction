@@ -6,6 +6,7 @@ export const mapBatch = (row: any) => ({
   status: row.status,
   creatorId: row.created_by,
   creatorName: row.creator_name || "Unknown user",
+  matchingMode: row.matching_mode || null,
   selectedJdCount: number(row.selected_jd_count),
   requestedCount: number(row.requested_combination_count),
   createdCount: number(row.created_application_count),
@@ -50,6 +51,7 @@ export const mapCreation = (value: any) => {
   }
   return {
     batchId: value.batchId,
+    matchingMode: value.matchingMode || "SCORE",
     batchName: value.batchName,
     status: value.status,
     selectedJdCount: number(value.selectedJdCount),

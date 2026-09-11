@@ -9,7 +9,7 @@ import type { ApiRequest } from "../common/types/request.js";
 import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
 import { ApplicationBatchesService } from "./application-batches.service.js";
 import { BulkApplicationBatchDeleteDto } from "./bulk-application-batch-delete.dto.js";
-import { BatchListQueryDto, BatchResultsQueryDto, BulkCreateDto, BulkPreviewDto } from "./application-batches.dto.js";
+import { BatchListQueryDto, BatchResultsQueryDto, BulkCreateDto, BulkPreviewDto, RequestApplicationMatchesDto } from "./application-batches.dto.js";
 
 const MANAGERS = ["APPLYING_MANAGER", "ADMIN"] as const;
 @ApiTags("Bulk Applications and batches") @ApiBearerAuth() @Controller() @UseGuards(AuthGuard, RolesGuard) @RequireRoles(...MANAGERS)
@@ -17,10 +17,21 @@ export class ApplicationBatchesController {
   constructor(@Inject(ApplicationBatchesService) private readonly service: ApplicationBatchesService) {}
   private response(request: ApiRequest, data: unknown, page?: unknown) { return { data, ...(page ? { page } : {}), requestId: request.requestId }; }
 
-  @Post("applications/bulk-preview") @Throttle({ default: { limit: 30, ttl: 300_000 } })
+  @Post("applications/bulk-preview") @Throttle({ default: { limit: 120, ttl: 300_000 } })
   @ApiOperation({ summary: "Preview eligible JD and active Resume combinations without writing data" })
   @ApiResponse({ status: 201, description: "Set-based preview" })
   async preview(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkPreviewDto)) body: BulkPreviewDto) { return this.response(request, await this.service.preview(request.user!, body, request.requestId)); }
+
+  @Post("application-matches") @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @ApiOperation({ summary: "Queue original Resume matches and issue a scoped runner command; model work runs outside this request" })
+  async requestMatches(@Req() request: ApiRequest, @Body(new DtoValidationPipe(RequestApplicationMatchesDto)) body: RequestApplicationMatchesDto) {
+    return this.response(request, await this.service.requestMatches(request.user!, body));
+  }
+
+  @Post("application-matches/runner-tickets/:id/revoke")
+  async revokeMatchTicket(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) {
+    return this.response(request, await this.service.revokeMatchTicket(request.user!, id));
+  }
 
   @Post("applications/bulk-create") @Throttle({ default: { limit: 10, ttl: 600_000 } })
   @ApiHeader({ name: "Idempotency-Key", required: true, description: "8â€“200 safe characters; reuse after an uncertain failure" })

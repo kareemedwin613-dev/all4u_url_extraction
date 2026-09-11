@@ -3,7 +3,7 @@ import {extname,join,relative,resolve} from "node:path";
 import {transform} from "esbuild";
 
 const root=resolve(".");
-const roots=["dashboard/src","dashboard/tests","extension","scripts","tests"];
+const roots=["dashboard/src","dashboard/tests","extension","scripts","tests","apps/matching-worker/src","apps/matching-worker/test"];
 const files=[];
 async function walk(path){for(const entry of await readdir(path,{withFileTypes:true})){if(entry.name==="dist"||entry.name==="node_modules")continue;const full=join(path,entry.name);if(entry.isDirectory())await walk(full);else if([".js",".jsx",".mjs"].includes(extname(entry.name)))files.push(full);}}
 for(const path of roots)await walk(resolve(path));

@@ -7,6 +7,8 @@ async function api(client,baseUrl,path,{method="GET",body,timeoutMs}={}){try{con
 const query=(values)=>{const p=new URLSearchParams();for(const[key,value]of Object.entries(values))if(value!==undefined&&value!==null&&value!=="")p.set(key,String(value));const text=p.toString();return text?`?${text}`:"";};
 export function listApplications(client,baseUrl,filters={}){return api(client,baseUrl,"/api/v1/applications"+query(filters));}
 export const getApplication=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}`);
+export const getApplicationMatchComparison=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/match-comparison`);
+export const requestApplicationMatchComparison=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/match-comparison`,{method:"POST",body:{}});
 export const getApplicationCounts=(client,baseUrl,dateRange)=>api(client,baseUrl,"/api/v1/applications/counts"+query(dateRange||{}));
 export const getApplierProfileWorkload=(client,baseUrl,dateRange)=>api(client,baseUrl,"/api/v1/applications/profile-workload"+query(dateRange||{}));
 export const getApplicationExtensionContext=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/extension-context`);
@@ -14,7 +16,7 @@ export const createApplicationExtensionSession=(client,baseUrl,id,action)=>api(c
 export const updateApplicationExtensionSession=(client,baseUrl,id,status,errorCode)=>api(client,baseUrl,`/api/v1/extension-sessions/${encodeURIComponent(id)}`,{method:"PATCH",body:{status,...(errorCode?{errorCode}:{})}});
 export const listActiveAppliers=(client,baseUrl,search="")=>api(client,baseUrl,"/api/v1/applications/appliers"+query({search}));
 export const listApplicationJobs=(client,baseUrl,search="")=>api(client,baseUrl,"/api/v1/applications/options/jobs"+query({search}));
-export const listApplicationResumes=(client,baseUrl,jobDescriptionId,search="")=>api(client,baseUrl,"/api/v1/applications/options/resumes"+query({jobDescriptionId,search}));
+export const listApplicationResumes=(client,baseUrl,jobDescriptionId,search="",matchingMode)=>api(client,baseUrl,"/api/v1/applications/options/resumes"+query({jobDescriptionId,search,matchingMode}));
 export async function createApplication(client,baseUrl,value){const check=validateApplicationCreate(value);if(!check.valid)throw {code:"VALIDATION_ERROR",message:Object.values(check.errors).join(" ")};return api(client,baseUrl,"/api/v1/applications",{method:"POST",body:{...value,assignedTo:value.assignedTo||undefined,dueAt:value.dueAt||undefined,notes:value.notes||undefined}});}
 export async function updateApplication(client,baseUrl,id,value){const check=validateApplicationProgress(value);if(!check.valid)throw {code:"VALIDATION_ERROR",message:Object.values(check.errors).join(" ")};return api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/progress`,{method:"PATCH",body:{...value,applicationUrl:value.applicationUrl||undefined,appliedAt:value.appliedAt||undefined,dueAt:value.dueAt||undefined}});}
 export const reassignApplication=(client,baseUrl,id,newAssigneeId,reason)=>api(client,baseUrl,`/api/v1/applications/${encodeURIComponent(id)}/assignment`,{method:"PATCH",body:{newAssigneeId:newAssigneeId||undefined,reason:reason||undefined}});
