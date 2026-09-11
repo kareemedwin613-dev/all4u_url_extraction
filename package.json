@@ -23,10 +23,12 @@
     "test:load": "node scripts/performance/loadtest.mjs",
     "proof:tailoring": "npm --prefix apps/tailoring-worker run proof --",
     "tailoring:run": "npm --prefix apps/tailoring-worker run run --",
+    "matching:run": "node --env-file-if-exists=apps/matching-worker/.env apps/matching-worker/src/cli.mjs",
+    "test:matching": "node --test apps/matching-worker/test/*.test.mjs",
     "lint": "node scripts/lint.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "security:check": "node scripts/security-check.mjs",
-    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:api && npm run test:tailoring && npm run build && npm run build:api && npm run build:tailoring && node scripts/validate-builds.mjs"
+    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:matching && npm run test:api && npm run test:tailoring && npm run build && npm run build:api && npm run build:tailoring && node scripts/validate-builds.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
@@ -40,6 +42,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@vitejs/plugin-react": "^5.2.0",
     "docx": "^9.5.1",
     "esbuild": "^0.25.6",

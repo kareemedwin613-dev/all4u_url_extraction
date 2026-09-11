@@ -1,7 +1,7 @@
 import { Injectable, LoggerService } from "@nestjs/common";
 import { environment } from "../../config/environment.js";
 
-const REDACTED_KEYS = /authorization|token|password|secret|key/i;
+const REDACTED_KEYS = /authorization|token|ticket|password|secret|key/i;
 function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact);
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, REDACTED_KEYS.test(key) ? "[REDACTED]" : redact(item)]));

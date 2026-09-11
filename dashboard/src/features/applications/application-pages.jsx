@@ -88,9 +88,12 @@ import {
   updateApplication,
 } from "./application-service.js";
 import { ApplicationScreenshotsCard } from "./application-screenshots-card.jsx";
+import { ApplicationMatchPanel, MatchingModeSelect } from "../application-matching/match-components.jsx";
+import { categoryMatchingDescription } from "../application-matching/match-state.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
 import { createTailoringBatch,requestApplicationTailoring } from "../tailoring/tailoring-service.js";
+import { ApplicationScoreComparison } from "../application-matching/application-score-comparison.jsx";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -939,10 +942,14 @@ export function ApplicationsPage({
 }
 
 export function CreateApplicationPage({ client, apiBaseUrl }) {
+  const [form] = Form.useForm();
   const [jobs, setJobs] = useState([]),
     [resumes, setResumes] = useState([]),
     [appliers, setAppliers] = useState([]),
     [jobId, setJobId] = useState(""),
+    [resumeId, setResumeId] = useState(""),
+    [matchEligible, setMatchEligible] = useState(false),
+    [matchingMode, setMatchingMode] = useState("SCORE"),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -965,19 +972,22 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
       setResumes([]);
       return;
     }
-    listApplicationResumes(client, apiBaseUrl, jobId)
+    setResumes([]);
+    listApplicationResumes(client, apiBaseUrl, jobId, "", matchingMode)
       .then((x) => live && setResumes(x))
       .catch((x) => live && setMessage(x.message));
     return () => {
       live = false;
     };
-  }, [client, apiBaseUrl, jobId]);
+  }, [client, apiBaseUrl, jobId, matchingMode]);
   async function submit(raw) {
+    if (!matchEligible) { setMessage("The pair must be eligible under the selected matching method."); return; }
     setMessage("");
     setBusy(true);
     try {
       const created = await createApplication(client, apiBaseUrl, {
         ...raw,
+        matchingMode,
         dueAt: fromLocal(raw.dueAt),
       });
       go(`#/applications/${created.id}`);
@@ -997,12 +1007,17 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
       </Title>
       <Text>
         Create one Application by pairing one job description with one active
-        resume. Category ordering is informational and does not perform
-        matching.
+        original resume. Choose AI scoring or the previous category/subcategory rules.
       </Text>
       <Notice message={message} error />
       <Card>
+        <MatchingModeSelect value={matchingMode} disabled={busy} onChange={value => {
+          setMatchingMode(value); setResumeId(""); setResumes([]); setMatchEligible(false); setMessage(""); form.setFieldValue("resumeId", undefined);
+        }} />
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message={matchingMode === "CATEGORY" ? categoryMatchingDescription
+          : "Candidates must share a primary category. A completed AI score of 70 or higher (or the configured threshold) is required; subcategories are ignored."} />
         <Form
+          form={form}
           layout="vertical"
           initialValues={{ priority: "NORMAL", assignedTo: "" }}
           onFinish={submit}
@@ -1015,7 +1030,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
             <Select
               showSearch
               optionFilterProp="label"
-              onChange={setJobId}
+              onChange={value => { setJobId(value); setResumeId(""); setMatchEligible(false); form.setFieldValue("resumeId", undefined); }}
               options={jobs.map((x) => ({
                 value: x.id,
                 label: `${x.company} - ${x.job_title}${x.status !== "ACTIVE" ? ` (${formatLabel(x.status)})` : ""}`,
@@ -1029,12 +1044,14 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
           >
             <Select
               disabled={!jobId}
+              onChange={value => { setResumeId(value); setMatchEligible(false); }}
               options={resumes.map((x) => ({
                 value: x.id,
                 label: `${x.same_category ? "Same category - " : ""}${x.candidate_name} - ${x.resume_name}${x.resume_number ? ` #${x.resume_number}` : ""}`,
               }))}
             />
           </Form.Item>
+          <ApplicationMatchPanel client={client} apiBaseUrl={apiBaseUrl} jobId={jobId} resumeId={resumeId} matchingMode={matchingMode} onEligibilityChange={setMatchEligible} />
           <Form.Item label="Assigned Applier (optional)" name="assignedTo">
             <Select
               options={[
@@ -1061,7 +1078,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
             <Input.TextArea maxLength={10000} rows={5} showCount />
           </Form.Item>
           <Space>
-            <Button type="primary" htmlType="submit" loading={busy}>
+            <Button type="primary" htmlType="submit" loading={busy} disabled={!matchEligible}>
               Create Application
             </Button>
             <Button href="#/applications">Cancel</Button>
@@ -1365,6 +1382,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     ]}
                   />
                 </Card>
+                <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={manager} />
                 <ApplicationScreenshotsCard
                   client={client}
                   apiBaseUrl={apiBaseUrl}

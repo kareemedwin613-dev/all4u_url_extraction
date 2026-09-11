@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { loadFixture, runTailoringProof } from "./codex-runner.js";
 import { claimTailoringBatchTicket, claimTailoringRunnerTicket, loadTailoringJobInput, nextTailoringBatchItem, reportTailoringBatchFailure, reportTailoringRunnerFailure, submitTailoringBatchPreview, submitTailoringJobPreview, submitTailoringRunnerPreview } from "./api-client.js";
 import { tailoringBatchConcurrency } from "./concurrency.js";
+import { scoreMaterializedResume } from "./score-comparison.js";
 
 export function isRateLimitFailure(value:unknown){return /(?:\b429\b|rate[ -]?limit|usage limit|too many requests|quota[^.\n]*(?:exceed|reset)|capacity[^.\n]*(?:reached|exceeded))/i.test(value instanceof Error?value.message:String(value));}
 export function retryDelaySeconds(value:unknown,attempt=1){const text=value instanceof Error?value.message:String(value),match=text.match(/retry(?: after| in)?[^\d]{0,20}(\d{1,4})\s*(?:s|sec|seconds?)\b/i),fallback=60*Math.pow(2,Math.max(0,attempt-1));return Math.max(30,Math.min(900,Number(match?.[1]||fallback)));}
@@ -21,6 +22,7 @@ async function runBatch(apiBaseUrl:string,ticket:string,args:Record<string,strin
       const preview=await runTailoringProof(next.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});stage="API_SUBMISSION";
       const created:any=await submitTailoringBatchPreview(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
       process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
+      await scoreMaterializedResume(created,apiBaseUrl,invocationDirectory);
     }catch(error){
       const message=error instanceof Error?error.message:String(error),rateLimited=isRateLimitFailure(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED",retryAfterSeconds=rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined;
       if(retryAfterSeconds)providerPauseUntil=Math.max(providerPauseUntil,Date.now()+retryAfterSeconds*1000);
@@ -92,6 +94,7 @@ async function main(){
         const preview=await runTailoringProof(claim.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});phase="SUBMIT";
         const created:any=await submitTailoringRunnerPreview(apiBaseUrl,ticket,preview);completed++;
         process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
+        await scoreMaterializedResume(created,apiBaseUrl,invocationDirectory);
       }catch(error){const message=error instanceof Error?error.message:String(error),code=phase==="GENERATE"?(message.startsWith("TAILORING_VALIDATION_FAILED:")?"VALIDATION_FAILED":"CODEX_FAILED"):phase==="SUBMIT"?"API_SUBMISSION_FAILED":"WORKER_FAILED";await reportTailoringRunnerFailure(apiBaseUrl,ticket,code).catch(()=>undefined);failures.push(`${activeJobId}: ${message}`);process.stderr.write(`Tailoring job ${activeJobId} failed: ${message}\n`);}
     }
     process.stdout.write(`Bulk tailoring finished: ${completed} completed, ${failures.length} failed.\n`);if(failures.length)throw new Error(`Bulk tailoring completed with failures (${failures.length}/${tickets.length}).`);return;
@@ -103,6 +106,7 @@ async function main(){
     const input=fixtureMode?await loadFixture(resolve(invocationDirectory,fixture),applicationId):await loadTailoringJobInput(apiBaseUrl,accessToken,jobId);
     const preview=await runTailoringProof(input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});
     const created:any=apiMode?await submitTailoringJobPreview(apiBaseUrl,accessToken,jobId,preview):null;
+    if(apiMode)await scoreMaterializedResume(created,apiBaseUrl,invocationDirectory);
     process.stdout.write(fixtureMode?`Tailoring preview created for Application #${preview.applicationNumber} from Resume #${preview.sourceResumeNumber}: ${outputPath}\n`:`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
   }catch(error){
     throw error;

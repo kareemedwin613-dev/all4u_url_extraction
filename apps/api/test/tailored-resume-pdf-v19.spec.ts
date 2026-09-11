@@ -25,7 +25,7 @@ test("v1.9 PDF materialization stays caller-scoped and finalizes once",async()=>
   const calls:any[]=[],uploads:any[]=[],started={...input,alreadyMaterialized:false,jobId:"423e4567-e89b-42d3-a456-426614174000",materializationToken:"523e4567-e89b-42d3-a456-426614174000",targetBucket:"tailored-resumes",targetPath:"owner/job/resume.pdf",filename:"resume.pdf",renderFormat:"PDF"};
   const service=new TailoringService({forUser:(token:string)=>{assert.equal(token,"jwt");return{rpc:async(name:string,args:any)=>{calls.push({name,args});return{data:name==="begin_tailoring_materialization_v19"?started:{status:"COMPLETED",renderFormat:"PDF"},error:null};},storage:{from:(bucket:string)=>({remove:async()=>({data:[],error:null}),upload:async(path:string,bytes:Buffer,options:any)=>{uploads.push({bucket,path,bytes,options});return{data:{path},error:null};}})}};}}as any);
   await service.materialize({id:"actor",token:"jwt",claims:{}},started.jobId);
-  assert.deepEqual(calls.map(item=>item.name),["begin_tailoring_materialization_v19","finalize_tailoring_materialization_v19"]);
+  assert.deepEqual(calls.map(item=>item.name),["begin_tailoring_materialization_v19","finalize_tailoring_materialization_v379"]);
   assert.equal(uploads[0].bytes.subarray(0,5).toString(),"%PDF-");
   assert.equal(uploads[0].options.contentType,"application/pdf");
   assert.equal(calls[1].args.p_mime_type,"application/pdf");
