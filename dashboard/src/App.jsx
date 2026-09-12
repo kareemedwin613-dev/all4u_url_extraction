@@ -49,6 +49,8 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
+import { bulkDraftHref } from "./features/bulk-applications/bulk-drafts.js";
+import { useBulkDrafts } from "./features/bulk-applications/use-bulk-drafts.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
 import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
@@ -153,7 +155,7 @@ const ApplicationsPage = lazyNamed(() => import("./features/applications/applica
 const CreateApplicationPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "CreateApplicationPage");
 const ApplicationBatchDetailPage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "ApplicationBatchDetailPage");
 const ApplicationBatchesPage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "ApplicationBatchesPage");
-const BulkCreatePage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "BulkCreatePage");
+const BulkCreatePage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "BulkCreateWorkspace");
 const ApplierDirectoryPage = lazyNamed(() => import("./features/applications/applier-directory-page.jsx"), "ApplierDirectoryPage");
 const AdminResumeUploadPage = lazyNamed(() => import("./features/resume-upload/resume-upload-page.jsx"), "AdminResumeUploadPage");
 const ApplierWorkloadsPage = lazyNamed(() => import("./features/bulk-assignment/bulk-assignment-pages.jsx"), "ApplierWorkloadsPage");
@@ -902,6 +904,7 @@ function Jobs({
   access,
   selectedJobIds,
   onSelectedJobIdsChange,
+  onStartBulkCreation,
 }) {
   const { message } = AntApp.useApp(),
     toast = (type, content) => toastFromApp(message, type, content),
@@ -1441,7 +1444,7 @@ function Jobs({
                   ? "Remove Needs Review Job Descriptions from the selection before creating Applications."
                   : undefined
               }
-              onClick={() => go("#/applications/bulk-create")}
+              onClick={onStartBulkCreation}
             >
               Create Applications
             </Button>
@@ -2751,6 +2754,14 @@ export function App({ client, apiBaseUrl }) {
     jobsBack = useRef("#/jobs"),
     resumesBack = useRef("#/resumes"),
     overviewDateRange = useMemo(() => overviewDateBounds(overviewPeriod), [overviewPeriod]);
+  const bulkDrafts = useBulkDrafts(session?.user?.id, apiBaseUrl);
+  const startBulkCreation = useCallback(() => {
+    const draft = bulkDrafts.store.create(selectedBulkJobIds);
+    if (!draft) return;
+    setSelectedBulkJobIds([]);
+    go(bulkDraftHref(draft.id));
+  }, [bulkDrafts.store, selectedBulkJobIds]);
+  useEffect(() => setSelectedBulkJobIds([]), [session?.user?.id, apiBaseUrl]);
   const reloadAccess = useCallback(async () => {
     if (!session || passwordRecovery) return;
     setAccessError(null);
@@ -2969,8 +2980,13 @@ export function App({ client, apiBaseUrl }) {
   else if (route.name === "application-bulk-create")
     page = (
       <BulkCreatePage
+        key={`${session.user.id}|${apiBaseUrl}|${route.query}`}
         client={client}
         apiBaseUrl={apiBaseUrl}
+        query={route.query}
+        draftStore={bulkDrafts.store}
+        drafts={bulkDrafts.drafts}
+        storageError={bulkDrafts.storageError}
         selectedJobIds={selectedBulkJobIds}
         onClearJobSelection={() => setSelectedBulkJobIds([])}
       />
@@ -2988,7 +3004,7 @@ export function App({ client, apiBaseUrl }) {
       />
     );
   else if (route.name === "application-batches")
-    page = <ApplicationBatchesPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} />;
+    page = <ApplicationBatchesPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} drafts={bulkDrafts.drafts} draftStore={bulkDrafts.store} storageError={bulkDrafts.storageError} />;
   else if (route.name === "application-batch-detail")
     page = <ApplicationBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "assignment-batches")
@@ -3018,6 +3034,7 @@ export function App({ client, apiBaseUrl }) {
         access={access}
         selectedJobIds={selectedBulkJobIds}
         onSelectedJobIdsChange={setSelectedBulkJobIds}
+        onStartBulkCreation={startBulkCreation}
       />
     );
   else if (route.name === "job-detail")
@@ -3123,7 +3140,14 @@ export function App({ client, apiBaseUrl }) {
       logout={logout}
       client={client}
       apiBaseUrl={apiBaseUrl}
-      headerExtra={route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} /> : null}
+      headerExtra={<>
+        {route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) && <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} />}
+        {hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE) && bulkDrafts.drafts.length > 0 && (
+          <Button href={bulkDrafts.drafts.length === 1 ? bulkDraftHref(bulkDrafts.drafts[0].id) : "#/application-batches"}>
+            Resume batch creation{bulkDrafts.drafts.length > 1 ? ` (${bulkDrafts.drafts.length})` : ""}
+          </Button>
+        )}
+      </>}
     >
       <Suspense fallback={<Loading text="Loading workspace…" />}>{page}</Suspense>
     </Shell>

@@ -51,14 +51,15 @@ import {
   revokeMatchingRunner,
 } from "./bulk-service.js";
 import { MatchScore, MatchingModeSelect, MatchingRunnerCommand } from "../application-matching/match-components.jsx";
-import { canRunMatch, categoryMatchingDescription, hasPendingMatches, reconcileMatchSelection } from "../application-matching/match-state.js";
+import { MatchEvaluationStatus, MatchingProgress } from "../application-matching/match-progress.jsx";
+import { canRunMatch, categoryMatchingDescription, hasPendingMatches } from "../application-matching/match-state.js";
 import { startMatchPreviewPolling, previewFailureMessage } from "../application-matching/preview-polling.js";
+import { bulkDraftHref, draftPairExclusions, restoreDraftResumeIds, selectDraftPairs } from "./bulk-drafts.js";
 import {
   BULK_PAGE_SIZES,
   bulkConfirmationCounts,
   clearRows,
   creationPayload,
-  defaultEligibleSelection,
   filterBulkCombinations,
   selectEligible,
 } from "./bulk-state.js";
@@ -299,56 +300,118 @@ function BulkResult({ result, onAnother }) {
   );
 }
 
+export function BulkCreationDrafts({ drafts = [], draftStore, storageError }) {
+  return <Card title={`In-progress creation drafts (${drafts.length})`} style={{ marginBottom: 16 }}>
+    <p>Your drafts are saved in this browser for this account. Resume a draft to load the latest scores. Terminal evaluation continues independently of this page.</p>
+    {storageError && <Alert type="warning" showIcon message={storageError} />}
+    <Table
+      rowKey="id"
+      dataSource={drafts}
+      pagination={{ pageSize: 5, hideOnSinglePage: true }}
+      scroll={{ x: "max-content" }}
+      locale={{ emptyText: <Empty description="No unfinished creation drafts"><Button href="#/jobs">Select Job Descriptions</Button></Empty> }}
+      columns={[
+        { title: "Draft", dataIndex: "batchName", render: (value, draft) => <a href={bulkDraftHref(draft.id)}>{value.trim() || "Untitled application batch"}</a> },
+        { title: "JDs", render: (_, draft) => draft.jobDescriptionIds.length },
+        { title: "Resumes", render: (_, draft) => draft.resumeIds === null ? "All candidates" : draft.resumeIds.length },
+        { title: "Matching method", dataIndex: "matchingMode", render: value => value === "CATEGORY" ? "Category/subcategory" : "AI score" },
+        { title: "Last saved", dataIndex: "updatedAt", render: value => formatDate(new Date(value).toISOString()) },
+        { title: "Actions", key: "actions", sortable: false, render: (_, draft) => <Space>
+          <Button type="primary" href={bulkDraftHref(draft.id)}>Resume</Button>
+          <Popconfirm title="Discard this creation draft?" description="Only this browser draft is removed. Existing scores, Applications, and running terminal evaluations are not deleted or stopped." okText="Discard draft" onConfirm={() => draftStore.remove(draft.id)}>
+            <Button danger>Discard</Button>
+          </Popconfirm>
+        </Space> },
+      ]}
+    />
+  </Card>;
+}
+
+export function BulkCreateWorkspace({ client, apiBaseUrl, query, draftStore, drafts, storageError, selectedJobIds, onClearJobSelection }) {
+  const draftId = new URLSearchParams(query).get("draft"),
+    draft = drafts.find(item => item.id === draftId),
+    started = useRef(false),
+    [result, setResult] = useState();
+  // Preserve old entry links while giving every new workflow a stable, reloadable URL.
+  useEffect(() => {
+    if (draftId || !selectedJobIds?.length || started.current) return;
+    started.current = true;
+    const created = draftStore.create(selectedJobIds);
+    if (created) {
+      onClearJobSelection();
+      location.replace(bulkDraftHref(created.id));
+    }
+  }, [draftId, selectedJobIds, draftStore, onClearJobSelection]);
+  if (result) return <BulkResult result={result} onAnother={() => go("#/jobs")} />;
+  if (!draft) return <div className="page">
+    <PageHeading title="Resume Application Creation" extra={<Button href="#/jobs">Select Job Descriptions</Button>} />
+    {draftId && <Alert type="info" showIcon message="This draft is no longer available in this browser/account. It may have been completed or discarded." action={<Button href="#/application-batches">View Application Batches</Button>} />}
+    <BulkCreationDrafts drafts={drafts} draftStore={draftStore} storageError={storageError} />
+  </div>;
+  return <BulkCreatePage key={draft.id} client={client} apiBaseUrl={apiBaseUrl} draft={draft} draftStore={draftStore} storageError={storageError}
+    onCreated={created => { setResult(created); draftStore.remove(draft.id); }} />;
+}
+
 export function BulkCreatePage({
   client,
   apiBaseUrl,
-  selectedJobIds,
-  onClearJobSelection,
+  draft,
+  draftStore,
+  storageError,
+  onCreated,
 }) {
   const { modal } = AntApp.useApp(),
     submitLock = useRef(false),
     previewRef = useRef(null),
     previewRequestRef = useRef(null),
-    idempotencyAttempt = useRef({ key: "", fingerprint: "" }),
+    idempotencyAttempt = useRef(draft.creationAttempt || { key: "", fingerprint: "" }),
+    savedResumeIds = useRef(draft.resumeIds),
+    excludedPairKeys = useRef(new Set(draft.excludedPairKeys)),
     [preview, setPreview] = useState(),
     [selected, setSelected] = useState(new Set()),
-    [selectedResumeIds, setSelectedResumeIds] = useState([]),
+    [selectedResumeIds, setSelectedResumeIds] = useState(draft.resumeIds || []),
+    [activeTab, setActiveTab] = useState(draft.activeTab),
     [filters, setFilters] = useState(emptyFilters),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25),
-    [batchName, setBatchName] = useState(""),
+    [batchName, setBatchName] = useState(draft.batchName),
     [error, setError] = useState(""),
     [previewError, setPreviewError] = useState(""),
+    [previewUpdatedAt, setPreviewUpdatedAt] = useState(null),
     [previewRetry, setPreviewRetry] = useState(0),
     [loading, setLoading] = useState(false),
     [submitting, setSubmitting] = useState(false),
     [scoring, setScoring] = useState(false),
     [matchingRunner, setMatchingRunner] = useState(null),
-    [matchingMode, setMatchingMode] = useState("SCORE"),
+    [matchingMode, setMatchingMode] = useState(draft.matchingMode),
     [matchRefresh, setMatchRefresh] = useState(0),
-    [loadedScope, setLoadedScope] = useState(""),
-    [result, setResult] = useState();
+    [loadedScope, setLoadedScope] = useState("");
   const ids = useMemo(
-    () => [...new Set(selectedJobIds || [])],
-    [selectedJobIds],
+    () => [...new Set(draft.jobDescriptionIds)],
+    [draft.jobDescriptionIds.join("|")],
   );
+  const saveDraft = changes => draftStore.update(draft.id, changes);
   const previewScope = `${apiBaseUrl}|${matchingMode}|${ids.join("|")}`;
   useEffect(() => {
     if (!ids.length) return;
     setLoading(true);
     setLoadedScope(""); setPreview(undefined); previewRef.current = null; setSelected(new Set());
-    setError(""); setPreviewError("");
+    setError(""); setPreviewError(""); setPreviewUpdatedAt(null);
     return startMatchPreviewPolling({
-      load: () => previewBulkApplications(client, apiBaseUrl, ids, undefined, matchingMode),
+      load: () => previewBulkApplications(client, apiBaseUrl, ids, savedResumeIds.current ?? undefined, matchingMode),
       shouldPoll: () => false,
       onSuccess: (value) => {
         setPreview(value);
+        setPreviewUpdatedAt(Date.now());
         previewRef.current = value;
-        const resumeIds = value.resumeOptions?.map(row => row.resumeId) || [...new Set((value.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => row.resumeId))];
+        const availableIds = value.resumeOptions?.map(row => row.resumeId) || [...new Set((value.combinations || []).filter((row) => row.resumeType === "ORIGINAL").map((row) => row.resumeId))];
+        const resumeIds = restoreDraftResumeIds(savedResumeIds.current, availableIds);
+        savedResumeIds.current = resumeIds;
+        saveDraft({ resumeIds });
         previewRequestRef.current = { scope: previewScope, resumes: resumeIds.join("|"), refresh: matchRefresh };
         setSelectedResumeIds(resumeIds);
         setLoadedScope(previewScope);
-        setSelected(defaultEligibleSelection({ ...value, combinations: (value.combinations || []).filter((row) => resumeIds.includes(row.resumeId)) }));
+        setSelected(selectDraftPairs((value.combinations || []).filter(row => resumeIds.includes(row.resumeId)), excludedPairKeys.current));
         setPreviewError(""); setLoading(false);
       },
       onError: (cause, retryDelayMs) => { setPreviewError(previewFailureMessage(cause, retryDelayMs)); setLoading(false); },
@@ -367,12 +430,12 @@ export function BulkCreatePage({
       initialDelay: current ? 5000 : 0,
       shouldPoll,
       onSuccess: (value) => {
-        const previous = previewRef.current?.combinations || [];
         previewRef.current = value;
         previewRequestRef.current = request;
         setPreview(value);
+        setPreviewUpdatedAt(Date.now());
         setPreviewError("");
-        setSelected(current => reconcileMatchSelection(previous, value.combinations || [], current));
+        setSelected(selectDraftPairs((value.combinations || []).filter(row => selectedResumeIds.includes(row.resumeId)), excludedPairKeys.current));
       },
       onError: (cause, retryDelayMs) => setPreviewError(previewFailureMessage(cause, retryDelayMs)),
     });
@@ -389,6 +452,12 @@ export function BulkCreatePage({
     visible = filtered.slice((page - 1) * pageSize, page * pageSize),
     counts = bulkConfirmationCounts(scopedPreview, selected);
   useEffect(() => setPage(1), [filters]);
+  function changeSelection(value) {
+    const next = typeof value === "function" ? value(selected) : value;
+    excludedPairKeys.current = draftPairExclusions(scopedRows, next, excludedPairKeys.current);
+    setSelected(next);
+    saveDraft({ excludedPairKeys: [...excludedPairKeys.current] });
+  }
   const matchingScope = `${apiBaseUrl}|${ids.join(",")}|${selectedResumeIds.join(",")}|${matchingMode}`;
   async function scoreSelected() {
     if (matchingMode !== "SCORE" || loadedScope !== previewScope) return;
@@ -405,17 +474,6 @@ export function BulkCreatePage({
     try { await revokeMatchingRunner(client, apiBaseUrl, matchingRunner.ticketId); setMatchingRunner(null); setMatchRefresh(value => value + 1); }
     catch (cause) { setError(cause.message); } finally { setScoring(false); }
   }
-  if (result)
-    return (
-      <BulkResult
-        result={result}
-        onAnother={() => {
-          setResult();
-          onClearJobSelection();
-          go("#/jobs");
-        }}
-      />
-    );
   if (!ids.length)
     return (
       <div className="page">
@@ -445,10 +503,10 @@ export function BulkCreatePage({
       const fingerprint = JSON.stringify({ payload, batchName: batchName.trim(), matchingMode });
       if (idempotencyAttempt.current.fingerprint !== fingerprint)
         idempotencyAttempt.current = { key: crypto.randomUUID(), fingerprint };
+      saveDraft({ creationAttempt: idempotencyAttempt.current });
       const created = await createBulkApplications(client, apiBaseUrl, payload, batchName, idempotencyAttempt.current.key, matchingMode);
       idempotencyAttempt.current = { key: "", fingerprint: "" };
-      setResult(created);
-      onClearJobSelection();
+      onCreated(created);
     } catch (cause) {
       setError(cause.message);
     } finally {
@@ -502,6 +560,7 @@ export function BulkCreatePage({
     { title: "Candidate", dataIndex: "candidateName" },
     { title: "Resume", dataIndex: "resumeName" },
     { title: "Resume Category", dataIndex: "resumeCategoryName" },
+    ...(matchingMode === "SCORE" ? [{ title: "Evaluation status", dataIndex: "matchStatus", render: (_, row) => <MatchEvaluationStatus row={row} /> }] : []),
     { title: matchingMode === "CATEGORY" ? "Matching method" : "Match score", dataIndex: "matchScore", render: (_, row) => <MatchScore row={row} /> },
     {
       title: "Eligibility",
@@ -524,9 +583,14 @@ export function BulkCreatePage({
       <PageHeading
         title="Bulk Create Applications"
         eyebrow="Review JD–Resume combinations"
-        extra={<Button href="#/jobs">Back to Job Descriptions</Button>}
+        extra={<Space wrap><Button href="#/application-batches">View saved drafts</Button><Button href="#/jobs">Back to Job Descriptions</Button></Space>}
       />
+      <Alert type={storageError ? "warning" : "info"} showIcon message={storageError || "Draft saved automatically in this browser. You can leave this page and return through Application Batches or Resume batch creation."}
+        description="Reopening loads current scores. Keep the terminal command running while you navigate; completed evaluations do not need to run again." />
+      {draft.creationAttempt && <Alert type="warning" showIcon message="A creation request was previously submitted from this draft. Check Application Batches before retrying if its result was interrupted." action={<Button href="#/application-batches">View Application Batches</Button>} />}
       <MatchingModeSelect value={matchingMode} disabled={submitting || scoring} onChange={value => {
+        savedResumeIds.current = null; excludedPairKeys.current = new Set();
+        saveDraft({ matchingMode: value, resumeIds: null, excludedPairKeys: [] });
         setMatchingMode(value); setLoadedScope(""); setPreview(undefined); previewRef.current = null;
         setSelected(new Set()); setSelectedResumeIds([]); setFilters(emptyFilters); setPage(1); setError(""); setPreviewError("");
       }} />
@@ -555,9 +619,11 @@ export function BulkCreatePage({
                 placeholder="Select one or more original Resumes"
                 options={[...new Map((preview.resumeOptions || preview.combinations || []).map((row) => [row.resumeId, { value: row.resumeId, label: `${row.candidateName} - ${row.resumeName}${row.resumeNumber ? ` #${row.resumeNumber}` : ""}` }])).values()]}
                 onChange={(resumeIds) => {
+                  savedResumeIds.current = resumeIds;
+                  saveDraft({ resumeIds });
                   setSelectedResumeIds(resumeIds);
                   const rows = (preview.combinations || []).filter((row) => resumeIds.includes(row.resumeId) && row.resumeType === "ORIGINAL");
-                  setSelected(defaultEligibleSelection({ ...preview, combinations: rows }));
+                  setSelected(selectDraftPairs(rows, excludedPairKeys.current));
                 }}
               />
               <Space style={{ marginTop: 12 }}>
@@ -567,7 +633,12 @@ export function BulkCreatePage({
               {matchingMode === "SCORE" && matchingRunner?.scope === matchingScope && <MatchingRunnerCommand runner={matchingRunner} apiBaseUrl={apiBaseUrl} onRevoke={revokeScoring} busy={scoring} />}
               {!selectedResumeIds.length && <Alert type="warning" showIcon message="Select at least one original Resume to create Applications." style={{ marginTop: 12 }} />}
             </Card>
+            {matchingMode === "SCORE" && <MatchingProgress rows={scopedRows} truncated={preview.truncated} lastUpdated={previewUpdatedAt}
+              stale={Boolean(previewError)} refreshing={previewRequestRef.current?.resumes !== selectedResumeIds.join("|")}
+              onRefresh={() => setMatchRefresh(value => value + 1)} />}
             <TabbedSections
+              activeKey={activeTab}
+              onChange={value => { setActiveTab(value); saveDraft({ activeTab: value }); }}
               items={[
                 {
                   key: "combinations",
@@ -605,7 +676,7 @@ export function BulkCreatePage({
                           <Space wrap>
                             <Button
                               onClick={() =>
-                                setSelected(
+                                changeSelection(
                                   selectEligible(
                                     scopedRows,
                                     new Set(),
@@ -617,7 +688,7 @@ export function BulkCreatePage({
                             </Button>
                             <Button
                               onClick={() =>
-                                setSelected((value) =>
+                                changeSelection((value) =>
                                   selectEligible(visible, value),
                                 )
                               }
@@ -626,14 +697,14 @@ export function BulkCreatePage({
                             </Button>
                             <Button
                               onClick={() =>
-                                setSelected((value) =>
+                                changeSelection((value) =>
                                   clearRows(visible, value),
                                 )
                               }
                             >
                               Clear visible selection
                             </Button>
-                            <Button onClick={() => setSelected(new Set())}>
+                            <Button onClick={() => changeSelection(new Set())}>
                               Clear all selection
                             </Button>
                           </Space>
@@ -651,7 +722,7 @@ export function BulkCreatePage({
                               disabled: !row.eligible,
                             }),
                             onSelect: (row, checked) =>
-                              setSelected((value) =>
+                              changeSelection((value) =>
                                 checked
                                   ? selectEligible([row], value)
                                   : clearRows([row], value),
@@ -699,9 +770,10 @@ export function BulkCreatePage({
                         >
                           <Input
                             value={batchName}
-                            onChange={(event) =>
-                              setBatchName(event.target.value)
-                            }
+                            onChange={(event) => {
+                              setBatchName(event.target.value);
+                              saveDraft({ batchName: event.target.value });
+                            }}
                             maxLength={120}
                             showCount
                           />
@@ -727,7 +799,7 @@ export function BulkCreatePage({
   );
 }
 
-export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
+export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, drafts = [], draftStore, storageError }) {
   const { message } = AntApp.useApp(),
     params = new URLSearchParams(query),
     [search, setSearch] = useState(params.get("search") || ""),
@@ -855,6 +927,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload }) {
 
   return (
     <div className="page">
+      <BulkCreationDrafts drafts={drafts} draftStore={draftStore} storageError={storageError} />
       {error ? (
         <ErrorState message={error} />
       ) : !data ? (
