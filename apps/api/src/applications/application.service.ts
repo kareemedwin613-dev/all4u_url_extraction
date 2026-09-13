@@ -34,6 +34,7 @@ function failure(error:any,fallback:string):never{
         p_sort:q.sort||"updated_desc",
         p_creation_batch_id:q.creationBatchId||null,
         p_creation_mode:q.creationMode||"",
+        p_screenshot_feedback:q.screenshotFeedback||"",
         p_limit:size,
         p_offset:(page-1)*size,
       },"Applications could not be loaded."),
@@ -59,6 +60,7 @@ function failure(error:any,fallback:string):never{
       p_sort:q.sort||"captured_desc",
       p_limit:Math.min(Number(q.limit)||100,500),
       p_resume_id:q.resumeId||null,
+      p_screenshot_feedback:q.screenshotFeedback||"",
     },"Your Applications could not be loaded.");
     const resumes=(Array.isArray(data?.resumes)?data.resumes:[]).map((row:any)=>({
       id:String(row?.id||row?.resumeId||row?.resume_id||""),
@@ -94,6 +96,7 @@ function failure(error:any,fallback:string):never{
   autofillQualityReport=(u:AuthenticatedUser,days:number)=>this.rpc(u,"get_autofill_quality_report_v098",{p_days:Math.max(1,Math.min(Number(days)||30,90))},"The Autofill quality report could not be loaded.");
   async resumeAccess(u:AuthenticatedUser,id:string){const context:any=await this.extensionContext(u,id);if(!context?.permissions?.canLoadResume||context?.resume?.status!=="ACTIVE")throw new ApiException("APPLICATION_RESUME_UNAVAILABLE","The active Resume is not available for this Application.",HttpStatus.CONFLICT);const file:any=await this.extensionRpc(u,"get_application_resume_file",{p_application_id:id},"The Resume is not available for this Application.");const mimeType=String(context.resume.mimeType||""),fileSizeBytes=Number(context.resume.fileSizeBytes),filename=String(context.resume.originalFilename||file?.filename||"");if(!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(mimeType)||!Number.isSafeInteger(fileSizeBytes)||fileSizeBytes<1||fileSizeBytes>5242880||!filename||file?.filename!==filename)throw new ApiException("APPLICATION_RESUME_METADATA_INVALID","The Resume metadata is invalid or does not match this Application.",HttpStatus.CONFLICT);const expiresInSeconds=60,{data,error}=await this.supabase.forUser(u.token).storage.from(file.bucket).createSignedUrl(file.path,expiresInSeconds);if(error||!data?.signedUrl)failure(error,"The private Resume file could not be opened.");return{signedUrl:data.signedUrl,filename,mimeType,fileSizeBytes,expiresAt:new Date(Date.now()+expiresInSeconds*1000).toISOString()};}
   update=(u:AuthenticatedUser,id:string,m:any)=>this.rpc(u,"update_application_status_v101",{p_application_id:id,p_status:m.status,p_application_url:m.applicationUrl||null,p_applied_at:m.appliedAt||null,p_notes:m.notes==null?null:String(m.notes),p_priority:m.priority??null,p_due_at:m.dueAt??null},"The Application could not be updated.");
+  setScreenshotFeedback=(u:AuthenticatedUser,id:string,m:any)=>this.rpc(u,"set_application_screenshot_feedback_v381",{p_application_id:id,p_feedback:m.feedback==null?"":String(m.feedback)},"Screenshot feedback could not be saved.");
   assign=(u:AuthenticatedUser,id:string,m:any)=>this.rpc(u,"reassign_application",{p_application_id:id,p_new_assignee_id:m.newAssigneeId||null,p_reason:m.reason||null},"The assignment could not be changed.");
   async bulkCancel(user:AuthenticatedUser,ids:string[],notes?:string){
     const unique=[...new Set((ids||[]).map((id)=>String(id||"").trim()).filter(Boolean))];

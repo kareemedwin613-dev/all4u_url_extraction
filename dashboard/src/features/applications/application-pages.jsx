@@ -18,9 +18,10 @@ import {
   Statistic,
   Table as AntTable,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
-import { FileImageOutlined } from "@ant-design/icons";
+import { FileImageOutlined, WarningOutlined } from "@ant-design/icons";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";
@@ -152,6 +153,7 @@ function ApplicationListFilters({
       status: "",
       categoryId: "",
       assignedTo: "",
+      screenshotFeedback: "",
       page: 1,
     });
   }
@@ -253,6 +255,24 @@ function ApplicationListFilters({
                   page: 1,
                 })
               }
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Screenshot feedback
+            <Select
+              allowClear
+              value={filters.screenshotFeedback || undefined}
+              placeholder="Any"
+              onChange={(screenshotFeedback) =>
+                onChange({ screenshotFeedback: screenshotFeedback || "", page: 1 })
+              }
+              options={[
+                { value: "HAS_FEEDBACK", label: "Has feedback (mistakes)" },
+                { value: "NO_FEEDBACK", label: "No feedback" },
+              ]}
+              style={{ width: "100%" }}
             />
           </label>
         </Col>
@@ -456,25 +476,49 @@ export function ApplicationsPage({
   const screenshotColumn = {
     title: "Screenshots",
     dataIndex: "screenshot_count",
-    width: 110,
+    width: 170,
     align: "center",
     sortable: false,
     render: (value, record) => {
       const count = Number(value) || 0;
-      if (!count) return <Text type="secondary">—</Text>;
+      const feedback = String(record.screenshot_feedback || "").trim();
       const opening = openingScreenshotId === record.id;
       return (
-        <Tag
-          icon={<FileImageOutlined />}
-          style={{ cursor: opening ? "wait" : "pointer" }}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            if (!opening) openScreenshot(record);
-          }}
-        >
-          {opening ? "Opening…" : count}
-        </Tag>
+        <Space size={4} wrap>
+          {count ? (
+            <Tag
+              icon={<FileImageOutlined />}
+              style={{ cursor: opening ? "wait" : "pointer" }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!opening) openScreenshot(record);
+              }}
+            >
+              {opening ? "Opening…" : count}
+            </Tag>
+          ) : (
+            <Text type="secondary">—</Text>
+          )}
+          {feedback ? (
+            <Tooltip
+              title={
+                <div style={{ maxWidth: 320, whiteSpace: "pre-wrap" }}>
+                  <div>{feedback}</div>
+                  {record.screenshot_feedback_at ? (
+                    <div style={{ marginTop: 8, opacity: 0.85 }}>
+                      Updated {formatDate(record.screenshot_feedback_at)}
+                    </div>
+                  ) : null}
+                </div>
+              }
+            >
+              <Tag color="warning" icon={<WarningOutlined />}>
+                Feedback
+              </Tag>
+            </Tooltip>
+          ) : null}
+        </Space>
       );
     },
   };
@@ -692,7 +736,7 @@ export function ApplicationsPage({
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2556 : 2040,
+    applicationsScrollX = manager ? 2616 : 2100,
     tooMany = selectedIds.length > 2000;
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   function cancelSelected(){
@@ -786,6 +830,7 @@ export function ApplicationsPage({
       dueFilter: filters.dueFilter,
       creationMode: manager ? creationMode : "",
       creationBatchId: manager ? creationBatchId : "",
+      screenshotFeedback: filters.screenshotFeedback,
       page: 1,
     });
   }
@@ -1387,7 +1432,26 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                   client={client}
                   apiBaseUrl={apiBaseUrl}
                   applicationId={id}
+                  manager={manager}
+                  feedback={a.screenshot_feedback || ""}
+                  feedbackAt={a.screenshot_feedback_at || null}
                   onCountChange={setScreenshotCount}
+                  onFeedbackSaved={(updated) => {
+                    setDetail((current) =>
+                      current
+                        ? {
+                            ...current,
+                            application: {
+                              ...current.application,
+                              ...updated,
+                              status: updated?.status || current.application.status,
+                            },
+                          }
+                        : current,
+                    );
+                    setIsError(false);
+                    setMessage("Screenshot feedback was saved.");
+                  }}
                 />
                 <Card
                   title="Job Description"

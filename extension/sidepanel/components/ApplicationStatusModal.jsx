@@ -95,6 +95,24 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
 
   return (
     <Modal open title={`${application.company} — ${application.job_title}`} onCancel={onClose} footer={null} destroyOnClose>
+      {String(application.screenshot_feedback || "").trim() ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Screenshot review feedback"
+          description={
+            <>
+              <div>{String(application.screenshot_feedback).trim()}</div>
+              {application.screenshot_feedback_at ? (
+                <div style={{ marginTop: 8, opacity: 0.75 }}>
+                  Updated {new Date(application.screenshot_feedback_at).toLocaleString()}
+                </div>
+              ) : null}
+            </>
+          }
+        />
+      ) : null}
       <Form
         form={form}
         layout="vertical"

@@ -25,11 +25,14 @@ test("application action visibility follows roles and assignment",()=>{
 });
 
 test("application query state is allowlisted and serializable",()=>{
-  const value=parseApplicationQuery(`pageSize=50&status=BLOCKED&priority=URGENT&search=Acme&creationMode=BULK&creationBatchId=${id}`);
+  const value=parseApplicationQuery(`pageSize=50&status=BLOCKED&priority=URGENT&search=Acme&creationMode=BULK&creationBatchId=${id}&screenshotFeedback=HAS_FEEDBACK`);
   assert.equal(value.pageSize,50);assert.equal(value.priority,"URGENT");
   assert.equal(value.creationMode,"BULK");assert.equal(value.creationBatchId,id);
+  assert.equal(value.screenshotFeedback,"HAS_FEEDBACK");
   assert.match(serializeApplicationQuery(value),/status=BLOCKED/);
+  assert.match(serializeApplicationQuery(value),/screenshotFeedback=HAS_FEEDBACK/);
   assert.equal(parseApplicationQuery("status=INJECTED").status,"");
+  assert.equal(parseApplicationQuery("screenshotFeedback=WRONG").screenshotFeedback,"");
   for (const pageSize of [100, 500, 1000, 5000]) {
     assert.equal(parseApplicationQuery(`pageSize=${pageSize}`).pageSize, pageSize);
   }
@@ -40,6 +43,7 @@ test("application filter panel counts active server-side filters",()=>{
   assert.equal(countActiveApplicationFilters({}),0);
   assert.equal(countActiveApplicationFilters({search:"Acme",status:"BLOCKED",profileName:"Jordan"}),3);
   assert.equal(countActiveApplicationFilters({resumeName:"Main Resume"}),1);
+  assert.equal(countActiveApplicationFilters({screenshotFeedback:"HAS_FEEDBACK"}),1);
 });
 
 test("application services use protected RPC contracts",async()=>{
@@ -145,7 +149,10 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.doesNotMatch(source.slice(source.indexOf("const applierColumns =")), /title:\s*"Priority"/);
   assert.match(source, /openFirstApplicationScreenshot/);
   assert.match(source, /categoryTagColor\(categories/);
-  assert.match(source, /applicationsScrollX = manager \? 2556 : 2040/);
+  assert.match(source, /applicationsScrollX = manager \? 2616 : 2100/);
+  assert.match(source, /WarningOutlined/);
+  assert.match(source, /screenshot_feedback/);
+  assert.match(source, /Feedback/);
 });
 
 test("Application Number is visible on the list, detail heading, and search",async()=>{

@@ -17,6 +17,7 @@ export class ApplicationListQueryDto{
   @IsOptional()@IsIn(["","TODAY","DUE_TODAY","OVERDUE","NEXT_7_DAYS","NO_DUE_DATE"])dueFilter="";
   @IsOptional()@IsUUID("4")creationBatchId?:string;
   @IsOptional()@IsIn(["","BULK","INDIVIDUAL"])creationMode="";
+  @IsOptional()@IsIn(["","HAS_FEEDBACK","NO_FEEDBACK"])screenshotFeedback="";
   @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","number_asc","number_desc","priority_asc","priority_desc","due_asc","due_desc","captured_asc","captured_desc","category_asc","category_desc","assignee_asc","assignee_desc","batch_asc","batch_desc"])sort="updated_desc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;
   @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100,500,1000,5000])pageSize=25;
@@ -24,6 +25,7 @@ export class ApplicationListQueryDto{
 export class MyApplicationQueryDto{
   @IsOptional()@IsIn(APPLIER_MINE_STATUSES)status="";
   @IsOptional()@IsUUID("4")resumeId?:string;
+  @IsOptional()@IsIn(["","HAS_FEEDBACK","NO_FEEDBACK"])screenshotFeedback="";
   @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","captured_asc","captured_desc"])sort="captured_desc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)@Max(500)limit=100;
 }
@@ -42,6 +44,9 @@ export class UpdateApplicationDto{
   @IsOptional()@IsIn(PRIORITIES)priority?:string;@IsOptional()@IsISO8601()dueAt?:string;
 }
 export class ReassignApplicationDto{@IsOptional()@IsUUID("4")newAssigneeId?:string;@IsOptional()@IsString()@MaxLength(2000)reason?:string;}
+export class UpdateScreenshotFeedbackDto{
+  @IsString()@MaxLength(2000)feedback!:string;
+}
 export class CreateApplicationExtensionSessionDto{
   @IsIn(["LOAD_RESUME","AUTOFILL"])action!:string;
   @IsOptional()@IsString()@MaxLength(40)extensionVersion?:string;

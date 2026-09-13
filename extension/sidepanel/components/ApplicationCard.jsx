@@ -1,6 +1,6 @@
 import React from "react";
-import { Badge, Button, Card, Flex, Space, Tag, Typography } from "antd";
-import { DownloadOutlined, PaperClipOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { Badge, Button, Card, Flex, Space, Tag, Tooltip, Typography } from "antd";
+import { DownloadOutlined, PaperClipOutlined, ThunderboltOutlined, WarningOutlined } from "@ant-design/icons";
 import { normalizeUrl } from "../../shared/normalization.js";
 
 const { Text } = Typography;
@@ -73,6 +73,19 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
             <Tag icon={<PaperClipOutlined />}>Screenshots</Tag>
           </Badge>
         )}
+        {String(application.screenshot_feedback || "").trim() ? (
+          <Tooltip
+            title={
+              <div style={{ maxWidth: 280, whiteSpace: "pre-wrap" }}>
+                {String(application.screenshot_feedback).trim()}
+              </div>
+            }
+          >
+            <Tag color="warning" icon={<WarningOutlined />}>
+              Feedback
+            </Tag>
+          </Tooltip>
+        ) : null}
       </Space>
       <div>
         <Text type="secondary" style={{ fontSize: 12 }}>

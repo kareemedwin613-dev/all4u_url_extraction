@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Empty,
   Flex,
+  Input,
   Modal,
   Popconfirm,
   Space,
@@ -28,6 +30,7 @@ import {
   listApplicationScreenshots,
   openApplicationScreenshot,
   removeApplicationScreenshot,
+  updateApplicationScreenshotFeedback,
   validateApplicationScreenshotFile,
 } from "./application-service.js";
 
@@ -50,7 +53,11 @@ export function ApplicationScreenshotsCard({
   client,
   apiBaseUrl,
   applicationId,
+  manager = false,
+  feedback = "",
+  feedbackAt = null,
   onCountChange,
+  onFeedbackSaved,
 }) {
   const [screenshots, setScreenshots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +67,13 @@ export function ApplicationScreenshotsCard({
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  const [draftFeedback, setDraftFeedback] = useState(feedback || "");
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+
+  useEffect(() => {
+    setDraftFeedback(feedback || "");
+  }, [feedback, applicationId]);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -146,6 +160,28 @@ export function ApplicationScreenshotsCard({
       setRemovingId("");
     }
   }
+
+  async function saveFeedback(nextValue) {
+    setSavingFeedback(true);
+    setFeedbackError("");
+    try {
+      const updated = await updateApplicationScreenshotFeedback(
+        client,
+        apiBaseUrl,
+        applicationId,
+        nextValue,
+      );
+      setDraftFeedback(updated?.screenshot_feedback || "");
+      onFeedbackSaved?.(updated);
+    } catch (value) {
+      setFeedbackError(value.message || "Screenshot feedback could not be saved.");
+    } finally {
+      setSavingFeedback(false);
+    }
+  }
+
+  const trimmedFeedback = String(feedback || "").trim();
+  const draftDirty = String(draftFeedback || "") !== String(feedback || "");
 
   return (
     <>
@@ -249,6 +285,67 @@ export function ApplicationScreenshotsCard({
             ))}
           </div>
         )}
+
+        <div style={{ marginTop: 16 }}>
+          {manager ? (
+            <>
+              <Text strong>Screenshot review feedback</Text>
+              <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+                Notes about mistakes found while reviewing confirmation screenshots. Visible to the assigned Applier.
+              </Text>
+              <Input.TextArea
+                rows={4}
+                maxLength={2000}
+                showCount
+                value={draftFeedback}
+                onChange={(event) => setDraftFeedback(event.target.value)}
+                placeholder="Describe what is wrong or missing in the confirmation screenshots…"
+                disabled={savingFeedback}
+              />
+              {feedbackError ? (
+                <ErrorState message={feedbackError} />
+              ) : null}
+              <Space wrap style={{ marginTop: 8 }}>
+                <Button
+                  type="primary"
+                  loading={savingFeedback}
+                  disabled={!draftDirty}
+                  onClick={() => saveFeedback(draftFeedback)}
+                >
+                  Save feedback
+                </Button>
+                {trimmedFeedback ? (
+                  <Button
+                    danger
+                    loading={savingFeedback}
+                    onClick={() => saveFeedback("")}
+                  >
+                    Clear feedback
+                  </Button>
+                ) : null}
+                {feedbackAt ? (
+                  <Text type="secondary">Updated {formatDate(feedbackAt)}</Text>
+                ) : null}
+              </Space>
+            </>
+          ) : trimmedFeedback ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="Screenshot review feedback"
+              description={
+                <>
+                  <Text className="long-text">{trimmedFeedback}</Text>
+                  {feedbackAt ? (
+                    <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+                      Updated {formatDate(feedbackAt)}
+                    </Text>
+                  ) : null}
+                </>
+              }
+            />
+          ) : null}
+        </div>
       </Card>
 
       <Modal

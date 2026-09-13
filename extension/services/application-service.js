@@ -39,12 +39,13 @@ function normalizeMinePayload(data,limit=100){
     limit:Number(data?.limit)||limit,
   };
 }
-async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="captured_desc",limit=100}={}){
+async function listMyApplicationsViaRpc(client,{status="",resumeId="",screenshotFeedback="",sort="captured_desc",limit=100}={}){
   const {data,error}=await client.rpc("list_my_applications_v20",{
     p_status:status||"",
     p_sort:sort||"captured_desc",
     p_limit:Math.min(Number(limit)||100,500),
     p_resume_id:resumeId||null,
+    p_screenshot_feedback:screenshotFeedback||"",
   });
   if(error){
     const detail=String(error.message||error.details||error.hint||"");
@@ -58,15 +59,16 @@ async function listMyApplicationsViaRpc(client,{status="",resumeId="",sort="capt
   }
   return normalizeMinePayload(data,limit);
 }
-export async function listMyApplications(client,baseUrl,{status="",resumeId="",sort="captured_desc",limit=100}={}){
+export async function listMyApplications(client,baseUrl,{status="",resumeId="",screenshotFeedback="",sort="captured_desc",limit=100}={}){
   // This is the extension's hottest read. Go straight to Postgres with the
   // signed-in user's JWT; the security-definer RPC still enforces Applier scope.
-  try{return await listMyApplicationsViaRpc(client,{status,resumeId,sort,limit});}
+  try{return await listMyApplicationsViaRpc(client,{status,resumeId,screenshotFeedback,sort,limit});}
   catch(error){
     // Keep a narrow compatibility fallback while older environments are migrated.
     if(!baseUrl||!missingRpc(error,"list_my_applications_v20"))throw error;
     const q=new URLSearchParams({status,sort,limit:String(limit)});
     if(resumeId)q.set("resumeId",resumeId);
+    if(screenshotFeedback)q.set("screenshotFeedback",screenshotFeedback);
     return normalizeMinePayload(await call(client,baseUrl,`/api/v1/applications/mine?${q}`),limit);
   }
 }

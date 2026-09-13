@@ -1,6 +1,7 @@
 import {APPLICATION_PRIORITIES,APPLICATION_STATUSES,DUE_FILTERS} from "./constants.js";
 const allowed=(value,items)=>items.includes(value)?value:"";
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,uuid=value=>UUID.test(String(value||""))?String(value):"";
+export const SCREENSHOT_FEEDBACK_FILTERS=Object.freeze(["HAS_FEEDBACK","NO_FEEDBACK"]);
 export function parseApplicationQuery(query=""){
   const p=new URLSearchParams(query),
     pageSize=[25,50,100,500,1000,5000].includes(Number(p.get("pageSize")))?Number(p.get("pageSize")):25,
@@ -17,6 +18,7 @@ export function parseApplicationQuery(query=""){
     dueFilter:allowed(p.get("dueFilter")||"",DUE_FILTERS.map(x=>x[0])),
     creationBatchId:uuid(p.get("creationBatchId")),
     creationMode:allowed(p.get("creationMode")||"",["BULK","INDIVIDUAL"]),
+    screenshotFeedback:allowed(p.get("screenshotFeedback")||"",SCREENSHOT_FEEDBACK_FILTERS),
     page,
     pageSize,
   };
@@ -30,11 +32,12 @@ export function countActiveApplicationFilters(filters={}){
   if(filters.status)count++;
   if(filters.categoryId)count++;
   if(filters.assignedTo)count++;
+  if(filters.screenshotFeedback)count++;
   return count;
 }
 export function serializeApplicationQuery(value){
   const p=new URLSearchParams();
-  for(const key of ["search","assignedTo","status","priority","company","profileName","resumeName","categoryId","dueFilter","creationBatchId","creationMode","page","pageSize"]){
+  for(const key of ["search","assignedTo","status","priority","company","profileName","resumeName","categoryId","dueFilter","creationBatchId","creationMode","screenshotFeedback","page","pageSize"]){
     const v=value[key];
     if(v===""||v==null)continue;
     if(key==="pageSize"&&Number(v)===25)continue;
