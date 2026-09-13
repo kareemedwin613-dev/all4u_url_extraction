@@ -633,7 +633,7 @@ export function BulkCreatePage({
               {matchingMode === "SCORE" && matchingRunner?.scope === matchingScope && <MatchingRunnerCommand runner={matchingRunner} apiBaseUrl={apiBaseUrl} onRevoke={revokeScoring} busy={scoring} />}
               {!selectedResumeIds.length && <Alert type="warning" showIcon message="Select at least one original Resume to create Applications." style={{ marginTop: 12 }} />}
             </Card>
-            {matchingMode === "SCORE" && <MatchingProgress rows={scopedRows} truncated={preview.truncated} lastUpdated={previewUpdatedAt}
+            {matchingMode === "SCORE" && <MatchingProgress scope={matchingScope} rows={scopedRows} truncated={preview.truncated} lastUpdated={previewUpdatedAt}
               stale={Boolean(previewError)} refreshing={previewRequestRef.current?.resumes !== selectedResumeIds.join("|")}
               onRefresh={() => setMatchRefresh(value => value + 1)} />}
             <TabbedSections

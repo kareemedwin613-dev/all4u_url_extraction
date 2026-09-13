@@ -36,7 +36,8 @@ export const MatchScore = Box, MatchingRunnerCommand = Box;
 export const firstFilterValue = () => '', searchFilterIcon = () => null, serverSideColumnFilter = () => ({}), textSearchFilterDropdown = () => null;
 `;
 const compiled = await build({
-  entryPoints: [fileURLToPath(new URL("../src/features/bulk-applications/bulk-pages.jsx", import.meta.url))],
+  stdin: { contents: 'export { BulkCreateWorkspace } from "./features/bulk-applications/bulk-pages.jsx"; export { TailoringBatchDetailPage } from "./features/tailoring/tailoring-batch-pages.jsx";',
+    resolveDir: fileURLToPath(new URL("../src/", import.meta.url)), sourcefile: "batch-workflows-test.jsx", loader: "jsx" },
   bundle: true, write: false, platform: "node", format: "cjs", packages: "external", define: { "import.meta.env": "{}" },
   plugins: [{ name: "visual-widgets", setup(builder) {
     builder.onResolve({ filter: /^react$/ }, args => ({ path: args.path, external: true }));
@@ -46,7 +47,7 @@ const compiled = await build({
 });
 const module = { exports: {} };
 new Function("require", "module", "exports", compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { BulkCreateWorkspace } = module.exports;
+const { BulkCreateWorkspace, TailoringBatchDetailPage } = module.exports;
 
 const jd = "f3a34ffd-d66a-49f7-815e-c7786857576b", otherJd = "b4d63a80-e306-4a2f-afca-29cd4b3951e0";
 const r1 = "8660f115-ce73-41ff-889b-b6d07202a3e4", r2 = "a21c0738-2905-4733-8a1d-d6e0dddb0122";
@@ -60,9 +61,12 @@ async function setup(t) {
   const controls = globalThis.bulkNavigationControls, data = new Map(), calls = [];
   const storage = { get length() { return data.size; }, key: i => [...data.keys()][i], getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: key => data.delete(key) };
   const newStore = () => createBulkDraftStore({ userId: "tester", apiBaseUrl: "https://api.example.test", storage: () => storage });
-  let previewRows = [row(jd, r1), row(jd, r2), row(otherJd, r1, false)], createError = false, creationGate, previewError = false, truncated = false;
+  let previewRows = [row(jd, r1), row(jd, r2), row(otherJd, r1, false)], createError = false, creationGate, previewError = false, truncated = false, tailoringData, tailoringError = false;
   globalThis.fetch = async (url, options) => {
     const request = { url, ...options, body: options.body ? JSON.parse(options.body) : undefined }; calls.push(request);
+    if (url.includes("/tailoring-batches/")) return tailoringError
+      ? new Response(JSON.stringify({ error: { code: "DATABASE_ERROR", message: "Preview unavailable" } }), { status: 400 })
+      : new Response(JSON.stringify({ data: tailoringData }));
     if (url.endsWith("/bulk-preview")) {
       if (previewError) return new Response(JSON.stringify({ error: { code: "PREVIEW_FAILED", message: "Preview unavailable" } }), { status: 400 });
       const combinations = previewRows.filter(item => request.body.resumeIds === undefined || request.body.resumeIds.includes(item.resumeId));
@@ -91,6 +95,8 @@ async function setup(t) {
     }
   });
   return { controls, calls, data, newStore, render, step, setRows: rows => { previewRows = rows; }, failCreation: () => { createError = true; },
+    setTailoringData: value => { tailoringData = value; }, failTailoring: value => { tailoringError = value; },
+    renderTailoring: id => step(() => root.render(React.createElement(TailoringBatchDetailPage, { key: id, id, client, apiBaseUrl: "https://api.example.test" }))),
     failPreview: value => { previewError = value; }, truncatePreview: () => { truncated = true; },
     delayCreation: () => { let finish; creationGate = new Promise(resolve => { finish = resolve; }); return finish; } };
 }
@@ -217,6 +223,33 @@ test("progress refreshes from the existing preview, displays failures, and marks
   assert.ok(h.calls.every(call => call.url.endsWith("/bulk-preview")));
 });
 
+test("progress shows eligible and not eligible totals instead of unstarted and insufficient counters", async t => {
+  const h = await setup(t), store = h.newStore(), draft = store.create([jd, otherJd]);
+  const outcome = (jobId, resumeId, matchStatus, exclusionCode) => ({ ...row(jobId, resumeId, false), matchStatus, exclusionCode });
+  h.setRows([
+    row(jd, r1), outcome(jd, r2, "COMPLETED", "BELOW_THRESHOLD"),
+    outcome(otherJd, r1, "INSUFFICIENT_DATA", "MATCH_INSUFFICIENT_DATA"),
+    outcome(otherJd, r2, "STALE", "MATCH_STALE"),
+  ]);
+  await h.render(store, draft.id);
+  assert.match(document.body.textContent, /Eligible: 1/);
+  assert.match(document.body.textContent, /Not eligible: 2/);
+  assert.match(document.body.textContent, /3 \/ 4 finished.*1 remaining/);
+  assert.doesNotMatch(document.body.textContent, /Not started \/ stale|Insufficient data:/);
+  h.setRows([
+    outcome(jd, r1, "FAILED", "MATCH_FAILED"), outcome(jd, r2, "PENDING", "MATCH_PENDING"),
+    outcome(otherJd, r1, "PROCESSING", "MATCH_PROCESSING"), outcome(otherJd, r2, "NOT_ASSESSED", "MATCH_NOT_ASSESSED"),
+  ]);
+  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
+  assert.match(document.body.textContent, /Eligible: 0/);
+  assert.match(document.body.textContent, /Not eligible: 0/);
+  assert.match(document.body.textContent, /Failed: 1/);
+  assert.match(document.body.textContent, /Queued: 1/);
+  assert.match(document.body.textContent, /Processing: 1/);
+  assert.match(document.body.textContent, /1 \/ 4 finished.*3 remaining/);
+  assert.equal(h.calls.length, 2, "eligibility counters reuse the existing preview");
+});
+
 test("a truncated preview displays partial counts without claiming an overall percentage", async t => {
   const h = await setup(t), store = h.newStore(), draft = store.create([jd]);
   h.truncatePreview(); h.setRows([row(jd, r1)]);
@@ -248,4 +281,62 @@ test("automatic preview polling updates progress and stops after every evaluatio
   assert.equal(document.querySelector('[role="progressbar"]').getAttribute("aria-valuenow"), "100");
   assert.equal(h.calls.length, 2);
   assert.equal(polls.size, 0, "no further progress polling once all work is terminal");
+});
+
+test("evaluation ETA learns from witnessed starts/completions and resets with the selection", async t => {
+  const h = await setup(t), store = h.newStore(), draft = store.create([jd]);
+  let clock = 1_000_000;
+  t.mock.method(Date, "now", () => clock);
+  const queued = id => ({ ...row(jd, id, false), matchStatus: "PENDING", exclusionCode: "MATCH_PENDING" });
+  h.setRows([queued(r1), queued(r2)]);
+  await h.render(store, draft.id);
+  assert.match(document.body.textContent, /Estimated time remaining: Waiting for processing/);
+  clock += 5000;
+  h.setRows([row(jd, r1, false), row(jd, r2, false)]);
+  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
+  assert.match(document.body.textContent, /Estimated time remaining: Estimating/);
+  clock += 30_000;
+  h.setRows([row(jd, r1), row(jd, r2, false)]);
+  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
+  assert.match(document.body.textContent, /Estimated time remaining: ~10 sec/);
+  assert.match(document.body.textContent, /Average per JD\/resume pair: ~35 sec/);
+  assert.match(document.body.textContent, /1 successful timing sample/);
+  await h.step(() => h.controls.resumes.onChange([r2]));
+  assert.match(document.body.textContent, /Estimated time remaining: Estimating/);
+  assert.doesNotMatch(document.body.textContent, /Average per JD\/resume pair/);
+  assert.equal(h.calls.length, 4, "ETA reuses progress reads and never requests timing data separately");
+});
+
+test("tailoring ETA uses recorded durations, parallelism and rate-limit/stale states", async t => {
+  const h = await setup(t);
+  const clock = 1_000_000;
+  t.mock.method(Date, "now", () => clock);
+  const items = [
+    { id: "done", status: "COMPLETED", duration_ms: 40_000 },
+    { id: "active-a", status: "PROCESSING", started_at: new Date(clock - 10_000).toISOString() },
+    { id: "active-b", status: "PROCESSING", started_at: new Date(clock - 20_000).toISOString() },
+    { id: "queued", status: "PENDING" },
+  ];
+  const batch = { id: jd, status: "RUNNING", selected_count: 4, completed_count: 1, pending_count: 1, processing_count: 2 };
+  h.setTailoringData({ batch, items });
+  await h.renderTailoring(jd);
+  assert.match(document.body.textContent, /Estimated time remaining: ~1 min/);
+  assert.match(document.body.textContent, /Average per resume: ~40 sec/);
+  assert.match(document.body.textContent, /2 observed parallel job/);
+  h.setTailoringData({ batch: { ...batch, status: "PAUSED_RATE_LIMIT" }, items });
+  await h.step(() => h.controls.buttons.get("Refresh").onClick());
+  assert.match(document.body.textContent, /Estimated time remaining: Paused/);
+  h.failTailoring(true);
+  await h.step(() => h.controls.buttons.get("Refresh").onClick());
+  assert.match(document.body.textContent, /Estimated time remaining: Temporarily unavailable/);
+  h.failTailoring(false);
+  h.setTailoringData({ batch, items });
+  await h.step(() => h.controls.buttons.get("Refresh").onClick());
+  assert.match(document.body.textContent, /Estimated time remaining: ~1 min/);
+  assert.doesNotMatch(document.body.textContent, /Temporarily unavailable/);
+  h.setTailoringData({ batch: { ...batch, status: "CANCELLED" }, items });
+  await h.step(() => h.controls.buttons.get("Refresh").onClick());
+  assert.match(document.body.textContent, /Estimated time remaining: Cancelled/);
+  assert.equal(h.calls.length, 5);
+  assert.ok(h.calls.every(call => call.url.includes("/tailoring-batches/")));
 });

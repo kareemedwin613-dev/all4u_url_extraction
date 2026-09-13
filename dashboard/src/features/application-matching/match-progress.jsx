@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Alert, Button, Card, Col, Flex, Progress, Row, Space, Statistic, Tag, Typography } from "antd";
-import { matchEvaluationState, matchingProgress } from "./match-progress.js";
+import { matchEvaluationState, matchingProgress, matchingTimingItems } from "./match-progress.js";
+import { useBatchTimeEstimate } from "../../shared/use-batch-time-estimate.js";
+import { BatchTimeEstimate } from "../../shared/batch-time-estimate.jsx";
 
 const labels = {
   EMPTY: "No scoring candidates", NOT_STARTED: "Awaiting evaluation", QUEUED: "Queued", PROCESSING: "Processing",
@@ -17,8 +19,10 @@ export function MatchEvaluationStatus({ row }) {
   </Space>;
 }
 
-export function MatchingProgress({ rows, truncated, lastUpdated, stale, refreshing, onRefresh }) {
+export function MatchingProgress({ scope, rows, truncated, lastUpdated, stale, refreshing, onRefresh }) {
   const progress = matchingProgress(rows);
+  const timingItems = useMemo(() => matchingTimingItems(rows), [rows]);
+  const estimate = useBatchTimeEstimate({ scope, items: timingItems, updatedAt: lastUpdated, unavailable: stale || refreshing, incomplete: truncated });
   const uncertain = stale || refreshing || truncated;
   const tagLabel = stale ? "Updates unavailable" : refreshing ? "Updating selection" : truncated ? "Partial preview" : labels[progress.status];
   const color = uncertain ? "gold" : progress.status === "COMPLETED" ? "green" : progress.status === "FINISHED_WITH_ISSUES" ? "red" : progress.processing ? "blue" : "default";
@@ -32,14 +36,16 @@ export function MatchingProgress({ rows, truncated, lastUpdated, stale, refreshi
         </Typography.Text>
       </Flex>
       {!truncated && <Progress aria-label="Evaluation progress" percent={progress.percent} status={barStatus} />}
+      <BatchTimeEstimate estimate={estimate} unit="JD/resume pair" />
       <Row gutter={[12, 12]} style={{ width: "100%" }}>
         {[["Completed", progress.completed], ["Processing", progress.processing], ["Queued", progress.queued],
-          ["Not started / stale", progress.notStarted], ["Failed", progress.failed], ["Insufficient data", progress.insufficient]].map(([title, value]) =>
+          ["Eligible", progress.eligible], ["Not eligible", progress.notEligible], ["Failed", progress.failed]].map(([title, value]) =>
           <Col xs={12} md={8} xl={4} key={title}><Statistic title={title} value={value} /></Col>)}
       </Row>
       <Typography.Text type="secondary">
-        {progress.eligible} eligible · {progress.belowThreshold} below threshold · {progress.skipped} duplicate/blocked pairs excluded from progress.
-        {" "}Finished includes failures; it does not mean every pair is eligible.
+        {progress.skipped} duplicate/blocked pairs excluded from progress.
+        {" "}Not eligible includes below-threshold and insufficient-data results, not pending or failed evaluations.
+        {" "}Unevaluated pairs remain in the remaining total. Finished includes failures.
       </Typography.Text>
       {truncated && <Alert type="warning" showIcon message="Narrow the JD or Resume selection to see complete progress. This preview does not contain every pair." />}
       {(stale || refreshing) && <Typography.Text type="warning">{stale ? "The last refresh failed; these counts may be out of date." : "Loading the selected resumes; these counts may be incomplete."}</Typography.Text>}

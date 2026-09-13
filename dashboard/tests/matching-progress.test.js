@@ -11,7 +11,7 @@ test("progress partitions pending, processing, unstarted, terminal failures and 
     row("FAILED"), row("INSUFFICIENT_DATA"),
   ]);
   assert.deepEqual(progress, { total: 8, completed: 2, processing: 1, queued: 1, notStarted: 2, failed: 1, insufficient: 1,
-    skipped: 0, eligible: 1, belowThreshold: 1, finished: 4, remaining: 4, percent: 50, status: "PROCESSING" });
+    skipped: 0, eligible: 1, belowThreshold: 1, notEligible: 2, finished: 4, remaining: 4, percent: 50, status: "PROCESSING" });
 });
 
 test("duplicates and blocked pairs don't inflate either completion or the scoring denominator", () => {
@@ -22,6 +22,8 @@ test("duplicates and blocked pairs don't inflate either completion or the scorin
   assert.equal(progress.total, 1);
   assert.equal(progress.skipped, rows.length);
   assert.equal(progress.completed, 0);
+  assert.equal(progress.eligible, 0);
+  assert.equal(progress.notEligible, 0);
   assert.equal(progress.percent, 0);
   assert.equal(progress.status, "QUEUED");
 });
@@ -31,6 +33,7 @@ test("below-threshold scores finish successfully; failed and insufficient result
   assert.equal(complete.status, "COMPLETED");
   assert.equal(complete.percent, 100);
   assert.equal(complete.eligible, 0);
+  assert.equal(complete.notEligible, 1);
   for (const status of ["FAILED", "INSUFFICIENT_DATA"]) {
     const progress = matchingProgress([row("COMPLETED"), row(status)]);
     assert.equal(progress.status, "FINISHED_WITH_ISSUES");
@@ -39,6 +42,22 @@ test("below-threshold scores finish successfully; failed and insufficient result
     assert.equal(progress.remaining, 0);
     assert.equal(progress.percent, 100);
   }
+});
+
+test("eligibility counts use final results, never unfinished evaluations or failures", () => {
+  const pending = ["PENDING", "PROCESSING", "NOT_ASSESSED", "STALE", "NEW_UNKNOWN_STATE", "FAILED"];
+  for (const state of pending) {
+    const progress = matchingProgress([row(state, { eligible: true, matchScore: 95 })]);
+    assert.equal(progress.eligible, 0, `${state} is not an eligible result`);
+    assert.equal(progress.notEligible, 0, `${state} is not a negative result`);
+  }
+  const insufficient = matchingProgress([{ exclusionCode: "MATCH_INSUFFICIENT_DATA" }]);
+  assert.equal(insufficient.notEligible, 1);
+  assert.equal(insufficient.eligible, 0);
+  assert.equal(insufficient.remaining, 0);
+  const rescoring = matchingProgress([row("PENDING", { exclusionCode: "MATCH_PENDING" })]);
+  assert.equal(rescoring.notEligible, 0);
+  assert.equal(rescoring.remaining, 1);
 });
 
 test("empty and stale/unstarted selections are not reported as complete or actively processing", () => {

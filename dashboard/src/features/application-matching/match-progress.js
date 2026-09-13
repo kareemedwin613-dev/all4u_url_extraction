@@ -11,6 +11,14 @@ export function matchEvaluationState(row) {
   return states.has(state) ? state : "NOT_ASSESSED";
 }
 
+export function matchingTimingItems(rows = []) {
+  return rows.filter(row => matchEvaluationState(row) !== "SKIPPED").map(row => {
+    const state = matchEvaluationState(row);
+    return { id: `${row.key || `${row.jobDescriptionId}:${row.resumeId}`}|${row.assessmentId || "unassessed"}`,
+      status: ["STALE", "NOT_ASSESSED"].includes(state) ? "NOT_STARTED" : state === "PENDING" ? "QUEUED" : state };
+  });
+}
+
 // Evaluation completion is not eligibility: a below-threshold score is still a
 // successfully completed evaluation. Skipped pairs never inflate the denominator.
 export function matchingProgress(rows = []) {
@@ -33,5 +41,8 @@ export function matchingProgress(rows = []) {
   const remaining = counts.total - finished;
   const status = !counts.total ? "EMPTY" : !remaining ? (counts.failed || counts.insufficient ? "FINISHED_WITH_ISSUES" : "COMPLETED")
     : counts.processing ? "PROCESSING" : counts.queued ? "QUEUED" : "NOT_STARTED";
-  return { ...counts, finished, remaining, percent: counts.total ? Math.floor(100 * finished / counts.total) : 0, status };
+  // Only final negative outcomes are ineligible; unfinished, failed and skipped
+  // evaluations must not be presented as rejected candidates.
+  const notEligible = counts.belowThreshold + counts.insufficient;
+  return { ...counts, notEligible, finished, remaining, percent: counts.total ? Math.floor(100 * finished / counts.total) : 0, status };
 }
