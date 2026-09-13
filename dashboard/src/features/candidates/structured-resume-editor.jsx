@@ -88,6 +88,7 @@ export function StructuredResumeEditor({
       setDraft({
         summary: profile.summary || "",
         skills: profile.skills || "",
+        educationLegacyText: profile.educationLegacyText || "",
         employment: (profile.employment || []).map((x) => ({ ...x })),
         education: (profile.education || []).map((x) => ({ ...x })),
         certifications: (profile.certifications || []).map((x) => ({ ...x })),
@@ -312,15 +313,38 @@ export function StructuredResumeEditor({
           Add Education
         </Button>
       </Flex>
-      {profile.educationLegacyText && (
-        <Alert
-          type="info"
-          message="Legacy education text"
-          description={
-            <span className="long-text">{profile.educationLegacyText}</span>
+      <Card size="small" title="Legacy education text" style={{ marginBottom: 12 }}>
+        <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+          Free-text education extracted from the upload. Edit or clear it here, then use Add Education for structured school records Autofill can use.
+        </Text>
+        <Input.TextArea
+          value={draft.educationLegacyText || ""}
+          onChange={(e) =>
+            setDraft((value) => ({
+              ...value,
+              educationLegacyText: e.target.value,
+            }))
           }
+          autoSize={{ minRows: 4, maxRows: 16 }}
+          maxLength={30000}
+          showCount
+          placeholder="Paste or correct the extracted education text…"
         />
-      )}{" "}
+        {String(draft.educationLegacyText || "").trim() ? (
+          <Button
+            danger
+            style={{ marginTop: 8 }}
+            onClick={() =>
+              setDraft((value) => ({
+                ...value,
+                educationLegacyText: "",
+              }))
+            }
+          >
+            Clear legacy text
+          </Button>
+        ) : null}
+      </Card>
       {draft.education.map((x, i) => (
         <Card
           size="small"
