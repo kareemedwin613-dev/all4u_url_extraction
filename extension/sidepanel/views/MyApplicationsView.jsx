@@ -18,6 +18,7 @@ function matchesStatusFilter(applicationStatus, filter) {
 export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }) {
   const [status, setStatus] = useState("");
   const [resumeFilter, setResumeFilter] = useState("");
+  const [screenshotFeedback, setScreenshotFeedback] = useState("");
   const [items, setItems] = useState(null);
   const [resumes, setResumes] = useState([]);
   const [total, setTotal] = useState(0);
@@ -45,7 +46,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     } finally { setExtensionBusy(""); }
   }
 
-  async function reload({ nextStatus = status, nextResumeId = resumeFilter } = {}) {
+  async function reload({ nextStatus = status, nextResumeId = resumeFilter, nextScreenshotFeedback = screenshotFeedback } = {}) {
     try {
       // Status-scoped profile resume options come from the full matching set on the server.
       // Items are limited to 100 after status (+ optional profile resume) filters.
@@ -53,6 +54,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
       let data = await listMyApplications(client, backendBaseUrl, {
         status: nextStatus,
         resumeId: activeResumeId,
+        screenshotFeedback: nextScreenshotFeedback,
         sort: "captured_desc",
       });
       if (activeResumeId && !data.resumes.some((resume) => resume.id === activeResumeId)) {
@@ -61,6 +63,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         data = await listMyApplications(client, backendBaseUrl, {
           status: nextStatus,
           resumeId: "",
+          screenshotFeedback: nextScreenshotFeedback,
           sort: "captured_desc",
         });
       }
@@ -131,6 +134,21 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
             }}
           />
           <Select
+            style={{ width: 220 }}
+            allowClear
+            value={screenshotFeedback || undefined}
+            placeholder="Screenshot feedback"
+            options={[
+              { value: "HAS_FEEDBACK", label: "Has feedback (mistakes)" },
+              { value: "NO_FEEDBACK", label: "No feedback" },
+            ]}
+            onChange={(value) => {
+              const next = value || "";
+              setScreenshotFeedback(next);
+              reload({ nextScreenshotFeedback: next });
+            }}
+          />
+          <Select
             style={{ width: 260 }}
             value={resumeFilter}
             options={resumeOptions}
@@ -150,7 +168,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         </Space>
         {items && total > items.length ? (
           <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
-            Showing {items.length} of {total} Applications for this Status{resumeFilter ? " + profile" : ""} filter.
+            Showing {items.length} of {total} Applications for this filter.
           </Text>
         ) : null}
       </Card>

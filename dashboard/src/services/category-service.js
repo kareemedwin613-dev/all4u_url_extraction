@@ -20,14 +20,22 @@ export function formatResumeTechStacks(cache,resume,kind="primary"){
   if(!ids.length)return kind==="sub"?"None":"Unknown category";
   return ids.map((id)=>categoryName(cache,id)).join(", ");
 }
-export function applicationTechStackLabels(record={}){
-  const names=Array.isArray(record.resume_category_names)?record.resume_category_names.filter(Boolean):[];
-  if(names.length)return names;
-  if(record.category_name)return [record.category_name];
-  return [];
-}
 export function applicationTechStackIds(record={}){
   const ids=Array.isArray(record.resume_category_ids)?record.resume_category_ids.filter(Boolean):[];
-  if(ids.length)return ids;
-  return record.category_id?[record.category_id]:[];
+  if(ids.length)return[...new Set(ids.map((id)=>String(id)))];
+  return record.category_id?[String(record.category_id)]:[];
+}
+export function applicationTechStackLabels(record={}){
+  const ids=applicationTechStackIds(record);
+  const names=Array.isArray(record.resume_category_names)?record.resume_category_names.filter(Boolean):[];
+  if(ids.length&&names.length){
+    const rawIds=Array.isArray(record.resume_category_ids)?record.resume_category_ids.map((id)=>String(id||"")).filter(Boolean):[];
+    const byId=new Map();
+    rawIds.forEach((id,index)=>{if(!byId.has(id)&&names[index])byId.set(id,names[index]);});
+    const paired=ids.map((id)=>byId.get(id)).filter(Boolean);
+    if(paired.length)return paired;
+  }
+  if(names.length)return[...new Set(names)];
+  if(record.category_name)return[record.category_name];
+  return[];
 }
