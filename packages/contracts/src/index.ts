@@ -405,7 +405,7 @@ export interface CandidateEducationRequest {
   startDate?: string | null; endDate?: string | null; gpa?: string; details?: string; displayOrder?: number;
 }
 export interface UpdateResumeStructuredContentRequest {
-  summary?: string; skills?: string;
+  summary?: string; skills?: string; educationLegacyText?: string;
   employment: Array<CandidateEmploymentRequest & { id?: string }>;
   education: Array<CandidateEducationRequest & { id?: string }>;
   certifications: Array<Omit<CandidateCertification, "source" | "id"> & { id?: string }>;

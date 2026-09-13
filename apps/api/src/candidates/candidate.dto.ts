@@ -71,6 +71,7 @@ export class StructuredEducationDto extends CandidateEducationDto {
 export class UpdateResumeStructuredContentDto {
   @IsOptional() @IsString() @MaxLength(30000) summary?: string;
   @IsOptional() @IsString() @MaxLength(30000) skills?: string;
+  @IsOptional() @IsString() @MaxLength(30000) educationLegacyText?: string;
   @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StructuredEmploymentDto) employment!: StructuredEmploymentDto[];
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => StructuredEducationDto) education!: StructuredEducationDto[];
   @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StructuredCertificationDto) certifications!: StructuredCertificationDto[];

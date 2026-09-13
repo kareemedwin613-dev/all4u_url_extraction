@@ -8,6 +8,7 @@ export function buildStructuredResumeSaveBody(draft) {
   return {
     summary: draft.summary || "",
     skills: draft.skills || "",
+    educationLegacyText: draft.educationLegacyText || "",
     employment: (draft.employment || []).map((item, index) => ({
       id: item.id || undefined,
       company: String(item.company || "").trim(),

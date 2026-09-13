@@ -28,9 +28,10 @@ test("employment and education mutations send allowlisted RPC arguments",async()
 
 test("structured Resume save is one request-scoped atomic RPC",async()=>{
   const{calls,service}=fixture();
-  await service.structured(user as any,resumeId,{summary:" Summary ",skills:" SQL, Python ",employment:[{id:"employment-1",company:"Acme",jobTitle:"Engineer",isCurrent:true}],education:[],certifications:[]}as any);
-  assert.equal(calls.length,1);assert.equal(calls[0].name,"update_resume_structured_content_v091");
+  await service.structured(user as any,resumeId,{summary:" Summary ",skills:" SQL, Python ",educationLegacyText:" State U ",employment:[{id:"employment-1",company:"Acme",jobTitle:"Engineer",isCurrent:true}],education:[],certifications:[]}as any);
+  assert.equal(calls.length,1);assert.equal(calls[0].name,"update_resume_structured_content_v384");
   assert.equal(calls[0].args.p_summary,"Summary");assert.equal(calls[0].args.p_employment[0].company,"Acme");
+  assert.equal(calls[0].args.p_education_legacy_text," State U ");
 });
 
 test("database policy failures become safe API errors",async()=>{
