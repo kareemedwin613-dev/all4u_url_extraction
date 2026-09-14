@@ -43,7 +43,7 @@ test("custom Overview range labels use readable month-day-year spelling", () => 
 test("the sticky top bar owns the shared Overview reporting period", async () => {
   const app = await read("../src/App.jsx");
   const cards = await read("../src/features/overview/overview-count-cards.jsx");
-  assert.match(app, /headerExtra=\{route\.name === "overview"/);
+  assert.match(app, /headerExtra=\{<>\s*\{route\.name === "overview"/);
   assert.match(app, /<OverviewDateFilter compact value=\{overviewPeriod\} onChange=\{setOverviewPeriod\}/);
   assert.doesNotMatch(app, /<OverviewDateFilter value=\{period\}/);
   assert.match(app, /dateRange=\{dateRange\}/);
