@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  APPLIER_PROFILE_WORKLOAD_CHART_METRICS,
   APPLIER_PROFILE_WORKLOAD_METRICS,
   normalizeApplierProfileWorkload,
 } from "./applier-profile-workload.js";
@@ -17,7 +18,11 @@ import { OverviewChartCard, OverviewChartLegend } from "./overview-ui.jsx";
 
 const { Text } = Typography;
 
-export { APPLIER_PROFILE_WORKLOAD_METRICS, normalizeApplierProfileWorkload };
+export {
+  APPLIER_PROFILE_WORKLOAD_CHART_METRICS,
+  APPLIER_PROFILE_WORKLOAD_METRICS,
+  normalizeApplierProfileWorkload,
+};
 
 const shortName = (value, max = 14) => {
   const text = String(value || "").trim();
@@ -46,7 +51,7 @@ function ProfileWorkloadTooltip({ active, payload }) {
       ) : (
         <div style={{ marginBottom: 8 }} />
       )}
-      {APPLIER_PROFILE_WORKLOAD_METRICS.map((metric) => (
+      {APPLIER_PROFILE_WORKLOAD_CHART_METRICS.map((metric) => (
         <div key={metric.key} className="overview-chart-tooltip__row">
           <span
             aria-hidden="true"
@@ -117,7 +122,7 @@ export function ApplierProfileWorkloadChart({
         />
       ) : (
         <>
-          <OverviewChartLegend metrics={APPLIER_PROFILE_WORKLOAD_METRICS} />
+          <OverviewChartLegend metrics={APPLIER_PROFILE_WORKLOAD_CHART_METRICS} />
           <div
             className="overview-chart-scroll"
             role="img"
@@ -143,7 +148,7 @@ export function ApplierProfileWorkloadChart({
                     cursor={{ fill: "rgba(22, 119, 255, 0.06)" }}
                     content={<ProfileWorkloadTooltip />}
                   />
-                  {APPLIER_PROFILE_WORKLOAD_METRICS.map((metric) => (
+                  {APPLIER_PROFILE_WORKLOAD_CHART_METRICS.map((metric) => (
                     <Bar
                       key={metric.key}
                       dataKey={metric.key}

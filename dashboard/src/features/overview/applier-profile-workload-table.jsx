@@ -1,18 +1,18 @@
 import React, { useMemo, useState } from "react";
 import { Button, Dropdown, Empty, Input, Table } from "antd";
 import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
-import { clientSortColumns, tableRowNumberColumn } from "../../shared/table-sorting.js";
+import { tableRowNumberColumn } from "../../shared/table-sorting.js";
 import {
   APPLIER_PROFILE_WORKLOAD_METRICS,
   normalizeApplierProfileWorkload,
+  PROFILE_TABLE_METRIC_KEYS,
   PROFILE_WORKLOAD_STATUS,
+  sumProfileMetricTotals,
 } from "./applier-profile-workload.js";
 
 const profileMetricsByKey = new Map(
   APPLIER_PROFILE_WORKLOAD_METRICS.map((metric) => [metric.key, metric]),
 );
-
-const PROFILE_TABLE_METRIC_KEYS = ["assigned", "applied", "blocked", "pending", "interview"];
 
 export function ProfileWorkloadStatusTag({ status }) {
   const meta = PROFILE_WORKLOAD_STATUS[status] || PROFILE_WORKLOAD_STATUS.NO_ACTIVITY;
@@ -30,10 +30,16 @@ export function ProfileWorkloadStatusTag({ status }) {
 }
 
 function profileCountColumn(metric) {
+  const wide =
+    metric.key === "nonTailored" ||
+    metric.key === "tailored" ||
+    metric.key === "interviews" ||
+    metric.key === "interviewsTailored" ||
+    metric.key === "interviewsNonTailored";
   return {
     title: metric.label,
     dataIndex: metric.key,
-    width: 76,
+    width: wide ? 84 : 70,
     align: "center",
     className: `productivity-metric-col productivity-metric-col--${metric.key}`,
     sorter: (left, right) => left[metric.key] - right[metric.key],
@@ -49,13 +55,43 @@ function profileCountColumn(metric) {
   };
 }
 
-function buildColumns(page, pageSize) {
-  return clientSortColumns([
-    tableRowNumberColumn({ page, pageSize }),
+function ProfileMetricTotal({ metricKey, value }) {
+  return (
+    <span
+      className={`productivity-metric-value productivity-metric-value--${metricKey} productivity-metric-value--total${
+        metricKey === "blocked" && value ? " productivity-metric-value--danger" : ""
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function ProfileTableSummary({ totals, showApplier }) {
+  const leadingCount = showApplier ? 4 : 3;
+  const metricCount = PROFILE_TABLE_METRIC_KEYS.length;
+  return (
+    <Table.Summary fixed>
+      <Table.Summary.Row className="productivity-table-summary-row">
+        <Table.Summary.Cell index={0} colSpan={leadingCount} />
+        {PROFILE_TABLE_METRIC_KEYS.map((key, index) => (
+          <Table.Summary.Cell key={key} index={index + leadingCount} align="center">
+            <ProfileMetricTotal metricKey={key} value={totals[key]} />
+          </Table.Summary.Cell>
+        ))}
+        <Table.Summary.Cell index={leadingCount + metricCount} />
+      </Table.Summary.Row>
+    </Table.Summary>
+  );
+}
+
+function buildColumns({ showApplier }) {
+  return [
+    tableRowNumberColumn({ page: 1, pageSize: 10000 }),
     {
       title: "Profile",
       dataIndex: "name",
-      width: 180,
+      width: 160,
       className: "productivity-applier-col",
       sorter: (left, right) => left.name.localeCompare(right.name),
       render: (value, row) => (
@@ -70,6 +106,22 @@ function buildColumns(page, pageSize) {
         </div>
       ),
     },
+    ...(showApplier
+      ? [
+          {
+            title: "Applier",
+            dataIndex: "applierName",
+            width: 128,
+            sorter: (left, right) => left.applierName.localeCompare(right.applierName),
+            render: (value, row) =>
+              row.applierUserId ? (
+                <a href={`#/appliers/${row.applierUserId}`}>{value || "—"}</a>
+              ) : (
+                value || "—"
+              ),
+          },
+        ]
+      : []),
     {
       title: "Status",
       dataIndex: "status",
@@ -125,33 +177,44 @@ function buildColumns(page, pageSize) {
         </Dropdown>
       ),
     },
-  ]);
+  ];
 }
 
-export function ApplierProfileWorkloadTable({ rows = [], dateLabel = "This period" }) {
+export function ApplierProfileWorkloadTable({
+  rows = [],
+  dateLabel = "This period",
+  showApplier = false,
+  title = "My Active Profiles",
+  showTitle = true,
+}) {
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const data = useMemo(() => normalizeApplierProfileWorkload(rows), [rows]);
-  const columns = useMemo(() => buildColumns(page, pageSize), [page, pageSize]);
+  const columns = useMemo(() => buildColumns({ showApplier }), [showApplier]);
   const needle = search.trim().toLocaleLowerCase();
   const visible = useMemo(
     () =>
       needle
         ? data.filter((item) =>
-            `${item.name} ${item.resumeName}`.toLocaleLowerCase().includes(needle),
+            `${item.name} ${item.resumeName} ${item.applierName}`
+              .toLocaleLowerCase()
+              .includes(needle),
           )
         : data,
     [data, needle],
   );
+  const metricTotals = useMemo(() => sumProfileMetricTotals(data), [data]);
 
   return (
     <div className="productivity-table-shell">
       <div className="productivity-table-header">
         <div className="productivity-table-header__top">
-          <div className="productivity-table-tabs productivity-table-tabs--single">
-            <span className="productivity-table-tabs__label">My Active Profiles</span>
-          </div>
+          {showTitle ? (
+            <div className="productivity-table-tabs productivity-table-tabs--single">
+              <span className="productivity-table-tabs__label">{title}</span>
+            </div>
+          ) : (
+            <div />
+          )}
           <span className="productivity-table-period">{dateLabel}</span>
         </div>
         <div className="productivity-table-tools">
@@ -159,12 +222,9 @@ export function ApplierProfileWorkloadTable({ rows = [], dateLabel = "This perio
             allowClear
             prefix={<SearchOutlined />}
             value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search profile..."
-            aria-label="Search My Active Profiles by profile name"
+            aria-label="Search profiles by name"
           />
         </div>
       </div>
@@ -172,7 +232,7 @@ export function ApplierProfileWorkloadTable({ rows = [], dateLabel = "This perio
         <Empty
           className="productivity-table-empty"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="No profiles are assigned to you yet."
+          description="No profiles are available."
         />
       ) : !visible.length ? (
         <Empty
@@ -184,24 +244,16 @@ export function ApplierProfileWorkloadTable({ rows = [], dateLabel = "This perio
         <div className="productivity-table-scroll">
           <Table
             className="productivity-table"
-            rowKey="id"
+            rowKey={(row) => `${row.id}:${row.applierUserId || ""}`}
             size="middle"
             tableLayout="fixed"
-            pagination={{
-              current: page,
-              pageSize,
-              showSizeChanger: true,
-              pageSizeOptions: [10, 25, 50],
-              showTotal: (total, range) =>
-                `Showing ${range[0]} to ${range[1]} of ${total} profile${total === 1 ? "" : "s"}`,
-              onChange: (nextPage, nextPageSize) => {
-                setPage(nextPage);
-                setPageSize(nextPageSize);
-              },
-            }}
+            pagination={false}
             dataSource={visible}
             columns={columns}
             scroll={{ x: "max-content" }}
+            summary={() => (
+              <ProfileTableSummary totals={metricTotals} showApplier={showApplier} />
+            )}
           />
         </div>
       )}

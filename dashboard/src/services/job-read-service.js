@@ -62,6 +62,7 @@ export async function removeExpiredJobs(client,apiBaseUrl,{jobDescriptionIds}={}
 }
 export const updateOwnJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/correction`,method:"PATCH",body})).payload.data;
 export const updateManagedJob=async(client,apiBaseUrl,id,body)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/manager-edit`,method:"PATCH",body})).payload.data;
+export const unblockJobApplications=async(client,apiBaseUrl,id,reason)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/application-unblock`,method:"POST",body:{...(reason!=null&&String(reason).trim()?{reason:String(reason).trim()}:{})}})).payload.data;
 export async function importJobSubcategories(client,apiBaseUrl,updates){
   const rows=[...((updates||[]))];
   if(!rows.length)throw{code:"VALIDATION_ERROR",message:"The spreadsheet has no data rows.",retryable:false};

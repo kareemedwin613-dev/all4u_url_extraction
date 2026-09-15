@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  APPLIER_PERFORMANCE_CHART_METRICS,
   APPLIER_PERFORMANCE_METRICS,
   normalizeApplierPerformance,
 } from "./applier-performance.js";
@@ -17,7 +18,11 @@ import { OverviewChartCard, OverviewChartLegend } from "./overview-ui.jsx";
 
 const { Text } = Typography;
 
-export { APPLIER_PERFORMANCE_METRICS, normalizeApplierPerformance };
+export {
+  APPLIER_PERFORMANCE_CHART_METRICS,
+  APPLIER_PERFORMANCE_METRICS,
+  normalizeApplierPerformance,
+};
 
 const shortName = (value, max = 12) => {
   const text = String(value || "").trim();
@@ -34,7 +39,7 @@ function ApplierPerformanceTooltip({ active, payload }) {
       <Text strong style={{ display: "block", marginBottom: 8 }}>
         {row.name}
       </Text>
-      {APPLIER_PERFORMANCE_METRICS.map((metric) => (
+      {APPLIER_PERFORMANCE_CHART_METRICS.map((metric) => (
         <div key={metric.key} className="overview-chart-tooltip__row">
           <span
             aria-hidden="true"
@@ -101,7 +106,7 @@ export function ApplierPerformanceChart({ rows = [], dateLabel = "Today" }) {
         />
       ) : (
         <>
-          <OverviewChartLegend metrics={APPLIER_PERFORMANCE_METRICS} />
+          <OverviewChartLegend metrics={APPLIER_PERFORMANCE_CHART_METRICS} />
           <div
             className="overview-chart-scroll"
             role="img"
@@ -127,7 +132,7 @@ export function ApplierPerformanceChart({ rows = [], dateLabel = "Today" }) {
                     cursor={{ fill: "rgba(22, 119, 255, 0.06)" }}
                     content={<ApplierPerformanceTooltip />}
                   />
-                  {APPLIER_PERFORMANCE_METRICS.map((metric) => (
+                  {APPLIER_PERFORMANCE_CHART_METRICS.map((metric) => (
                     <Bar
                       key={metric.key}
                       dataKey={metric.key}

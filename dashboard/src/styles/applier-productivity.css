@@ -77,7 +77,7 @@
 
 .productivity-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 420px);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 260px);
   gap: 16px;
   align-items: start;
 }
@@ -113,6 +113,19 @@
 
 .productivity-main-card > .ant-card-body {
   padding: 0;
+}
+
+.productivity-overview-tabs {
+  padding: 8px 16px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.productivity-overview-tabs .productivity-table-tabs {
+  margin-bottom: 0;
+}
+
+.productivity-overview-tabs .ant-tabs-nav {
+  margin-bottom: 0;
 }
 
 .productivity-table-shell {
@@ -536,13 +549,14 @@
 
 .productivity-donut {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
-  align-items: center;
+  justify-items: stretch;
 }
 
 .productivity-donut__chart {
   position: relative;
+  margin: 0 auto;
 }
 
 .productivity-donut__center {
