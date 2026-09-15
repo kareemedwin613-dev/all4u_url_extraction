@@ -6,7 +6,7 @@ import type { JobCountQueryDto, JobDescriptionQueryDto, RecentJobsQueryDto } fro
 import type { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
 import { normalizeSourceUrl } from "../extension-ingestion/job-description.service.js";
 
-export const JOB_LIST_FIELDS = "id,user_id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,source_site,source_url,status,review_status,review_comment,review_decline_reason,reviewed_by,reviewed_at,created_at,updated_at,primary_category:categories!job_descriptions_category_id_fkey(name),industry_domain:industry_domain_categories!job_descriptions_industry_domain_category_fkey(name,slug),captured_by:user_profiles!job_descriptions_user_profile_fkey(display_name,email),job_description_subcategories(subcategory_id,sort_order)";
+export const JOB_LIST_FIELDS = "id,user_id,company,job_title,category_id,subcategory_id,industry_domain_category_id,seniority,location_text,work_arrangement,source_site,source_url,status,review_status,review_comment,review_decline_reason,reviewed_by,reviewed_at,application_blocked_at,application_blocked_notes,application_blocked_from_application_id,created_at,updated_at,primary_category:categories!job_descriptions_category_id_fkey(name),industry_domain:industry_domain_categories!job_descriptions_industry_domain_category_fkey(name,slug),captured_by:user_profiles!job_descriptions_user_profile_fkey(display_name,email),job_description_subcategories(subcategory_id,sort_order)";
 export const JOB_DETAIL_FIELDS = `${JOB_LIST_FIELDS},description_text,detected_skills,clearance_requirements,travel_required,travel_details,salary_min,salary_max,salary_currency,salary_period,salary_text,capture_method,extraction_confidence,archived_at,archived_by,archive_reason`;
 const SORTS: Record<string, { column: string; ascending: boolean }> = {};
 for (const [key, column] of Object.entries({ company:"company", title:"job_title", category:"category_id", subcategory:"subcategory_id", seniority:"seniority", source:"source_url", capturer:"user_id", status:"status", review:"review_status", created:"created_at" })) {
@@ -282,6 +282,15 @@ export class JobDescriptionReadService {
 
   async managerEdit(user: AuthenticatedUser, id: string, input: JobDescriptionCorrectionDto) {
     return this.applyCorrection(user, id, input, "manager_update_job_description_v312");
+  }
+
+  async unblockApplications(user: AuthenticatedUser, id: string, reason?: string) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("unblock_job_description_applications_v385", {
+      p_job_description_id: id,
+      p_reason: reason?.trim() || null,
+    });
+    if (error) databaseError(error, "The job description could not be unblocked for Applications.");
+    return data;
   }
 
   private async applyCorrection(

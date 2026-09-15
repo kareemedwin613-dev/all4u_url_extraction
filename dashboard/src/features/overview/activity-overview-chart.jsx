@@ -4,12 +4,17 @@ import { ProductivityActivityDonut } from "./applier-productivity-table.jsx";
 import {
   activityOverviewTotal,
   buildActivityOverviewSegments,
+  buildActivityInterviewResumeTypeSegments,
   buildActivityResumeTypeSegments,
 } from "./applier-productivity.js";
 
 export function ActivityOverviewChart({ counts = {} }) {
   const segments = useMemo(() => buildActivityOverviewSegments(counts), [counts]);
   const resumeTypes = useMemo(() => buildActivityResumeTypeSegments(counts), [counts]);
+  const interviewResumeTypes = useMemo(
+    () => buildActivityInterviewResumeTypeSegments(counts),
+    [counts],
+  );
   const total = useMemo(() => activityOverviewTotal(counts), [counts]);
   if (!total) {
     return <ProductivityActivityDonut segments={[]} />;
@@ -56,6 +61,21 @@ export function ActivityOverviewChart({ counts = {} }) {
         <div className="productivity-donut__resume-types" aria-label="Applied applications by resume type">
           <div className="productivity-donut__resume-types-title">Applied by resume type</div>
           {resumeTypes.map((segment) => (
+            <div key={segment.key} className="productivity-donut__legend-item">
+              <span className="productivity-donut__legend-label">
+                <span
+                  className="productivity-donut__swatch"
+                  style={{ background: segment.color }}
+                />
+                <span>{segment.label}</span>
+              </span>
+              <strong>{segment.value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="productivity-donut__resume-types" aria-label="Interview applications by resume type">
+          <div className="productivity-donut__resume-types-title">Interviews by resume type</div>
+          {interviewResumeTypes.map((segment) => (
             <div key={segment.key} className="productivity-donut__legend-item">
               <span className="productivity-donut__legend-label">
                 <span

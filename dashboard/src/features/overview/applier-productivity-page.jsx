@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { Card, Typography } from "antd";
+import React, { useMemo, useState } from "react";
+import { Card, Tabs, Typography } from "antd";
 import {
   CheckCircleOutlined,
   TeamOutlined,
@@ -12,6 +12,7 @@ import {
   ApplierProductivityTable,
   ProductivityLeaders,
 } from "./applier-productivity-table.jsx";
+import { ApplierProfileWorkloadTable } from "./applier-profile-workload-table.jsx";
 import { OverviewKpiCard, OverviewKpiGrid, OverviewSection } from "./overview-ui.jsx";
 import {
   getTopPerformers,
@@ -23,14 +24,21 @@ import {
 
 const { Text } = Typography;
 
+const OVERVIEW_TABLE_TABS = [
+  { key: "productivity", label: "Applier Productivity" },
+  { key: "profiles", label: "Profile Status" },
+];
+
 export function ApplierProductivityPage({
   client,
   apiBaseUrl,
   rows = [],
+  profileRows = [],
   applicationCounts = {},
   dateLabel = "Today",
   dateRange,
 }) {
+  const [activeTab, setActiveTab] = useState("productivity");
   const data = useMemo(
     () => normalizeApplierProductivity(rows, { dateRange }),
     [rows, dateRange],
@@ -119,14 +127,31 @@ export function ApplierProductivityPage({
           className="overview-chart-card productivity-main-card"
           styles={{ body: { padding: 0 } }}
         >
-          <ApplierProductivityTable
-            client={client}
-            apiBaseUrl={apiBaseUrl}
-            rows={rows}
-            dateRange={dateRange}
-            windowDays={kpis.windowDays}
-            dateLabel={dateLabel}
-          />
+          <div className="productivity-overview-tabs">
+            <Tabs
+              className="productivity-table-tabs"
+              activeKey={activeTab}
+              items={OVERVIEW_TABLE_TABS}
+              onChange={setActiveTab}
+            />
+          </div>
+          {activeTab === "profiles" ? (
+            <ApplierProfileWorkloadTable
+              rows={profileRows}
+              dateLabel={dateLabel}
+              showTitle={false}
+            />
+          ) : (
+            <ApplierProductivityTable
+              client={client}
+              apiBaseUrl={apiBaseUrl}
+              rows={rows}
+              dateRange={dateRange}
+              windowDays={kpis.windowDays}
+              dateLabel={dateLabel}
+              showTitle={false}
+            />
+          )}
         </Card>
 
         <div className="productivity-side-stack">

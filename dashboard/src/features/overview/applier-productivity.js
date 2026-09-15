@@ -11,14 +11,39 @@ export const PRODUCTIVITY_STATUS = Object.freeze({
 export const OVERVIEW_UNASSIGNED_APPLIER_ID =
   "00000000-0000-4000-8000-000000000000";
 
+export const APPLIER_SALARY_RATES = Object.freeze({
+  applied: 0.06,
+  interviews: 1,
+  mistakes: 0.5,
+});
+
+export function computeApplierSalary({
+  applied = 0,
+  interviews = 0,
+  mistakes = 0,
+} = {}) {
+  const value =
+    APPLIER_SALARY_RATES.applied * Math.max(0, Number(applied) || 0) +
+    APPLIER_SALARY_RATES.interviews * Math.max(0, Number(interviews) || 0) -
+    APPLIER_SALARY_RATES.mistakes * Math.max(0, Number(mistakes) || 0);
+  return Math.round(value * 100) / 100;
+}
+
+export function formatApplierSalary(value) {
+  const amount = Number(value) || 0;
+  const absolute = Math.abs(amount).toFixed(2);
+  return amount < 0 ? `-$${absolute}` : `$${absolute}`;
+}
+
 export const PRODUCTIVITY_TABLE_METRIC_KEYS = Object.freeze([
-  "assigned",
   "applied",
+  "tailored",
+  "nonTailored",
   "blocked",
   "pending",
   "interviews",
-  "tailored",
-  "nonTailored",
+  "interviewsTailored",
+  "interviewsNonTailored",
 ]);
 
 export function sumProductivityMetricTotals(rows = []) {
@@ -31,11 +56,12 @@ export function sumProductivityMetricTotals(rows = []) {
       return totals;
     },
     {
-      assigned: 0,
       applied: 0,
       blocked: 0,
       pending: 0,
       interviews: 0,
+      interviewsTailored: 0,
+      interviewsNonTailored: 0,
       tailored: 0,
       nonTailored: 0,
     },
@@ -320,11 +346,20 @@ export function sortProductivityRows(rows = [], sorter = {}) {
       case "interviews":
         valueCompare = left.interviews - right.interviews;
         break;
+      case "interviewsTailored":
+        valueCompare = left.interviewsTailored - right.interviewsTailored;
+        break;
+      case "interviewsNonTailored":
+        valueCompare = left.interviewsNonTailored - right.interviewsNonTailored;
+        break;
       case "tailored":
         valueCompare = left.tailored - right.tailored;
         break;
       case "nonTailored":
         valueCompare = left.nonTailored - right.nonTailored;
+        break;
+      case "salary":
+        valueCompare = left.salary - right.salary;
         break;
       case "avgPerDay":
         valueCompare = left.avgPerDay - right.avgPerDay;
@@ -388,12 +423,16 @@ export const ACTIVITY_OVERVIEW_SEGMENTS = Object.freeze([
     label: "Applied",
     color: "#52c41a",
     value: (counts) => {
+      // Submitted in period (applied_at), including later Interview/Offer/etc.
       if (counts.applied_count != null) return count(counts.applied_count);
+      if (counts.applied != null) return count(counts.applied);
+      if (counts.applied_today != null) return count(counts.applied_today);
+      if (counts.status_applied != null) return count(counts.status_applied);
       if (counts.applied_status != null && counts.screening != null) {
         return Math.max(0, count(counts.applied_status) - count(counts.screening));
       }
       if (counts.applied_status != null) return count(counts.applied_status);
-      return count(counts.applied_today);
+      return 0;
     },
   },
   {
@@ -443,6 +482,21 @@ export const ACTIVITY_RESUME_TYPE_SEGMENTS = Object.freeze([
   },
 ]);
 
+export const ACTIVITY_INTERVIEW_RESUME_TYPE_SEGMENTS = Object.freeze([
+  {
+    key: "interviews_tailored",
+    label: "Tailored",
+    color: "#13c2c2",
+    value: (counts) => count(counts.interviews_tailored),
+  },
+  {
+    key: "interviews_non_tailored",
+    label: "Non-tailored",
+    color: "#595959",
+    value: (counts) => count(counts.interviews_non_tailored),
+  },
+]);
+
 export function buildActivityOverviewSegments(counts = {}) {
   return ACTIVITY_OVERVIEW_SEGMENTS.map(({ key, label, color, value }) => ({
     key,
@@ -454,6 +508,15 @@ export function buildActivityOverviewSegments(counts = {}) {
 
 export function buildActivityResumeTypeSegments(counts = {}) {
   return ACTIVITY_RESUME_TYPE_SEGMENTS.map(({ key, label, color, value }) => ({
+    key,
+    label,
+    color,
+    value: value(counts),
+  }));
+}
+
+export function buildActivityInterviewResumeTypeSegments(counts = {}) {
+  return ACTIVITY_INTERVIEW_RESUME_TYPE_SEGMENTS.map(({ key, label, color, value }) => ({
     key,
     label,
     color,
@@ -485,6 +548,7 @@ export function normalizeApplierProductivity(rows = [], options = {}) {
     );
     const enriched = {
       ...row,
+      mistakes: count(raw.mistakes_count ?? row.mistakes),
       activeDays,
       avgPerDay,
       lastActivityAt,
@@ -493,6 +557,7 @@ export function normalizeApplierProductivity(rows = [], options = {}) {
       productivityStatus,
       windowDays,
     };
+    enriched.salary = computeApplierSalary(enriched);
     const score = computeProductivityScore(enriched);
     const gradeMeta = gradeFromScore(score);
     return {

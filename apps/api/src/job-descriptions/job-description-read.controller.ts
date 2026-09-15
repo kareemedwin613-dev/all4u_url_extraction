@@ -13,6 +13,7 @@ import { BulkJobDescriptionReviewDto } from "./bulk-job-description-review.dto.j
 import { BulkJobDescriptionDeleteDto } from "./bulk-job-description-delete.dto.js";
 import { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
 import { BulkJobSubcategoryImportDto } from "./bulk-job-subcategory-import.dto.js";
+import { JobDescriptionApplicationUnblockDto } from "./job-description-application-unblock.dto.js";
 
 const BUSINESS_ROLES = ["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "JD_FINDER", "ADMIN"] as const;
 
@@ -79,6 +80,11 @@ export class JobDescriptionReadController {
 
   @Patch(":id/manager-edit") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Edit an unapproved job description during manager review" })
   async managerEdit(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionCorrectionDto)) body: JobDescriptionCorrectionDto) { return { data: await this.jobs.managerEdit(request.user!, id, body), requestId: request.requestId }; }
+
+  @Post(":id/application-unblock") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Clear the Application block so this JD can be used for new Applications again" })
+  async unblockApplications(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(JobDescriptionApplicationUnblockDto)) body: JobDescriptionApplicationUnblockDto) {
+    return { data: await this.jobs.unblockApplications(request.user!, id, body.reason), requestId: request.requestId };
+  }
 
   @Get(":id") @ApiOperation({ summary: "Get one accessible job description" })
   async detail(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return { data: await this.jobs.detail(request.user!, id), requestId: request.requestId }; }

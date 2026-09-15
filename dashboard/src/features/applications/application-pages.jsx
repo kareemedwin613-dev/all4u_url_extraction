@@ -87,6 +87,7 @@ import {
   openFirstApplicationScreenshot,
   reassignApplication,
   updateApplication,
+  unblockJobDescriptionApplications,
 } from "./application-service.js";
 import { ApplicationScreenshotsCard } from "./application-screenshots-card.jsx";
 import { ApplicationMatchPanel, MatchingModeSelect } from "../application-matching/match-components.jsx";
@@ -1135,6 +1136,8 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
 }
 
 function ProgressForm({ application, manager, onSave, busy }) {
+  const [form] = Form.useForm();
+  const status = Form.useWatch("status", form);
   const initial = {
     status: application.status,
     applicationUrl: application.application_url || "",
@@ -1145,6 +1148,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
   };
   return (
     <Form
+      form={form}
       layout="vertical"
       key={application.updated_at || application.id}
       initialValues={initial}
@@ -1152,10 +1156,10 @@ function ProgressForm({ application, manager, onSave, busy }) {
         const progress = {
           status: value.status,
           applicationUrl: value.applicationUrl,
+          notes: value.notes,
         };
         if (manager) {
           progress.appliedAt = fromLocal(value.appliedAt);
-          progress.notes = value.notes;
           progress.priority = value.priority;
           progress.dueAt = fromLocal(value.dueAt);
         }
@@ -1171,6 +1175,15 @@ function ProgressForm({ application, manager, onSave, busy }) {
           ).map((value) => ({ value, label: formatLabel(value) }))}
         />
       </Form.Item>
+      {status === "BLOCKED" ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Blocking removes this job for all profiles"
+          description="Other open Applications on this job will be cancelled, and it will leave matching queues until a manager unblocks it."
+        />
+      ) : null}
       <Form.Item
         label="Confirmation URL"
         name="applicationUrl"
@@ -1196,11 +1209,28 @@ function ProgressForm({ application, manager, onSave, busy }) {
           <Form.Item label="Due Date And Time" name="dueAt">
             <Input type="datetime-local" />
           </Form.Item>
-          <Form.Item label="Notes" name="notes">
-            <Input.TextArea maxLength={10000} rows={5} showCount />
-          </Form.Item>
         </>
       )}
+      <Form.Item
+        label="Notes"
+        name="notes"
+        extra={
+          status === "BLOCKED"
+            ? "Required. Explain the job-level blocker (SSN, references, expired posting, etc.)."
+            : undefined
+        }
+        rules={[
+          {
+            validator: async (_, value) => {
+              if (status === "BLOCKED" && !String(value || "").trim()) {
+                throw new Error("Add a note explaining why this Application is blocked.");
+              }
+            },
+          },
+        ]}
+      >
+        <Input.TextArea maxLength={10000} rows={5} showCount />
+      </Form.Item>
       <Button type="primary" htmlType="submit" loading={busy}>
         Save Progress
       </Button>
@@ -1257,9 +1287,9 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
     setBusy(true);
     setMessage("");
     try {
-      await task();
+      const result = await task();
       setIsError(false);
-      setMessage(success);
+      setMessage(typeof success === "function" ? success(result) : success);
       setDetail(await getApplication(client, apiBaseUrl, id));
     } catch (x) {
       setIsError(true);
@@ -1335,6 +1365,47 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
         <StatusTag value={a.priority} />
       </Flex>
       <Notice message={message} error={isError} />
+      {job.application_blocked_at ? (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="This job is blocked for all profiles"
+          description={
+            <Space direction="vertical" size={8}>
+              <span>
+                {String(job.application_blocked_notes || "").trim() ||
+                  "Open Applications on this job were cancelled, and it is excluded from new matching."}
+              </span>
+              {manager ? (
+                <Button
+                  size="small"
+                  loading={busy}
+                  onClick={() =>
+                    modal.confirm({
+                      title: "Unblock this job for Applications?",
+                      content:
+                        "Cancelled Applications stay cancelled. New Applications and matching can use this job again.",
+                      onOk: () =>
+                        run(
+                          () =>
+                            unblockJobDescriptionApplications(
+                              client,
+                              apiBaseUrl,
+                              job.id,
+                            ),
+                          "Job unblocked for Applications.",
+                        ),
+                    })
+                  }
+                >
+                  Unblock job for Applications
+                </Button>
+              ) : null}
+            </Space>
+          }
+        />
+      ) : null}
       <TabbedSections
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -1523,7 +1594,15 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                   onSave={(value) =>
                     run(
                       () => updateApplication(client, apiBaseUrl, id, value),
-                      "Application progress was saved.",
+                      (result) => {
+                        if (value.status === "BLOCKED" && result?.jobApplicationBlocked) {
+                          const cancelled = Number(result.siblingsCancelled) || 0;
+                          return cancelled
+                            ? `Application blocked. This job is blocked for all profiles; ${cancelled} other open Application${cancelled === 1 ? "" : "s"} cancelled.`
+                            : "Application blocked. This job is blocked for all profiles.";
+                        }
+                        return "Application progress was saved.";
+                      },
                     )
                   }
                 />

@@ -72,7 +72,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
     }
     if (values.status === "BLOCKED" && !String(values.notes || "").trim()) {
       onStatus({
-        message: "Add a note explaining why this Application is blocked.",
+        message: "Add a note explaining why this Application is blocked. Blocking removes this job for all profiles.",
         kind: "error",
       });
       return;
@@ -84,7 +84,17 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         applicationUrl: values.applicationUrl,
         notes: values.notes,
       });
-      onStatus({ message: "Application updated.", kind: "success" });
+      const cancelled = Number(updated?.siblings_cancelled ?? updated?.siblingsCancelled) || 0;
+      const blocked = Boolean(updated?.job_application_blocked ?? updated?.jobApplicationBlocked);
+      onStatus({
+        message:
+          values.status === "BLOCKED" && blocked
+            ? cancelled
+              ? `Blocked. This job is blocked for all profiles; ${cancelled} other open Application${cancelled === 1 ? "" : "s"} cancelled.`
+              : "Blocked. This job is blocked for all profiles."
+            : "Application updated.",
+        kind: "success",
+      });
       onSaved({ ...updated, screenshot_count: screenshots.length });
     } catch (error) {
       onError(error);
@@ -126,10 +136,23 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         <Form.Item label="Status" name="status">
           <Select options={APPLIER_STATUS_UPDATE_OPTIONS} />
         </Form.Item>
+        <Form.Item shouldUpdate={(prev, next) => prev.status !== next.status} noStyle>
+          {() =>
+            form.getFieldValue("status") === "BLOCKED" ? (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message="Blocking removes this job for all profiles"
+                description="Other open Applications on this job will be cancelled, and it leaves matching queues until a manager unblocks it."
+              />
+            ) : null
+          }
+        </Form.Item>
         <Form.Item
           label="Notes"
           name="notes"
-          extra="Required when status is Blocked (e.g. expired posting, site error)."
+          extra="Required when status is Blocked. Blocking removes this job for all profiles and cancels other open Applications on it."
           rules={[{ max: 10000, message: "Notes cannot exceed 10000 characters." }]}
         >
           <Input.TextArea

@@ -55,7 +55,7 @@ import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePasswo
 import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, formatJobSubcategories, formatResumeTechStacks, jobSubcategoryIds, loadCategories, resumeTechStackRows } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, importJobSubcategories, removeExpiredJobs, reviewJob, setJobStatus, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, importJobSubcategories, removeExpiredJobs, reviewJob, setJobStatus, unblockJobApplications, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel, readJobSubcategoryImportFile } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { updateResumeMetadata } from "./services/resume-metadata-service.js";
@@ -866,11 +866,13 @@ function ApplierProductivitySection({
     Promise.all([
       getBusinessOverview(client, apiBaseUrl, dateRange),
       getApplicationCounts(client, apiBaseUrl, dateRange),
+      getApplierProfileWorkload(client, apiBaseUrl, dateRange),
     ])
-      .then(([overview, counts]) =>
+      .then(([overview, counts, profileRows]) =>
         live &&
         setPayload({
           rows: overview?.applierPerformance || [],
+          profileRows: Array.isArray(profileRows) ? profileRows : [],
           applicationCounts: counts || {},
         }),
       )
@@ -887,6 +889,7 @@ function ApplierProductivitySection({
         client={client}
         apiBaseUrl={apiBaseUrl}
         rows={payload.rows}
+        profileRows={payload.profileRows}
         applicationCounts={payload.applicationCounts}
         dateLabel={dateLabel}
         dateRange={dateRange}
@@ -1978,7 +1981,8 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
     [reviewDialog, setReviewDialog] = useState(null),
     [reviewComment, setReviewComment] = useState(""),
     [declineReason, setDeclineReason] = useState("EXPIRED"),
-    [reviewBusy, setReviewBusy] = useState(false);
+    [reviewBusy, setReviewBusy] = useState(false),
+    [unblockBusy, setUnblockBusy] = useState(false);
   useEffect(() => {
     getJob(client, apiBaseUrl, id)
       .then(setJob)
@@ -2035,6 +2039,10 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
                 ["Declined / Archived At", formatDate(job.archived_at)],
                 ["Reviewed By User ID", job.archived_by || "Not recorded"],
                 ["Review Reason", formatLabel(job.archive_reason)],
+              ] : []),
+              ...(job.application_blocked_at ? [
+                ["Applications Blocked At", formatDate(job.application_blocked_at)],
+                ["Applications Block Reason", job.application_blocked_notes || "—"],
               ] : []),
             ]}
           />
@@ -2184,8 +2192,24 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
             {job.job_title}
           </Title>
         </div>
-        <Space><Badge value={job.review_status} />{job.status === "ARCHIVED" && <Badge value={job.status} />}</Space>
+        <Space>
+          <Badge value={job.review_status} />
+          {job.status === "ARCHIVED" && <Badge value={job.status} />}
+          {job.application_blocked_at ? <Badge value="APPLICATIONS_BLOCKED" /> : null}
+        </Space>
       </div>
+      {job.application_blocked_at ? (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Blocked for Applications"
+          description={
+            String(job.application_blocked_notes || "").trim() ||
+            "This job cannot receive new Applications until a manager unblocks it."
+          }
+        />
+      ) : null}
       <TabbedSections
         items={tabs}
         extra={
@@ -2196,6 +2220,30 @@ function JobDetail({ client, apiBaseUrl, categories, id, back, reload, access })
                 {managerCanEdit ? "Edit JD" : "Edit my JD"}
               </Button>
             )}
+            {canReview && job.application_blocked_at ? (
+              <Button
+                loading={unblockBusy}
+                onClick={async () => {
+                  setUnblockBusy(true);
+                  try {
+                    await unblockJobApplications(client, apiBaseUrl, job.id);
+                    setJob((current) => ({
+                      ...current,
+                      application_blocked_at: null,
+                      application_blocked_notes: "",
+                      application_blocked_from_application_id: null,
+                    }));
+                    toast("success", "Job unblocked for Applications.");
+                  } catch (value) {
+                    toast("error", value.message);
+                  } finally {
+                    setUnblockBusy(false);
+                  }
+                }}
+              >
+                Unblock Applications
+              </Button>
+            ) : null}
             {canReview && (
               <>
                 <Button

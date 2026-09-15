@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   buildActivityOverviewSegments,
+  buildActivityInterviewResumeTypeSegments,
   buildActivityResumeTypeSegments,
   activityOverviewTotal,
+  computeApplierSalary,
   computeProductivityScore,
   deriveProductivityStatus,
+  formatApplierSalary,
   formatLastActivity,
   getNeedsAttentionAppliers,
   getTopPerformers,
@@ -38,23 +41,44 @@ const sampleRow = {
 };
 
 test("Activity Overview and productivity table expose tailored vs non-tailored counts", async () => {
-  const [page, chart, table, migration] = await Promise.all([
-    read("../src/features/overview/applier-productivity-page.jsx"),
-    read("../src/features/overview/activity-overview-chart.jsx"),
-    read("../src/features/overview/applier-productivity-table.jsx"),
-    read("../../supabase/migrations/202609090830_v3_66_overview_tailored_equals_applied.sql"),
-  ]);
+  const [page, chart, table, appliedMigration, interviewMigration, submittedMigration] =
+    await Promise.all([
+      read("../src/features/overview/applier-productivity-page.jsx"),
+      read("../src/features/overview/activity-overview-chart.jsx"),
+      read("../src/features/overview/applier-productivity-table.jsx"),
+      read("../../supabase/migrations/202609090830_v3_66_overview_tailored_equals_applied.sql"),
+      read("../../supabase/migrations/202609151500_v3_86_activity_overview_interview_resume_types.sql"),
+      read("../../supabase/migrations/202609151920_v3_92_applied_means_submitted_in_period.sql"),
+    ]);
   assert.match(page, /tailored · .* non-tailored/);
   assert.match(chart, /buildActivityResumeTypeSegments/);
+  assert.match(chart, /buildActivityInterviewResumeTypeSegments/);
   assert.match(chart, /Applied by resume type/);
+  assert.match(chart, /Interviews by resume type/);
   assert.match(table, /"tailored"/);
   assert.match(table, /"nonTailored"/);
   assert.match(table, /"interviews"/);
-  assert.match(migration, /status = 'APPLIED' and resume_type = 'TAILORED'/);
-  assert.match(migration, /status = 'APPLIED' and resume_type = 'ORIGINAL'/);
-  assert.match(migration, /tailored_count/);
-  assert.match(migration, /non_tailored_count/);
-  assert.match(migration, /sum equals applied_count/);
+  assert.match(appliedMigration, /status = 'APPLIED' and resume_type = 'TAILORED'/);
+  assert.match(appliedMigration, /status = 'APPLIED' and resume_type = 'ORIGINAL'/);
+  assert.match(appliedMigration, /tailored_count/);
+  assert.match(appliedMigration, /non_tailored_count/);
+  assert.match(appliedMigration, /sum equals applied_count/);
+  assert.match(interviewMigration, /interviews_tailored/);
+  assert.match(interviewMigration, /interviews_non_tailored/);
+  assert.match(interviewMigration, /status = 'INTERVIEW_SCHEDULED' and resume_type = 'TAILORED'/);
+  assert.match(interviewMigration, /status = 'INTERVIEW_SCHEDULED' and resume_type = 'ORIGINAL'/);
+  assert.match(submittedMigration, /a\.applied_at >= p_from/);
+  assert.match(submittedMigration, /a\.applied_at < p_to/);
+  assert.match(submittedMigration, /status_applied/);
+  assert.match(submittedMigration, /pa\.applied_at >= p_from and pa\.applied_at < p_to/);
+  assert.match(submittedMigration, /and pa\.resume_type = 'TAILORED'/);
+  const tableMigration = await read(
+    "../../supabase/migrations/202609151700_v3_88_interview_resume_type_table_columns.sql",
+  );
+  assert.match(tableMigration, /interviews_tailored_count/);
+  assert.match(tableMigration, /interviews_non_tailored_count/);
+  assert.match(tableMigration, /interview_tailored_count/);
+  assert.match(tableMigration, /interview_non_tailored_count/);
 });
 
 test("tailored plus non-tailored equals applied for productivity rows", () => {
@@ -111,15 +135,41 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(table, /sortProductivityRows/);
   assert.match(table, /DEFAULT_PRODUCTIVITY_SORT/);
   assert.match(table, /productivity-table-scroll/);
-  assert.match(table, /showTotal:/);
-  assert.match(table, /useState\(10\)/);
+  assert.match(table, /pagination=\{false\}/);
+  assert.doesNotMatch(table, /showTotal:/);
+  assert.doesNotMatch(table, /useState\(10\)/);
+  assert.doesNotMatch(table, /Activity Summary/);
+  assert.doesNotMatch(table, /Performance Scorecard/);
   assert.match(table, /productivity-status-pill/);
+  assert.doesNotMatch(table, /title: "Status"/);
+  assert.doesNotMatch(table, /title: "Active Days"/);
+  assert.match(table, /title: "Salary"/);
+  assert.match(table, /formatApplierSalary/);
+  assert.match(table, /computeApplierSalary|salaryTotal/);
   assert.match(table, /Table\.Summary/);
   assert.match(table, /sumProductivityMetricTotals/);
   assert.match(table, /aria-label="Search Applier Productivity by name or email"/);
+  assert.doesNotMatch(table, /Number\(row\.applied\) > 0/);
+  assert.doesNotMatch(table, /No Appliers have Applied applications in this period/);
+  assert.match(table, /No Appliers are available/);
+  const salaryMigration = await read(
+    "../../supabase/migrations/202609152000_v3_93_applier_salary_mistakes_count.sql",
+  );
+  assert.match(salaryMigration, /mistakes_count/);
+  assert.match(salaryMigration, /screenshot_feedback/);
+  assert.match(salaryMigration, /screenshot_feedback_at/);
 });
 
-test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, Pending, Interviews, Tailored, and Non-tailored columns", () => {
+test("computeApplierSalary uses applied, interviews, and screenshot mistakes", () => {
+  assert.equal(
+    computeApplierSalary({ applied: 100, interviews: 2, mistakes: 1 }),
+    7.5,
+  );
+  assert.equal(formatApplierSalary(7.5), "$7.50");
+  assert.equal(formatApplierSalary(-1.25), "-$1.25");
+});
+
+test("sumProductivityMetricTotals adds Applied, Blocked, Pending, Interviews, Tailored, and Non-tailored columns", () => {
   const rows = normalizeApplierProductivity(
     [
       {
@@ -152,11 +202,12 @@ test("sumProductivityMetricTotals adds Assigned, Applied, Blocked, Pending, Inte
     },
   );
   assert.deepEqual(sumProductivityMetricTotals(rows), {
-    assigned: 15,
     applied: 11,
     blocked: 3,
     pending: 3,
     interviews: 3,
+    interviewsTailored: 0,
+    interviewsNonTailored: 0,
     tailored: 4,
     nonTailored: 7,
   });
@@ -185,6 +236,8 @@ test("normalizeApplierProductivity maps productivity metrics from overview rows"
   assert.equal(row.blocked, 1);
   assert.equal(row.completed, 6);
   assert.equal(row.interviews, 0);
+  assert.equal(row.interviewsTailored, 0);
+  assert.equal(row.interviewsNonTailored, 0);
   assert.equal(row.tailored, 0);
   assert.equal(row.nonTailored, 0);
   assert.equal(row.completionRate, 60);
@@ -333,6 +386,15 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
     "cancelled",
   ]);
   assert.equal(activityOverviewTotal({ total: 20, assigned: 20 }), 20);
+  assert.equal(
+    buildActivityOverviewSegments({
+      status_applied: 100,
+      applied_count: 250,
+      tailored: 100,
+      non_tailored: 150,
+    }).find((segment) => segment.key === "applied")?.value,
+    250,
+  );
   assert.deepEqual(
     buildActivityResumeTypeSegments({ tailored: 5, non_tailored: 15 }).map((segment) => ({
       key: segment.key,
@@ -341,6 +403,19 @@ test("summarizeProductivityKpis and sidebar helpers derive Phase 1 insights", ()
     [
       { key: "tailored", value: 5 },
       { key: "non_tailored", value: 15 },
+    ],
+  );
+  assert.deepEqual(
+    buildActivityInterviewResumeTypeSegments({
+      interviews_tailored: 7,
+      interviews_non_tailored: 12,
+    }).map((segment) => ({
+      key: segment.key,
+      value: segment.value,
+    })),
+    [
+      { key: "interviews_tailored", value: 7 },
+      { key: "interviews_non_tailored", value: 12 },
     ],
   );
   assert.deepEqual(

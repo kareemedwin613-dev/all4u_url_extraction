@@ -5,7 +5,6 @@ import {
   Empty,
   Input,
   Table,
-  Tabs,
   Typography,
 } from "antd";
 import {
@@ -16,8 +15,8 @@ import { UserAvatar } from "../../components/user-avatar.jsx";
 import { tableRowNumberColumn } from "../../shared/table-sorting.js";
 import { APPLIER_PERFORMANCE_METRICS } from "./applier-performance.js";
 import {
-  activeDaysShare,
   avgPerDayTone,
+  formatApplierSalary,
   formatLastActivityMeta,
   gradeFromScore,
   normalizeApplierProductivity,
@@ -37,12 +36,6 @@ const { Text } = Typography;
 const productivityMetricsByKey = new Map(
   APPLIER_PERFORMANCE_METRICS.map((metric) => [metric.key, metric]),
 );
-
-const PRODUCTIVITY_TABLE_TABS = [
-  { key: "productivity", label: "Applier Productivity" },
-  { key: "activity", label: "Activity Summary", disabled: true },
-  { key: "scorecard", label: "Performance Scorecard", disabled: true },
-];
 
 export function ProductivityStatusTag({ status }) {
   const meta = PRODUCTIVITY_STATUS[status] || PRODUCTIVITY_STATUS.INACTIVE;
@@ -74,12 +67,12 @@ export function ProductivityScoreBadge({ score, tone, grade, showScore = false }
 }
 
 function performanceCountColumn(metric, sortedInfo) {
-  const wide = metric.key === "nonTailored" || metric.key === "tailored" || metric.key === "interviews";
+  const wide = metric.key === "nonTailored" || metric.key === "tailored" || metric.key === "interviews" || metric.key === "interviewsTailored" || metric.key === "interviewsNonTailored";
   return {
     title: metric.label,
     dataIndex: metric.key,
     key: metric.key,
-    width: wide ? 92 : 76,
+    width: wide ? 84 : 70,
     align: "center",
     className: `productivity-metric-col productivity-metric-col--${metric.key}`,
     sorter: true,
@@ -108,18 +101,23 @@ function ProductivityMetricTotal({ metricKey, value }) {
   );
 }
 
-function ProductivityTableSummary({ totals }) {
+function ProductivityTableSummary({ totals, salaryTotal }) {
   const metricCount = PRODUCTIVITY_TABLE_METRIC_KEYS.length;
   return (
     <Table.Summary fixed>
       <Table.Summary.Row className="productivity-table-summary-row">
-        <Table.Summary.Cell index={0} colSpan={4} />
+        <Table.Summary.Cell index={0} colSpan={2} />
         {PRODUCTIVITY_TABLE_METRIC_KEYS.map((key, index) => (
-          <Table.Summary.Cell key={key} index={index + 4} align="center">
+          <Table.Summary.Cell key={key} index={index + 2} align="center">
             <ProductivityMetricTotal metricKey={key} value={totals[key]} />
           </Table.Summary.Cell>
         ))}
-        <Table.Summary.Cell index={4 + metricCount} colSpan={3} />
+        <Table.Summary.Cell index={2 + metricCount} align="center">
+          <span className="productivity-metric-value productivity-metric-value--total">
+            {formatApplierSalary(salaryTotal)}
+          </span>
+        </Table.Summary.Cell>
+        <Table.Summary.Cell index={3 + metricCount} colSpan={2} />
       </Table.Summary.Row>
     </Table.Summary>
   );
@@ -134,7 +132,7 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
       title: "Applier",
       dataIndex: "name",
       key: "name",
-      width: 140,
+      width: 128,
       className: "productivity-applier-col",
       onHeaderCell: () => ({
         className: "productivity-applier-col",
@@ -168,39 +166,6 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
       ),
     },
     {
-      title: "Status",
-      dataIndex: "productivityStatus",
-      key: "productivityStatus",
-      width: 102,
-      align: "left",
-      className: "productivity-status-col",
-      sorter: true,
-      sortOrder: sortOrder("productivityStatus"),
-      render: (value) => <ProductivityStatusTag status={value} />,
-    },
-    {
-      title: "Active Days",
-      dataIndex: "activeDays",
-      key: "activeDays",
-      width: 110,
-      align: "center",
-      sorter: true,
-      sortOrder: sortOrder("activeDays"),
-      render: (value, row) => {
-        const total = row.windowDays || windowDays;
-        return (
-          <div className="productivity-stack-cell">
-            <span className="productivity-stack-cell__primary">
-              {value} / {total}
-            </span>
-            <span className="productivity-stack-cell__secondary">
-              {activeDaysShare(value, total)}%
-            </span>
-          </div>
-        );
-      },
-    },
-    {
       title: "Applications",
       className: "productivity-group-col productivity-group-col--applications",
       sortable: false,
@@ -210,10 +175,24 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
       ),
     },
     {
+      title: "Salary",
+      dataIndex: "salary",
+      key: "salary",
+      width: 96,
+      align: "center",
+      sorter: true,
+      sortOrder: sortOrder("salary"),
+      render: (value) => (
+        <span className="productivity-metric-value productivity-metric-value--salary">
+          {formatApplierSalary(value)}
+        </span>
+      ),
+    },
+    {
       title: "Avg / Day",
       dataIndex: "avgPerDay",
       key: "avgPerDay",
-      width: 96,
+      width: 84,
       align: "center",
       sorter: true,
       sortOrder: sortOrder("avgPerDay"),
@@ -230,7 +209,7 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
       title: "Last Activity",
       dataIndex: "lastActivityAt",
       key: "lastActivityAt",
-      width: 118,
+      width: 104,
       align: "left",
       className: "productivity-activity-col",
       onHeaderCell: () => ({ className: "productivity-header-left" }),
@@ -293,26 +272,14 @@ export function ApplierProductivityTable({
   client,
   apiBaseUrl,
   dateLabel = "Today",
+  showTitle = true,
+  title = "Applier Productivity",
 }) {
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [sortedInfo, setSortedInfo] = useState(DEFAULT_PRODUCTIVITY_SORT);
   const data = useMemo(
     () => normalizeApplierProductivity(rows, { dateRange }),
     [rows, dateRange],
-  );
-  const columns = useMemo(
-    () =>
-      buildColumns(
-        windowDays || data[0]?.windowDays || 1,
-        client,
-        apiBaseUrl,
-        page,
-        pageSize,
-        sortedInfo,
-      ),
-    [windowDays, data, client, apiBaseUrl, page, pageSize, sortedInfo],
   );
   const needle = search.trim().toLocaleLowerCase();
   const visible = useMemo(() => {
@@ -323,17 +290,35 @@ export function ApplierProductivityTable({
       : data;
     return sortProductivityRows(filtered, sortedInfo);
   }, [data, needle, sortedInfo]);
+  const columns = useMemo(
+    () =>
+      buildColumns(
+        windowDays || data[0]?.windowDays || 1,
+        client,
+        apiBaseUrl,
+        1,
+        Math.max(visible.length, 1),
+        sortedInfo,
+      ),
+    [windowDays, data, client, apiBaseUrl, visible.length, sortedInfo],
+  );
   const metricTotals = useMemo(() => sumProductivityMetricTotals(data), [data]);
+  const salaryTotal = useMemo(
+    () => data.reduce((sum, row) => sum + (Number(row.salary) || 0), 0),
+    [data],
+  );
 
   return (
     <div className="productivity-table-shell">
       <div className="productivity-table-header">
         <div className="productivity-table-header__top">
-          <Tabs
-            className="productivity-table-tabs"
-            activeKey="productivity"
-            items={PRODUCTIVITY_TABLE_TABS}
-          />
+          {showTitle ? (
+            <div className="productivity-table-tabs productivity-table-tabs--single">
+              <span className="productivity-table-tabs__label">{title}</span>
+            </div>
+          ) : (
+            <div />
+          )}
           <Text type="secondary" className="productivity-table-period">
             {dateLabel}
           </Text>
@@ -345,7 +330,6 @@ export function ApplierProductivityTable({
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
-              setPage(1);
             }}
             placeholder="Search applier..."
             aria-label="Search Applier Productivity by name or email"
@@ -371,18 +355,7 @@ export function ApplierProductivityTable({
             rowKey="id"
             size="middle"
             tableLayout="fixed"
-            pagination={{
-              current: page,
-              pageSize,
-              showSizeChanger: true,
-              pageSizeOptions: [10, 25, 50],
-              showTotal: (total, range) =>
-                `Showing ${range[0]} to ${range[1]} of ${total} applier${total === 1 ? "" : "s"}`,
-              onChange: (nextPage, nextPageSize) => {
-                setPage(nextPage);
-                setPageSize(nextPageSize);
-              },
-            }}
+            pagination={false}
             onChange={(_pagination, _filters, sorter) => {
               const next = Array.isArray(sorter) ? sorter[0] : sorter;
               if (next?.order) {
@@ -397,7 +370,12 @@ export function ApplierProductivityTable({
             dataSource={visible}
             columns={columns}
             scroll={{ x: "max-content" }}
-            summary={() => <ProductivityTableSummary totals={metricTotals} />}
+            summary={() => (
+              <ProductivityTableSummary
+                totals={metricTotals}
+                salaryTotal={Math.round(salaryTotal * 100) / 100}
+              />
+            )}
           />
         </div>
       )}
@@ -471,7 +449,6 @@ export function ProductivityLeaders({ items = [], client, apiBaseUrl }) {
               {item.applied} apps · {item.avgPerDay.toFixed(1)} / day
             </Text>
           </div>
-          <ProductivityScoreBadge score={item.score} showScore />
         </div>
       ))}
     </div>
