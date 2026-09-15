@@ -42,9 +42,9 @@ export function resolveCodexInvocation(requested=process.env.TAILORING_CODEX_BIN
 
 const REASONING_EFFORTS=new Set(["none","low","medium","high","xhigh"]);
 export function codexPerformanceArgs(environment:NodeJS.ProcessEnv=process.env){
-  const model=String(environment.TAILORING_CODEX_MODEL||"gpt-5.6-luna").trim();
+  const model=String(environment.TAILORING_CODEX_MODEL||"gpt-5.6-sol").trim();
   if(!/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model))throw new Error("TAILORING_CODEX_MODEL must be a valid model ID.");
-  const effort=String(environment.TAILORING_CODEX_REASONING_EFFORT||"none").trim().toLowerCase();
+  const effort=String(environment.TAILORING_CODEX_REASONING_EFFORT||"medium").trim().toLowerCase();
   if(!REASONING_EFFORTS.has(effort))throw new Error("TAILORING_CODEX_REASONING_EFFORT must be none, low, medium, high, or xhigh.");
   const tier=String(environment.TAILORING_CODEX_SERVICE_TIER||"fast").trim().toLowerCase();
   if(!["auto","default","fast"].includes(tier))throw new Error("TAILORING_CODEX_SERVICE_TIER must be auto, default, or fast.");
