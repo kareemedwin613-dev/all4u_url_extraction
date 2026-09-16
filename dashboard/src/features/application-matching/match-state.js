@@ -1,5 +1,5 @@
 export const MATCHING_MODES = [
-  { value: "SCORE", label: "AI score — 70+ required" },
+  { value: "SCORE", label: "AI score — 60+ required" },
   { value: "CATEGORY", label: "Category/subcategory — no AI evaluation" },
 ];
 export const categoryMatchingDescription = "Create without AI evaluation using the previous rules: a shared primary category, plus a matching subcategory for Software Engineering when the JD specifies one. Other categories use primary-only matching.";
