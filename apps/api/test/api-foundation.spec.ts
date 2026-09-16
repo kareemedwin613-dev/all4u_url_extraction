@@ -119,14 +119,25 @@ test("URL normalization provides the database-backed idempotency key", () => {
 });
 
 test("JD read service applies bounded server-side filters and preserves RLS identity", async()=>{
-  const calls:any[]=[],row={id:"job",industry_domain:{name:"Healthcare"}};
-  const query:any={select:()=>query,textSearch:(...args:any[])=>{calls.push(["textSearch",...args]);return query;},eq:(...args:any[])=>{calls.push(["eq",...args]);return query;},gte:(...args:any[])=>{calls.push(["gte",...args]);return query;},lt:(...args:any[])=>{calls.push(["lt",...args]);return query;},order:(...args:any[])=>{calls.push(["order",...args]);return query;},range:async(...args:any[])=>{calls.push(["range",...args]);return {data:[row],error:null,count:1};}};
-  const service=new JobDescriptionReadService({forUser:(token:string)=>{assert.equal(token,"jwt");return {from:(table:string)=>{assert.equal(table,"job_descriptions");return query;}};}} as any);
-  const result=await service.list({id:"u",token:"jwt",claims:{}},{search:"data",categoryId:"123e4567-e89b-42d3-a456-426614174000",capturedByUserId:"223e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:1,pageSize:25});
+  const calls:any[]=[];
+  const service=new JobDescriptionReadService({forUser:(token:string)=>{assert.equal(token,"jwt");return {
+    rpc:async(name:string,args:any)=>{
+      calls.push({name,args});
+      if(name==="list_job_description_capturers")return{data:[],error:null};
+      return{data:{items:[{id:"job",industry_domain:"Healthcare"}],total:1},error:null};
+    },
+  };}} as any);
+  const result=await service.list({id:"u",token:"jwt",claims:{}},{search:"data",sourceUrl:"https://jobs.example.com/1",categoryId:"123e4567-e89b-42d3-a456-426614174000",capturedByUserId:"223e4567-e89b-42d3-a456-426614174000",seniority:"SENIOR",status:"ACTIVE",capturedFrom:"2026-08-01T04:00:00.000Z",capturedTo:"2026-08-08T04:00:00.000Z",sort:"company_asc",page:1,pageSize:25});
   assert.equal(result.items[0].industry_domain,"Healthcare");assert.equal(result.total,1);
-  assert.ok(calls.some(call=>call[0]==="textSearch"&&call[1]==="search_vector"));assert.deepEqual(calls.at(-1),["range",0,24]);
-  assert.ok(calls.some(call=>call[0]==="gte"&&call[1]==="created_at"));assert.ok(calls.some(call=>call[0]==="lt"&&call[1]==="created_at"));
-  assert.ok(calls.some(call=>call[0]==="eq"&&call[1]==="user_id"&&call[2]==="223e4567-e89b-42d3-a456-426614174000"));
+  const listCall=calls.find((call)=>call.name==="list_job_descriptions_v396");
+  assert.ok(listCall);
+  assert.equal(listCall.args.p_search,"data");
+  assert.equal(listCall.args.p_source_url,"https://jobs.example.com/1");
+  assert.equal(listCall.args.p_category_id,"123e4567-e89b-42d3-a456-426614174000");
+  assert.equal(listCall.args.p_captured_by,"223e4567-e89b-42d3-a456-426614174000");
+  assert.equal(listCall.args.p_sort,"company_asc");
+  assert.equal(listCall.args.p_limit,25);
+  assert.equal(listCall.args.p_offset,0);
 });
 
 test("lookup service loads controlled values through the user-scoped client",async()=>{

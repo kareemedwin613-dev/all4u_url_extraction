@@ -7,6 +7,9 @@ const SENIORITIES = ["INTERN","ENTRY","JUNIOR","MID","SENIOR","LEAD","PRINCIPAL"
 
 export class JobDescriptionQueryDto {
   @Transform(trim) @IsOptional() @IsString() @MaxLength(100) search?: string;
+  @Transform(trim) @IsOptional() @IsString() @MaxLength(100) company?: string;
+  @Transform(trim) @IsOptional() @IsString() @MaxLength(100) jobTitle?: string;
+  @Transform(trim) @IsOptional() @IsString() @MaxLength(500) sourceUrl?: string;
   @IsOptional() @IsUUID() categoryId?: string;
   @IsOptional() @IsIn(SENIORITIES) seniority?: string;
   @IsOptional() @IsIn(["ACTIVE", "ARCHIVED", "ALL"]) status?: string;
