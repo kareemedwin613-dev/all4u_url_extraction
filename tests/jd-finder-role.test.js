@@ -23,9 +23,13 @@ test("JD Finder can capture and read owned JDs without broader operational acces
   assert.doesNotMatch(resumes,/JD_FINDER/);
 });
 
-test("JD Finder RLS permits own capture and duplicate reads without update or delete",async()=>{
-  const sql=await read("../supabase/migrations/202608030043_jd_finder_role.sql");
-  assert.match(sql,/"jd finders read own jobs"[\s\S]*for select[\s\S]*has_role\('JD_FINDER'\)[\s\S]*user_id=\(select auth\.uid\(\)\)/i);
-  assert.match(sql,/"jd finders insert own jobs"[\s\S]*for insert[\s\S]*has_role\('JD_FINDER'\)[\s\S]*user_id=\(select auth\.uid\(\)\)/i);
-  assert.doesNotMatch(sql,/for update|for delete/i);
+test("JD Finder RLS permits own capture writes without update or delete; shared catalog read is v3.97",async()=>{
+  const[original,shared]=await Promise.all([
+    read("../supabase/migrations/202608030043_jd_finder_role.sql"),
+    read("../supabase/migrations/202609161400_v3_97_jd_finder_full_jd_read.sql"),
+  ]);
+  assert.match(original,/"jd finders insert own jobs"[\s\S]*for insert[\s\S]*has_role\('JD_FINDER'\)[\s\S]*user_id=\(select auth\.uid\(\)\)/i);
+  assert.doesNotMatch(original,/for update|for delete/i);
+  assert.match(shared,/has_any_role\(array\['APPLYING_MANAGER','ADMIN','JD_FINDER'\]\)/);
+  assert.match(shared,/drop policy if exists "jd finders read own jobs"/);
 });

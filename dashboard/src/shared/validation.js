@@ -26,6 +26,11 @@ export function validateNewPassword({password,confirmPassword}={}){
   return {valid:!Object.keys(errors).length,errors};
 }
 export function normalizeSearch(value){const search=String(value||"").trim().slice(0,SEARCH_MAX);if(/[,%_()"'\\\r\n]/.test(search))throw Object.assign(new Error("Search contains unsupported filter characters."),{code:"INVALID_FILTER"});return search;}
+export function normalizeSourceUrlFilter(value){
+  const text=String(value||"").trim().slice(0,500);
+  if(/[\r\n\0]/.test(text))throw Object.assign(new Error("Job Posting URL contains unsupported filter characters."),{code:"INVALID_FILTER"});
+  return text;
+}
 export const allowed=(value,values,fallback="")=>values.includes(value)?value:fallback;
 export function normalizePage(value){const n=Number.parseInt(value,10);return Number.isInteger(n)&&n>=1?n:1;}
 export const normalizePageSize=value=>allowed(Number(value),PAGE_SIZES,25);

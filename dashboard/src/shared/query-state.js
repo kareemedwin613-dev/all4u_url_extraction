@@ -1,6 +1,27 @@
-import {JOB_SORTS,MIME_TYPES,PAGE_SIZES,RESUME_SORTS,SENIORITIES,STATUSES,USER_PAGE_SIZES,USER_ROLE_FILTER_CODES,USER_SORTS} from "./constants.js";import {allowed,isUuid,normalizeDateInput,normalizeJobPageSize,normalizeMime,normalizePage,normalizePageSize,normalizeSearch,normalizeSeniority,normalizeStatus} from "./validation.js";
+import {JOB_SORTS,MIME_TYPES,PAGE_SIZES,RESUME_SORTS,SENIORITIES,STATUSES,USER_PAGE_SIZES,USER_ROLE_FILTER_CODES,USER_SORTS} from "./constants.js";import {allowed,isUuid,normalizeDateInput,normalizeJobPageSize,normalizeMime,normalizePage,normalizePageSize,normalizeSearch,normalizeSeniority,normalizeSourceUrlFilter,normalizeStatus} from "./validation.js";
 function base(params,sorts,defaultSort,normalizeSize=normalizePageSize){let search="";try{search=normalizeSearch(params.get("search")||"");}catch{}const category=params.get("categoryId")||params.get("category")||"";return {search,categoryId:isUuid(category)?category:"",seniority:normalizeSeniority(params.get("seniority")||""),status:normalizeStatus(params.get("status")||""),sort:allowed(params.get("sort"),Object.keys(sorts),defaultSort),page:normalizePage(params.get("page")),pageSize:normalizeSize(params.get("pageSize"))};}
-export function parseJobQuery(search=""){const params=new URLSearchParams(search),result=base(params,JOB_SORTS,"created_desc",normalizeJobPageSize),capturedWindow=allowed(params.get("capturedWindow"),["TODAY","THIS_WEEK","THIS_MONTH","CUSTOM"],""),capturedBy=params.get("capturedByUserId")||"";return{...result,status:allowed(params.get("status"),["ACTIVE","ARCHIVED","ALL"],"ACTIVE"),reviewStatus:allowed(params.get("reviewStatus"),["NEEDS_REVIEW","APPROVED","NEEDS_CORRECTION","DECLINED","ALL"],"ALL"),capturedByUserId:isUuid(capturedBy)?capturedBy:"",capturedWindow,capturedFrom:capturedWindow==="CUSTOM"?normalizeDateInput(params.get("capturedFrom")):"",capturedTo:capturedWindow==="CUSTOM"?normalizeDateInput(params.get("capturedTo")):""};}
+export function parseJobQuery(search=""){
+  const params=new URLSearchParams(search),result=base(params,JOB_SORTS,"created_desc",normalizeJobPageSize),capturedWindow=allowed(params.get("capturedWindow"),["TODAY","THIS_WEEK","THIS_MONTH","CUSTOM"],""),capturedBy=params.get("capturedByUserId")||"";
+  let sourceUrl="",company="",jobTitle="";
+  try{sourceUrl=normalizeSourceUrlFilter(params.get("sourceUrl")||"");}catch{sourceUrl="";}
+  try{company=normalizeSearch(params.get("company")||"");}catch{company="";}
+  try{jobTitle=normalizeSearch(params.get("jobTitle")||"");}catch{jobTitle="";}
+  return{...result,status:allowed(params.get("status"),["ACTIVE","ARCHIVED","ALL"],"ACTIVE"),reviewStatus:allowed(params.get("reviewStatus"),["NEEDS_REVIEW","APPROVED","NEEDS_CORRECTION","DECLINED","ALL"],"ALL"),capturedByUserId:isUuid(capturedBy)?capturedBy:"",capturedWindow,capturedFrom:capturedWindow==="CUSTOM"?normalizeDateInput(params.get("capturedFrom")):"",capturedTo:capturedWindow==="CUSTOM"?normalizeDateInput(params.get("capturedTo")):"",sourceUrl,company,jobTitle};
+}
+export function countActiveJobFilters(filters={}){
+  let count=0;
+  if(filters.search)count+=1;
+  if(filters.company)count+=1;
+  if(filters.jobTitle)count+=1;
+  if(filters.sourceUrl)count+=1;
+  if(filters.categoryId)count+=1;
+  if(filters.seniority)count+=1;
+  if(filters.status&&filters.status!=="ACTIVE")count+=1;
+  if(filters.reviewStatus&&filters.reviewStatus!=="ALL")count+=1;
+  if(filters.capturedByUserId)count+=1;
+  if(filters.capturedWindow)count+=1;
+  return count;
+}
 export function parseResumeQuery(search=""){const params=new URLSearchParams(search),result=base(params,RESUME_SORTS,"candidate_asc");return {...result,status:allowed(params.get("status"),["ACTIVE","ARCHIVED","ALL"],"ACTIVE"),mimeType:normalizeMime(params.get("mimeType")||"")};}
 export function parseUserQuery(search=""){
   const params=new URLSearchParams(search);

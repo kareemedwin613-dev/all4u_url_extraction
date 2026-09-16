@@ -120,6 +120,7 @@ import {
 } from "./pages/access-pages.jsx";
 import { UserAvatar } from "./components/user-avatar.jsx";
 import { MAX_BULK_JDS, MAX_OPEN_JOB_URLS } from "./features/bulk-applications/bulk-state.js";
+import { JobListFilters } from "./features/jobs/job-list-filters.jsx";
 import {
   DataPagination,
   EllipsisCell,
@@ -1139,6 +1140,8 @@ function Jobs({
       go(`#/jobs${value ? `?${value}` : ""}`);
     },
     searchFiltered = filters.search ? [filters.search] : null,
+    companyFiltered = filters.company ? [filters.company] : null,
+    jobTitleFiltered = filters.jobTitle ? [filters.jobTitle] : null,
     columns = useMemo(
       () =>
         serverSortColumns(
@@ -1148,10 +1151,10 @@ function Jobs({
               dataIndex: "company",
               sortKey: "company",
               width: 160,
-              filteredValue: searchFiltered,
+              filteredValue: companyFiltered,
               ...serverSideColumnFilter,
               filterDropdown: textSearchFilterDropdown(
-                "Search company or job title",
+                "Search company",
               ),
               filterIcon: (filtered) => (
                 <SearchOutlined style={{ color: filtered ? "#1677ff" : undefined }} />
@@ -1163,10 +1166,10 @@ function Jobs({
               dataIndex: "job_title",
               sortKey: "title",
               width: 220,
-              filteredValue: searchFiltered,
+              filteredValue: jobTitleFiltered,
               ...serverSideColumnFilter,
               filterDropdown: textSearchFilterDropdown(
-                "Search company or job title",
+                "Search job title",
               ),
               filterIcon: (filtered) => (
                 <SearchOutlined style={{ color: filtered ? "#1677ff" : undefined }} />
@@ -1318,15 +1321,17 @@ function Jobs({
       [
         capturers,
         categories,
+        companyFiltered,
         filters.capturedByUserId,
         filters.capturedWindow,
         filters.categoryId,
+        filters.company,
+        filters.jobTitle,
         filters.reviewStatus,
-        filters.search,
         filters.seniority,
         filters.sort,
         filters.status,
-        searchFiltered,
+        jobTitleFiltered,
       ],
     );
   const selectedCount = selectedJobIds.length,
@@ -1526,6 +1531,12 @@ function Jobs({
           description={capturerError}
         />
       )}
+      <JobListFilters
+        filters={filters}
+        categories={categories}
+        capturers={capturers}
+        onChange={update}
+      />
       {error && !data ? (
         <ErrorState message={error} />
       ) : !data && loading ? (
@@ -1566,21 +1577,27 @@ function Jobs({
             onChange={(_pagination, tableFilters, sorter, extra) => {
               if (extra?.action && extra.action !== "filter" && extra.action !== "sort")
                 return;
-              let search = filters.search;
+              let company = filters.company || "";
+              let jobTitle = filters.jobTitle || "";
               try {
-                search = normalizeSearch(
-                  pickSharedColumnSearch(
-                    tableFilters,
-                    ["company", "job_title"],
-                    filters.search,
-                  ),
-                );
+                if (tableFilters.company !== undefined) {
+                  company = normalizeSearch(String(tableFilters.company?.[0] || ""));
+                }
               } catch {
-                search = filters.search;
+                company = filters.company || "";
+              }
+              try {
+                if (tableFilters.job_title !== undefined) {
+                  jobTitle = normalizeSearch(String(tableFilters.job_title?.[0] || ""));
+                }
+              } catch {
+                jobTitle = filters.jobTitle || "";
               }
               const capturedWindow = tableFilters.created_at?.[0] || "";
               update({
-                search,
+                search: "",
+                company,
+                jobTitle,
                 categoryId: tableFilters.category_id?.[0] || "",
                 seniority: tableFilters.seniority?.[0] || "",
                 status: tableFilters.source_url?.[0] || "ACTIVE",

@@ -34,15 +34,19 @@ function normalizeSubcategoryIds(job: any): string[] {
 function normalizeJob(job: any) {
   if (!job) return job;
   const category = Array.isArray(job.primary_category) ? job.primary_category[0] : job.primary_category;
-  const industry = Array.isArray(job.industry_domain) ? job.industry_domain[0] : job.industry_domain;
+  const industryEmbedded = Array.isArray(job.industry_domain) ? job.industry_domain[0] : job.industry_domain;
+  const industryName =
+    typeof job.industry_domain === "string"
+      ? job.industry_domain
+      : industryEmbedded?.name || null;
   const subcategoryIds = normalizeSubcategoryIds(job);
   const { primary_category: _primaryCategory, job_description_subcategories: _subs, ...rest } = job;
   return {
     ...rest,
     subcategory_id: subcategoryIds[0] || rest.subcategory_id || null,
     subcategory_ids: subcategoryIds,
-    category_name: category?.name || null,
-    industry_domain: industry?.name || null,
+    category_name: category?.name || rest.category_name || null,
+    industry_domain: industryName,
   };
 }
 
@@ -72,7 +76,7 @@ function applyCapturerNames(items: any[], capturers: Array<{ id: string; display
 }
 
 function databaseError(error: any, fallback: string): never {
-  const raw = String(error?.message || "");
+  const raw = String(error?.message || error?.details || error?.hint || "");
   if (/JOB_EDIT_LOCKED/i.test(raw)) throw new ApiException("JOB_EDIT_LOCKED", "Approved and declined job descriptions are locked. Ask a reviewer to request a correction.", HttpStatus.CONFLICT);
   if (/JOB_EDIT_FORBIDDEN/i.test(raw)) throw new ApiException("JOB_EDIT_FORBIDDEN", "You do not have permission to edit this job description.", HttpStatus.FORBIDDEN);
   if (/JOB_DUPLICATE/i.test(raw)) throw new ApiException("JOB_DUPLICATE", "Another job description already has this URL or company and job title.", HttpStatus.CONFLICT);
@@ -89,6 +93,11 @@ function databaseError(error: any, fallback: string): never {
       HttpStatus.BAD_GATEWAY,
     );
   }
+  if (error?.code === "57014" || /statement timeout|canceling statement due to statement timeout/i.test(raw)) {
+    throw new ApiException("DATABASE_TIMEOUT", "Job descriptions took too long to load. Narrow filters and try again.", HttpStatus.GATEWAY_TIMEOUT);
+  }
+  if (/JOB_LIST_FORBIDDEN/i.test(raw)) throw new ApiException("FORBIDDEN", "You do not have permission to list job descriptions.", HttpStatus.FORBIDDEN);
+  if (/JOB_LIST_INVALID/i.test(raw)) throw new ApiException("VALIDATION_ERROR", raw.replace(/^JOB_LIST_INVALID:\s*/i, "") || "The job-description filters are invalid.", HttpStatus.BAD_REQUEST);
   if (error?.code === "42501" || /row-level security|permission denied/i.test(raw)) throw new ApiException("FORBIDDEN", "The database policy denied this operation.", HttpStatus.FORBIDDEN);
   throw new ApiException("DATABASE_ERROR", fallback, HttpStatus.BAD_GATEWAY);
 }
@@ -103,25 +112,33 @@ export class JobDescriptionReadService {
   constructor(@Inject(SupabaseService) private readonly supabase: SupabaseService) {}
 
   async list(user: AuthenticatedUser, filters: JobDescriptionQueryDto) {
-    const page = filters.page || 1, pageSize = filters.pageSize || 25, from = (page - 1) * pageSize, sort = SORTS[filters.sort || "created_desc"] || SORTS.created_desc;
+    const page = filters.page || 1, pageSize = filters.pageSize || 25, sort = filters.sort || "created_desc";
     if (filters.capturedFrom && filters.capturedTo && new Date(filters.capturedFrom) >= new Date(filters.capturedTo)) throw new ApiException("INVALID_CAPTURED_RANGE", "The captured date range is invalid.", HttpStatus.BAD_REQUEST);
-    let query: any = this.supabase.forUser(user.token).from("job_descriptions").select(JOB_LIST_FIELDS, { count: "exact" });
-    if (filters.search) query = query.textSearch("search_vector", filters.search, { type: "websearch", config: "english" });
-    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-    if (filters.seniority) query = query.eq("seniority", filters.seniority);
-    if (filters.status !== "ALL") query = query.eq("status", filters.status || "ACTIVE");
-    if (filters.reviewStatus && filters.reviewStatus !== "ALL") query = query.eq("review_status", filters.reviewStatus);
-    if (filters.capturedByUserId) query = query.eq("user_id", filters.capturedByUserId);
-    if (filters.capturedFrom) query = query.gte("created_at", filters.capturedFrom);
-    if (filters.capturedTo) query = query.lt("created_at", filters.capturedTo);
     const [listResult, capturers] = await Promise.all([
-      query.order(sort.column, { ascending: sort.ascending }).range(from, from + pageSize - 1),
+      this.supabase.forUser(user.token).rpc("list_job_descriptions_v396", {
+        p_search: filters.search || null,
+        p_company: filters.company || null,
+        p_job_title: filters.jobTitle || null,
+        p_source_url: filters.sourceUrl || null,
+        p_category_id: filters.categoryId || null,
+        p_seniority: filters.seniority || null,
+        p_status: filters.status || "ACTIVE",
+        p_review_status: filters.reviewStatus && filters.reviewStatus !== "ALL" ? filters.reviewStatus : null,
+        p_captured_by: filters.capturedByUserId || null,
+        p_captured_from: filters.capturedFrom || null,
+        p_captured_to: filters.capturedTo || null,
+        p_sort: SORTS[sort] ? sort : "created_desc",
+        p_limit: pageSize,
+        p_offset: (page - 1) * pageSize,
+      }),
       this.capturers(user).catch(() => []),
     ]);
-    const { data, error, count } = listResult;
+    const { data, error } = listResult;
     if (error) databaseError(error, "Job descriptions could not be loaded.");
-    const total = Math.max(0, Number(count) || 0), pageCount = total ? Math.ceil(total / pageSize) : 0, safePage = pageCount ? Math.min(page, pageCount) : 1;
-    return { items: applyCapturerNames((data || []).map(normalizeJob), capturers), total, page: safePage, pageSize, pageCount, from: total ? (safePage - 1) * pageSize + 1 : 0, to: total ? Math.min(safePage * pageSize, total) : 0, hasPrevious: safePage > 1, hasNext: safePage < pageCount };
+    const payload = data && typeof data === "object" ? data as any : {};
+    const rows = Array.isArray(payload.items) ? payload.items : [];
+    const total = Math.max(0, Number(payload.total) || 0), pageCount = total ? Math.ceil(total / pageSize) : 0, safePage = pageCount ? Math.min(page, pageCount) : 1;
+    return { items: applyCapturerNames(rows.map(normalizeJob), capturers), total, page: safePage, pageSize, pageCount, from: total ? (safePage - 1) * pageSize + 1 : 0, to: total ? Math.min(safePage * pageSize, total) : 0, hasPrevious: safePage > 1, hasNext: safePage < pageCount };
   }
 
   async capturers(user: AuthenticatedUser) {

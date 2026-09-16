@@ -4,12 +4,11 @@ select plan(7);
 select is((select name from public.roles where code='JD_FINDER'),'JD Finder','JD Finder is seeded in the fixed role catalog');
 select ok((select active and is_system from public.roles where code='JD_FINDER'),'JD Finder is an active system role');
 select policies_are('public','job_descriptions',array[
-  'business roles read shared jobs',
   'jd finders insert own jobs',
-  'jd finders read own jobs',
   'managers and admins insert jobs',
   'managers own or admins delete jobs',
-  'managers own or admins update jobs'
+  'managers own or admins update jobs',
+  'role scoped read jobs'
 ]);
 
 insert into auth.users(id,email,aud,role,raw_user_meta_data) values

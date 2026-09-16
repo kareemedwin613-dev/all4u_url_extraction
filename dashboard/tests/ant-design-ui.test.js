@@ -45,18 +45,17 @@ test("the Sider can be pinned to push page content instead of covering it",async
 });
 
 test("filter panels are collapsible and the dashboard header remains visible",async()=>{
-  const [ui,app,applications,bulk,admin,css]=await Promise.all([
+  const [ui,jobs,applications,bulk,css]=await Promise.all([
     read("../src/components/ui.jsx"),
-    read("../src/App.jsx"),
+    read("../src/features/jobs/job-list-filters.jsx"),
     read("../src/features/applications/application-pages.jsx"),
     read("../src/features/bulk-applications/bulk-pages.jsx"),
-    read("../src/pages/admin-pages.jsx"),
     read("../src/styles/antd-dashboard.css"),
   ]);
   assert.match(ui,/export function FilterPanel/);
   assert.match(ui,/<Collapse/);
   assert.match(ui,/activeCount > 0/);
-  for(const source of [app,applications,bulk,admin])assert.match(source,/<FilterPanel/);
+  for(const source of [jobs,applications,bulk])assert.match(source,/<FilterPanel/);
   assert.match(css,/\.dashboard-header\{position:sticky;top:0/);
   assert.match(css,/\.filter-collapse/);
   assert.match(css,/\.dashboard-sider-overlay \.ant-menu-item/);
