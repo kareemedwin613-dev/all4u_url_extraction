@@ -121,7 +121,7 @@ test("Windows keeps an explicit native Codex executable",()=>{
 });
 
 test("tailoring disables reasoning by default with an explicit optional Fast tier",()=>{
-  assert.deepEqual(codexPerformanceArgs({}),["--model","gpt-5.6-sol","-c",'model_reasoning_effort="medium"',"-c",'model_reasoning_summary="none"',"-c",'service_tier="fast"']);
+  assert.deepEqual(codexPerformanceArgs({}),["--model","gpt-5.6-sol","-c",'model_reasoning_effort="high"',"-c",'model_reasoning_summary="none"',"-c",'service_tier="fast"']);
   assert.deepEqual(codexPerformanceArgs({TAILORING_CODEX_MODEL:"gpt-5.6-luna",TAILORING_CODEX_REASONING_EFFORT:"low",TAILORING_CODEX_SERVICE_TIER:"fast"}),["--model","gpt-5.6-luna","-c",'model_reasoning_effort="low"',"-c",'model_reasoning_summary="none"',"-c",'service_tier="fast"']);
   assert.throws(()=>codexPerformanceArgs({TAILORING_CODEX_MODEL:"invalid model"}),/must be a valid model ID/);
   assert.throws(()=>codexPerformanceArgs({TAILORING_CODEX_REASONING_EFFORT:"minimal"}),/must be none, low, medium, high, or xhigh/);

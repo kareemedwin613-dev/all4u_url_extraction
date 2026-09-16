@@ -62,7 +62,7 @@ Codex runs in an ephemeral, read-only, isolated temporary workspace with user/pr
 
 On Windows, the worker safely resolves the npm `codex.cmd` shim to `@openai/codex/bin/codex.js` and launches it with the current Node executable. This avoids `spawn codex.exe ENOENT` without invoking a command shell. `TAILORING_CODEX_BIN` remains available for an explicit native Codex executable path.
 
-Tailoring defaults to `TAILORING_CODEX_MODEL=gpt-5.6-sol`, `TAILORING_CODEX_REASONING_EFFORT=medium`, disabled reasoning summaries, and `TAILORING_CODEX_SERVICE_TIER=fast`. Override the model with `gpt-5.6-luna` or `gpt-5.6-terra`, or set reasoning to `none`, `low`, `high`, or `xhigh`, when a different latency/quality tradeoff is needed. Set the service tier to `default` or `auto` to opt out of Fast priority processing.
+Tailoring defaults to `TAILORING_CODEX_MODEL=gpt-5.6-sol`, `TAILORING_CODEX_REASONING_EFFORT=high`, disabled reasoning summaries, and `TAILORING_CODEX_SERVICE_TIER=fast`. Override the model with `gpt-5.6-luna` or `gpt-5.6-terra`, or set reasoning to `none`, `low`, `medium`, or `xhigh`, when a different latency/quality tradeoff is needed. Set the service tier to `default` or `auto` to opt out of Fast priority processing.
 
 For a bounded bulk run, select up to five pending jobs in **Tailoring**, create the bulk runner command, and run it once from the repository root. The command uses `--tickets "ticket-1,ticket-2"`, isolates failures, and automatically creates every successful Application Resume.
 

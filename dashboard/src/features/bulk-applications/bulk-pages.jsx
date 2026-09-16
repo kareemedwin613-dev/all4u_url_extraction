@@ -604,7 +604,7 @@ export function BulkCreatePage({
         preview && (
           <>
             <PreviewSummary preview={preview} />
-            <Alert type="info" showIcon message={matchingMode === "CATEGORY" ? categoryMatchingDescription : `Candidates must share a primary category with the JD. Only these pairs are scored; Application creation requires ${preview.matchThreshold ?? 70} or higher. Subcategories are ignored.`} style={{ marginTop: 12 }} />
+            <Alert type="info" showIcon message={matchingMode === "CATEGORY" ? categoryMatchingDescription : `Candidates must share a primary category with the JD. Only these pairs are scored; Application creation requires ${preview.matchThreshold ?? 60} or higher. Subcategories are ignored.`} style={{ marginTop: 12 }} />
             {matchingMode === "SCORE" && !preview.matchingConfigured && <Alert type="warning" showIcon message="Set the scoring model in Supabase settings, then create a scoring command here. The runner uses the same API as tailoring; no private Supabase key is needed." />}
             {preview.truncated && <Alert type="warning" showIcon message={`Showing 5000 of ${preview.totalCombinationCount} pairs. Narrow the JD or Resume selection before scoring or creating.`} />}
             <Card title="Select Resumes" style={{ marginTop: 16, marginBottom: 16 }}>

@@ -1061,7 +1061,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
           setMatchingMode(value); setResumeId(""); setResumes([]); setMatchEligible(false); setMessage(""); form.setFieldValue("resumeId", undefined);
         }} />
         <Alert type="info" showIcon style={{ marginBottom: 16 }} message={matchingMode === "CATEGORY" ? categoryMatchingDescription
-          : "Candidates must share a primary category. A completed AI score of 70 or higher (or the configured threshold) is required; subcategories are ignored."} />
+          : "Candidates must share a primary category. A completed AI score of 60 or higher (or the configured threshold) is required; subcategories are ignored."} />
         <Form
           form={form}
           layout="vertical"

@@ -6,7 +6,7 @@ This worker scores **original Resume + JD** alignment for the AI-scored Applicat
 
 Single and bulk creation now offer two choices:
 
-- **AI score** (default): candidates share a primary category; a completed score at the configured threshold (currently 70) is required. Subcategories are ignored.
+- **AI score** (default): candidates share a primary category; a completed score at the configured threshold (currently 60) is required. Subcategories are ignored.
 - **Category/subcategory — no AI evaluation**: use the previous v3.68 rule. Any shared primary category qualifies; Software Engineering JDs with a subcategory also require that subcategory on a Resume tech stack. Other categories and Software Engineering JDs without a subcategory use primary-only matching. Eligible pairs can be created immediately, even if the model is unconfigured or an existing score is low/failed.
 
 Both methods require active originals, active/approved JDs, and valid categories. Duplicate-family, banned-company and assignment permissions still apply. Category mode does not queue scoring, poll AI progress, or assign a fake score. It shows `NOT_REQUIRED` with null score/assessment/threshold fields. Switching the selector refreshes candidates and clears old selections; it does not cancel an already-running external scoring command. Revoke that command or stop its worker separately if necessary.
@@ -71,7 +71,7 @@ There is deliberately no selected default model or embedded credential. `UNCONFI
 
    ```sql
    update public.application_match_settings
-   set model_id = 'YOUR_CHOSEN_MODEL_ID', threshold = 70
+   set model_id = 'YOUR_CHOSEN_MODEL_ID', threshold = 60
    where singleton;
    ```
 
