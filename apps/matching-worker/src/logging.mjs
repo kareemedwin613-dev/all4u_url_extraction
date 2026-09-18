@@ -13,6 +13,8 @@ export function matchingErrorFields(error) {
   const known = error instanceof MatchingError;
   const code = known && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code) ? error.code : "MATCH_WORKER_ERROR";
   const fields = { code }, details = known ? error.diagnostics : undefined;
+  if (known && Number.isInteger(error.exitCode)) fields.exitCode = error.exitCode;
+  if (known && /^SIG[A-Z0-9]{1,15}$/.test(error.signal || "")) fields.signal = error.signal;
   if (!details || !reasons.has(details.reason)) return fields;
   fields.reason = details.reason;
   if (typeof details.field === "string" && fieldPath.test(details.field)) fields.field = details.field;

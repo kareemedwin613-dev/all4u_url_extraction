@@ -11,9 +11,16 @@ async function call(apiBaseUrl:string,accessToken:string,path:string,init:Reques
   return body?.data;
 }
 async function ticketCall(apiBaseUrl:string,path:string,body:Record<string,unknown>,method:"POST"|"PUT",fetcher:Fetcher=fetch){
-  const response=await fetcher(`${base(apiBaseUrl)}/api/v1${path}`,{method,headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(30000)});
+  const url=`${base(apiBaseUrl)}/api/v1${path}`;
+  let response:Response;
+  try{response=await fetcher(url,{method,headers:{Accept:"application/json","Content-Type":"application/json"},body:JSON.stringify(body),signal:AbortSignal.timeout(30000)});}
+  catch{throw Object.assign(new Error("TAILORING_API_NETWORK_ERROR: The runner request failed or timed out."),{code:"TAILORING_API_NETWORK_ERROR",retryable:true});}
   const payload:any=await response.json().catch(()=>null);
-  if(!response.ok)throw new Error(`${payload?.code||"TAILORING_RUNNER_ERROR"}: ${payload?.message||`Tailoring runner API returned HTTP ${response.status}.`}${payload?.requestId?` Request ID: ${payload.requestId}`:""}`);
+  if(!response.ok){
+    const code=payload?.code||"TAILORING_RUNNER_ERROR",permanent=/^TAILORING_(?:BATCH_)?TICKET_(?:INVALID|EXPIRED|REVOKED|SCOPE)$/.test(code);
+    throw Object.assign(new Error(`${code}: ${payload?.message||`Tailoring runner API returned HTTP ${response.status}.`}${payload?.requestId?` Request ID: ${payload.requestId}`:""}`),{code,retryable:!permanent&&(response.status===429||response.status>=500)});
+  }
+  if(!payload||!Object.hasOwn(payload,"data"))throw Object.assign(new Error("TAILORING_API_INVALID_RESPONSE: The runner response was incomplete."),{code:"TAILORING_API_INVALID_RESPONSE",retryable:true});
   return payload?.data;
 }
 

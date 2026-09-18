@@ -64,11 +64,14 @@ export const executeCodex:CodexExecutor=async request=>new Promise((accept,rejec
     settled=true;child.kill();reject(new Error(`Codex execution exceeded ${request.timeoutMs} ms.`));
   },request.timeoutMs);
   child.on("error",error=>{if(settled)return;settled=true;clearTimeout(timer);reject(error);});
-  child.on("close",code=>{
+  child.on("close",(code,signal)=>{
     if(settled)return;settled=true;clearTimeout(timer);
-    if(code!==0)reject(new Error(`Codex exited with code ${code}. ${stderr.trim().slice(-2000)}`));
+    if(code!==0)reject(Object.assign(new Error(`Codex exited with code ${code}${signal?` (${signal})`:""}. ${stderr.trim().slice(-2000)}`),{exitCode:code,signal}));
     else accept({stdout,stderr});
   });
+  // An early model-process exit can close stdin while its prompt is being sent.
+  // Handle EPIPE here instead of letting an unhandled stream error kill the worker.
+  child.stdin.on("error",()=>{});
   child.stdin.end(request.prompt,"utf8");
 });
 

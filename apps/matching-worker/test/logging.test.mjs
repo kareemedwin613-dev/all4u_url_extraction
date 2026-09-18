@@ -261,3 +261,9 @@ test("CLI once mode reports a pause, not a completed ticket, when only delayed w
   assert.equal(logs.some(event => event.event === "matching.finished"), false);
   assert.equal(signals.listenerCount("SIGINT"), 0);
 });
+
+test("CLI returns an explicit completed-with-failures receipt for supervision", async () => {
+  const result = await runMatchingCommand({ args: [], environment: runnerEnvironment, signals: new EventEmitter(), log: () => {},
+    createProvider: fakeProvider, createApi: () => ({ claim: async () => claim, finished: true, receipt: { failedCount: 2 }, rpc: async () => null }) });
+  assert.deepEqual(result, { status: "COMPLETED_WITH_FAILURES", failedCount: 2 });
+});

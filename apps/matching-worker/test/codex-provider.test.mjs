@@ -15,11 +15,15 @@ const loginResult = { stdout: "", stderr: "Logged in using ChatGPT\n" };
 const schema = { type: "object", additionalProperties: false, properties: { ok: { type: "boolean" } }, required: ["ok"] };
 const outputPath = request => request.args[request.args.indexOf("-o") + 1];
 
-test("Codex is the default without an API key, with concurrency one; API mode is explicit", () => {
+test("Codex defaults to medium reasoning and concurrency two without an API key; API mode is explicit", () => {
   const config = readMatchingConfiguration(environment);
   assert.equal(config.providerName, "codex");
-  assert.equal(config.concurrency, 1);
-  assert.equal(typeof createMatchingProvider(config, environment).check, "function");
+  assert.equal(config.concurrency, 2);
+  const provider = createMatchingProvider(config, environment);
+  assert.equal(typeof provider.check, "function");
+  assert.equal(provider.settings.reasoningEffort, "medium");
+  assert.equal(provider.settings.serviceTier, "default");
+  assert.equal(createCodexProvider({ model: "test-model" }).settings.reasoningEffort, "medium");
   const api = readMatchingConfiguration({ ...environment, MATCHING_PROVIDER: "openai" });
   assert.equal(api.concurrency, 2);
   assert.throws(() => createMatchingProvider(api, environment), /MATCHING_NOT_CONFIGURED/);
@@ -33,6 +37,16 @@ test("Codex is the default without an API key, with concurrency one; API mode is
   assert.throws(() => createCodexProvider({ model: "test", reasoningEffort: "unbounded" }), /CODEX_CONFIGURATION_ERROR/);
   assert.throws(() => createCodexProvider({ model: "test", serviceTier: "unknown" }), /CODEX_CONFIGURATION_ERROR/);
   assert.throws(() => createCodexProvider({ model: "test", timeoutMs: 90_000 }), /CODEX_CONFIGURATION_ERROR/);
+});
+
+test("explicit worker overrides remain supported without replacing the ticket model", () => {
+  const overrides = { MATCHING_CONCURRENCY: "1", MATCHING_CODEX_REASONING_EFFORT: "low" };
+  const config = readMatchingConfiguration(overrides);
+  assert.equal(config.model, undefined);
+  assert.equal(config.concurrency, 1);
+  const provider = createMatchingProvider({ ...config, model: "gpt-5.6-terra" }, overrides);
+  assert.equal(provider.settings.reasoningEffort, "low");
+  assert.equal(readMatchingConfiguration({}).concurrency, 2);
 });
 
 test("Codex environment retains login paths but excludes backend and API credentials", () => {
@@ -66,7 +80,7 @@ test("Codex checks saved ChatGPT auth once, uses a schema and isolated workspace
     assert.equal(request.args[request.args.indexOf("--model") + 1], "test-model");
     assert.equal(request.args[request.args.indexOf("--sandbox") + 1], "read-only");
     for (const arg of ["--ephemeral", "--ignore-user-config", 'forced_login_method="chatgpt"', 'web_search="disabled"',
-      "features.shell_tool=false", 'service_tier="default"', 'model_reasoning_effort="low"']) assert.ok(request.args.includes(arg));
+      "features.shell_tool=false", 'service_tier="default"', 'model_reasoning_effort="medium"']) assert.ok(request.args.includes(arg));
     assert.equal(request.timeoutMs, 60_000);
     await writeFile(outputPath(request), '{"ok":true}');
     return { stdout: "not the JSON result", stderr: "private debug text" };
@@ -151,6 +165,12 @@ test("timed-out Codex processes are terminated before a retryable timeout is ret
     spawnImpl: () => fakeChild(), terminate: child => { terminated = true; child.emit("close", null); },
   }), error => error.code === "MODEL_TIMEOUT" && error.retryable);
   assert.equal(terminated, true);
+});
+
+test("abrupt model exits retain signal and exit-code diagnostics", async () => {
+  await assert.rejects(runCodexCommand(command, { spawnImpl: () => {
+    const child = fakeChild(); process.nextTick(() => child.emit("close", null, "SIGTERM")); return child;
+  } }), error => error.code === "CODEX_EXECUTION_FAILED" && error.signal === "SIGTERM" && error.exitCode === null);
 });
 
 test("one Codex call scores the raw JD and original resume without document extraction RPCs", async () => {

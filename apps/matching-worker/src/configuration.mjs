@@ -24,7 +24,7 @@ export function readMatchingConfiguration(environment = process.env) {
   // The server ticket supplies the model; an optional local setting is an assertion,
   // not a way to silently score with a different model or another database.
   if (model && (model === "UNCONFIGURED" || !/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model))) throw new MatchingError("MATCHING_NOT_CONFIGURED");
-  const concurrency = Number(environment.MATCHING_CONCURRENCY || (providerName === "codex" ? 1 : 2));
+  const concurrency = Number(environment.MATCHING_CONCURRENCY || 2);
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new MatchingError("MATCHING_CONCURRENCY_INVALID");
   return { providerName, model, concurrency };
 }
@@ -33,7 +33,7 @@ export function createMatchingProvider(config, environment = process.env) {
   if (config.providerName === "openai") return createOpenAIProvider({ model: config.model, apiKey: environment.OPENAI_API_KEY });
   return createCodexProvider({ model: config.model, environment,
     bin: environment.MATCHING_CODEX_BIN || environment.TAILORING_CODEX_BIN || "codex",
-    reasoningEffort: (environment.MATCHING_CODEX_REASONING_EFFORT || "low").trim().toLowerCase(),
+    reasoningEffort: (environment.MATCHING_CODEX_REASONING_EFFORT || "medium").trim().toLowerCase(),
     serviceTier: (environment.MATCHING_CODEX_SERVICE_TIER || "default").trim().toLowerCase() });
 }
 

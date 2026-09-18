@@ -75,16 +75,22 @@ export async function runMatchingCommand({ args = process.argv.slice(2), environ
     const failed = outcomes.find(outcome => outcome.status === "rejected");
     if (failed) throw failed.reason;
     const summary = { ...worker.snapshot(), durationMs: now() - started };
-    if (api.finished) progress.emit("matching.finished", { ...summary,
-      failedCount: Number.isInteger(api.receipt?.failedCount) ? api.receipt.failedCount : 0 });
+    const failedCount = Number.isInteger(api.receipt?.failedCount) ? api.receipt.failedCount : 0;
+    if (api.finished) progress.emit("matching.finished", { ...summary, failedCount });
     else progress.emit("matching.paused", { ...summary, reason: stopping ? "SIGNAL" : "ONCE_NO_READY_WORK" });
+    return { status: api.finished ? failedCount ? "COMPLETED_WITH_FAILURES" : "COMPLETED" : "STOPPED", failedCount };
   } finally {
     signals.removeListener("SIGINT", stop);
     signals.removeListener("SIGTERM", stop);
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runMatchingCommand().catch(error => {
+  const report = result => { try { if (process.connected) process.send?.({ type: "worker.result", ...result }); } catch { /* Supervisor stopped. */ } };
+  runMatchingCommand().then(result => {
+    if (result) report(result);
+    if (result?.status === "COMPLETED_WITH_FAILURES") process.exitCode = 2;
+  }).catch(error => {
+    report({ status: error.retryable && !error.stopWorker ? "RETRYABLE_ERROR" : "ACTION_REQUIRED", code: matchingErrorFields(error).code });
     emitMatchingLog(terminalLog, { event: "matching.stopped", ...matchingErrorFields(error) });
     console.error(matchingErrorMessage(error)); process.exitCode = 1;
   });
