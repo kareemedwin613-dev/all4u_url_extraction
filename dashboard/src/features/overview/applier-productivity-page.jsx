@@ -14,6 +14,7 @@ import {
 } from "./applier-productivity-table.jsx";
 import { ApplierProfileWorkloadTable } from "./applier-profile-workload-table.jsx";
 import { OverviewKpiCard, OverviewKpiGrid, OverviewSection } from "./overview-ui.jsx";
+import { InterviewConversionCard } from "./interview-conversion-card.jsx";
 import {
   getTopPerformers,
   isActivityScopedReportingWindow,
@@ -74,7 +75,7 @@ export function ApplierProductivityPage({
             : "Applications counts use Applied status for apps created in this period."
         }`}
       >
-        <OverviewKpiGrid columns={5}>
+        <OverviewKpiGrid columns={6}>
           {[
             {
               key: "total",
@@ -119,6 +120,7 @@ export function ApplierProductivityPage({
           ].map((card) => (
             <OverviewKpiCard key={card.key} {...card} />
           ))}
+          <InterviewConversionCard counts={applicationCounts} />
         </OverviewKpiGrid>
       </OverviewSection>
 

@@ -2,6 +2,28 @@
 
 This worker scores **original Resume + JD** alignment for the AI-scored Application creation option. It does not tailor resumes, approve candidates, or submit applications to employers. Existing Applications and their tailored files are unchanged.
 
+## Evaluation defaults (v3.100)
+
+- Model: `gpt-5.6-terra`, stored in `public.application_match_settings.model_id` and supplied by the ticket.
+- Codex reasoning: `medium`, configurable with `MATCHING_CODEX_REASONING_EFFORT`.
+- Worker concurrency: `2`, configurable with `MATCHING_CONCURRENCY`.
+- Service tier remains `default`. Tailoring's model and performance settings are unchanged.
+
+Finish or stop active evaluation workers, review pending migrations with `npx supabase db push --dry-run`, then apply
+`202609171000_v3_100_match_model_terra.sql` through the normal migration process. It updates the singleton's model
+and the column default, without changing thresholds, source data, existing assessment rows, or Application score snapshots.
+Generate a **fresh scoring command** after applying it: older-model tickets no longer match the configuration,
+and old-model scores remain historical rather than being reused as current Terra scores. No automatic mass rescore runs.
+
+The normal root command loads `apps/matching-worker/.env`. Existing environment values override code defaults;
+set `MATCHING_CODEX_REASONING_EFFORT=medium` and `MATCHING_CONCURRENCY=2` on each worker machine and restart
+its runner. `MATCHING_MODEL` is optional and must match the ticket if set; it does not select the server model.
+Automatic comparisons launched from tailoring retain one scoring slot per tailoring slot to avoid multiplying
+parallelism; they use the same scoring model and reasoning configuration.
+
+Terra supports medium reasoning and structured output in the [official model documentation](https://developers.openai.com/api/docs/models/gpt-5.6-terra).
+The scoring prompt, schema, weights, timeouts and retry limits are unchanged. Test real throughput before assuming a speed improvement.
+
 ## Choose a matching method
 
 Single and bulk creation now offer two choices:
@@ -31,7 +53,7 @@ For a cold pair, model calls drop from three to one and per-pair API calls from 
 1. Stop the old local matching worker and let its active jobs finish.
 2. Apply `202609101060_v3_76_application_matching_direct.sql` via `npx supabase db push` after reviewing pending migrations.
 3. Deploy/restart the updated API, then restart the local matching command. This change does not require a dashboard change.
-4. Confirm `matching.started` shows `scoringMode: "direct-v1"`. Keep your current model, `MATCHING_CODEX_REASONING_EFFORT=none`, and `MATCHING_CONCURRENCY=2` if already configured; this update does not reset them.
+4. Confirm `matching.started` shows `scoringMode: "direct-v1"`. The single-pass protocol migration does not reset local reasoning or concurrency settings; see the evaluation defaults above for the current configuration.
 
 The worker and API negotiate `direct-v1` before claiming work. An old worker cannot consume job attempts against the new protocol. Existing completed scores, ticket scope, weights and the 70 threshold are preserved; this migration does not force rescoring. Restart an unexpired command or generate a new ticket if needed. Legacy extraction helpers/tables remain for history and migration compatibility, but the active worker does not use them.
 
@@ -54,7 +76,7 @@ Matching tests execute the real new migrations in an ephemeral PGlite PostgreSQL
 
 ## Staged rollout
 
-There is deliberately no selected default model or embedded credential. `UNCONFIGURED` blocks new **score-mode** Applications rather than silently using the category rule. Category-mode creation requires an explicit selection and no model configuration.
+Migration v3.100 selects `gpt-5.6-terra` as the default evaluation model. No credential is embedded. Older installations or an explicit `UNCONFIGURED` setting block new **score-mode** Applications rather than silently using the category rule. Category-mode creation requires an explicit selection and no model configuration.
 
 1. Use a staging Supabase project with the repository's existing migrations applied. Back up production before its eventual rollout. Schedule a quiet maintenance window: pause dashboard polling, captures, workers and other traffic, and let in-flight requests finish. The first migration obtains `NOWAIT` locks on Applications/JDs/Resumes (plus the profile FK parent) before changing anything. These locks remain held through the hash backfill and commit; if a table is busy it fails early with `MATCHING_MIGRATION_BUSY` instead of waiting while holding source-table locks. Apply these migrations in order, through your normal migration process:
    - `202609101000_v3_70_application_matching.sql`
@@ -66,7 +88,7 @@ There is deliberately no selected default model or embedded credential. `UNCONFI
    - `202609101060_v3_76_application_matching_direct.sql`
    - `202609111000_v3_77_application_matching_choice.sql`
 2. Install Codex CLI on the private worker host, then run `codex login` and sign in with **ChatGPT**, just like tailoring. Verify with `codex login status`. Choose a model your Codex account supports (for example, the same model you already use successfully for tailoring). No OpenAI API key is required in the default Codex mode. A saved API-key login is deliberately rejected in that mode; there is no automatic paid API fallback.
-3. Optional: copy `.env.example` to `apps/matching-worker/.env` for local performance settings. Defaults are `MATCHING_PROVIDER=codex` and `MATCHING_CONCURRENCY=1`. **No Supabase URL, service-role key, publishable key, or user access token is required on the worker.** The API already connects to the same Supabase project as the dashboard using its existing configuration. The ticket supplies the model; `MATCHING_MODEL` is only an optional local assertion.
+3. Optional: copy `.env.example` to `apps/matching-worker/.env` for local performance settings. Defaults are `MATCHING_PROVIDER=codex`, `MATCHING_CONCURRENCY=2`, and `MATCHING_CODEX_REASONING_EFFORT=medium`. **No Supabase URL, service-role key, publishable key, or user access token is required on the worker.** The API already connects to the same Supabase project as the dashboard using its existing configuration. The ticket supplies the model; `MATCHING_MODEL` is only an optional local assertion.
 4. As a database administrator, configure the scoring model in the existing settings row. Replace the placeholder before executing:
 
    ```sql
@@ -81,7 +103,7 @@ There is deliberately no selected default model or embedded credential. `UNCONFI
    npm run matching:run -- --batch-ticket "<ticket-from-dashboard>" --api-base-url "https://your-dashboard-or-api.example"
    ```
 
-   Keep the terminal and machine running until the selection finishes; do not run model work inside an unawaited Vercel request. The process must run as the OS user with the saved Codex ChatGPT login. Concurrency defaults to one for Codex (two for API mode), configurable from one to four. Scoring and tailoring share your Codex account's usage limits; no unlimited usage or faster latency is implied. `--once` drains only immediately available work and exits if only delayed retries remain; omit it for normal runs. The dashboard command supplies the existing API origin. For private automation, `MATCHING_BATCH_TICKET` and `MATCHING_API_BASE_URL` can replace the flags; never commit or share the ticket.
+   Keep the terminal and machine running until the selection finishes; do not run model work inside an unawaited Vercel request. The process must run as the OS user with the saved Codex ChatGPT login. Concurrency defaults to two for both providers, configurable from one to four. Scoring and tailoring share your Codex account's usage limits; no unlimited usage or faster latency is implied. `--once` drains only immediately available work and exits if only delayed retries remain; omit it for normal runs. The dashboard command supplies the existing API origin. For private automation, `MATCHING_BATCH_TICKET` and `MATCHING_API_BASE_URL` can replace the flags; never commit or share the ticket.
 6. Smoke-test one original/JD pair, then a small bulk set. Verify 69 is blocked, 70 qualifies, duplicates are skipped, edited sources need rescoring, and a tailored replacement keeps its original creation score. Existing assignment permissions must still pass. The local worker automatically exits after the ticket's pairs reach terminal states; this does not automatically create Applications.
 7. Review real scores on the positive reference cases below before enabling large batches. Then repeat the coordinated rollout in production. No migrations, model configuration, or live model calls are performed by the test commands above.
 
@@ -91,7 +113,7 @@ The worker invokes `codex exec` using the same saved-login, shell-free Windows l
 
 - The model comes from `application_match_settings.model_id` via the ticket. Optional `MATCHING_MODEL` must match; the worker never silently substitutes a different model. A model change requires a new scoring command; previous assessments remain historical records.
 - `MATCHING_CODEX_BIN` optionally selects the CLI executable. If unset, the worker accepts `TAILORING_CODEX_BIN`, then looks for `codex` on PATH. No tailoring code or behavior is changed.
-- `MATCHING_CODEX_REASONING_EFFORT` defaults to `low`; supported configuration values are `none`, `low`, `medium`, `high`, and `xhigh`, subject to the selected model's support.
+- `MATCHING_CODEX_REASONING_EFFORT` defaults to `medium`; supported configuration values are `none`, `low`, `medium`, `high`, and `xhigh`, subject to the selected model's support.
 - `MATCHING_CODEX_SERVICE_TIER` defaults to `default`; `auto` and `fast` are explicit options, subject to account/model support. It does not inherit tailoring's Fast setting automatically.
 - Each call uses an ephemeral, read-only isolated workspace with user config, shell tools and web search disabled. Source JSON goes through stdin, not shell arguments. The child environment excludes Supabase and API keys. Only the temporary schema and output are written by the worker/CLI, and the worker removes its temporary directory afterward. Ephemeral local sessions are not a promise of zero provider retention; review [authentication and data-handling differences](https://learn.chatgpt.com/docs/auth) before sending real data.
 - A call has a 60-second timeout inside a five-minute job lease. No document lease is acquired. Timeout handling terminates the owned CLI process tree. Login/configuration failures stop the worker instead of draining the queue; fix the login/model/CLI and restart, then explicitly retry any failed pair. Rate limits use the existing bounded retry and cooldown behavior.

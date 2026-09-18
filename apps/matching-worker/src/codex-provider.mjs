@@ -81,14 +81,18 @@ export function runCodexCommand({ invocation, args, workspace, environment, prom
       terminate(child, platform);
     }, timeoutMs);
     child.on("error", () => finish(fatal("CODEX_NOT_AVAILABLE")));
-    child.on("close", code => finish(timedOut ? new MatchingError("MODEL_TIMEOUT", true) : code === 0 ? null : codexFailure(stderr)));
+    child.on("close", (code, signal) => {
+      const error = timedOut ? new MatchingError("MODEL_TIMEOUT", true) : code === 0 ? null : codexFailure(stderr);
+      if (error) { error.exitCode = code; error.signal = signal; }
+      finish(error);
+    });
     // An early CLI failure can close stdin before the prompt has been written.
     child.stdin.on("error", () => {});
     child.stdin.end(prompt || "", "utf8");
   });
 }
 
-export function createCodexProvider({ model, bin = "codex", reasoningEffort = "low", serviceTier = "default",
+export function createCodexProvider({ model, bin = "codex", reasoningEffort = "medium", serviceTier = "default",
   environment = process.env, execute = runCodexCommand, timeoutMs = 60_000 } = {}) {
   if (!model || model === "UNCONFIGURED" || !/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model)) throw fatal("MATCHING_NOT_CONFIGURED");
   if (!["none", "low", "medium", "high", "xhigh"].includes(reasoningEffort)

@@ -4,7 +4,7 @@ Starting **Create Applications** from selected Job Descriptions now creates a br
 
 1. Select JDs, open **Create Applications**, and choose your resumes and matching method.
 2. In AI-score mode, create the scoring command and run it in your terminal.
-3. You can navigate to another dashboard page or refresh without losing the draft. Keep the terminal running to continue evaluation.
+3. You can navigate to another dashboard page or refresh without losing the draft. Updated batch commands run in the background; the terminal can close, but keep the computer awake. See [Background workers](background-workers.md).
 4. Use **Resume batch creation** in the header, or **Application Batches → In-progress creation drafts → Resume**.
 5. The page restores your JD/resume selection, matching method, batch name, active tab, and manually deselected eligible pairs. It fetches current scores and eligibility from the API; completed, current evaluations are reused. Newly eligible pairs are selected unless you previously deselected them.
 6. Create the selected Applications when ready. Successful creation removes the draft; the resulting batch remains in Application Batches.
@@ -15,7 +15,7 @@ In AI-score mode, **Evaluation progress** shows a progress bar, finished/remaini
 
 Progress covers all candidate pairs in the selected JDs and resumes, including reused current scores, regardless of checked rows or table filters. Duplicate and blocked pairs are excluded. A below-threshold score is a completed evaluation; failed/insufficient-data evaluations also count as finished. Failed evaluations keep their own counter, while insufficient-data results appear under **Not eligible**. The combinations table's **Evaluation status** column still shows each pair's detailed state and failure code when available.
 
-Reopening a draft reloads current progress. Failed refreshes are visibly marked stale. Truncated previews show partial counts without an overall percentage. Server-reported queued/processing states do not prove that the local terminal is still connected; keep the runner open. Category/subcategory mode has no AI evaluation progress.
+Reopening a draft reloads current progress. Failed refreshes are visibly marked stale. Truncated previews show partial counts without an overall percentage. Server-reported queued/processing states do not prove that the background worker is alive; check `npm run workers:status` for local runner health. Category/subcategory mode has no AI evaluation progress.
 
 ## Estimated time
 

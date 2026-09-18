@@ -51,7 +51,7 @@ export function MatchingProgress({ scope, rows, truncated, lastUpdated, stale, r
       {(stale || refreshing) && <Typography.Text type="warning">{stale ? "The last refresh failed; these counts may be out of date." : "Loading the selected resumes; these counts may be incomplete."}</Typography.Text>}
       <Typography.Text type="secondary">
         Covers the selected JDs and Resumes, including existing current scores, regardless of table filters or checked rows.
-        {" "}Refreshes every 5 seconds while evaluations are queued or processing. Keep the terminal runner open; these are server-reported states, not a terminal connection check.
+        {" "}Refreshes every 5 seconds while evaluations are queued or processing. Updated batch commands run in the background; keep the computer awake. These are server-reported job states, not a worker connection check.
         {lastUpdated ? ` Last updated: ${new Date(lastUpdated).toLocaleTimeString()}.` : ""}
       </Typography.Text>
     </Space>
