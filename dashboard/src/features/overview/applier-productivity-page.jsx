@@ -1,11 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Card, Tabs, Typography } from "antd";
+import { Card, Tabs } from "antd";
 import {
   CheckCircleOutlined,
-  TeamOutlined,
   ThunderboltOutlined,
-  TrophyOutlined,
-  UserOutlined,
 } from "@ant-design/icons";
 import { ActivityOverviewChart } from "./activity-overview-chart.jsx";
 import {
@@ -15,6 +12,7 @@ import {
 import { ApplierProfileWorkloadTable } from "./applier-profile-workload-table.jsx";
 import { OverviewKpiCard, OverviewKpiGrid, OverviewSection } from "./overview-ui.jsx";
 import { InterviewConversionCard } from "./interview-conversion-card.jsx";
+import { InterviewSchedulingTimeCard } from "./interview-scheduling-time-card.jsx";
 import {
   getTopPerformers,
   isActivityScopedReportingWindow,
@@ -22,8 +20,6 @@ import {
   overviewWindowDays,
   summarizeProductivityKpis,
 } from "./applier-productivity.js";
-
-const { Text } = Typography;
 
 const OVERVIEW_TABLE_TABS = [
   { key: "productivity", label: "Applier Productivity" },
@@ -75,16 +71,8 @@ export function ApplierProductivityPage({
             : "Applications counts use Applied status for apps created in this period."
         }`}
       >
-        <OverviewKpiGrid columns={6}>
+        <OverviewKpiGrid columns={4}>
           {[
-            {
-              key: "total",
-              tone: "blue",
-              icon: <TeamOutlined />,
-              value: kpis.totalAppliers,
-              label: "Total Appliers",
-              meta: "All Applier accounts",
-            },
             {
               key: "active",
               tone: "green",
@@ -101,26 +89,11 @@ export function ApplierProductivityPage({
               label: "Applications",
               meta: `${tailoredTotal} tailored · ${nonTailoredTotal} non-tailored`,
             },
-            {
-              key: "avg",
-              tone: "orange",
-              icon: <TrophyOutlined />,
-              value: kpis.avgPerDay.toFixed(1),
-              label: "Avg Applications / Day",
-              meta: "Team-wide apply pace",
-            },
-            {
-              key: "success",
-              tone: "teal",
-              icon: <UserOutlined />,
-              value: `${kpis.avgSuccessRate}%`,
-              label: "Avg Success Rate",
-              meta: "Completion across Appliers",
-            },
           ].map((card) => (
             <OverviewKpiCard key={card.key} {...card} />
           ))}
           <InterviewConversionCard counts={applicationCounts} />
+          <InterviewSchedulingTimeCard counts={applicationCounts} />
         </OverviewKpiGrid>
       </OverviewSection>
 

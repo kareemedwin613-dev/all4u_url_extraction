@@ -92,7 +92,7 @@ export function runCodexCommand({ invocation, args, workspace, environment, prom
   });
 }
 
-export function createCodexProvider({ model, bin = "codex", reasoningEffort = "medium", serviceTier = "default",
+export function createCodexProvider({ model, bin = "codex", reasoningEffort = "low", serviceTier = "default",
   environment = process.env, execute = runCodexCommand, timeoutMs = 60_000 } = {}) {
   if (!model || model === "UNCONFIGURED" || !/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model)) throw fatal("MATCHING_NOT_CONFIGURED");
   if (!["none", "low", "medium", "high", "xhigh"].includes(reasoningEffort)

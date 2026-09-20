@@ -15,15 +15,15 @@ const loginResult = { stdout: "", stderr: "Logged in using ChatGPT\n" };
 const schema = { type: "object", additionalProperties: false, properties: { ok: { type: "boolean" } }, required: ["ok"] };
 const outputPath = request => request.args[request.args.indexOf("-o") + 1];
 
-test("Codex defaults to medium reasoning and concurrency two without an API key; API mode is explicit", () => {
+test("Codex defaults to low reasoning and concurrency two without an API key; API mode is explicit", () => {
   const config = readMatchingConfiguration(environment);
   assert.equal(config.providerName, "codex");
   assert.equal(config.concurrency, 2);
   const provider = createMatchingProvider(config, environment);
   assert.equal(typeof provider.check, "function");
-  assert.equal(provider.settings.reasoningEffort, "medium");
+  assert.equal(provider.settings.reasoningEffort, "low");
   assert.equal(provider.settings.serviceTier, "default");
-  assert.equal(createCodexProvider({ model: "test-model" }).settings.reasoningEffort, "medium");
+  assert.equal(createCodexProvider({ model: "test-model" }).settings.reasoningEffort, "low");
   const api = readMatchingConfiguration({ ...environment, MATCHING_PROVIDER: "openai" });
   assert.equal(api.concurrency, 2);
   assert.throws(() => createMatchingProvider(api, environment), /MATCHING_NOT_CONFIGURED/);
@@ -40,12 +40,12 @@ test("Codex defaults to medium reasoning and concurrency two without an API key;
 });
 
 test("explicit worker overrides remain supported without replacing the ticket model", () => {
-  const overrides = { MATCHING_CONCURRENCY: "1", MATCHING_CODEX_REASONING_EFFORT: "low" };
+  const overrides = { MATCHING_CONCURRENCY: "1", MATCHING_CODEX_REASONING_EFFORT: "medium" };
   const config = readMatchingConfiguration(overrides);
   assert.equal(config.model, undefined);
   assert.equal(config.concurrency, 1);
   const provider = createMatchingProvider({ ...config, model: "gpt-5.6-terra" }, overrides);
-  assert.equal(provider.settings.reasoningEffort, "low");
+  assert.equal(provider.settings.reasoningEffort, "medium");
   assert.equal(readMatchingConfiguration({}).concurrency, 2);
 });
 
@@ -80,7 +80,7 @@ test("Codex checks saved ChatGPT auth once, uses a schema and isolated workspace
     assert.equal(request.args[request.args.indexOf("--model") + 1], "test-model");
     assert.equal(request.args[request.args.indexOf("--sandbox") + 1], "read-only");
     for (const arg of ["--ephemeral", "--ignore-user-config", 'forced_login_method="chatgpt"', 'web_search="disabled"',
-      "features.shell_tool=false", 'service_tier="default"', 'model_reasoning_effort="medium"']) assert.ok(request.args.includes(arg));
+      "features.shell_tool=false", 'service_tier="default"', 'model_reasoning_effort="low"']) assert.ok(request.args.includes(arg));
     assert.equal(request.timeoutMs, 60_000);
     await writeFile(outputPath(request), '{"ok":true}');
     return { stdout: "not the JSON result", stderr: "private debug text" };

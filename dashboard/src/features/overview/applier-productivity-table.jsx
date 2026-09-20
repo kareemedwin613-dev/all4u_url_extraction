@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { useSavedFilters } from "../../shared/use-filter-preferences.js";
+import { parseLocalSearchQuery } from "../../shared/filter-preferences.js";
 import {
   Button,
   Dropdown,
@@ -30,6 +32,15 @@ const DEFAULT_PRODUCTIVITY_SORT = Object.freeze({
   field: "applied",
   order: "descend",
 });
+
+function parseProductivityFilters(query = "") {
+  const params = new URLSearchParams(query), fields = ["name", "salary", "avgPerDay", "lastActivityAt", ...PRODUCTIVITY_TABLE_METRIC_KEYS];
+  return {
+    ...parseLocalSearchQuery(query),
+    field: fields.includes(params.get("field")) ? params.get("field") : DEFAULT_PRODUCTIVITY_SORT.field,
+    order: ["ascend", "descend"].includes(params.get("order")) ? params.get("order") : DEFAULT_PRODUCTIVITY_SORT.order,
+  };
+}
 
 const { Text } = Typography;
 
@@ -275,8 +286,10 @@ export function ApplierProductivityTable({
   showTitle = true,
   title = "Applier Productivity",
 }) {
-  const [search, setSearch] = useState("");
-  const [sortedInfo, setSortedInfo] = useState(DEFAULT_PRODUCTIVITY_SORT);
+  const [filters, setFilters] = useSavedFilters("productivity-table", parseProductivityFilters);
+  const search = filters.search, setSearch = search => setFilters(previous => ({ ...previous, search }));
+  const sortedInfo = useMemo(() => ({ field: filters.field, order: filters.order }), [filters.field, filters.order]);
+  const setSortedInfo = value => setFilters(previous => ({ ...previous, ...value }));
   const data = useMemo(
     () => normalizeApplierProductivity(rows, { dateRange }),
     [rows, dateRange],

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { filterHref } from "../shared/filter-preferences.js";
 import {
   Alert,
   App as AntApp,
@@ -346,7 +347,7 @@ export function AdminUsersPage({ client, apiBaseUrl, roles, query, reload }) {
                         : "No registered profiles were found."}
                     </Text>
                     {(filters.search || filters.status || filters.roleCode) && (
-                      <Button onClick={() => navigate("#/admin/users")}>
+                      <Button onClick={() => navigate(filterHref("#/admin/users"))}>
                         Clear filters
                       </Button>
                     )}

@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { useSavedSearch } from "../../shared/use-filter-preferences.js";
 import { Empty, Typography } from "antd";
 import {
   Bar,
@@ -58,7 +59,7 @@ function JdFinderPerformanceTooltip({ active, payload }) {
 }
 
 export function JdFinderPerformanceChart({ rows = [], dateLabel = "Today" }) {
-  const [search, setSearch] = useState(""),
+  const [search, setSearch] = useSavedSearch("jd-finder-performance-chart"),
     data = useMemo(() => normalizeJdFinderPerformance(rows), [rows]),
     needle = search.trim().toLocaleLowerCase(),
     visible = useMemo(

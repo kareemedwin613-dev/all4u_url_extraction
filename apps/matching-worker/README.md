@@ -2,26 +2,26 @@
 
 This worker scores **original Resume + JD** alignment for the AI-scored Application creation option. It does not tailor resumes, approve candidates, or submit applications to employers. Existing Applications and their tailored files are unchanged.
 
-## Evaluation defaults (v3.100)
+## Evaluation defaults (v3.102)
 
-- Model: `gpt-5.6-terra`, stored in `public.application_match_settings.model_id` and supplied by the ticket.
-- Codex reasoning: `medium`, configurable with `MATCHING_CODEX_REASONING_EFFORT`.
+- Model: `gpt-5.6-sol`, stored in `public.application_match_settings.model_id` and supplied by the ticket.
+- Codex reasoning: `low`, configurable with `MATCHING_CODEX_REASONING_EFFORT`.
 - Worker concurrency: `2`, configurable with `MATCHING_CONCURRENCY`.
 - Service tier remains `default`. Tailoring's model and performance settings are unchanged.
 
 Finish or stop active evaluation workers, review pending migrations with `npx supabase db push --dry-run`, then apply
-`202609171000_v3_100_match_model_terra.sql` through the normal migration process. It updates the singleton's model
+`202609181100_v3_102_match_model_sol.sql` through the normal migration process. It updates the singleton's model
 and the column default, without changing thresholds, source data, existing assessment rows, or Application score snapshots.
 Generate a **fresh scoring command** after applying it: older-model tickets no longer match the configuration,
-and old-model scores remain historical rather than being reused as current Terra scores. No automatic mass rescore runs.
+and old-model scores remain historical rather than being reused as current Sol scores. No automatic mass rescore runs.
 
 The normal root command loads `apps/matching-worker/.env`. Existing environment values override code defaults;
-set `MATCHING_CODEX_REASONING_EFFORT=medium` and `MATCHING_CONCURRENCY=2` on each worker machine and restart
+set `MATCHING_CODEX_REASONING_EFFORT=low` and `MATCHING_CONCURRENCY=2` on each worker machine and restart
 its runner. `MATCHING_MODEL` is optional and must match the ticket if set; it does not select the server model.
 Automatic comparisons launched from tailoring retain one scoring slot per tailoring slot to avoid multiplying
 parallelism; they use the same scoring model and reasoning configuration.
 
-Terra supports medium reasoning and structured output in the [official model documentation](https://developers.openai.com/api/docs/models/gpt-5.6-terra).
+Sol supports low reasoning and structured output in the [official model documentation](https://developers.openai.com/api/docs/models/gpt-5.6-sol).
 The scoring prompt, schema, weights, timeouts and retry limits are unchanged. Test real throughput before assuming a speed improvement.
 
 ## Choose a matching method
@@ -76,7 +76,7 @@ Matching tests execute the real new migrations in an ephemeral PGlite PostgreSQL
 
 ## Staged rollout
 
-Migration v3.100 selects `gpt-5.6-terra` as the default evaluation model. No credential is embedded. Older installations or an explicit `UNCONFIGURED` setting block new **score-mode** Applications rather than silently using the category rule. Category-mode creation requires an explicit selection and no model configuration.
+Migration v3.102 selects `gpt-5.6-sol` as the default evaluation model. No credential is embedded. Older installations or an explicit `UNCONFIGURED` setting block new **score-mode** Applications rather than silently using the category rule. Category-mode creation requires an explicit selection and no model configuration.
 
 1. Use a staging Supabase project with the repository's existing migrations applied. Back up production before its eventual rollout. Schedule a quiet maintenance window: pause dashboard polling, captures, workers and other traffic, and let in-flight requests finish. The first migration obtains `NOWAIT` locks on Applications/JDs/Resumes (plus the profile FK parent) before changing anything. These locks remain held through the hash backfill and commit; if a table is busy it fails early with `MATCHING_MIGRATION_BUSY` instead of waiting while holding source-table locks. Apply these migrations in order, through your normal migration process:
    - `202609101000_v3_70_application_matching.sql`
@@ -88,7 +88,7 @@ Migration v3.100 selects `gpt-5.6-terra` as the default evaluation model. No cre
    - `202609101060_v3_76_application_matching_direct.sql`
    - `202609111000_v3_77_application_matching_choice.sql`
 2. Install Codex CLI on the private worker host, then run `codex login` and sign in with **ChatGPT**, just like tailoring. Verify with `codex login status`. Choose a model your Codex account supports (for example, the same model you already use successfully for tailoring). No OpenAI API key is required in the default Codex mode. A saved API-key login is deliberately rejected in that mode; there is no automatic paid API fallback.
-3. Optional: copy `.env.example` to `apps/matching-worker/.env` for local performance settings. Defaults are `MATCHING_PROVIDER=codex`, `MATCHING_CONCURRENCY=2`, and `MATCHING_CODEX_REASONING_EFFORT=medium`. **No Supabase URL, service-role key, publishable key, or user access token is required on the worker.** The API already connects to the same Supabase project as the dashboard using its existing configuration. The ticket supplies the model; `MATCHING_MODEL` is only an optional local assertion.
+3. Optional: copy `.env.example` to `apps/matching-worker/.env` for local performance settings. Defaults are `MATCHING_PROVIDER=codex`, `MATCHING_CONCURRENCY=2`, and `MATCHING_CODEX_REASONING_EFFORT=low`. **No Supabase URL, service-role key, publishable key, or user access token is required on the worker.** The API already connects to the same Supabase project as the dashboard using its existing configuration. The ticket supplies the model; `MATCHING_MODEL` is only an optional local assertion.
 4. As a database administrator, configure the scoring model in the existing settings row. Replace the placeholder before executing:
 
    ```sql

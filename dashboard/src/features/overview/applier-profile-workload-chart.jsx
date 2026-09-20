@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { useSavedSearch } from "../../shared/use-filter-preferences.js";
 import { Empty, Typography } from "antd";
 import {
   Bar,
@@ -77,7 +78,7 @@ export function ApplierProfileWorkloadChart({
   title = "My Profile Workload",
   emptyDescription = "No Resume profiles are assigned to you yet.",
 }) {
-  const [search, setSearch] = useState(""),
+  const [search, setSearch] = useSavedSearch("profile-workload-chart"),
     data = useMemo(() => normalizeApplierProfileWorkload(rows), [rows]),
     needle = search.trim().toLocaleLowerCase(),
     visible = useMemo(

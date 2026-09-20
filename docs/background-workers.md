@@ -1,7 +1,10 @@
 # Background matching and tailoring batches
 
 Run the usual dashboard command from the updated repository. Commands containing
-`--batch-ticket` now launch a hidden, detached supervisor and return to the prompt.
+`--batch-ticket` launch a hidden, detached supervisor. Interactive terminals stay
+open as a live monitor, showing new events and a status line every ten seconds.
+Add `--detach` to return to the prompt immediately. Redirected/noninteractive
+commands return immediately unless `--follow` is supplied.
 Closing that terminal no longer stops the batch. No production process is started
 just by installing this change; run your batch command to use it.
 
@@ -23,6 +26,7 @@ The launch message prints a run ID and a log path. From the repository root:
 ```text
 npm run workers:status
 npm run workers:logs -- <run-id>
+npm run workers:logs -- <run-id> --follow
 npm run workers:stop -- <run-id>
 ```
 
@@ -32,14 +36,21 @@ They live in ignored `artifacts/worker-runs/<run-id>/events.jsonl`; logs rotate 
 8 MiB with one previous file retained. Status is refreshed locally every five
 seconds. These local diagnostics do not add dashboard polling or database writes.
 
+The live monitor shows retries, failures and final completion automatically.
+It reports INTERRUPTED if the supervisor exits without a terminal status, and
+HEARTBEAT_STALE if its saved heartbeat is over 30 seconds old. RUNNING means the
+local processes are alive, not that the model or remote API is making progress.
+Ctrl+C closes only the monitor; use `workers:stop` to stop the actual worker.
+Reconnect to an existing run at any time using the `--follow` log command.
+
 Logs allow only stage/status/code/ID/timing/process metadata. Raw prompts, resume/JD
 contents, stderr, command arguments and tickets are not persisted. Tickets pass to
 the supervisor through stdin, then to workers through their environment. Restart
 state is in memory; the on-disk run ID uses a ticket fingerprint, not the ticket.
 
 Repeated starts with the same ticket and API origin attach to the existing local
-run instead of adding a worker. Use the stop command, not Ctrl+C in the now-finished
-launcher. Stopping locally preserves saved results and lets outstanding leases
+run instead of adding a worker. Use the stop command, not Ctrl+C in the live
+monitor. Stopping locally preserves saved results and lets outstanding leases
 expire; dashboard cancellation remains a separate action.
 
 ## Limits

@@ -1,8 +1,8 @@
 import React from "react";
-import { CheckCircleOutlined, FileTextOutlined, ProfileOutlined } from "@ant-design/icons";
+import { CheckCircleOutlined, FileTextOutlined } from "@ant-design/icons";
 import { OverviewKpiCard, OverviewKpiGrid, OverviewSection } from "./overview-ui.jsx";
 
-export function BusinessRecordCards({ jobCounts = {}, resumeCounts = {} }) {
+export function BusinessRecordCards({ jobCounts = {} }) {
   const cards = [
     {
       key: "jobs-total",
@@ -20,29 +20,13 @@ export function BusinessRecordCards({ jobCounts = {}, resumeCounts = {} }) {
       label: "Active Job Descriptions",
       meta: "Available for applications",
     },
-    {
-      key: "resumes-total",
-      tone: "indigo",
-      icon: <ProfileOutlined />,
-      value: Number(resumeCounts.total || 0),
-      label: "Total Resumes",
-      meta: "Original and tailored",
-    },
-    {
-      key: "resumes-active",
-      tone: "teal",
-      icon: <CheckCircleOutlined />,
-      value: Number(resumeCounts.active || 0),
-      label: "Active Resumes",
-      meta: "Ready for assignment",
-    },
   ];
   return (
     <OverviewSection
       title="Business Records"
-      description="Job Description and Resume inventory across the platform."
+      description="Job Description inventory across the platform."
     >
-      <OverviewKpiGrid columns={4}>
+      <OverviewKpiGrid>
         {cards.map((card) => (
           <OverviewKpiCard key={card.key} {...card} />
         ))}

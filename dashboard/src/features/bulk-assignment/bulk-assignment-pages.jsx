@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { filterHref, parseWorkloadQuery } from "../../shared/filter-preferences.js";
 import {
   Alert, Button, Card, Checkbox, Col, Descriptions, Flex, Form, Input,
   InputNumber, Modal, Result, Row, Space, Statistic, Steps, Switch,
@@ -195,12 +196,15 @@ export function BulkAssignmentWizardPage({ client, apiBaseUrl, query }) {
   );
 }
 
-export function ApplierWorkloadsPage({ client, apiBaseUrl }) {
+export function ApplierWorkloadsPage({ client, apiBaseUrl, query = "" }) {
   const [data, setData] = useState();
   const [edit, setEdit] = useState();
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
-  const [search, setSearch] = useState("");
+  const { search } = parseWorkloadQuery(query);
+  const [searchDraft, setSearchDraft] = useState(search);
+  useEffect(() => setSearchDraft(search), [search]);
+  const setSearch = value => location.assign(filterHref("#/applier-workloads", new URLSearchParams({ search: value.trim() }).toString()));
   const [form] = Form.useForm();
   useEffect(() => { setData(); appliersApi.getWorkloads(client, apiBaseUrl, { limit: 100, search }).then((response) => setData(response.data)).catch((failure) => setError(failure.message)); }, [client, apiBaseUrl, reload, search]);
   function open(row) { setEdit(row); form.setFieldsValue({ isAvailable: row.isAvailable, maxActiveApplications: row.maxActiveApplications }); }
@@ -211,7 +215,7 @@ export function ApplierWorkloadsPage({ client, apiBaseUrl }) {
     { title: "Active", dataIndex: "activeApplicationCount" }, { title: "Maximum", dataIndex: "maxActiveApplications" },
     { title: "Remaining", dataIndex: "remainingCapacity" }, { title: "Settings", sortable: false, render: (_, row) => <Button onClick={() => open(row)}>Edit</Button> },
   ];
-  return <div className="page">{error && <ErrorState message={error} />}<Input.Search allowClear placeholder="Search Appliers by name or email" onSearch={(value) => setSearch(value.trim())} style={{ maxWidth: 420, marginBottom: 16 }} />{!data ? <LoadingState /> : <Card><Table rowKey="userId" dataSource={data} pagination={{ pageSize: 25 }} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 240px)" }} /></Card>}<Modal open={!!edit} title="Workload Settings" onOk={save} onCancel={() => setEdit()}><Form form={form} layout="vertical"><Form.Item name="isAvailable" label="Available For Assignment" valuePropName="checked"><Switch /></Form.Item><Form.Item name="maxActiveApplications" label="Maximum Active Applications" rules={[{ required: true }]}><InputNumber min={1} max={10000} /></Form.Item></Form></Modal></div>;
+  return <div className="page">{error && <ErrorState message={error} />}<Input.Search allowClear value={searchDraft} onChange={event => setSearchDraft(event.target.value)} placeholder="Search Appliers by name or email" onSearch={setSearch} style={{ maxWidth: 420, marginBottom: 16 }} />{!data ? <LoadingState /> : <Card><Table rowKey="userId" dataSource={data} pagination={{ pageSize: 25 }} columns={columns} scroll={{ x: "max-content", y: "calc(100vh - 240px)" }} /></Card>}<Modal open={!!edit} title="Workload Settings" onOk={save} onCancel={() => setEdit()}><Form form={form} layout="vertical"><Form.Item name="isAvailable" label="Available For Assignment" valuePropName="checked"><Switch /></Form.Item><Form.Item name="maxActiveApplications" label="Maximum Active Applications" rules={[{ required: true }]}><InputNumber min={1} max={10000} /></Form.Item></Form></Modal></div>;
 }
 
 export function AssignmentBatchesPage({ client, apiBaseUrl }) {
