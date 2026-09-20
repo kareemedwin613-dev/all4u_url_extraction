@@ -11,6 +11,7 @@ import { JobDescriptionStatusDto } from "./job-description-status.dto.js";
 import { JobDescriptionReviewDto } from "./job-description-review.dto.js";
 import { BulkJobDescriptionReviewDto } from "./bulk-job-description-review.dto.js";
 import { BulkJobDescriptionDeleteDto } from "./bulk-job-description-delete.dto.js";
+import { BulkJobDescriptionCapturerDto } from "./bulk-job-description-capturer.dto.js";
 import { JobDescriptionCorrectionDto } from "./job-description-correction.dto.js";
 import { BulkJobSubcategoryImportDto } from "./bulk-job-subcategory-import.dto.js";
 import { JobDescriptionApplicationUnblockDto } from "./job-description-application-unblock.dto.js";
@@ -36,6 +37,11 @@ export class JobDescriptionReadController {
 
   @Get("capturers") @ApiOperation({ summary: "List users who captured accessible job descriptions" })
   async capturers(@Req() request: ApiRequest) { return { data: await this.jobs.capturers(request.user!), requestId: request.requestId }; }
+
+  @Get("capturer-candidates") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "List users who can own Captured By on job descriptions" })
+  async capturerCandidates(@Req() request: ApiRequest, @Query("search") search?: string) {
+    return { data: await this.jobs.capturerCandidates(request.user!, search || ""), requestId: request.requestId };
+  }
 
   @Post("bulk-subcategories") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Bulk set subcategories from an Excel review sheet" })
   async bulkSubcategories(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobSubcategoryImportDto)) body: BulkJobSubcategoryImportDto) {
@@ -65,6 +71,14 @@ export class JobDescriptionReadController {
   async bulkRemoveExpired(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobDescriptionDeleteDto)) body: BulkJobDescriptionDeleteDto) {
     return {
       data: await this.jobs.bulkRemoveExpired(request.user!, body.jobDescriptionIds),
+      requestId: request.requestId,
+    };
+  }
+
+  @Post("bulk-capturer") @RequireRoles("APPLYING_MANAGER", "ADMIN") @ApiOperation({ summary: "Reassign Captured By on selected job descriptions" })
+  async bulkCapturer(@Req() request: ApiRequest, @Body(new DtoValidationPipe(BulkJobDescriptionCapturerDto)) body: BulkJobDescriptionCapturerDto) {
+    return {
+      data: await this.jobs.bulkReassignCapturer(request.user!, body.jobDescriptionIds, body.newUserId, body.reason),
       requestId: request.requestId,
     };
   }

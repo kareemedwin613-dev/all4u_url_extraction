@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntdApp,
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -19,6 +20,7 @@ import {
   ReloadOutlined,
   SaveOutlined,
   ScanOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { normalizeUrl } from "../../shared/normalization.js";
@@ -30,7 +32,7 @@ import { detectIndustryDomain as detectIndustryDomainSlug } from "../../shared/i
 import { detectSalary, SALARY_PERIODS } from "../../shared/salary-detection.js";
 import { CLEARANCE_REQUIREMENTS, validateJob, WORK_ARRANGEMENTS } from "../../shared/validation.js";
 import { scoreMatch, summarizeBatch } from "../../shared/matching.js";
-import { createJob } from "../../services/job-service.js";
+import { checkJobDuplicate, createJob } from "../../services/job-service.js";
 import { eligibleResumes } from "../../services/resume-service.js";
 import { createTailoringJobs } from "../../services/tailoring-job-service.js";
 import { MatchCard } from "../components/MatchCard.jsx";
@@ -118,6 +120,8 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   const [saving, setSaving] = useState(false);
   const [savedJob, setSavedJob] = useState(null);
   const [duplicateJob, setDuplicateJob] = useState(null);
+  const [duplicateCheck, setDuplicateCheck] = useState(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [matches, setMatches] = useState([]);
   const [selectedResumeIds, setSelectedResumeIds] = useState(new Set());
   const [creatingJobs, setCreatingJobs] = useState(false);
@@ -178,6 +182,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   }
 
   function scheduleDraftSave(_changedValues, allValues) {
+    setDuplicateCheck(null);
     clearTimeout(draftTimer.current);
     const draft = {
       version: 1,
@@ -234,6 +239,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
     setUrlEditable(false);
     setSavedJob(null);
     setDuplicateJob(null);
+    setDuplicateCheck(null);
     setMatches([]);
     setSelectedResumeIds(new Set());
   }
@@ -375,6 +381,34 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
     }
   }
 
+  async function handleCheckDuplicate() {
+    const values = form.getFieldsValue();
+    setCheckingDuplicate(true);
+    setDuplicateCheck(null);
+    try {
+      const result = await checkJobDuplicate(client, backendBaseUrl, {
+        company: values.company,
+        jobTitle: values.jobTitle,
+        sourceUrl: values.sourceUrl,
+      });
+      setDuplicateCheck(result);
+      if (result.duplicate) {
+        const capturer = result.job?.captured_by_name || result.job?.captured_by_email || "another user";
+        const message =
+          result.duplicate_reason === "COMPANY_JOB_TITLE"
+            ? `Duplicate found: same company and job title (Captured By ${capturer}).`
+            : `Duplicate found: same source URL (Captured By ${capturer}).`;
+        onStatus({ message, kind: "warning" });
+      } else {
+        onStatus({ message: "No duplicate found for this URL or company and job title.", kind: "success" });
+      }
+    } catch (error) {
+      onError(error);
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  }
+
   async function submit() {
     setSaving(true);
     try {
@@ -394,6 +428,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
       const saved = await createJob(client, backendBaseUrl, job);
       setSavedJob(saved);
       setDuplicateJob(saved.duplicate?saved:null);
+      setDuplicateCheck(null);
       if(saved.duplicate){
         const duplicateMessage=saved.duplicate_reason === "COMPANY_JOB_TITLE"
           ? "Not saved: a JD with the same company and job title already exists. The existing JD is shown."
@@ -472,6 +507,15 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
           >
             Use Selected Text
           </Button>
+          <Button
+            block
+            icon={<SearchOutlined />}
+            loading={checkingDuplicate}
+            disabled={!canWrite || saving || extracting}
+            onClick={handleCheckDuplicate}
+          >
+            Check Duplicate
+          </Button>
           <Flex gap={8}>
             <Button
               icon={<ReloadOutlined />}
@@ -484,13 +528,38 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
               type="primary"
               icon={<SaveOutlined />}
               loading={saving}
-              disabled={!canWrite}
+              disabled={!canWrite || checkingDuplicate}
               onClick={() => form.submit()}
               style={{ flex: 1 }}
             >
               Save JD
             </Button>
           </Flex>
+          {duplicateCheck && (
+            <Alert
+              type={duplicateCheck.duplicate ? "warning" : "success"}
+              showIcon
+              message={
+                duplicateCheck.duplicate
+                  ? duplicateCheck.duplicate_reason === "COMPANY_JOB_TITLE"
+                    ? "Duplicate: same company and job title"
+                    : "Duplicate: same source URL"
+                  : "No duplicate found"
+              }
+              description={
+                duplicateCheck.duplicate && duplicateCheck.job
+                  ? [
+                      `${duplicateCheck.job.company} — ${duplicateCheck.job.job_title}`,
+                      duplicateCheck.job.source_url || null,
+                      `Captured By ${duplicateCheck.job.captured_by_name || duplicateCheck.job.captured_by_email || "unknown"}`,
+                    ]
+                      .filter(Boolean)
+                      .join("\n")
+                  : "This capture looks new in the Job Descriptions catalog. You can save it."
+              }
+              style={{ whiteSpace: "pre-wrap" }}
+            />
+          )}
         </Flex>
       </Card>
       <Card>
@@ -509,17 +578,8 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
             />
           </Form.Item>
           <Form.Item
-            label={
-              categories.find((c) => c.id === jobCategoryValue)?.slug === "software-engineering"
-                ? "Subcategories"
-                : <>Subcategories <Text type="secondary">(optional)</Text></>
-            }
+            label={<>Subcategories <Text type="secondary">(optional)</Text></>}
             name="jobSubcategories"
-            rules={
-              categories.find((c) => c.id === jobCategoryValue)?.slug === "software-engineering"
-                ? [{ type: "array", min: 1, message: "Select at least one Software Engineering subcategory." }]
-                : []
-            }
           >
             <Select
               mode="multiple"
