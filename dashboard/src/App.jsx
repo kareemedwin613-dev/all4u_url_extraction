@@ -49,6 +49,8 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { parseRoute } from "./router.js";
+import { filterHref, periodFromFilterQuery } from "./shared/filter-preferences.js";
+import { FilterPageContext, FilterPreferencesContext, useRememberedRoute } from "./shared/use-filter-preferences.js";
 import { bulkDraftHref } from "./features/bulk-applications/bulk-drafts.js";
 import { useBulkDrafts } from "./features/bulk-applications/use-bulk-drafts.js";
 import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./services/auth-service.js";
@@ -66,7 +68,7 @@ import {
 } from "./services/resume-banned-companies-service.js";
 import { getBusinessOverview } from "./services/business-overview-service.js";
 import { OverviewDateFilter } from "./features/overview/overview-date-filter.jsx";
-import { DEFAULT_OVERVIEW_WINDOW, overviewDateBounds } from "./features/overview/overview-date.js";
+import { overviewDateBounds } from "./features/overview/overview-date.js";
 import {
   BusinessRecordCards,
 } from "./features/overview/overview-count-cards.jsx";
@@ -773,10 +775,7 @@ function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange }) {
   if (!result) return <Loading text="Loading dashboard…" />;
   return (
     <div className="page">
-      <BusinessRecordCards
-        jobCounts={result.jobCounts}
-        resumeCounts={result.resumeCounts}
-      />
+      <BusinessRecordCards jobCounts={result.jobCounts} />
     </div>
   );
 }
@@ -1570,7 +1569,7 @@ function Jobs({
                   <Text type="secondary">
                     No job descriptions match the current view.
                   </Text>
-                  <Button onClick={() => go("#/jobs")}>Clear filters</Button>
+                  <Button onClick={() => go(filterHref("#/jobs"))}>Clear filters</Button>
                 </Space>
               ),
             }}
@@ -1943,7 +1942,7 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
                       ? "No archived Resume history matches the current filters."
                       : "No active Resumes match the current filters."}
                   </Text>
-                  <Button onClick={() => go("#/resumes")}>Clear filters</Button>
+                  <Button onClick={() => go(filterHref("#/resumes"))}>Clear filters</Button>
                 </Space>
               ),
             }}
@@ -2882,16 +2881,18 @@ export function App({ client, apiBaseUrl }) {
     [passwordRecovery, setPasswordRecovery] = useState(false),
     [access, setAccess] = useState(undefined),
     [accessError, setAccessError] = useState(null),
-    [route, setRoute] = useState(() => parseRoute(location.hash || "#/")),
+    [rawRoute, setRawRoute] = useState(() => parseRoute(location.hash || "#/")),
     [categories, setCategories] = useState(null),
     [roles, setRoles] = useState([]),
     [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
-    [overviewPeriod, setOverviewPeriod] = useState(DEFAULT_OVERVIEW_WINDOW),
     [reload] = useState(0),
     sessionRef = useRef(undefined),
     jobsBack = useRef("#/jobs"),
-    resumesBack = useRef("#/resumes"),
-    overviewDateRange = useMemo(() => overviewDateBounds(overviewPeriod), [overviewPeriod]);
+    resumesBack = useRef("#/resumes");
+  const { route, store: filterStore } = useRememberedRoute(rawRoute, setRawRoute, session?.user?.id, apiBaseUrl);
+  const overviewPeriod = useMemo(() => periodFromFilterQuery(route.name === "overview" ? route.query : ""), [route.name, route.query]);
+  const overviewDateRange = useMemo(() => overviewDateBounds(overviewPeriod), [overviewPeriod]);
+  const setOverviewPeriod = value => go(filterHref("#/", serializeQuery({ window: value.window, from: value.from, to: value.to })));
   const bulkDrafts = useBulkDrafts(session?.user?.id, apiBaseUrl);
   const startBulkCreation = useCallback(() => {
     const draft = bulkDrafts.store.create(selectedBulkJobIds);
@@ -2933,7 +2934,7 @@ export function App({ client, apiBaseUrl }) {
         setAccessError(null);
       }
     });
-    const hash = () => setRoute(parseRoute(location.hash));
+    const hash = () => setRawRoute(parseRoute(location.hash));
     addEventListener("hashchange", hash);
     if (!location.hash) location.hash = "#/";
     return () => {
@@ -3079,8 +3080,8 @@ export function App({ client, apiBaseUrl }) {
     !roles.length
   )
     return <Loading text="Loading system roles…" />;
-  if (route.name === "jobs") jobsBack.current = location.hash;
-  if (route.name === "resumes") resumesBack.current = location.hash;
+  if (route.name === "jobs") jobsBack.current = filterHref("#/jobs", route.query);
+  if (route.name === "resumes") resumesBack.current = filterHref("#/resumes", route.query);
   let page;
   if (route.name === "pending-access") page = <PendingAccessPage />;
   else if (route.name === "account-inactive") page = <InactiveAccountPage />;
@@ -3144,17 +3145,17 @@ export function App({ client, apiBaseUrl }) {
   else if (route.name === "application-batches")
     page = <ApplicationBatchesPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} drafts={bulkDrafts.drafts} draftStore={bulkDrafts.store} storageError={bulkDrafts.storageError} />;
   else if (route.name === "application-batch-detail")
-    page = <ApplicationBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
+    page = <ApplicationBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} query={route.query} />;
   else if (route.name === "assignment-batches")
     page = <AssignmentBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "assignment-batch-detail")
     page = <AssignmentBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "applier-workloads")
-    page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} />;
+    page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} />;
   else if (route.name === "applier-directory" || route.name === "users-directory")
     page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
   else if (route.name === "tailoring-jobs")
-    page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
+    page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} query={route.query} />;
   else if (route.name === "tailoring-job-detail")
     page = <TailoringReviewPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} reload={reload} />;
   else if (route.name === "tailoring-batches")
@@ -3248,6 +3249,7 @@ export function App({ client, apiBaseUrl }) {
         client={client}
         apiBaseUrl={apiBaseUrl}
         id={route.id}
+        query={route.query}
       />
     );
   else
@@ -3271,7 +3273,10 @@ export function App({ client, apiBaseUrl }) {
       </div>
     );
   return (
+    <FilterPreferencesContext.Provider value={filterStore}>
+    <FilterPageContext.Provider value={route.path}>
     <Shell
+      key={filterStore.scope}
       route={route}
       title={formatLabel(route.name)}
       access={access}
@@ -3287,7 +3292,9 @@ export function App({ client, apiBaseUrl }) {
         )}
       </>}
     >
-      <Suspense fallback={<Loading text="Loading workspace…" />}>{page}</Suspense>
+      <Suspense key={route.path} fallback={<Loading text="Loading workspace…" />}>{page}</Suspense>
     </Shell>
+    </FilterPageContext.Provider>
+    </FilterPreferencesContext.Provider>
   );
 }

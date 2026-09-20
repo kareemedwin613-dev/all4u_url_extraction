@@ -1,9 +1,10 @@
-import React,{useState}from"react";
+import React,{useEffect,useState}from"react";
 import{Button,Card,Flex,Input,Select,Typography}from"antd";
-import{formatOverviewRangeLabel,OVERVIEW_WINDOWS}from"./overview-date.js";
+import{DEFAULT_OVERVIEW_WINDOW,formatOverviewRangeLabel,OVERVIEW_WINDOWS}from"./overview-date.js";
 const{Text}=Typography;
 export function OverviewDateFilter({value,onChange,compact=false}){
   const[mode,setMode]=useState(value.window),[from,setFrom]=useState(value.from||""),[to,setTo]=useState(value.to||"");
+  useEffect(()=>{setMode(value.window);setFrom(value.from||"");setTo(value.to||"");},[value.window,value.from,value.to]);
   const invalid=mode==="CUSTOM"&&(!from||!to||from>to);
   const select=next=>{setMode(next);if(next!=="CUSTOM"){const option=OVERVIEW_WINDOWS.find(item=>item.value===next);onChange({window:next,from:"",to:"",label:option.label});}};
   const labelClass=compact?"overview-header-filter-label":"";
@@ -27,6 +28,7 @@ export function OverviewDateFilter({value,onChange,compact=false}){
         <Button type="primary" disabled={invalid} onClick={()=>onChange({window:"CUSTOM",from,to,label:formatOverviewRangeLabel(from,to)})}>Apply</Button>
       </div>
     </>:null}
+    {value.window!=="TODAY"&&<Button onClick={()=>onChange(DEFAULT_OVERVIEW_WINDOW)}>Reset</Button>}
     {!compact?<Text type="secondary">Summary cards: {value.label}</Text>:null}
   </Flex>;
   return compact?controls:<Card size="small" title="Reporting Period" style={{marginBottom:16}}>{controls}</Card>;

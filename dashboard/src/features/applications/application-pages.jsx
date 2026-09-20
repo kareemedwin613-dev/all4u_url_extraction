@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { filterHref } from "../../shared/filter-preferences.js";
+import { useSavedTableSort } from "../../shared/use-saved-table-sort.js";
 import {
   Alert,
   App as AntApp,
@@ -365,7 +367,7 @@ export function ApplicationsPage({
   }, [client, filterKey, reload, manager, localReload]);
   const update = (patch) => {
     const text = serializeApplicationQuery({ ...filters, ...patch });
-    go(`#/applications${text ? `?${text}` : ""}`);
+    go(filterHref("#/applications", text));
   };
   async function openScreenshot(record) {
     if (openingScreenshotId) return;
@@ -739,6 +741,7 @@ export function ApplicationsPage({
   const columns = manager ? managerColumns : applierColumns,
     applicationsScrollX = manager ? 2616 : 2100,
     tooMany = selectedIds.length > 2000;
+  const savedTableSort = useSavedTableSort("application-table-sort", clientSortColumns(columns));
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
   function cancelSelected(){
     Modal.confirm({
@@ -927,7 +930,7 @@ export function ApplicationsPage({
             <Table
               className="dashboard-ellipsis-table"
               rowKey="id"
-              columns={columns}
+              columns={savedTableSort.columns}
               dataSource={data.items}
               pagination={false}
               tableLayout="fixed"
@@ -941,11 +944,12 @@ export function ApplicationsPage({
                         ? "No Applications match this view. Create one by pairing a job description and active resume."
                         : "No Applications match the current filters."}
                     </Text>
-                    <Button onClick={() => go("#/applications")}>Clear filters</Button>
+                    <Button onClick={() => { savedTableSort.resetSort(); go(filterHref("#/applications")); }}>Clear filters</Button>
                   </Space>
                 ),
               }}
-              onChange={(_pagination, tableFilters, _sorter, extra) => {
+              onChange={(_pagination, tableFilters, sorter, extra) => {
+                if (extra?.action === "sort") { savedTableSort.onSort(sorter); return; }
                 if (extra?.action && extra.action !== "filter") return;
                 applyTableFilters(tableFilters);
               }}

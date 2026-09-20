@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { useSavedSearch } from "../../shared/use-filter-preferences.js";
 import { Empty, Typography } from "antd";
 import {
   Bar,
@@ -63,7 +64,7 @@ function ApplierPerformanceTooltip({ active, payload }) {
 }
 
 export function ApplierPerformanceChart({ rows = [], dateLabel = "Today" }) {
-  const [search, setSearch] = useState(""),
+  const [search, setSearch] = useSavedSearch("applier-performance-chart"),
     data = useMemo(() => normalizeApplierPerformance(rows), [rows]),
     needle = search.trim().toLocaleLowerCase(),
     visible = useMemo(

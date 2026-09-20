@@ -33,7 +33,7 @@ export function createMatchingProvider(config, environment = process.env) {
   if (config.providerName === "openai") return createOpenAIProvider({ model: config.model, apiKey: environment.OPENAI_API_KEY });
   return createCodexProvider({ model: config.model, environment,
     bin: environment.MATCHING_CODEX_BIN || environment.TAILORING_CODEX_BIN || "codex",
-    reasoningEffort: (environment.MATCHING_CODEX_REASONING_EFFORT || "medium").trim().toLowerCase(),
+    reasoningEffort: (environment.MATCHING_CODEX_REASONING_EFFORT || "low").trim().toLowerCase(),
     serviceTier: (environment.MATCHING_CODEX_SERVICE_TIER || "default").trim().toLowerCase() });
 }
 

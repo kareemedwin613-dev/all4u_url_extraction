@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { filterHref, periodFromFilterQuery } from "../../shared/filter-preferences.js";
+import { navigate } from "../../router.js";
 import {
   Button,
   Card,
@@ -23,7 +25,6 @@ import { UserAvatar } from "../../components/user-avatar.jsx";
 import { ApplierProfileWorkloadChart } from "../overview/applier-profile-workload-chart.jsx";
 import { OverviewDateFilter } from "../overview/overview-date-filter.jsx";
 import {
-  DEFAULT_OVERVIEW_WINDOW,
   overviewDateBounds,
 } from "../overview/overview-date.js";
 import {
@@ -54,8 +55,9 @@ function profileLabel(row) {
   return `${name}${candidate}${number}`;
 }
 
-export function ApplierDetailPage({ client, apiBaseUrl, id }) {
-  const [period, setPeriod] = useState(DEFAULT_OVERVIEW_WINDOW);
+export function ApplierDetailPage({ client, apiBaseUrl, id, query = "" }) {
+  const period = useMemo(() => periodFromFilterQuery(query), [query]);
+  const setPeriod = value => navigate(filterHref(`#/appliers/${id}`, new URLSearchParams({ window: value.window, from: value.from, to: value.to }).toString()));
   const [payload, setPayload] = useState(null);
   const [activityItems, setActivityItems] = useState([]);
   const [activityTotal, setActivityTotal] = useState(0);

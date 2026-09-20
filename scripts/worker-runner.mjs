@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { isAlive, readStatus, runIdentity, runPaths, RUN_ID, supervise, workerCommand } from "./worker-supervisor.mjs";
+import { watchWorker } from "./worker-monitor.mjs";
 
 const self = fileURLToPath(import.meta.url), root = resolve(dirname(self), "..");
 const [operation, ...args] = process.argv.slice(2);
@@ -33,7 +34,13 @@ async function main() {
       return;
     }
     const paths = runPaths(root, args[0]);
-    if (operation === "logs") { console.log(readFileSync(paths.log, "utf8").split("\n").slice(-101).join("\n")); return; }
+    if (operation === "logs") {
+      if (args.includes("--follow")) {
+        if (!readStatus(paths.status)) throw Error("Worker run not found.");
+        await watchWorker(paths);
+      } else console.log(readFileSync(paths.log, "utf8").split("\n").slice(-101).join("\n"));
+      return;
+    }
     const state = readStatus(paths.status);
     if (!state || !isAlive(state.supervisorPid) || !["STARTING", "RUNNING", "RETRYING"].includes(state.status)) {
       console.log("This worker is not running."); return;
@@ -54,7 +61,7 @@ async function main() {
   if (urlIndex < 0 || !apiBaseUrl) throw Error("A batch command requires --api-base-url.");
   const url = new URL(apiBaseUrl);
   if (url.username || url.password || url.search || url.hash || (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)))) throw Error("Invalid API base URL.");
-  const workerArgs = args.filter((_, index) => index !== ticketIndex && index !== ticketIndex + 1);
+  const workerArgs = args.filter((arg, index) => index !== ticketIndex && index !== ticketIndex + 1 && !["--detach", "--follow"].includes(arg));
   const runId = runIdentity(operation, ticket, url.origin), paths = runPaths(root, runId);
   const previous = readStatus(paths.status);
   if (["COMPLETED", "COMPLETED_WITH_FAILURES"].includes(previous?.status)) {
@@ -76,6 +83,7 @@ async function main() {
     }
     if (!ready) throw Error("The background worker did not start. Retry with --foreground to inspect startup errors.");
   }
-  console.log(`Background ${operation} run: ${runId}\nYou can close this terminal; the worker continues and retries unexpected exits.\nLog: ${paths.log}\nStatus: npm run workers:status\nLogs: npm run workers:logs -- ${runId}\nStop: npm run workers:stop -- ${runId}`);
+  console.log(`Background ${operation} run: ${runId}\nYou can close this terminal; the worker continues and retries unexpected exits.\nLog: ${paths.log}\nStatus: npm run workers:status\nLogs: npm run workers:logs -- ${runId} --follow\nStop: npm run workers:stop -- ${runId}`);
+  if (!args.includes("--detach") && (process.stdout.isTTY || args.includes("--follow"))) await watchWorker(paths);
 }
 main().catch(() => { console.error("Worker runner failed. Check the command, dependencies and artifact-directory permissions; use --foreground for detailed worker diagnostics."); process.exitCode = 1; });

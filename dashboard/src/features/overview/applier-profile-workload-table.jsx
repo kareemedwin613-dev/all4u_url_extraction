@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
+import { useSavedSearch } from "../../shared/use-filter-preferences.js";
+import { useSavedTableSort } from "../../shared/use-saved-table-sort.js";
 import { Button, Dropdown, Empty, Input, Table } from "antd";
 import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { tableRowNumberColumn } from "../../shared/table-sorting.js";
@@ -187,9 +189,10 @@ export function ApplierProfileWorkloadTable({
   title = "My Active Profiles",
   showTitle = true,
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useSavedSearch("profile-workload-table");
   const data = useMemo(() => normalizeApplierProfileWorkload(rows), [rows]);
   const columns = useMemo(() => buildColumns({ showApplier }), [showApplier]);
+  const savedTableSort = useSavedTableSort("profile-workload-table-sort", columns);
   const needle = search.trim().toLocaleLowerCase();
   const visible = useMemo(
     () =>
@@ -249,7 +252,10 @@ export function ApplierProfileWorkloadTable({
             tableLayout="fixed"
             pagination={false}
             dataSource={visible}
-            columns={columns}
+            columns={savedTableSort.columns}
+            onChange={(_pagination, _filters, sorter, extra) => {
+              if (extra?.action === "sort") savedTableSort.onSort(sorter);
+            }}
             scroll={{ x: "max-content" }}
             summary={() => (
               <ProfileTableSummary totals={metricTotals} showApplier={showApplier} />

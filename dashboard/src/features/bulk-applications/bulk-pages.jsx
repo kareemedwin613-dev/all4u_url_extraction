@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { filterHref, parseBatchListQuery, parseBatchResultQuery, parseBulkPreviewQuery } from "../../shared/filter-preferences.js";
+import { useSavedFilters } from "../../shared/use-filter-preferences.js";
 import {
   Alert,
   App as AntApp,
@@ -116,7 +118,7 @@ function PreviewFilters({ rows, value, onChange }) {
           .map((row) => [row.jobCategoryId, row.jobCategoryName]),
       ).entries(),
     ].map(([value, label]) => ({ value, label }));
-  const activeCount = Object.values(value).filter(Boolean).length;
+  const activeCount = Object.keys(emptyFilters).filter(key => Boolean(value[key])).length;
   return (
     <FilterPanel activeCount={activeCount}>
       <Row gutter={12}>
@@ -371,9 +373,12 @@ export function BulkCreatePage({
     [selected, setSelected] = useState(new Set()),
     [selectedResumeIds, setSelectedResumeIds] = useState(draft.resumeIds || []),
     [activeTab, setActiveTab] = useState(draft.activeTab),
-    [filters, setFilters] = useState(emptyFilters),
+    [previewFilters, setPreviewFilters] = useSavedFilters("preview", parseBulkPreviewQuery),
+    filters = previewFilters,
+    setFilters = value => setPreviewFilters(previous => ({ ...previous, ...value })),
     [page, setPage] = useState(1),
-    [pageSize, setPageSize] = useState(25),
+    pageSize = previewFilters.pageSize,
+    setPageSize = value => setPreviewFilters(previous => ({ ...previous, pageSize: value })),
     [batchName, setBatchName] = useState(draft.batchName),
     [error, setError] = useState(""),
     [previewError, setPreviewError] = useState(""),
@@ -801,11 +806,8 @@ export function BulkCreatePage({
 
 export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, drafts = [], draftStore, storageError }) {
   const { message } = AntApp.useApp(),
-    params = new URLSearchParams(query),
-    [search, setSearch] = useState(params.get("search") || ""),
-    [status, setStatus] = useState(params.get("status") || ""),
-    [sort, setSort] = useState(params.get("sort") || "created_desc"),
-    [page, setPage] = useState(Math.max(1, Number(params.get("page")) || 1)),
+    filters = parseBatchListQuery(query),
+    { search, status, sort, page } = filters,
     [data, setData] = useState(),
     [error, setError] = useState(""),
     [selectedRowKeys, setSelectedRowKeys] = useState([]),
@@ -813,6 +815,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, draf
     [reloadTick, setReloadTick] = useState(0);
   const selectedCount = selectedRowKeys.length,
     tooMany = selectedCount > MAX_BATCH_DELETE;
+  const updateFilters = patch => go(filterHref("#/application-batches", new URLSearchParams({ ...filters, ...patch }).toString()));
   useEffect(() => {
     let live = true;
     setData();
@@ -902,9 +905,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, draf
   );
 
   function clearFilters() {
-    setSearch("");
-    setStatus("");
-    setPage(1);
+    go(filterHref("#/application-batches"));
   }
 
   async function submitBulkDelete() {
@@ -988,16 +989,13 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, draf
             }}
             onChange={(_pagination, tableFilters, sorter, extra) => {
               if (extra?.action === "sort") {
-                setSort(serverSortFromTable(sorter, "created_desc"));
-                setPage(1);
+                updateFilters({ sort: serverSortFromTable(sorter, "created_desc"), page: 1 });
                 return;
               }
               if (extra?.action && extra.action !== "filter") return;
               const nextSearch = firstFilterValue(tableFilters, "name", search);
               const nextStatus = firstFilterValue(tableFilters, "status", "");
-              setSearch(nextSearch);
-              setStatus(nextStatus);
-              setPage(1);
+              updateFilters({ search: nextSearch, status: nextStatus, page: 1 });
             }}
           />
           <Flex className="ui-pagination" justify="flex-end" align="center">
@@ -1006,7 +1004,7 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, draf
               pageSize={data.pageSize}
               total={data.total}
               showSizeChanger={false}
-              onChange={setPage}
+              onChange={page => updateFilters({ page })}
             />
           </Flex>
         </Card>
@@ -1015,12 +1013,13 @@ export function ApplicationBatchesPage({ client, apiBaseUrl, query, reload, draf
   );
 }
 
-export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload }) {
+export function ApplicationBatchDetailPage({ client, apiBaseUrl, id, reload, query = "" }) {
   const { message } = AntApp.useApp(),
     [detail, setDetail] = useState(),
     [results, setResults] = useState(),
     [resultPage, setResultPage] = useState(1),
-    [outcome, setOutcome] = useState(""),
+    { outcome } = parseBatchResultQuery(query),
+    setOutcome = outcome => go(filterHref(`#/application-batches/${id}`, new URLSearchParams({ outcome }).toString())),
     [error, setError] = useState(""),
     [deleteBusy, setDeleteBusy] = useState(false);
   useEffect(() => {

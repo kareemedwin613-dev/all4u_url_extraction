@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState}from"react";
+import{filterHref,parseTailoringQuery}from"../../shared/filter-preferences.js";
 import{Alert,App as AntApp,Button,Card,Descriptions,Empty,Flex,Form,Input,Select,Space,Table,Tag,Typography}from"antd";
 import{formatDate,formatLabel}from"../../shared/formatters.js";
 import{EllipsisCell,LoadingState,StatusTag}from"../../components/ui.jsx";
@@ -12,8 +13,9 @@ const one=value=>Array.isArray(value)?value[0]:value||{};
 const go=hash=>location.assign(hash);
 const QUEUE_SCROLL_X=1258;
 
-export function TailoringQueuePage({client,apiBaseUrl,reload}){
-  const[status,setStatus]=useState("ALL"),[items,setItems]=useState(),[error,setError]=useState(""),[selected,setSelected]=useState([]),[tickets,setTickets]=useState([]),[busy,setBusy]=useState(false);
+export function TailoringQueuePage({client,apiBaseUrl,reload,query=""}){
+  const{status}=parseTailoringQuery(query),setStatus=value=>go(filterHref("#/tailoring-jobs",new URLSearchParams({status:value}).toString()));
+  const[items,setItems]=useState(),[error,setError]=useState(""),[selected,setSelected]=useState([]),[tickets,setTickets]=useState([]),[busy,setBusy]=useState(false);
   useEffect(()=>{let live=true;setItems();setError("");listTailoringJobs(client,apiBaseUrl,status).then(value=>live&&setItems(value)).catch(x=>live&&setError(x.message));return()=>{live=false;};},[client,apiBaseUrl,status,reload]);
   const columns=useMemo(()=>[
     {title:"Application",width:100,render:(_,row)=><EllipsisCell>{one(row.applications).application_number?`#${one(row.applications).application_number}`:"Legacy queue"}</EllipsisCell>},
