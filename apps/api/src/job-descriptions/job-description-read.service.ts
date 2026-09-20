@@ -84,6 +84,8 @@ function databaseError(error: any, fallback: string): never {
   if (/JOB_HAS_APPLICATIONS/i.test(raw)) throw new ApiException("JOB_HAS_APPLICATIONS", raw.replace(/^JOB_HAS_APPLICATIONS:\s*/i, ""), HttpStatus.CONFLICT);
   if (/JOB_EDIT_INVALID/i.test(raw)) throw new ApiException("JOB_EDIT_INVALID", raw.replace(/^JOB_EDIT_INVALID:\s*/i, "") || "Required job-description fields are invalid.", HttpStatus.BAD_REQUEST);
   if (/JOB_DELETE_INVALID/i.test(raw)) throw new ApiException("JOB_DELETE_INVALID", raw.replace(/^JOB_DELETE_INVALID:\s*/i, ""), HttpStatus.BAD_REQUEST);
+  const capturerKnown = raw.match(/^(JOB_CAPTURER_[A-Z_]+):\s*(.+)$/i);
+  if (capturerKnown) throw new ApiException(capturerKnown[1].toUpperCase(), capturerKnown[2], HttpStatus.BAD_REQUEST);
   const known = raw.match(/^(JOB_REVIEW_[A-Z_]+):\s*(.+)$/i);
   if (known) throw new ApiException(known[1].toUpperCase(), known[2], HttpStatus.BAD_REQUEST);
   if (/PGRST202|could not find the function|function .* does not exist/i.test(raw) || error?.code === "PGRST202") {
@@ -149,6 +151,21 @@ export class JobDescriptionReadService {
       displayName: item.display_name,
       email: item.email,
       capturedCount: Number(item.captured_count) || 0,
+    }));
+  }
+
+  async capturerCandidates(user: AuthenticatedUser, search = "") {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("list_job_capturer_candidates_v3103", {
+      p_search: search || "",
+      p_limit: 200,
+    });
+    if (error) databaseError(error, "Captured By candidates could not be loaded.");
+    const rows = Array.isArray(data) ? data : [];
+    return rows.map((item: any) => ({
+      id: item.id,
+      displayName: item.displayName || item.display_name || item.email,
+      email: item.email,
+      roles: Array.isArray(item.roles) ? item.roles : [],
     }));
   }
 
@@ -252,6 +269,27 @@ export class JobDescriptionReadService {
       succeeded: Number(payload.succeeded) || 0,
       failed: Number(payload.failed) || 0,
       deletedApplications: Number(payload.deletedApplications) || 0,
+      results: Array.isArray(payload.results) ? payload.results : [],
+    };
+  }
+
+  async bulkReassignCapturer(user: AuthenticatedUser, ids: string[], newUserId: string, reason?: string) {
+    const unique = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!unique.length) throw new ApiException("VALIDATION_ERROR", "Select at least one Job Description.", HttpStatus.BAD_REQUEST);
+    if (unique.length > 1000) throw new ApiException("VALIDATION_ERROR", "Select no more than 1000 Job Descriptions.", HttpStatus.BAD_REQUEST);
+    if (!String(newUserId || "").trim()) throw new ApiException("VALIDATION_ERROR", "Select a new Captured By user.", HttpStatus.BAD_REQUEST);
+    const { data, error } = await this.supabase.forUser(user.token).rpc("bulk_reassign_job_description_capturers_v3103", {
+      p_job_description_ids: unique,
+      p_new_user_id: newUserId,
+      p_reason: reason || null,
+    });
+    if (error) databaseError(error, "Captured By could not be updated.");
+    const payload = data && typeof data === "object" ? data as any : {};
+    return {
+      total: Number(payload.total) || unique.length,
+      succeeded: Number(payload.succeeded) || 0,
+      failed: Number(payload.failed) || 0,
+      newUserId: payload.newUserId || newUserId,
       results: Array.isArray(payload.results) ? payload.results : [],
     };
   }

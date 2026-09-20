@@ -50,6 +50,38 @@ test("extension JD service preserves the backend duplicate result instead of rep
   assert.match(view,/if\(saved\.duplicate\)/);
   assert.match(view,/Not saved: this source URL already exists/);
   assert.match(view,/kind:"warning"/);
+  assert.match(view,/Check Duplicate/);
+  assert.match(view,/handleCheckDuplicate/);
+  assert.match(view,/checkJobDuplicate/);
+});
+
+test("extension can preview duplicates without saving",async()=>{
+  globalThis.chrome={runtime:{getManifest:()=>({version:"1.9.0"})}};
+  let call;
+  const client={
+    auth:{getSession:async()=>({data:{session:{access_token:"session-token"}},error:null})},
+    rpc:async(name,args)=>{call={name,args};return{data:{duplicate:true,duplicateReason:"COMPANY_JOB_TITLE",row:{id:"existing",company:"Acme",job_title:"Engineer",source_url:"https://example.com/a"}},error:null};},
+  };
+  try{
+    const { checkJobDuplicate } = await import("../extension/services/job-service.js");
+    const result = await checkJobDuplicate(client,"https://api.example.com",{company:"Acme",jobTitle:"Engineer",sourceUrl:"https://example.com/job?utm_source=x"});
+    assert.equal(result.duplicate,true);
+    assert.equal(result.duplicate_reason,"COMPANY_JOB_TITLE");
+    assert.equal(result.job.id,"existing");
+  } finally {
+    delete globalThis.chrome;
+  }
+  assert.equal(call.name,"check_job_description_duplicate_v3104");
+  assert.equal(call.args.p_normalized_source_url,"https://example.com/job");
+  const migration=await readFile(new URL("../supabase/migrations/202609201200_v3_104_check_job_duplicate.sql",import.meta.url),"utf8");
+  assert.match(migration,/check_job_description_duplicate_v3104/);
+  assert.match(migration,/duplicateReason', 'SOURCE_URL'/);
+  assert.match(migration,/duplicateReason', 'COMPANY_JOB_TITLE'/);
+  assert.doesNotMatch(migration,/insert into public\.job_descriptions/i);
+  const catalogWide=await readFile(new URL("../supabase/migrations/202609201300_v3_105_catalog_wide_jd_duplicates.sql",import.meta.url),"utf8");
+  assert.match(catalogWide,/where normalized_source_url = v_normalized_url/);
+  assert.doesNotMatch(catalogWide,/where user_id = v_actor and normalized_source_url = v_normalized_url/);
+  assert.match(catalogWide,/captured_by_name/);
 });
 
 test("extension JD lookups use cached user-scoped Supabase reads without a Vercel hop",async()=>{

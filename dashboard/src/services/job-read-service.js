@@ -17,7 +17,25 @@ export const getJob=(client,apiBaseUrl,id)=>request(client,apiBaseUrl,`/api/v1/j
 export const jobCount=(client,apiBaseUrl,status="")=>request(client,apiBaseUrl,`/api/v1/job-descriptions/count${params({status})}`);
 export const recentJobs=(client,apiBaseUrl,limit=5)=>request(client,apiBaseUrl,`/api/v1/job-descriptions/recent${params({limit})}`);
 export const listJobCapturers=(client,apiBaseUrl)=>request(client,apiBaseUrl,"/api/v1/job-descriptions/capturers",{timeoutMs:30000});
+export const listJobCapturerCandidates=(client,apiBaseUrl,search="")=>request(client,apiBaseUrl,`/api/v1/job-descriptions/capturer-candidates${params({search})}`,{timeoutMs:30000});
 export const setJobStatus=async(client,apiBaseUrl,id,status,reason)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/status`,method:"PATCH",body:{status,...(reason?{reason}:{})}})).payload.data;
+export async function bulkReassignJobCapturer(client,apiBaseUrl,{jobDescriptionIds,newUserId,reason}={}){
+  const ids=[...new Set((jobDescriptionIds||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
+  if(!ids.length)throw{code:"VALIDATION_ERROR",message:"Select at least one Job Description.",retryable:false};
+  if(ids.length>1000)throw{code:"VALIDATION_ERROR",message:"Select no more than 1000 Job Descriptions.",retryable:false};
+  if(!String(newUserId||"").trim())throw{code:"VALIDATION_ERROR",message:"Select a new Captured By user.",retryable:false};
+  return(await authenticatedApiRequest(client,{
+    baseUrl:apiBaseUrl,
+    path:"/api/v1/job-descriptions/bulk-capturer",
+    method:"POST",
+    timeoutMs:60000,
+    body:{
+      jobDescriptionIds:ids,
+      newUserId,
+      ...(reason?{reason}:{}),
+    },
+  })).payload.data;
+}
 export const reviewJob=async(client,apiBaseUrl,id,decision)=>(await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/job-descriptions/${encodeURIComponent(id)}/review`,method:"PATCH",body:decision})).payload.data;
 export async function bulkReviewJobs(client,apiBaseUrl,{jobDescriptionIds,reviewStatus,declineReason,comment}={}){
   const ids=[...new Set((jobDescriptionIds||[]).map((id)=>String(id||"").trim()).filter(Boolean))];
