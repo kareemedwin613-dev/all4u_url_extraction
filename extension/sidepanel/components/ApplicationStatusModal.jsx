@@ -84,13 +84,14 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         applicationUrl: values.applicationUrl,
         notes: values.notes,
       });
-      const cancelled = Number(updated?.siblings_cancelled ?? updated?.siblingsCancelled) || 0;
+      const siblingsBlocked =
+        Number(updated?.siblings_blocked ?? updated?.siblingsBlocked ?? updated?.siblings_cancelled ?? updated?.siblingsCancelled) || 0;
       const blocked = Boolean(updated?.job_application_blocked ?? updated?.jobApplicationBlocked);
       onStatus({
         message:
           values.status === "BLOCKED" && blocked
-            ? cancelled
-              ? `Blocked. This job is blocked for all profiles; ${cancelled} other open Application${cancelled === 1 ? "" : "s"} cancelled.`
+            ? siblingsBlocked
+              ? `Blocked. This job is blocked for all profiles; ${siblingsBlocked} other open Application${siblingsBlocked === 1 ? "" : "s"} blocked.`
               : "Blocked. This job is blocked for all profiles."
             : "Application updated.",
         kind: "success",
@@ -144,7 +145,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
                 showIcon
                 style={{ marginBottom: 16 }}
                 message="Blocking removes this job for all profiles"
-                description="Other open Applications on this job will be cancelled, and it leaves matching queues until a manager unblocks it."
+                description="Other open Applications on this job will be set to Blocked, and it leaves matching queues until a manager unblocks it."
               />
             ) : null
           }
@@ -152,7 +153,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         <Form.Item
           label="Notes"
           name="notes"
-          extra="Required when status is Blocked. Blocking removes this job for all profiles and cancels other open Applications on it."
+          extra="Required when status is Blocked. Blocking removes this job for all profiles and sets other open Applications on it to Blocked."
           rules={[{ max: 10000, message: "Notes cannot exceed 10000 characters." }]}
         >
           <Input.TextArea

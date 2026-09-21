@@ -1185,7 +1185,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
           showIcon
           style={{ marginBottom: 16 }}
           message="Blocking removes this job for all profiles"
-          description="Other open Applications on this job will be cancelled, and it will leave matching queues until a manager unblocks it."
+          description="Other open Applications on this job will be set to Blocked, and it will leave matching queues until a manager unblocks it."
         />
       ) : null}
       <Form.Item
@@ -1600,9 +1600,9 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                       () => updateApplication(client, apiBaseUrl, id, value),
                       (result) => {
                         if (value.status === "BLOCKED" && result?.jobApplicationBlocked) {
-                          const cancelled = Number(result.siblingsCancelled) || 0;
-                          return cancelled
-                            ? `Application blocked. This job is blocked for all profiles; ${cancelled} other open Application${cancelled === 1 ? "" : "s"} cancelled.`
+                          const siblingsBlocked = Number(result.siblingsBlocked ?? result.siblingsCancelled) || 0;
+                          return siblingsBlocked
+                            ? `Application blocked. This job is blocked for all profiles; ${siblingsBlocked} other open Application${siblingsBlocked === 1 ? "" : "s"} blocked.`
                             : "Application blocked. This job is blocked for all profiles.";
                         }
                         return "Application progress was saved.";

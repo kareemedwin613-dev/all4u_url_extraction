@@ -32,7 +32,7 @@ test("API and UI surface unblock plus block messaging", () => {
   const progress = readFileSync(new URL("../dashboard/src/features/applications/application-pages.jsx", import.meta.url), "utf8");
   assert.match(api, /application-unblock/);
   assert.match(service, /jobApplicationBlocked/);
-  assert.match(service, /siblingsCancelled/);
+  assert.match(service, /siblingsBlocked/);
   assert.match(modal, /Blocking removes this job for all profiles/);
   assert.match(progress, /Unblock job for Applications/);
 });
