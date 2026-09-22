@@ -7,7 +7,6 @@ export const APPLIER_STATUS_FILTER_OPTIONS = Object.freeze([
 
 export const APPLIER_STATUS_UPDATE_OPTIONS = Object.freeze([
   { value: "ASSIGNED", label: "Assigned" },
-  { value: "IN_PROGRESS", label: "In Progress" },
   { value: "BLOCKED", label: "Blocked" },
   { value: "APPLIED", label: "Applied" },
 ]);
