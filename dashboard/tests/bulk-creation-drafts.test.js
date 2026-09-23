@@ -46,6 +46,21 @@ test("drafts are isolated by account and API deployment, with trailing slashes n
   assert.equal(store({ userId: undefined }).create([jd1]), null);
 });
 
+test("legacy scoring drafts reopen as category matching without reusing scoring retry keys", () => {
+  const { store, storage } = fixture(), original = store(), draft = original.create([jd1]);
+  assert.equal(draft.matchingMode, "CATEGORY");
+  const key = [...storage.data.keys()][0], saved = JSON.parse(storage.data.get(key));
+  saved.matchingMode = "SCORE";
+  saved.creationAttempt = { key: crypto.randomUUID(), fingerprint: JSON.stringify({
+    payload: [{ job_description_id: jd1, resume_id: resume1 }], batchName: "", matchingMode: "SCORE",
+  }) };
+  storage.data.set(key, JSON.stringify(saved));
+  const restored = store().getSnapshot().drafts[0];
+  assert.equal(restored.matchingMode, "CATEGORY");
+  assert.equal(restored.creationAttempt, null);
+  assert.deepEqual(restored.jobDescriptionIds, [jd1]);
+});
+
 test("an intentionally empty resume selection stays empty; unavailable resumes are removed", () => {
   const { store } = fixture(), first = store(), draft = first.create([jd1]);
   assert.deepEqual(restoreDraftResumeIds(draft.resumeIds, [resume1, resume2]), [resume1, resume2]);
@@ -75,7 +90,7 @@ test("credentials, commands, scores and document content are not persisted", () 
 
 test("interrupted creation keeps the same retry key and fingerprint across reloads", () => {
   const { store } = fixture(), first = store(), draft = first.create([jd1]);
-  const creationAttempt = { key: crypto.randomUUID(), fingerprint: JSON.stringify({ payload: [{ job_description_id: jd1, resume_id: resume1 }], batchName: "Retry batch", matchingMode: "SCORE" }) };
+  const creationAttempt = { key: crypto.randomUUID(), fingerprint: JSON.stringify({ payload: [{ job_description_id: jd1, resume_id: resume1 }], batchName: "Retry batch", matchingMode: "CATEGORY" }) };
   first.update(draft.id, { creationAttempt });
   assert.deepEqual(store().getSnapshot().drafts[0].creationAttempt, creationAttempt);
   first.update(draft.id, { creationAttempt: { key: crypto.randomUUID(), fingerprint: "broken" } });

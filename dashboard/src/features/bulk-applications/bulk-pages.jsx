@@ -633,7 +633,7 @@ export function BulkCreatePage({
               />
               <Space style={{ marginTop: 12 }}>
                 {matchingMode === "SCORE" && <Button type="primary" loading={scoring} disabled={!preview.matchingConfigured || preview.truncated || !scopedRows.some(canRunMatch)} onClick={scoreSelected}>Create / resume scoring command</Button>}
-                <Button onClick={() => setMatchRefresh(value => value + 1)}>Refresh {matchingMode === "SCORE" ? "scores" : "eligibility"}</Button>
+                <Button onClick={() => setMatchRefresh(value => value + 1)}>{matchingMode === "SCORE" ? "Refresh scores" : "Refresh eligibility"}</Button>
               </Space>
               {matchingMode === "SCORE" && matchingRunner?.scope === matchingScope && <MatchingRunnerCommand runner={matchingRunner} apiBaseUrl={apiBaseUrl} onRevoke={revokeScoring} busy={scoring} />}
               {!selectedResumeIds.length && <Alert type="warning" showIcon message="Select at least one original Resume to create Applications." style={{ marginTop: 12 }} />}

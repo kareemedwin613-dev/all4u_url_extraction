@@ -37,7 +37,7 @@ export function MatchScore({ row }) {
   </Tag></Tooltip>;
 }
 
-export function ApplicationMatchPanel({ client, apiBaseUrl, jobId, resumeId, matchingMode = "SCORE", onEligibilityChange }) {
+export function ApplicationMatchPanel({ client, apiBaseUrl, jobId, resumeId, matchingMode = "CATEGORY", onEligibilityChange }) {
   const [row, setRow] = useState(null), [error, setError] = useState(""), [previewError, setPreviewError] = useState(""), [refresh, setRefresh] = useState(0), [busy, setBusy] = useState(false), [runner, setRunner] = useState(null);
   const scope = `${apiBaseUrl}|${jobId}|${resumeId}|${matchingMode}`;
   useEffect(() => {

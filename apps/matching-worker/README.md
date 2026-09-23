@@ -1,5 +1,9 @@
 # Application match scoring
 
+> Archived: AI evaluation is no longer used for new Applications or after tailoring.
+> Use category/subcategory matching. See [archive and rollout notes](../../docs/evaluation-archive.md).
+> The remaining documentation describes the retained historical implementation.
+
 This worker scores **original Resume + JD** alignment for the AI-scored Application creation option. It does not tailor resumes, approve candidates, or submit applications to employers. Existing Applications and their tailored files are unchanged.
 
 ## Evaluation defaults (v3.102)

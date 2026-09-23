@@ -24,6 +24,8 @@
     "proof:tailoring": "npm --prefix apps/tailoring-worker run proof --",
     "tailoring:run": "node scripts/worker-runner.mjs tailoring",
     "matching:run": "node scripts/worker-runner.mjs matching",
+    "jd-review:run": "node scripts/worker-runner.mjs jd-review",
+    "test:jd-review": "node --test apps/jd-review-worker/test/*.test.mjs tests/jd-review*.test.js",
     "workers:status": "node scripts/worker-runner.mjs status",
     "workers:logs": "node scripts/worker-runner.mjs logs",
     "workers:stop": "node scripts/worker-runner.mjs stop",
@@ -31,7 +33,7 @@
     "lint": "node scripts/lint.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "security:check": "node scripts/security-check.mjs",
-    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:matching && npm run test:api && npm run test:tailoring && npm run build && npm run build:api && npm run build:tailoring && node scripts/validate-builds.mjs"
+    "check": "npm run lint && npm run typecheck && npm run security:check && npm run test && npm run test:matching && npm run test:jd-review && npm run test:api && npm run test:tailoring && npm run build && npm run build:api && npm run build:tailoring && node scripts/validate-builds.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",

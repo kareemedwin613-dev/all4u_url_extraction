@@ -29,7 +29,7 @@ test("bulk service deduplicates pairs and hashes normalized payload for one idem
   const repository={rpc:async(_user:any,name:string,args:any)=>{call={name,args};return{batchId:jd,batchName:"Batch",status:"COMPLETED",selectedJdCount:1,requestedCount:1,createdCount:1,duplicateCount:0,skippedCount:0,failedCount:0,replayed:false,results:[]};}};
   const service=new ApplicationBatchesService(repository as any,{log:()=>{}} as any);
   const result=await service.create(user as any,{batchName:" Batch ",combinations:[{jobDescriptionId:jd,resumeId:resume},{jobDescriptionId:jd,resumeId:resume}]},"bulk_request_1","req_1");
-  assert.equal(call.name,"create_applications_bulk_api");assert.equal(call.args.p_combinations.length,1);assert.match(call.args.p_request_hash,/^[0-9a-f]{64}$/);assert.equal(result.createdCount,1);
+  assert.equal(call.name,"create_category_applications_bulk_api_v377");assert.equal(call.args.p_combinations.length,1);assert.match(call.args.p_request_hash,/^[0-9a-f]{64}$/);assert.equal(result.createdCount,1);
 });
 
 test("bulk preview exposes only ORIGINAL Resume combinations",async()=>{

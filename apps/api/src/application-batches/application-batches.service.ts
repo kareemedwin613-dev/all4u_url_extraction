@@ -5,6 +5,7 @@ import { ApiException } from "../common/errors/api.exception.js";
 import { JsonLogger } from "../common/logging/json-logger.service.js";
 import { ApplicationBatchesRepository } from "./application-batches.repository.js";
 import { mapBatch, mapCreation, mapResult } from "./application-batches.mapper.js";
+import { activeMatchingMode, evaluationArchived } from "./evaluation-archive.js";
 
 const timeout = async <T>(work: Promise<T>, milliseconds: number, message = "The operation timed out. Retry with the same idempotency key.") => {
   let timer: NodeJS.Timeout | undefined;
@@ -24,7 +25,7 @@ export class ApplicationBatchesService {
   constructor(@Inject(ApplicationBatchesRepository) private readonly repository: ApplicationBatchesRepository, @Inject(JsonLogger) private readonly logger: JsonLogger) {}
   async preview(user: AuthenticatedUser, body: any, requestId: string) {
     const ids = [...new Set(body.jobDescriptionIds)];
-    const matchingMode = body.matchingMode || "SCORE";
+    const matchingMode = activeMatchingMode(body.matchingMode);
     const rpc = matchingMode === "CATEGORY" ? "preview_category_application_matches_v377" : "preview_application_matches";
     const startedAt = Date.now();
     let raw: any;
@@ -42,8 +43,7 @@ export class ApplicationBatchesService {
     return { ...data, matchingMode };
   }
   async requestMatches(user: AuthenticatedUser, body: any) {
-    const pairs = [...new Map(body.combinations.map((pair: any) => [`${pair.jobDescriptionId}:${pair.resumeId}`, { job_description_id: pair.jobDescriptionId, resume_id: pair.resumeId }])).values()];
-    return timeout(this.repository.rpc(user, "request_application_matches_with_ticket", { p_combinations: pairs, p_retry_failed: body.retryFailed === true }, "Matching could not be queued."), 15_000);
+    return evaluationArchived();
   }
   revokeMatchTicket(user: AuthenticatedUser, id: string) {
     return this.repository.rpc(user, "revoke_application_match_ticket", { p_ticket_id: id }, "The scoring command could not be revoked.");
@@ -52,7 +52,7 @@ export class ApplicationBatchesService {
     const pairs = [...new Map(body.combinations.map((pair: any) => [`${pair.jobDescriptionId}:${pair.resumeId}`, pair])).values()] as any[];
     const normalized = pairs.map((pair) => ({ job_description_id: pair.jobDescriptionId, resume_id: pair.resumeId })).sort((a, b) => `${a.job_description_id}:${a.resume_id}`.localeCompare(`${b.job_description_id}:${b.resume_id}`));
     const batchName = String(body.batchName || "").trim();
-    const matchingMode = body.matchingMode || "SCORE";
+    const matchingMode = activeMatchingMode(body.matchingMode);
     // Preserve existing SCORE retry hashes; CATEGORY has a distinct request identity.
     const hash = createHash("sha256").update(JSON.stringify({ batchName, combinations: normalized, ...(matchingMode === "CATEGORY" ? { matchingMode } : {}) })).digest("hex");
     const raw: any = await timeout(this.repository.rpc(user, matchingMode === "CATEGORY" ? "create_category_applications_bulk_api_v377" : "create_applications_bulk_api", { p_combinations: normalized, p_batch_name: batchName || null, p_idempotency_key: idempotencyKey, p_request_hash: hash }, "The bulk Applications could not be created."), 30_000);
