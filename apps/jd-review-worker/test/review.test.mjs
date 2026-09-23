@@ -111,7 +111,7 @@ test("two lanes classify saved descriptions without making source network calls"
   let issued=0,active=0,maxActive=0;const saved=[],events=[];
   const api=async(op,body)=>op==="next" ? issued<4 ? {...item,itemId:String(++issued)} : {done:true,failedCount:0} : (saved.push(body),{status:body.result.outcome});
   const result=await runReview({api,provider:settings=>{
-    assert.equal(settings.reasoningEffort,"medium");return {generate:async({input,schema})=>{
+    assert.equal(settings.reasoningEffort,"medium");assert.equal(settings.serviceTier,"default");return {generate:async({input,schema})=>{
       assert.equal(input.description,description);assert.ok(schema.properties.primaryCategoryId.enum.includes("software"));active++;maxActive=Math.max(maxActive,active);await new Promise(r=>setTimeout(r,5));active--;return raw();
     }};
   },signals:new EventEmitter(),emit:e=>events.push(e)});
