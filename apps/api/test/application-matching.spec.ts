@@ -13,12 +13,12 @@ import { ApplicationBatchesRepository } from "../src/application-batches/applica
 const jd="123e4567-e89b-42d3-a456-426614174000",resume="223e4567-e89b-42d3-a456-426614174000",user={id:"user",token:"jwt",claims:{}};
 const pair={jobDescriptionId:jd,resumeId:resume};
 
-test("Application score comparison reads and requests are caller-scoped and separate from creation", async () => {
+test("historical comparisons stay readable but evaluation requests are archived", async () => {
   const calls: any[]=[];
   const service=new ApplicationService({forUser:(token:string)=>{assert.equal(token,"jwt");return{rpc:async(name:string,args:any)=>{calls.push({name,args});return{data:{original:{score:80},tailored:{score:90}},error:null};}};}} as any);
   assert.equal((await service.matchComparison(user as any,jd)).original.score,80);
-  await service.requestMatchComparison(user as any,jd);
-  assert.deepEqual(calls,[{name:"get_application_match_comparison_v378",args:{p_application_id:jd}},{name:"request_application_match_comparison_v378",args:{p_application_id:jd}}]);
+  await assert.rejects(service.requestMatchComparison(user as any,jd), (error:any)=>error.code==="EVALUATION_ARCHIVED");
+  assert.deepEqual(calls,[{name:"get_application_match_comparison_v378",args:{p_application_id:jd}}]);
 });
 
 test("comparison endpoints allow authorized Application viewers to read but only managers to queue scoring", () => {
@@ -49,11 +49,10 @@ test("matching choice routes preview and create without enqueuing AI; retry hash
   const created = await service.create(user as any, { combinations: [pair], matchingMode: "CATEGORY" }, "retry-key", "req");
   assert.equal(created.matchingMode, "CATEGORY");
   assert.equal(calls[1].name, "create_category_applications_bulk_api_v377");
-  await service.create(user as any, { combinations: [pair], matchingMode: "SCORE" }, "retry-key", "req");
+  await assert.rejects(service.create(user as any, { combinations: [pair], matchingMode: "SCORE" }, "retry-key", "req"), (error:any)=>error.code==="EVALUATION_ARCHIVED");
   await service.create(user as any, { combinations: [pair] }, "retry-key", "req");
-  assert.equal(calls[2].name, "create_applications_bulk_api");
-  assert.notEqual(calls[1].args.p_request_hash, calls[2].args.p_request_hash);
-  assert.equal(calls[2].args.p_request_hash, calls[3].args.p_request_hash);
+  assert.equal(calls[2].name, "create_category_applications_bulk_api_v377");
+  assert.equal(calls[1].args.p_request_hash, calls[2].args.p_request_hash);
   assert.ok(calls.every(call => !call.name.includes("request_application_matches")));
 });
 
@@ -66,7 +65,7 @@ test("single creation and Resume options use the same selected method with calle
   await service.create(user as any, { ...pair, priority: "HIGH", matchingMode: "CATEGORY", assignedTo: resume });
   await service.resumes(user as any, jd);
   await service.create(user as any, { ...pair, priority: "NORMAL" });
-  assert.deepEqual(calls.map(call => call.name), ["list_category_application_resumes_v377", "create_category_application_v377", "list_application_resumes", "create_application"]);
+  assert.deepEqual(calls.map(call => call.name), ["list_category_application_resumes_v377", "create_category_application_v377", "list_category_application_resumes_v377", "create_category_application_v377"]);
   assert.equal(calls[1].args.p_assigned_to, resume);
   assert.equal(calls[1].args.p_priority, "HIGH");
   assert.equal(calls[1].args.p_resume_id, resume);
@@ -89,10 +88,10 @@ test("matching service deduplicates enqueue and preserves excluded/duplicate dis
     {resumeId:"tailored",resumeType:"TAILORED",eligible:true},
   ]};}};
   const service=new ApplicationBatchesService(repository as any,{log:()=>{}} as any);
-  await service.requestMatches(user as any,{combinations:[pair,pair],retryFailed:true});
-  assert.deepEqual(calls[0],{name:"request_application_matches_with_ticket",args:{p_combinations:[{job_description_id:jd,resume_id:resume}],p_retry_failed:true}});
+  await assert.rejects(service.requestMatches(user as any,{combinations:[pair,pair],retryFailed:true}), (error:any)=>error.code==="EVALUATION_ARCHIVED");
+  assert.equal(calls.length,0);
   const preview=await service.preview(user as any,{jobDescriptionIds:[jd,jd],resumeIds:[resume,resume]},"test");
-  assert.deepEqual(calls[1].args,{p_selected_jd_ids:[jd],p_resume_ids:[resume]});
+  assert.deepEqual(calls[0].args,{p_selected_jd_ids:[jd],p_resume_ids:[resume]});
   assert.equal(preview.duplicateCount,1);assert.equal(preview.eligibleCount,0);assert.equal(preview.combinations.length,2);
   assert.equal(preview.activeResumeCount,10);assert.equal(preview.combinations[0].matchScore,69);
 });
@@ -128,12 +127,12 @@ test("preview failure log correlates request, RPC, database code and duration wi
     code: "57014", message: "private SQL/source details", details: "private data",
   } }) }) } as any);
   const service = new ApplicationBatchesService(repository, { log: (event: string, context: any) => logs.push({ event, ...context }) } as any);
-  await assert.rejects(() => service.preview(user as any, { jobDescriptionIds: [jd], matchingMode: "SCORE" }, "req_preview_error"), (error: any) => error.code === "DATABASE_TIMEOUT");
+  await assert.rejects(() => service.preview(user as any, { jobDescriptionIds: [jd], matchingMode: "CATEGORY" }, "req_preview_error"), (error: any) => error.code === "DATABASE_TIMEOUT");
   assert.equal(logs.length, 1);
   assert.equal(logs[0].event, "bulk.preview.failed");
   assert.equal(logs[0].requestId, "req_preview_error");
-  assert.equal(logs[0].rpc, "preview_application_matches");
-  assert.equal(logs[0].matchingMode, "SCORE");
+  assert.equal(logs[0].rpc, "preview_category_application_matches_v377");
+  assert.equal(logs[0].matchingMode, "CATEGORY");
   assert.equal(logs[0].databaseCode, "57014");
   assert.equal(logs[0].code, "DATABASE_TIMEOUT");
   assert.ok(logs[0].durationMs >= 0);

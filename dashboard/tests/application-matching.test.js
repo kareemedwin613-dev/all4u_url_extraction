@@ -7,7 +7,7 @@ import { createApplication, listApplicationResumes } from "../src/features/appli
 import { creationPayload, defaultEligibleSelection } from "../src/features/bulk-applications/bulk-state.js";
 
 test("category mode creates from eligible pairs without offering AI work or polling scoring", () => {
-  assert.deepEqual(MATCHING_MODES.map(mode => mode.value), ["SCORE", "CATEGORY"]);
+  assert.deepEqual(MATCHING_MODES.map(mode => mode.value), ["CATEGORY"]);
   const row = { key: "pair", jobDescriptionId: "jd", resumeId: "resume", resumeType: "ORIGINAL", matchingMode: "CATEGORY", matchStatus: "NOT_REQUIRED", matchScore: null, eligible: true };
   const preview = { combinations: [row] };
   const selection = defaultEligibleSelection(preview);

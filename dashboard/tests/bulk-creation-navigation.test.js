@@ -101,26 +101,25 @@ async function setup(t) {
     delayCreation: () => { let finish; creationGate = new Promise(resolve => { finish = resolve; }); return finish; } };
 }
 
-test("leave during evaluation, reload the saved draft, then create using fresh scores", async t => {
+test("leave category creation, reload the saved draft, then create using fresh eligibility", async t => {
   const h = await setup(t), store = h.newStore(), draft = store.create([jd, otherJd]);
   await h.render(store, draft.id);
   assert.equal(h.calls.length, 1, "initial preview is not fetched twice");
-  assert.equal(document.querySelector('[role="progressbar"]').getAttribute("aria-valuenow"), "66");
+  assert.equal(document.querySelector('[role="progressbar"]'), null);
   await h.step(() => h.controls.resumes.onChange([r1]));
   await h.step(() => h.controls.pairs.rowSelection.onSelect(row(jd, r1), false));
   await h.step(() => h.controls.tabs.onChange("create"));
   await h.step(() => h.controls.name.onChange({ target: { value: "Resume this batch" } }));
-  await h.step(() => h.controls.buttons.get("Create / resume scoring command").onClick());
+  assert.equal(h.controls.buttons.has("Create / resume scoring command"), false);
   await h.render(store, draft.id, false);
   h.setRows([row(jd, r1), row(jd, r2), row(otherJd, r1)]);
   const reloaded = h.newStore();
   await h.render(reloaded, draft.id);
-  assert.equal(document.querySelector('[role="progressbar"]').getAttribute("aria-valuenow"), "100");
-  assert.match(document.body.textContent, /2 \/ 2 finished/);
+  assert.equal(document.querySelector('[role="progressbar"]'), null);
   assert.equal(h.controls.name.value, "Resume this batch");
   assert.equal(h.controls.tabs.activeKey, "create");
   assert.deepEqual(h.controls.resumes.value, [r1]);
-  assert.equal(h.calls.filter(call => call.url.endsWith("/application-matches")).length, 1, "returning never requeues completed work");
+  assert.equal(h.calls.filter(call => call.url.endsWith("/application-matches")).length, 0, "category creation never queues scoring");
   await h.step(() => h.controls.tabs.onChange("combinations"));
   assert.deepEqual(h.controls.pairs.rowSelection.selectedRowKeys, [`${otherJd}:${r1}`], "manual exclusion survives while newly passing score is selected");
   assert.doesNotMatch([...h.data.values()].join(""), /test-only-ticket/);
@@ -195,116 +194,25 @@ test("a missing draft URL never falls back to another draft or starts API work",
   assert.match(document.body.textContent, /In-progress creation drafts/);
 });
 
-test("progress refreshes from the existing preview, displays failures, and marks stale snapshots", async t => {
+test("category workflow hides archived evaluation progress and does not poll pending scores", async t => {
   const h = await setup(t), store = h.newStore(), draft = store.create([jd]);
-  h.setRows([row(jd, r1, false), row(jd, r2, false)]);
-  await h.render(store, draft.id);
-  assert.match(document.body.textContent, /0 \/ 2 finished/);
-  assert.match(document.body.textContent, /Processing: 2/);
-  const failed = { ...row(jd, r2, false), matchStatus: "FAILED", exclusionCode: "MATCH_FAILED", matchErrorCode: "INVALID_MODEL_OUTPUT" };
-  h.setRows([row(jd, r1), failed]);
-  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
-  assert.match(document.body.textContent, /2 \/ 2 finished.*0 remaining/);
-  assert.match(document.body.textContent, /Finished with issues/);
-  assert.match(document.body.textContent, /Completed: 1/);
-  assert.match(document.body.textContent, /Failed: 1/);
-  assert.equal(document.querySelector('[role="progressbar"]').getAttribute("data-status"), "exception");
-  const column = h.controls.pairs.columns.find(item => item.title === "Evaluation status");
-  assert.equal(column.render(null, failed).props.row.matchErrorCode, "INVALID_MODEL_OUTPUT");
-  h.failPreview(true);
-  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
-  assert.match(document.body.textContent, /Updates unavailable/);
-  assert.match(document.body.textContent, /2 \/ 2 finished/);
-  assert.equal(document.querySelector('[role="progressbar"]').getAttribute("data-status"), "normal");
-  h.failPreview(false);
-  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
-  assert.doesNotMatch(document.body.textContent, /Updates unavailable/);
-  assert.equal(h.calls.length, 4, "progress adds no polling endpoint or duplicate requests");
-  assert.ok(h.calls.every(call => call.url.endsWith("/bulk-preview")));
-});
-
-test("progress shows eligible and not eligible totals instead of unstarted and insufficient counters", async t => {
-  const h = await setup(t), store = h.newStore(), draft = store.create([jd, otherJd]);
-  const outcome = (jobId, resumeId, matchStatus, exclusionCode) => ({ ...row(jobId, resumeId, false), matchStatus, exclusionCode });
-  h.setRows([
-    row(jd, r1), outcome(jd, r2, "COMPLETED", "BELOW_THRESHOLD"),
-    outcome(otherJd, r1, "INSUFFICIENT_DATA", "MATCH_INSUFFICIENT_DATA"),
-    outcome(otherJd, r2, "STALE", "MATCH_STALE"),
-  ]);
-  await h.render(store, draft.id);
-  assert.match(document.body.textContent, /Eligible: 1/);
-  assert.match(document.body.textContent, /Not eligible: 2/);
-  assert.match(document.body.textContent, /3 \/ 4 finished.*1 remaining/);
-  assert.doesNotMatch(document.body.textContent, /Not started \/ stale|Insufficient data:/);
-  h.setRows([
-    outcome(jd, r1, "FAILED", "MATCH_FAILED"), outcome(jd, r2, "PENDING", "MATCH_PENDING"),
-    outcome(otherJd, r1, "PROCESSING", "MATCH_PROCESSING"), outcome(otherJd, r2, "NOT_ASSESSED", "MATCH_NOT_ASSESSED"),
-  ]);
-  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
-  assert.match(document.body.textContent, /Eligible: 0/);
-  assert.match(document.body.textContent, /Not eligible: 0/);
-  assert.match(document.body.textContent, /Failed: 1/);
-  assert.match(document.body.textContent, /Queued: 1/);
-  assert.match(document.body.textContent, /Processing: 1/);
-  assert.match(document.body.textContent, /1 \/ 4 finished.*3 remaining/);
-  assert.equal(h.calls.length, 2, "eligibility counters reuse the existing preview");
-});
-
-test("a truncated preview displays partial counts without claiming an overall percentage", async t => {
-  const h = await setup(t), store = h.newStore(), draft = store.create([jd]);
-  h.truncatePreview(); h.setRows([row(jd, r1)]);
-  await h.render(store, draft.id);
-  assert.match(document.body.textContent, /Partial preview/);
-  assert.match(document.body.textContent, /displayed pairs only/);
-  assert.equal(document.querySelector('[role="progressbar"]'), null);
-});
-
-test("automatic preview polling updates progress and stops after every evaluation finishes", async t => {
-  const h = await setup(t), store = h.newStore(), draft = store.create([jd]);
-  const schedule = globalThis.setTimeout, cancel = globalThis.clearTimeout, polls = new Map();
-  globalThis.setTimeout = (callback, delay, ...args) => {
-    if (delay !== 5000) return schedule(callback, delay, ...args);
-    const timer = {};
-    polls.set(timer, () => { polls.delete(timer); return callback(...args); });
-    return timer;
-  };
-  globalThis.clearTimeout = timer => { if (!polls.delete(timer)) cancel(timer); };
-  t.after(() => { globalThis.setTimeout = schedule; globalThis.clearTimeout = cancel; });
   h.setRows([row(jd, r1, false)]);
+  const schedule = globalThis.setTimeout, scheduled = [];
+  globalThis.setTimeout = (callback, delay, ...args) => {
+    scheduled.push(delay);
+    return schedule(callback, delay, ...args);
+  };
+  t.after(() => { globalThis.setTimeout = schedule; });
   await h.render(store, draft.id);
-  assert.match(document.body.textContent, /0 \/ 1 finished/);
-  assert.equal(polls.size, 1);
+  assert.equal(h.controls.mode.value, "CATEGORY");
+  assert.equal(document.querySelector('[role="progressbar"]'), null);
+  assert.equal(h.controls.buttons.has("Create / resume scoring command"), false);
+  assert.equal(scheduled.includes(5000), false, "pending historical scores must not start polling");
+  assert.equal(h.calls.length, 1);
   h.setRows([row(jd, r1)]);
-  await h.step(() => [...polls.values()][0]());
-  assert.match(document.body.textContent, /1 \/ 1 finished/);
-  assert.match(document.body.textContent, /Evaluation complete/);
-  assert.equal(document.querySelector('[role="progressbar"]').getAttribute("aria-valuenow"), "100");
+  await h.step(() => h.controls.buttons.get("Refresh eligibility").onClick());
   assert.equal(h.calls.length, 2);
-  assert.equal(polls.size, 0, "no further progress polling once all work is terminal");
-});
-
-test("evaluation ETA learns from witnessed starts/completions and resets with the selection", async t => {
-  const h = await setup(t), store = h.newStore(), draft = store.create([jd]);
-  let clock = 1_000_000;
-  t.mock.method(Date, "now", () => clock);
-  const queued = id => ({ ...row(jd, id, false), matchStatus: "PENDING", exclusionCode: "MATCH_PENDING" });
-  h.setRows([queued(r1), queued(r2)]);
-  await h.render(store, draft.id);
-  assert.match(document.body.textContent, /Estimated time remaining: Waiting for processing/);
-  clock += 5000;
-  h.setRows([row(jd, r1, false), row(jd, r2, false)]);
-  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
-  assert.match(document.body.textContent, /Estimated time remaining: Estimating/);
-  clock += 30_000;
-  h.setRows([row(jd, r1), row(jd, r2, false)]);
-  await h.step(() => h.controls.buttons.get("Refresh progress").onClick());
-  assert.match(document.body.textContent, /Estimated time remaining: ~10 sec/);
-  assert.match(document.body.textContent, /Average per JD\/resume pair: ~35 sec/);
-  assert.match(document.body.textContent, /1 successful timing sample/);
-  await h.step(() => h.controls.resumes.onChange([r2]));
-  assert.match(document.body.textContent, /Estimated time remaining: Estimating/);
-  assert.doesNotMatch(document.body.textContent, /Average per JD\/resume pair/);
-  assert.equal(h.calls.length, 4, "ETA reuses progress reads and never requests timing data separately");
+  assert.ok(h.calls.every(call => call.url.endsWith("/bulk-preview") && call.body.matchingMode === "CATEGORY"));
 });
 
 test("tailoring ETA uses recorded durations, parallelism and rate-limit/stale states", async t => {

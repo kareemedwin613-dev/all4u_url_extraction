@@ -48,7 +48,7 @@ import {
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { parseRoute } from "./router.js";
+import { navigate, parseRoute } from "./router.js";
 import { filterHref, periodFromFilterQuery } from "./shared/filter-preferences.js";
 import { FilterPageContext, FilterPreferencesContext, useRememberedRoute } from "./shared/use-filter-preferences.js";
 import { bulkDraftHref } from "./features/bulk-applications/bulk-drafts.js";
@@ -172,6 +172,8 @@ const TailoringQueuePage = lazyNamed(() => import("./features/tailoring/tailorin
 const TailoringReviewPage = lazyNamed(() => import("./features/tailoring/tailoring-pages.jsx"), "TailoringReviewPage");
 const TailoringBatchDetailPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchDetailPage");
 const TailoringBatchesPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchesPage");
+const JdReviewBatchesPage = lazyNamed(() => import("./features/jd-review/jd-review-pages.jsx"), "JdReviewBatchesPage");
+const JdReviewBatchDetailPage = lazyNamed(() => import("./features/jd-review/jd-review-pages.jsx"), "JdReviewBatchDetailPage");
 
 const go = (hash, replace = false) =>
   replace ? location.replace(hash) : location.assign(hash);
@@ -1046,6 +1048,17 @@ function Jobs({
       setOpenUrlsBusy(false);
     }
   }
+  async function startAiReview() {
+    if (!selectedJobIds.length) return;
+    setReviewBusy(true);
+    try {
+      const {jdReviewRequest} = await import("./services/jd-review-service.js");
+      const batch = await jdReviewRequest(client,apiBaseUrl,"create",{jobDescriptionIds:selectedJobIds});
+      clearJobSelection();
+      navigate(`#/jd-review-batches/${batch.id}`);
+    } catch (error) { toast("error",error.message || "Could not create JD review batch."); }
+    finally { setReviewBusy(false); }
+  }
   async function submitBulkReview(nextStatus, reason = null, comment = "") {
     if (!selectedJobIds.length) return;
     setReviewBusy(true);
@@ -1473,6 +1486,9 @@ function Jobs({
               >
                 Approve Selected
               </Button>
+              <Popconfirm title="Review and automatically approve JDs with AI?" description="Classify one primary category and technology subtypes, fill blanks and correct wrong values using saved JD text. Completed reviews approve automatically with comments and history. Uncertain fields stay unchanged. No URL checks or blocking. Assigned JDs are skipped." onConfirm={startAiReview}>
+                <Button loading={reviewBusy} disabled={!selectedCount || selectedCount > 1000 || reviewBusy || deleteBusy || openUrlsBusy}>Bulk AI Classification</Button>
+              </Popconfirm>
               <Button
                 loading={reviewBusy}
                 disabled={!selectedCount || tooMany || deleteBusy || openUrlsBusy}
@@ -3158,6 +3174,10 @@ export function App({ client, apiBaseUrl }) {
     page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} query={route.query} />;
   else if (route.name === "tailoring-job-detail")
     page = <TailoringReviewPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} reload={reload} />;
+  else if (route.name === "jd-review-batches")
+    page = <JdReviewBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "jd-review-batch-detail")
+    page = <JdReviewBatchDetailPage key={route.id} client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "tailoring-batches")
     page = <TailoringBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "tailoring-batch-detail")

@@ -1,4 +1,5 @@
 import{HttpStatus,Inject,Injectable}from"@nestjs/common";import type{AuthenticatedUser}from"@resume-jd/contracts";import{randomUUID}from"node:crypto";import{ApiException}from"../common/errors/api.exception.js";import{SupabaseService}from"../supabase/supabase.service.js";
+import { activeMatchingMode, evaluationArchived } from "../application-batches/evaluation-archive.js";
 const safeName=(value:string)=>String(value||"file").normalize("NFKC").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^\.+/,"").slice(-180)||"file";
 const SCREENSHOT_MIME_TYPES=new Set(["image/png","image/jpeg","image/webp","application/pdf"]);
 const SCREENSHOT_MIME_BY_EXT:Record<string,string>={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",pdf:"application/pdf"};
@@ -79,13 +80,13 @@ function failure(error:any,fallback:string):never{
   }
   async detail(u:AuthenticatedUser,id:string){const data:any=await this.rpc(u,"get_application_detail",{p_application_id:id},"The Application could not be loaded.");return{...data,application:this.normalized(data?.application)};}
   matchComparison=(u:AuthenticatedUser,id:string)=>this.rpc(u,"get_application_match_comparison_v378",{p_application_id:id},"Application match scores could not be loaded.");
-  requestMatchComparison=(u:AuthenticatedUser,id:string)=>this.rpc(u,"request_application_match_comparison_v378",{p_application_id:id},"Application score comparison could not be requested.");
+  requestMatchComparison=async(u:AuthenticatedUser,id:string)=>evaluationArchived();
   counts=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_application_counts_v29",{p_from:from,p_to:to},"Application counts could not be loaded.");
   profileWorkload=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_applier_resume_profile_workload_v31",{p_from:from,p_to:to},"Profile workload could not be loaded.");
   appliers=(u:AuthenticatedUser,s="")=>this.rpc(u,"list_active_appliers",{p_search:s,p_limit:200},"Active Appliers could not be loaded.");
   jobs=(u:AuthenticatedUser,s="")=>this.rpc(u,"list_application_jobs",{p_search:s,p_limit:200},"Job descriptions could not be loaded.");
-  async resumes(u:AuthenticatedUser,id:string,s="",matchingMode="SCORE"){const rows:any[]=await this.rpc(u,matchingMode==="CATEGORY"?"list_category_application_resumes_v377":"list_application_resumes",{p_job_description_id:id,p_search:s,p_limit:200},"Active Resumes could not be loaded.");return(rows||[]).filter(row=>String(row?.resume_type||row?.resumeType||"ORIGINAL")==="ORIGINAL");}
-  create=(u:AuthenticatedUser,m:any)=>this.rpc(u,m.matchingMode==="CATEGORY"?"create_category_application_v377":"create_application",{p_job_description_id:m.jobDescriptionId,p_resume_id:m.resumeId,p_assigned_to:m.assignedTo||null,p_priority:m.priority,p_due_at:m.dueAt||null,p_notes:m.notes||null},"The Application could not be created.");
+  async resumes(u:AuthenticatedUser,id:string,s="",matchingMode?:string){activeMatchingMode(matchingMode);const rows:any[]=await this.rpc(u,"list_category_application_resumes_v377",{p_job_description_id:id,p_search:s,p_limit:200},"Active Resumes could not be loaded.");return(rows||[]).filter(row=>String(row?.resume_type||row?.resumeType||"ORIGINAL")==="ORIGINAL");}
+  create=async(u:AuthenticatedUser,m:any)=>{activeMatchingMode(m.matchingMode);return this.rpc(u,"create_category_application_v377",{p_job_description_id:m.jobDescriptionId,p_resume_id:m.resumeId,p_assigned_to:m.assignedTo||null,p_priority:m.priority,p_due_at:m.dueAt||null,p_notes:m.notes||null},"The Application could not be created.");};
   async extensionContext(u:AuthenticatedUser,id:string){const data:any=await this.extensionRpc(u,"get_application_extension_context_v085",{p_application_id:id},"The extension context could not be loaded.");return{...data,application:{...data?.application,status:this.status(data?.application),workStatus:undefined,applicationStatus:undefined}};}
   createExtensionSession=(u:AuthenticatedUser,id:string,m:any)=>this.extensionRpc(u,"create_application_extension_session_v085",{p_application_id:id,p_action:m.action,p_extension_version:m.extensionVersion||null},"The extension session could not be created.");
   autofillContext=(u:AuthenticatedUser,id:string,q:any)=>this.extensionRpc(u,"get_application_autofill_context_v089",{p_application_id:id,p_session_id:q.sessionId,p_expected_resume_updated_at:q.resumeUpdatedAt||null},"The Autofill context could not be loaded.");

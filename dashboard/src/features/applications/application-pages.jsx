@@ -999,7 +999,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
     [jobId, setJobId] = useState(""),
     [resumeId, setResumeId] = useState(""),
     [matchEligible, setMatchEligible] = useState(false),
-    [matchingMode, setMatchingMode] = useState("SCORE"),
+    [matchingMode, setMatchingMode] = useState("CATEGORY"),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -1502,7 +1502,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     ]}
                   />
                 </Card>
-                <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={manager} />
+                <Collapse items={[{ key: "archived-scores", label: "Archived AI evaluation history", children: <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={false} /> }]} />
                 <ApplicationScreenshotsCard
                   client={client}
                   apiBaseUrl={apiBaseUrl}

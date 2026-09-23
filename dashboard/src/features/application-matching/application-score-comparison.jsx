@@ -1,29 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Button, Card, Space, Table, Tag, Typography } from "antd";
-import { getApplicationMatchComparison, requestApplicationMatchComparison } from "../applications/application-service.js";
-import { MatchingRunnerCommand } from "./match-components.jsx";
+import { getApplicationMatchComparison } from "../applications/application-service.js";
 import { startMatchPreviewPolling, previewFailureMessage } from "./preview-polling.js";
-import { COMPARISON_DIMENSIONS, comparisonPending, comparisonNeedsEvaluation, comparisonDifference, comparisonScoreLabel } from "./comparison-state.js";
+import { COMPARISON_DIMENSIONS, comparisonDifference, comparisonScoreLabel } from "./comparison-state.js";
 import { formatDate } from "../../shared/formatters.js";
 
-export function ApplicationScoreComparison({ client, apiBaseUrl, applicationId, resumeId, manager }) {
-  const [data, setData] = useState(null), [error, setError] = useState(""), [actionError, setActionError] = useState(""),
-    [refresh, setRefresh] = useState(0), [busy, setBusy] = useState(false), [runner, setRunner] = useState(null);
+export function ApplicationScoreComparison({ client, apiBaseUrl, applicationId, resumeId }) {
+  const [data, setData] = useState(null), [error, setError] = useState(""), [refresh, setRefresh] = useState(0);
   const scope = `${apiBaseUrl}|${applicationId}|${resumeId}`;
-  useEffect(() => { setData(null); setRunner(null); setError(""); setActionError(""); }, [scope]);
+  useEffect(() => { setData(null); setError(""); }, [scope]);
   useEffect(() => startMatchPreviewPolling({
-    load: () => getApplicationMatchComparison(client, apiBaseUrl, applicationId), shouldPoll: comparisonPending,
+    load: () => getApplicationMatchComparison(client, apiBaseUrl, applicationId), shouldPoll: () => false,
     onSuccess: value => { setData(value); setError(""); },
     onError: (cause, delay) => setError(previewFailureMessage(cause, delay)),
   }), [client, scope, refresh]);
-  async function evaluate() {
-    setBusy(true); setActionError("");
-    try {
-      const result = await requestApplicationMatchComparison(client, apiBaseUrl, applicationId);
-      setRunner(result.runner ? { ...result.runner, scope } : null); setRefresh(value => value + 1);
-    } catch (cause) { setActionError(cause.message); }
-    finally { setBusy(false); }
-  }
   const difference = comparisonDifference(data);
   const score = value => <Space direction="vertical" size={4}>
     <Typography.Text strong>{comparisonScoreLabel(value)}</Typography.Text>
@@ -39,13 +29,14 @@ export function ApplicationScoreComparison({ client, apiBaseUrl, applicationId, 
   const rows = data ? [
     { key: "score", label: "Match score", original: score(data.original), tailored: score(data.tailored) },
     { key: "reason", label: "Reason", original: data.original?.reason || "No explanation available yet.",
-      tailored: data.tailored ? data.tailored.reason || "No explanation available yet." : "Tailor this resume to compare." },
+      tailored: data.tailored ? data.tailored.reason || "No explanation recorded." : "No historical tailored evaluation." },
     ...COMPARISON_DIMENSIONS.map(([key, label]) => ({ key, label, original: rating(data.original, key), tailored: rating(data.tailored, key) })),
     { key: "evaluated", label: "Evaluated", original: data.original?.scoredAt ? formatDate(data.original.scoredAt) : "—", tailored: data.tailored?.scoredAt ? formatDate(data.tailored.scoredAt) : "—" },
   ] : [];
-  return <Card title="Resume match comparison" extra={<Button onClick={() => setRefresh(value => value + 1)}>Refresh scores</Button>}>
+  return <Card title="Archived resume match comparison" extra={<Button onClick={() => setRefresh(value => value + 1)}>Refresh history</Button>}>
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      {(error || actionError) && <Alert type="warning" showIcon message={actionError || error}
+      <Alert type="info" message="AI evaluation is archived. These scores are historical and do not control new Applications." />
+      {error && <Alert type="warning" showIcon message={error}
         description={error && data ? "The displayed scores are from the last successful read." : undefined} />}
       {!data && !error && <Typography.Text>Loading match scores…</Typography.Text>}
       {data && <>
@@ -53,16 +44,13 @@ export function ApplicationScoreComparison({ client, apiBaseUrl, applicationId, 
           columns={[{ title: "", dataIndex: "label", width: 170 }, { title: "Original resume", dataIndex: "original" }, { title: "Tailored resume", dataIndex: "tailored" }]} />
         {difference !== null ? <Tag color={difference > 0 ? "green" : difference < 0 ? "orange" : "blue"}>
           JD alignment: {difference > 0 ? "+" : ""}{difference} points after tailoring
-        </Tag> : data.tailored && <Typography.Text type="secondary">The difference appears when both scores are complete for the current JD and scoring configuration.</Typography.Text>}
+        </Tag> : data.tailored && <Typography.Text type="secondary">No comparable completed score pair is available. Evaluation is archived.</Typography.Text>}
         {data.creationScore != null && <Typography.Text type="secondary">
           Original eligibility score saved at creation: {data.creationScore}/100 (threshold {data.creationThreshold}). {data.creationReason}
         </Typography.Text>}
         {data.matchingMode === "CATEGORY" && <Typography.Text type="secondary">Created by category/subcategory matching; no AI eligibility score was required.</Typography.Text>}
         <Typography.Text type="secondary">Scores measure alignment of the resume text with the JD, not independently verified experience. Original and tailored versions use the same scoring rubric.</Typography.Text>
-        {manager && <Button onClick={evaluate} loading={busy} disabled={!comparisonNeedsEvaluation(data)}>Evaluate / resume comparison</Button>}
-        {manager && !data.matchingConfigured && <Alert type="info" message="Configure the scoring model before evaluating these resumes." />}
       </>}
-      {manager && runner?.scope === scope && <MatchingRunnerCommand runner={runner} apiBaseUrl={apiBaseUrl} />}
     </Space>
   </Card>;
 }

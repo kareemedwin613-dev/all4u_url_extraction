@@ -1,8 +1,7 @@
 export const MATCHING_MODES = [
-  { value: "SCORE", label: "AI score — 60+ required" },
   { value: "CATEGORY", label: "Category/subcategory — no AI evaluation" },
 ];
-export const categoryMatchingDescription = "Create without AI evaluation using the previous rules: a shared primary category, plus a matching subcategory for Software Engineering when the JD specifies one. Other categories use primary-only matching.";
+export const categoryMatchingDescription = "Match by a shared primary category, plus a matching subcategory for Software Engineering when the JD specifies one. Other categories use primary-only matching. AI evaluation is archived.";
 export const canRequestMatch = row => row?.matchingMode !== "CATEGORY" && ["MATCH_NOT_ASSESSED", "MATCH_STALE", "MATCH_FAILED"].includes(row?.exclusionCode);
 export const canRunMatch = row => row?.matchingMode !== "CATEGORY" && (canRequestMatch(row) || ["MATCH_PENDING", "MATCH_PROCESSING"].includes(row?.exclusionCode));
 export const hasPendingMatches = rows => rows.some(row => row.matchingMode !== "CATEGORY" && ["PENDING", "PROCESSING"].includes(row.matchStatus));

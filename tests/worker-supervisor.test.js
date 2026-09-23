@@ -116,7 +116,7 @@ test("worker children receive tickets in memory, not argv, and stdout is redacte
   assert.deepEqual(events, [{ event: "matching.failed", code: "MODEL_TIMEOUT" }]);
 });
 
-for (const kind of ["matching", "tailoring"]) test(`background ${kind} worker outlives the launcher without making any real model calls`, { timeout: 20000 }, async t => {
+for (const kind of ["tailoring"]) test(`background ${kind} worker outlives the launcher without making any real model calls`, { timeout: 20000 }, async t => {
   let release;
   const gate = new Promise(done => { release = done; });
   const server = createServer(async (request, response) => {

@@ -1,5 +1,9 @@
 # Background matching and tailoring batches
 
+AI evaluation is archived. The background workflow below now applies to tailoring and [bulk JD review](bulk-jd-review.md);
+matching runs can still be inspected or stopped, but new `matching:run` launches
+are disabled. See [evaluation archive](evaluation-archive.md).
+
 Run the usual dashboard command from the updated repository. Commands containing
 `--batch-ticket` launch a hidden, detached supervisor. Interactive terminals stay
 open as a live monitor, showing new events and a status line every ten seconds.

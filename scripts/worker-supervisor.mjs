@@ -6,7 +6,7 @@ import { resolve, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RUN_ID = /^(matching|tailoring)-[a-f0-9]{24}$/;
+export const RUN_ID = /^(matching|tailoring|jd-review)-[a-f0-9]{24}$/;
 const finalStates = new Set(["COMPLETED", "COMPLETED_WITH_FAILURES", "STOPPED", "ACTION_REQUIRED"]);
 export const runIdentity = (kind, ticket, apiBaseUrl) => `${kind}-${createHash("sha256").update(`${apiBaseUrl}|${ticket}`).digest("hex").slice(0, 24)}`;
 export const isAlive = pid => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; } };
@@ -33,7 +33,7 @@ export function safeEvent(value = {}) {
   const result = {};
   for (const key of ["event", "stage", "code", "reason", "status", "signal"]) {
     if (typeof value[key] === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,100}$/.test(value[key])
-      && !/^(?:mrb|trb|trt|sk)[_-]/i.test(value[key])) result[key] = value[key];
+      && !/^(?:mrb|trb|trt|jrb|sk)[_-]/i.test(value[key])) result[key] = value[key];
   }
   for (const key of ["durationMs", "attempt", "completedCount", "failedCount", "activeJobs", "retryAfterSeconds", "exitCode", "pid", "restarts"]) {
     if (Number.isSafeInteger(value[key])) result[key] = value[key];
@@ -51,9 +51,9 @@ export function workerCommand(root, kind, args, ticket) {
   return {
     command: process.execPath,
     args: [`--env-file-if-exists=${resolve(workerDirectory, ".env")}`, ...loader,
-      resolve(workerDirectory, kind === "matching" ? "src/cli.mjs" : "src/cli.ts"), ...args],
+      resolve(workerDirectory, kind === "tailoring" ? "src/cli.ts" : "src/cli.mjs"), ...args],
     options: { cwd: root, shell: false, windowsHide: true,
-      env: { ...process.env, INIT_CWD: root, ...(ticket ? { [`${kind.toUpperCase()}_BATCH_TICKET`]: ticket } : {}) } },
+      env: { ...process.env, INIT_CWD: root, ...(ticket ? { [`${kind.toUpperCase().replaceAll("-", "_")}_BATCH_TICKET`]: ticket } : {}) } },
   };
 }
 
@@ -119,7 +119,7 @@ export async function supervise(config, { launch = launchWorker, sleep = delay, 
     const safe = safeEvent(event);
     state.lastEvent = safe.event;
     if (safe.code) state.lastCode = safe.code;
-    if (safe.event === "matching.completed" || safe.event === "tailoring.completed") consecutiveFailures = 0;
+    if (["matching.completed", "tailoring.completed", "jd-review.completed"].includes(safe.event)) consecutiveFailures = 0;
     if (existsSync(paths.log) && statSync(paths.log).size > 8 * 1024 * 1024) {
       rmSync(`${paths.log}.previous`, { force: true }); renameSync(paths.log, `${paths.log}.previous`);
     }

@@ -39,6 +39,7 @@ export function createMatchingProvider(config, environment = process.env) {
 
 export function matchingErrorMessage(error) {
   const messages = {
+    EVALUATION_ARCHIVED: "AI evaluation is archived. Use category/subcategory matching in the dashboard.",
     MATCHING_NOT_CONFIGURED: "Configure a scoring model in Supabase settings; API-provider mode also requires OPENAI_API_KEY. Codex mode does not use an API key.",
     MATCH_RUNNER_ARGUMENTS_INVALID: "Copy the full scoring command from the dashboard, including --batch-ticket and --api-base-url.",
     MATCH_API_URL_INVALID: "Use the dashboard/API HTTPS origin, or localhost for development, with --api-base-url.",
