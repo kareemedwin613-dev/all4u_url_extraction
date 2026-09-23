@@ -56,7 +56,7 @@ export async function runReview({ api, provider = createCodexProvider, emit = ()
           let result;
           if (page.error) result = decide(null,page,item);
           else {
-            if (!providers.has(item.model)) providers.set(item.model,provider({ model: item.model, reasoningEffort: "medium" }));
+            if (!providers.has(item.model)) providers.set(item.model,provider({ model: item.model, reasoningEffort: "medium", serviceTier: "default" }));
             const engine = providers.get(item.model);
             emit({ event: "jd-review.processing", stage: "MODEL", itemId: item.itemId });
             let raw;

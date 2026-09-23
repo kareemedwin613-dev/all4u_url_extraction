@@ -46,7 +46,7 @@ export function codexPerformanceArgs(environment:NodeJS.ProcessEnv=process.env){
   if(!/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model))throw new Error("TAILORING_CODEX_MODEL must be a valid model ID.");
   const effort=String(environment.TAILORING_CODEX_REASONING_EFFORT||"medium").trim().toLowerCase();
   if(!REASONING_EFFORTS.has(effort))throw new Error("TAILORING_CODEX_REASONING_EFFORT must be none, low, medium, high, or xhigh.");
-  const tier=String(environment.TAILORING_CODEX_SERVICE_TIER||"fast").trim().toLowerCase();
+  const tier=String(environment.TAILORING_CODEX_SERVICE_TIER||"default").trim().toLowerCase();
   if(!["auto","default","fast"].includes(tier))throw new Error("TAILORING_CODEX_SERVICE_TIER must be auto, default, or fast.");
   return["--model",model,"-c",`model_reasoning_effort="${effort}"`,"-c",'model_reasoning_summary="none"',"-c",`service_tier="${tier}"`];
 }

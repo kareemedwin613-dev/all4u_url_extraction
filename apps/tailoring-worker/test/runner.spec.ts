@@ -120,8 +120,10 @@ test("Windows keeps an explicit native Codex executable",()=>{
   assert.deepEqual(resolveCodexInvocation(executable,"win32",{},()=>true),{command:executable,prefixArgs:[]});
 });
 
-test("tailoring defaults to medium reasoning with disabled summaries and an optional Fast tier",()=>{
-  assert.deepEqual(codexPerformanceArgs({}),["--model","gpt-5.6-sol","-c",'model_reasoning_effort="medium"',"-c",'model_reasoning_summary="none"',"-c",'service_tier="fast"']);
+test("tailoring defaults to standard processing with medium reasoning and disabled summaries",()=>{
+  assert.deepEqual(codexPerformanceArgs({}),["--model","gpt-5.6-sol","-c",'model_reasoning_effort="medium"',"-c",'model_reasoning_summary="none"',"-c",'service_tier="default"']);
+  assert.deepEqual(codexPerformanceArgs({TAILORING_CODEX_SERVICE_TIER:""}),codexPerformanceArgs({}));
+  assert.deepEqual(codexPerformanceArgs({TAILORING_CODEX_SERVICE_TIER:"default"}),codexPerformanceArgs({}));
   assert.deepEqual(codexPerformanceArgs({TAILORING_CODEX_MODEL:"gpt-5.6-luna",TAILORING_CODEX_REASONING_EFFORT:"low",TAILORING_CODEX_SERVICE_TIER:"fast"}),["--model","gpt-5.6-luna","-c",'model_reasoning_effort="low"',"-c",'model_reasoning_summary="none"',"-c",'service_tier="fast"']);
   assert.throws(()=>codexPerformanceArgs({TAILORING_CODEX_MODEL:"invalid model"}),/must be a valid model ID/);
   assert.throws(()=>codexPerformanceArgs({TAILORING_CODEX_REASONING_EFFORT:"minimal"}),/must be none, low, medium, high, or xhigh/);
