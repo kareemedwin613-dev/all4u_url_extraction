@@ -25,14 +25,17 @@ test("v385 gates create and matching against application-blocked JDs", () => {
   assert.match(sql, /unblock_job_description_applications_v385/);
 });
 
-test("API and UI surface unblock plus block messaging", () => {
+test("API preserves legacy unblock support while UI describes application-only blocking", () => {
   const api = readFileSync(new URL("../apps/api/src/job-descriptions/job-description-read.controller.ts", import.meta.url), "utf8");
   const service = readFileSync(new URL("../apps/api/src/applications/application.service.ts", import.meta.url), "utf8");
   const modal = readFileSync(new URL("../extension/sidepanel/components/ApplicationStatusModal.jsx", import.meta.url), "utf8");
   const progress = readFileSync(new URL("../dashboard/src/features/applications/application-pages.jsx", import.meta.url), "utf8");
   assert.match(api, /application-unblock/);
   assert.match(service, /jobApplicationBlocked/);
-  assert.match(service, /siblingsBlocked/);
-  assert.match(modal, /Blocking removes this job for all profiles/);
+  assert.match(service, /siblingsCancelled/);
+  assert.match(modal, /Blocking affects only this Application/);
+  assert.match(progress, /Blocking affects only this Application/);
+  assert.doesNotMatch(modal, /Blocking removes this job for all profiles|siblingsCancelled|siblings_cancelled/);
+  assert.doesNotMatch(progress, /Blocking removes this job for all profiles|result\?\.jobApplicationBlocked/);
   assert.match(progress, /Unblock job for Applications/);
 });

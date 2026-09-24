@@ -72,7 +72,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
     }
     if (values.status === "BLOCKED" && !String(values.notes || "").trim()) {
       onStatus({
-        message: "Add a note explaining why this Application is blocked. Blocking removes this job for all profiles.",
+        message: "Add a note explaining why this Application is blocked.",
         kind: "error",
       });
       return;
@@ -84,15 +84,10 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         applicationUrl: values.applicationUrl,
         notes: values.notes,
       });
-      const siblingsBlocked =
-        Number(updated?.siblings_blocked ?? updated?.siblingsBlocked ?? updated?.siblings_cancelled ?? updated?.siblingsCancelled) || 0;
-      const blocked = Boolean(updated?.job_application_blocked ?? updated?.jobApplicationBlocked);
       onStatus({
         message:
-          values.status === "BLOCKED" && blocked
-            ? siblingsBlocked
-              ? `Blocked. This job is blocked for all profiles; ${siblingsBlocked} other open Application${siblingsBlocked === 1 ? "" : "s"} blocked.`
-              : "Blocked. This job is blocked for all profiles."
+          values.status === "BLOCKED"
+            ? "Application blocked. Other Applications remain unchanged."
             : "Application updated.",
         kind: "success",
       });
@@ -144,8 +139,8 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
                 type="warning"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="Blocking removes this job for all profiles"
-                description="Other open Applications on this job will be set to Blocked, and it leaves matching queues until a manager unblocks it."
+                message="Blocking affects only this Application"
+                description="Other Applications for the same job remain unchanged. Add a note explaining the blocker."
               />
             ) : null
           }
@@ -153,7 +148,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
         <Form.Item
           label="Notes"
           name="notes"
-          extra="Required when status is Blocked. Blocking removes this job for all profiles and sets other open Applications on it to Blocked."
+          extra="Required when status is Blocked. Only this Application is affected."
           rules={[{ max: 10000, message: "Notes cannot exceed 10000 characters." }]}
         >
           <Input.TextArea
