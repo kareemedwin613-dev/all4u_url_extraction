@@ -21,19 +21,19 @@ function cleanDraft(value) {
     updatedAt: timestamp(value.updatedAt),
     jobDescriptionIds: [...new Set(value.jobDescriptionIds)],
     resumeIds: value.resumeIds === null ? null : [...new Set(value.resumeIds)],
-    matchingMode: value.matchingMode === "CATEGORY" ? "CATEGORY" : "SCORE",
+    matchingMode: "CATEGORY",
     batchName: typeof value.batchName === "string" ? value.batchName.slice(0, 120) : "",
     activeTab: value.activeTab === "create" ? "create" : "combinations",
     excludedPairKeys,
     creationAttempt: null,
   };
   // Keep the retry key bound to exactly the same request after a navigation or refresh.
-  if (value.creationAttempt && uuid.test(value.creationAttempt.key)) {
+  if (value.matchingMode === "CATEGORY" && value.creationAttempt && uuid.test(value.creationAttempt.key)) {
     try {
       const request = JSON.parse(value.creationAttempt.fingerprint);
       if (Array.isArray(request.payload) && request.payload.length <= MAX_BULK_COMBINATIONS &&
           request.payload.every(pair => uuid.test(pair.job_description_id) && uuid.test(pair.resume_id)) &&
-          typeof request.batchName === "string" && request.batchName.length <= 120 && ["SCORE", "CATEGORY"].includes(request.matchingMode)) {
+          typeof request.batchName === "string" && request.batchName.length <= 120 && request.matchingMode === "CATEGORY") {
         draft.creationAttempt = { key: value.creationAttempt.key, fingerprint: JSON.stringify({
           payload: request.payload.map(pair => ({ job_description_id: pair.job_description_id, resume_id: pair.resume_id })),
           batchName: request.batchName, matchingMode: request.matchingMode,

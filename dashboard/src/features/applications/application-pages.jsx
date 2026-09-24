@@ -999,7 +999,7 @@ export function CreateApplicationPage({ client, apiBaseUrl }) {
     [jobId, setJobId] = useState(""),
     [resumeId, setResumeId] = useState(""),
     [matchEligible, setMatchEligible] = useState(false),
-    [matchingMode, setMatchingMode] = useState("SCORE"),
+    [matchingMode, setMatchingMode] = useState("CATEGORY"),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -1184,8 +1184,8 @@ function ProgressForm({ application, manager, onSave, busy }) {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Blocking removes this job for all profiles"
-          description="Other open Applications on this job will be cancelled, and it will leave matching queues until a manager unblocks it."
+          message="Blocking affects only this Application"
+          description="Other Applications for the same job remain unchanged. Add a note explaining the blocker."
         />
       ) : null}
       <Form.Item
@@ -1502,7 +1502,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                     ]}
                   />
                 </Card>
-                <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={manager} />
+                <Collapse items={[{ key: "archived-scores", label: "Archived AI evaluation history", children: <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={false} /> }]} />
                 <ApplicationScreenshotsCard
                   client={client}
                   apiBaseUrl={apiBaseUrl}
@@ -1598,15 +1598,9 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                   onSave={(value) =>
                     run(
                       () => updateApplication(client, apiBaseUrl, id, value),
-                      (result) => {
-                        if (value.status === "BLOCKED" && result?.jobApplicationBlocked) {
-                          const cancelled = Number(result.siblingsCancelled) || 0;
-                          return cancelled
-                            ? `Application blocked. This job is blocked for all profiles; ${cancelled} other open Application${cancelled === 1 ? "" : "s"} cancelled.`
-                            : "Application blocked. This job is blocked for all profiles.";
-                        }
-                        return "Application progress was saved.";
-                      },
+                      () => value.status === "BLOCKED"
+                        ? "Application blocked. Other Applications remain unchanged."
+                        : "Application progress was saved.",
                     )
                   }
                 />

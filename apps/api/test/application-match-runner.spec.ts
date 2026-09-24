@@ -32,15 +32,15 @@ test("runner DTOs require ticket, exact operation fields, valid job/document IDs
   assert.ok((await validate(plainToInstance(MatchRunnerFailureDto,{ticket,jobId,leaseToken,code:"private source text",retryable:true,retryAfterSeconds:901}))).length);
 });
 
-test("runner uses the API's anonymous client and one fixed ticket-checked RPC, not backend credentials",async()=>{
+test("archived runner refuses calls without contacting the database",async()=>{
   const calls:any[]=[];
   const service=new ApplicationMatchRunnerService({anonymous:()=>({rpc:async(name:string,args:any)=>{calls.push({name,args});return{data:{state:"WAITING"},error:null};}}),forUser:()=>{throw Error("Not the user session path");}} as any);
   const payload={ticket,jobId,leaseToken,documentId:jobId};
-  assert.deepEqual(await service.call("document",payload),{state:"WAITING"});
-  assert.deepEqual(calls,[{name:"application_match_runner_call",args:{p_ticket:ticket,p_operation:"document",p_payload:{jobId,leaseToken,documentId:jobId}}}]);
+  await assert.rejects(service.call("document",payload), (error:any)=>error.code==="EVALUATION_ARCHIVED");
+  assert.deepEqual(calls,[]);
   await assert.rejects(service.call("arbitrary_sql",payload));
   await assert.rejects(service.call("result",{ticket,result:{value:"x".repeat(160001)}}));
-  assert.equal(calls.length,1);
+  assert.equal(calls.length,0);
 });
 
 test("runner errors do not expose ticket, source text or raw database diagnostics",async()=>{
@@ -48,7 +48,7 @@ test("runner errors do not expose ticket, source text or raw database diagnostic
     [{message:"MATCH_TICKET_SCOPE: private source"},"MATCH_TICKET_SCOPE",403],
     [{code:"PGRST202"},"DATABASE_MIGRATION_REQUIRED",503],[{message:`raw private ${ticket}`},"MATCH_RUNNER_DATABASE_ERROR",502]] as const) {
     const service=new ApplicationMatchRunnerService({anonymous:()=>({rpc:async()=>({error})})} as any);
-    await assert.rejects(service.call("claim",{ticket}),(failure:any)=>failure.code===expected&&failure.getStatus()===status&&!failure.message.includes(ticket)&&!failure.message.includes("private source"));
+    await assert.rejects(service.call("claim",{ticket}),(failure:any)=>failure.code==="EVALUATION_ARCHIVED"&&failure.getStatus()===410&&!failure.message.includes(ticket)&&!failure.message.includes("private source"));
   }
 });
 
@@ -58,12 +58,12 @@ test("structured logs redact ticket fields including nested runner responses",t=
   assert.equal(logs.length,1);assert.equal(logs[0].includes(ticket),false);
 });
 
-test("HTTP runner routes accept tickets without a user JWT and reject malformed request bodies",async t=>{
+test("HTTP runner routes return archive errors for valid tickets and still reject malformed bodies",async t=>{
   const calls:{operation:string;body:unknown}[]=[];
   const module=await Test.createTestingModule({controllers:[ApplicationMatchRunnerController],providers:[{
-    provide:ApplicationMatchRunnerService,useValue:{call:async(operation:string,body:unknown)=>{
-      calls.push({operation,body});return{accepted:true};
-    }},
+    provide:ApplicationMatchRunnerService,useValue:new ApplicationMatchRunnerService({anonymous:()=>{
+      throw Error("Archived runner must not access the database");
+    }} as any),
   }]}).compile();
   const app=module.createNestApplication();
   app.setGlobalPrefix("api/v1");app.useGlobalFilters(new ApiExceptionFilter());
@@ -77,13 +77,12 @@ test("HTTP runner routes accept tickets without a user JWT and reject malformed 
     ["failure",{ticket,jobId,leaseToken,code:"MODEL_RATE_LIMIT",retryable:true,retryAfterSeconds:60}],
   ];
   for(const [operation,body] of operations) {
-    const response=await request(app.getHttpServer()).post(`/api/v1/application-match-runner/${operation}`).send(body).expect(201);
-    assert.deepEqual(response.body.data,{accepted:true});
-    assert.deepEqual(calls.at(-1),{operation,body});
+    const response=await request(app.getHttpServer()).post(`/api/v1/application-match-runner/${operation}`).send(body).expect(410);
+    assert.equal(response.body.code,"EVALUATION_ARCHIVED");
     await request(app.getHttpServer()).post(`/api/v1/application-match-runner/${operation}`).send({...body,ticket:"invalid"}).expect(400);
     await request(app.getHttpServer()).post(`/api/v1/application-match-runner/${operation}`).send({...body,sql:"forbidden"}).expect(400);
   }
-  assert.equal(calls.length,operations.length);
+  assert.equal(calls.length,0);
   await request(app.getHttpServer()).post("/api/v1/application-match-runner/claim").send({}).expect(400);
   await request(app.getHttpServer()).post("/api/v1/application-match-runner/arbitrary").send({ticket}).expect(404);
 });

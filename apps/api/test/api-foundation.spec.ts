@@ -114,6 +114,41 @@ test("access context cache deduplicates role checks for the same signed token", 
   }finally{globalThis.fetch=originalFetch;}
 });
 
+test("JD page metadata matches full large pages and database-clamped pages", async () => {
+  for (const scenario of [
+    { page: 1, pageSize: 500, total: 1205, returned: 500, safePage: 1, from: 1, to: 500 },
+    { page: 2, pageSize: 500, total: 1205, returned: 500, safePage: 2, from: 501, to: 1000 },
+    { page: 1, pageSize: 1000, total: 1205, returned: 1000, safePage: 1, from: 1, to: 1000 },
+    { page: 2, pageSize: 1000, total: 1205, returned: 205, safePage: 2, from: 1001, to: 1205 },
+    { page: 4, pageSize: 25, total: 75, returned: 25, safePage: 3, from: 51, to: 75 },
+    { page: 4, pageSize: 25, total: 0, returned: 0, safePage: 1, from: 0, to: 0 },
+  ]) {
+    let listCalls = 0;
+    const service = new JobDescriptionReadService({ forUser: () => ({
+      rpc: async (name: string, args: any) => {
+        if (name === "list_job_description_capturers") return { data: [], error: null };
+        listCalls += 1;
+        assert.equal(args.p_limit, scenario.pageSize);
+        assert.equal(args.p_offset, (scenario.page - 1) * scenario.pageSize);
+        return { data: { total: scenario.total, items: Array.from(
+          { length: scenario.returned }, (_, i) => ({ id: `job-${scenario.from + i}` }),
+        ) }, error: null };
+      },
+    }) } as any);
+    const result = await service.list({ id: "u", token: "jwt", claims: {} }, {
+      page: scenario.page, pageSize: scenario.pageSize,
+    });
+    assert.equal(result.items.length, scenario.returned);
+    assert.equal(result.page, scenario.safePage);
+    assert.equal(result.from, scenario.from);
+    assert.equal(result.to, scenario.to);
+    assert.equal(result.pageCount, Math.ceil(scenario.total / scenario.pageSize));
+    assert.equal(result.hasPrevious, scenario.safePage > 1);
+    assert.equal(result.hasNext, scenario.safePage < result.pageCount);
+    assert.equal(listCalls, 1, "page clamping must not require another list request");
+  }
+});
+
 test("URL normalization provides the database-backed idempotency key", () => {
   assert.equal(normalizeSourceUrl("https://example.com/jobs/1/?utm_source=x&b=2#a"), "https://example.com/jobs/1?b=2");
 });

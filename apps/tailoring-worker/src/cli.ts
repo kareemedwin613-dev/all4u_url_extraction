@@ -4,7 +4,6 @@ import { pathToFileURL } from "node:url";
 import { loadFixture, runTailoringProof } from "./codex-runner.js";
 import { claimTailoringBatchTicket, claimTailoringRunnerTicket, loadTailoringJobInput, nextTailoringBatchItem, reportTailoringBatchFailure, reportTailoringRunnerFailure, submitTailoringBatchPreview, submitTailoringJobPreview, submitTailoringRunnerPreview } from "./api-client.js";
 import { tailoringBatchConcurrency } from "./concurrency.js";
-import { scoreMaterializedResume } from "./score-comparison.js";
 import { workerEvent, workerFailure, workerResult } from "./runner-events.js";
 import { runPromptTest } from "./prompt-test-runner.js";
 
@@ -31,7 +30,6 @@ export async function runBatch(apiBaseUrl:string,ticket:string,args:Record<strin
       const created:any=await submitTailoringBatchPreview(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
       workerEvent("tailoring.completed",{jobId:next.jobId,durationMs:Date.now()-started});
       process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
-      await scoreMaterializedResume(created,apiBaseUrl,invocationDirectory);
     }catch(error){
       const message=error instanceof Error?error.message:String(error),rateLimited=isRateLimitFailure(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED",retryAfterSeconds=rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined;
       if(retryAfterSeconds)providerPauseUntil=Math.max(providerPauseUntil,Date.now()+retryAfterSeconds*1000);
@@ -119,7 +117,6 @@ async function main(){
         const preview=await runTailoringProof(claim.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});phase="SUBMIT";
         const created:any=await submitTailoringRunnerPreview(apiBaseUrl,ticket,preview);completed++;
         process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
-        await scoreMaterializedResume(created,apiBaseUrl,invocationDirectory);
       }catch(error){const message=error instanceof Error?error.message:String(error),code=phase==="GENERATE"?(message.startsWith("TAILORING_VALIDATION_FAILED:")?"VALIDATION_FAILED":"CODEX_FAILED"):phase==="SUBMIT"?"API_SUBMISSION_FAILED":"WORKER_FAILED";await reportTailoringRunnerFailure(apiBaseUrl,ticket,code).catch(()=>undefined);failures.push(`${activeJobId}: ${message}`);process.stderr.write(`Tailoring job ${activeJobId} failed: ${message}\n`);}
     }
     process.stdout.write(`Bulk tailoring finished: ${completed} completed, ${failures.length} failed.\n`);if(failures.length)throw new Error(`Bulk tailoring completed with failures (${failures.length}/${tickets.length}).`);return;
@@ -131,7 +128,6 @@ async function main(){
     const input=fixtureMode?await loadFixture(resolve(invocationDirectory,fixture),applicationId):await loadTailoringJobInput(apiBaseUrl,accessToken,jobId);
     const preview=await runTailoringProof(input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});
     const created:any=apiMode?await submitTailoringJobPreview(apiBaseUrl,accessToken,jobId,preview):null;
-    if(apiMode)await scoreMaterializedResume(created,apiBaseUrl,invocationDirectory);
     process.stdout.write(fixtureMode?`Tailoring preview created for Application #${preview.applicationNumber} from Resume #${preview.sourceResumeNumber}: ${outputPath}\n`:`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
   }catch(error){
     throw error;

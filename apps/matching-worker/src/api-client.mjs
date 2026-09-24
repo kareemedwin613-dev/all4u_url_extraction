@@ -25,12 +25,12 @@ export function createMatchingApiClient({ apiBaseUrl, ticket, fetchImpl = fetch 
     } catch { throw new MatchingError("MATCH_API_NETWORK_ERROR", true); }
     const body = await response.json().catch(() => null);
     if (!response.ok) {
-      const known = new Set(["MATCH_TICKET_INVALID", "MATCH_TICKET_EXPIRED", "MATCH_TICKET_SCOPE", "MATCH_LEASE_EXPIRED",
+      const known = new Set(["EVALUATION_ARCHIVED", "MATCH_TICKET_INVALID", "MATCH_TICKET_EXPIRED", "MATCH_TICKET_SCOPE", "MATCH_LEASE_EXPIRED",
         "MATCH_WORKER_VERSION_MISMATCH", "MATCH_INVALID_REQUEST", "MATCH_INVALID_RESULT", "DATABASE_MIGRATION_REQUIRED"]);
       const code = response.status === 429 ? "MATCH_API_RATE_LIMIT" : known.has(body?.code) ? body.code : "MATCH_API_ERROR";
       const error = new MatchingError(code, response.status === 429 || response.status >= 500,
         Math.max(5, Math.min(60, Number(response.headers.get("retry-after")) || 5)));
-      if (["MATCH_TICKET_INVALID", "MATCH_TICKET_EXPIRED", "MATCH_TICKET_SCOPE", "MATCH_WORKER_VERSION_MISMATCH", "DATABASE_MIGRATION_REQUIRED"].includes(code)) error.stopWorker = true;
+      if (["EVALUATION_ARCHIVED", "MATCH_TICKET_INVALID", "MATCH_TICKET_EXPIRED", "MATCH_TICKET_SCOPE", "MATCH_WORKER_VERSION_MISMATCH", "DATABASE_MIGRATION_REQUIRED"].includes(code)) error.stopWorker = true;
       throw error;
     }
     if (!body || !Object.hasOwn(body, "data")) throw new MatchingError("MATCH_API_INVALID_RESPONSE", true);
