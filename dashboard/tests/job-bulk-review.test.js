@@ -84,12 +84,15 @@ test("Jobs list exposes bulk review actions for managers", async () => {
   assert.match(source, /Decline Selected/);
   assert.match(source, /Delete Selected/);
   assert.match(source, /Remove Expired Job URLs/);
+  assert.match(source, /Change Captured By/);
   assert.match(source, /bulkReviewJobs/);
   assert.match(source, /bulkDeleteJobs/);
+  assert.match(source, /bulkReassignJobCapturer/);
   assert.match(source, /removeExpiredJobs/);
   assert.match(source, /submitBulkReview/);
   assert.match(source, /submitBulkDelete/);
   assert.match(source, /submitRemoveExpired/);
+  assert.match(source, /submitCapturerChange/);
   assert.match(source, /hasNeedsReviewSelected/);
   assert.match(source, /createApplicationsDisabled/);
   const api = await readFile(
@@ -99,6 +102,8 @@ test("Jobs list exposes bulk review actions for managers", async () => {
   assert.match(api, /Post\("bulk-review"\)/);
   assert.match(api, /Post\("bulk-delete"\)/);
   assert.match(api, /Post\("bulk-remove-expired"\)/);
+  assert.match(api, /Post\("bulk-capturer"\)/);
+  assert.match(api, /Get\("capturer-candidates"\)/);
   const service = await readFile(
     new URL("../../apps/api/src/job-descriptions/job-description-read.service.ts", import.meta.url),
     "utf8",
@@ -106,6 +111,8 @@ test("Jobs list exposes bulk review actions for managers", async () => {
   assert.match(service, /bulk_review_job_descriptions_v311/);
   assert.match(service, /bulk_delete_job_descriptions_v314/);
   assert.match(service, /remove_expired_job_descriptions_v364/);
+  assert.match(service, /bulk_reassign_job_description_capturers_v3103/);
+  assert.match(service, /list_job_capturer_candidates_v3103/);
   const migration = await readFile(
     new URL("../../supabase/migrations/202608250071_v3_11_bulk_job_description_review.sql", import.meta.url),
     "utf8",
@@ -126,4 +133,42 @@ test("Jobs list exposes bulk review actions for managers", async () => {
   assert.match(removeExpiredMigration, /jobDeleted/);
   assert.match(removeExpiredMigration, /keptApplications/);
   assert.match(removeExpiredMigration, /Applied, Blocked, or later applications remain/);
+});
+
+test("bulkReassignJobCapturer posts Nest bulk-capturer route", async () => {
+  let request;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    request = { url: String(url), options };
+    return new Response(
+      JSON.stringify({
+        data: {
+          total: 1,
+          succeeded: 1,
+          failed: 0,
+          newUserId: id,
+          results: [{ id, ok: true, data: { id, user_id: id } }],
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  try {
+    const { bulkReassignJobCapturer } = await import("../src/services/job-read-service.js");
+    const result = await bulkReassignJobCapturer(client, "https://api.example.com", {
+      jobDescriptionIds: [id],
+      newUserId: id,
+      reason: "Correction",
+    });
+    assert.equal(result.succeeded, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(new URL(request.url).pathname, "/api/v1/job-descriptions/bulk-capturer");
+  assert.equal(request.options.method, "POST");
+  assert.deepEqual(JSON.parse(request.options.body), {
+    jobDescriptionIds: [id],
+    newUserId: id,
+    reason: "Correction",
+  });
 });

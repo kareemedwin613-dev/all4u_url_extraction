@@ -57,7 +57,7 @@ import { getSession, requestPasswordReset, signIn, signOut, signUp, updatePasswo
 import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, formatJobSubcategories, formatResumeTechStacks, jobSubcategoryIds, loadCategories, resumeTechStackRows } from "./services/category-service.js";
-import { getJob, listJobCapturers, listJobs, bulkDeleteJobs, bulkReviewJobs, importJobSubcategories, removeExpiredJobs, reviewJob, setJobStatus, unblockJobApplications, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
+import { getJob, listJobCapturers, listJobCapturerCandidates, listJobs, bulkDeleteJobs, bulkReassignJobCapturer, bulkReviewJobs, importJobSubcategories, removeExpiredJobs, reviewJob, setJobStatus, unblockJobApplications, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
 import { exportFilteredJobsExcel, readJobSubcategoryImportFile } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { updateResumeMetadata } from "./services/resume-metadata-service.js";
@@ -928,6 +928,12 @@ function Jobs({
     [reviewDialog, setReviewDialog] = useState(null),
     [reviewComment, setReviewComment] = useState(""),
     [declineReason, setDeclineReason] = useState("EXPIRED"),
+    [capturerDialogOpen, setCapturerDialogOpen] = useState(false),
+    [capturerCandidates, setCapturerCandidates] = useState([]),
+    [capturerCandidatesLoading, setCapturerCandidatesLoading] = useState(false),
+    [capturerNewUserId, setCapturerNewUserId] = useState(null),
+    [capturerReason, setCapturerReason] = useState(""),
+    [capturerBusy, setCapturerBusy] = useState(false),
     [listReload, setListReload] = useState(0),
     [selectedJobById, setSelectedJobById] = useState({}),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE),
@@ -1142,6 +1148,48 @@ function Jobs({
       setDeleteBusy(false);
     }
   }
+  async function openCapturerDialog() {
+    if (!selectedJobIds.length) return;
+    setCapturerDialogOpen(true);
+    setCapturerNewUserId(null);
+    setCapturerReason("");
+    setCapturerCandidatesLoading(true);
+    try {
+      const rows = await listJobCapturerCandidates(client, apiBaseUrl);
+      setCapturerCandidates(rows || []);
+    } catch (value) {
+      setCapturerCandidates([]);
+      toast("error", value.message || "Captured By candidates could not be loaded.");
+    } finally {
+      setCapturerCandidatesLoading(false);
+    }
+  }
+  async function submitCapturerChange() {
+    if (!selectedJobIds.length || !capturerNewUserId) return;
+    setCapturerBusy(true);
+    try {
+      const result = await bulkReassignJobCapturer(client, apiBaseUrl, {
+        jobDescriptionIds: selectedJobIds,
+        newUserId: capturerNewUserId,
+        ...(capturerReason.trim() ? { reason: capturerReason.trim() } : {}),
+      });
+      setCapturerDialogOpen(false);
+      setCapturerNewUserId(null);
+      setCapturerReason("");
+      clearJobSelection();
+      setListReload((value) => value + 1);
+      toast(
+        result.failed ? "warning" : "success",
+        result.failed
+          ? `Updated Captured By on ${result.succeeded} of ${result.total} Job Descriptions. ${result.failed} could not be updated.`
+          : `Updated Captured By on ${result.succeeded} Job Description${result.succeeded === 1 ? "" : "s"}.`,
+      );
+    } catch (value) {
+      toast("error", value.message || "Captured By could not be updated.");
+    } finally {
+      setCapturerBusy(false);
+    }
+  }
   const update = (patch) => {
       const next = { ...filters, ...patch };
       if (patch.capturedWindow !== undefined && patch.capturedWindow !== "CUSTOM") {
@@ -1158,6 +1206,14 @@ function Jobs({
       () =>
         serverSortColumns(
           [
+            {
+              title: "No",
+              key: "no",
+              width: 64,
+              sortable: false,
+              render: (_value, _row, index) =>
+                ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,
+            },
             {
               title: "Company",
               dataIndex: "company",
@@ -1339,6 +1395,8 @@ function Jobs({
         filters.categoryId,
         filters.company,
         filters.jobTitle,
+        filters.page,
+        filters.pageSize,
         filters.reviewStatus,
         filters.seniority,
         filters.sort,
@@ -1355,7 +1413,7 @@ function Jobs({
       return reviewStatus === "NEEDS_REVIEW";
     }),
     createApplicationsDisabled = !selectedCount || tooMany || hasNeedsReviewSelected,
-    jobsTableScrollX = 1580,
+    jobsTableScrollX = 1644,
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   async function downloadExcel() {
     setExportBusy(true);
@@ -1502,7 +1560,7 @@ function Jobs({
               <Button
                 danger
                 loading={reviewBusy}
-                disabled={!selectedCount || tooMany || deleteBusy || openUrlsBusy}
+                disabled={!selectedCount || tooMany || deleteBusy || openUrlsBusy || capturerBusy}
                 onClick={() => {
                   setReviewComment("");
                   setDeclineReason("EXPIRED");
@@ -1510,6 +1568,13 @@ function Jobs({
                 }}
               >
                 Decline Selected
+              </Button>
+              <Button
+                loading={capturerBusy}
+                disabled={!selectedCount || tooMany || reviewBusy || deleteBusy || openUrlsBusy}
+                onClick={openCapturerDialog}
+              >
+                Change Captured By
               </Button>
             </>
           )}
@@ -1723,6 +1788,43 @@ function Jobs({
             maxLength={1000}
             rows={3}
             placeholder="Optional comment"
+          />
+        </div>
+      </Modal>
+      <Modal
+        open={capturerDialogOpen}
+        title={`Change Captured By (${selectedCount} selected)`}
+        okText="Save"
+        okButtonProps={{ disabled: !capturerNewUserId }}
+        confirmLoading={capturerBusy}
+        onCancel={() => !capturerBusy && setCapturerDialogOpen(false)}
+        onOk={submitCapturerChange}
+        destroyOnHidden
+      >
+        <div className="review-dialog-stack">
+          <label>
+            New Captured By
+            <Select
+              showSearch
+              allowClear
+              loading={capturerCandidatesLoading}
+              style={{ width: "100%", marginTop: 8, marginBottom: 12 }}
+              placeholder="Select a user"
+              value={capturerNewUserId}
+              onChange={setCapturerNewUserId}
+              optionFilterProp="label"
+              options={(capturerCandidates || []).map((user) => ({
+                value: user.id,
+                label: user.displayName || user.email,
+              }))}
+            />
+          </label>
+          <Input.TextArea
+            value={capturerReason}
+            onChange={(event) => setCapturerReason(event.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="Optional reason"
           />
         </div>
       </Modal>

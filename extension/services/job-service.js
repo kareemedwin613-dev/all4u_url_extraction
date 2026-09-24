@@ -10,6 +10,53 @@ function captureError(error) {
   const message=known?.[2]||(missing?"The database is missing the atomic JD-capture migration.":code==="JOB_CAPTURE_ACCESS_DENIED"?"Your role does not allow Job Description capture.":"The Job Description could not be saved.");
   return new AppError(code,message,detail,/fetch|network|timeout|unreachable/i.test(detail));
 }
+function normalizeIdentityText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+export async function checkJobDuplicate(client, _apiBaseUrl, { company, jobTitle, sourceUrl } = {}) {
+  const { data: sessionData, error } = await client.auth.getSession();
+  if (error || !sessionData.session?.access_token) throw new AppError("SESSION_EXPIRED", "Your session has expired. Sign in again.");
+  const normalizedCompany = normalizeIdentityText(company);
+  const normalizedJobTitle = normalizeIdentityText(jobTitle);
+  const trimmedUrl = String(sourceUrl || "").trim();
+  const normalizedSourceUrl = trimmedUrl ? normalizeUrl(trimmedUrl) : "";
+  if (trimmedUrl && !normalizedSourceUrl) throw new AppError("VALIDATION_ERROR", "The source URL must use HTTP or HTTPS.");
+  if (!normalizedCompany && !normalizedJobTitle && !normalizedSourceUrl) {
+    throw new AppError("VALIDATION_ERROR", "Enter a source URL and/or company and job title to check for duplicates.");
+  }
+  let data, rpcError;
+  try {
+    ({ data, error: rpcError } = await client.rpc("check_job_description_duplicate_v3104", {
+      p_company: normalizedCompany,
+      p_job_title: normalizedJobTitle,
+      p_normalized_source_url: normalizedSourceUrl || "",
+    }));
+  } catch (caught) {
+    throw captureError(caught);
+  }
+  if (rpcError) throw captureError(rpcError);
+  const payload = data && typeof data === "object" ? data : {};
+  const row = payload.row && typeof payload.row === "object" ? payload.row : null;
+  return {
+    duplicate: Boolean(payload.duplicate),
+    duplicate_reason: payload.duplicateReason || null,
+    same_capturer: payload.sameCapturer == null ? null : Boolean(payload.sameCapturer),
+    job: row
+      ? {
+          id: row.id,
+          company: row.company,
+          job_title: row.job_title,
+          source_url: row.source_url,
+          review_status: row.review_status,
+          status: row.status,
+          created_at: row.created_at,
+          user_id: row.user_id || null,
+          captured_by_name: row.captured_by_name || null,
+          captured_by_email: row.captured_by_email || null,
+        }
+      : null,
+  };
+}
 export async function createJob(client,_apiBaseUrl,job) {
   const {data:sessionData,error}=await client.auth.getSession();
   if(error||!sessionData.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");
