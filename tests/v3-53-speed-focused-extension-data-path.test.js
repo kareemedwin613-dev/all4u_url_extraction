@@ -36,6 +36,8 @@ test("speed path lists and updates My Applications through one caller-scoped RPC
   assert.equal((await updateApplicationProgress(client, "https://api.example.com", APPLICATION_ID, { status: "IN_PROGRESS", applicationUrl: "", notes: "Working" })).status, "IN_PROGRESS");
   assert.deepEqual(calls.map((call) => call.name), ["list_my_applications_v20", "update_application_status_v101"]);
   assert.equal(calls[0].args.p_sort, "captured_desc");
+  assert.equal(calls[1].args.p_priority, null, "status-only saves leave priority unchanged on the server");
+  assert.equal(calls[1].args.p_due_at, null, "status-only saves leave the due date unchanged on the server");
 });
 
 test("screenshots are uploaded as the original file without WebP conversion", async () => {

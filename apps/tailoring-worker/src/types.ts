@@ -31,10 +31,24 @@ export interface TailoringSourceResume {
 }
 
 export interface TailoringInput {
-  contractVersion: "1.2";
+  contractVersion: "1.2" | "1.3";
+  promptSnapshot?: TailoringPromptSnapshot;
   application: TailoringApplication;
   jobDescription: TailoringJobDescription;
   sourceResume: TailoringSourceResume;
+}
+
+export interface TailoringPromptSnapshot {
+  promptId: string;
+  name: string;
+  version: number | null;
+  instructions: string;
+  contractVersion: "2";
+  referenceDate: string;
+  composedPrompt: string;
+  isTest?: boolean;
+  draftRevision?: number;
+  [key: string]: unknown;
 }
 
 export interface TailoredExperience {
@@ -58,7 +72,8 @@ export interface TailoringOutput {
 }
 
 export interface TailoringPreview {
-  contractVersion: "1.2";
+  contractVersion: "1.2" | "1.3";
+  promptProvenance?: Omit<TailoringPromptSnapshot, "instructions" | "composedPrompt">;
   applicationId: string;
   applicationNumber: number;
   sourceResumeId: string;

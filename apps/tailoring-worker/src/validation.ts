@@ -51,8 +51,21 @@ function validateExperience(value:unknown,index:number):SourceExperience{
 
 export function validateTailoringInput(value:unknown):TailoringInput{
   if(!object(value))throw new Error("Tailoring input must be an object.");
-  exactKeys(value,["contractVersion","application","jobDescription","sourceResume"],"Tailoring input");
-  if(value.contractVersion!=="1.2")throw new Error("Tailoring input contractVersion must be 1.2.");
+  exactKeys(value,["contractVersion","application","jobDescription","sourceResume",...(value.contractVersion==="1.3"?["promptSnapshot"]:[])],"Tailoring input");
+  if(value.contractVersion!=="1.2"&&value.contractVersion!=="1.3")throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
+  let promptSnapshot:import("./types.js").TailoringPromptSnapshot|undefined;
+  if(value.contractVersion==="1.3"){
+    const s=value.promptSnapshot;
+    if(!object(s)||s.contractVersion!=="2")throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: A v2 prompt snapshot is required.");
+    exactKeys(s,["promptId","name","version","instructions","contractVersion","referenceDate","composedPrompt","scope","primaryCategoryId","subcategoryId","priority","jobDescriptionId","reason","isTest","draftRevision"],"promptSnapshot");
+    if(!UUID.test(clean(s.promptId))||!Number.isFinite(Date.parse(String(s.referenceDate))))throw new Error("Invalid prompt snapshot identity or reference date.");
+    if(s.isTest!==undefined&&typeof s.isTest!=="boolean")throw new Error("Invalid prompt snapshot test flag.");
+    if(s.isTest===true?(!Number.isSafeInteger(s.draftRevision)||Number(s.draftRevision)<1||s.version!==null):(!Number.isSafeInteger(s.version)||Number(s.version)<1))throw new Error("Invalid prompt snapshot version.");
+    boundedText(s.composedPrompt,"composed prompt",1,2000000);
+    promptSnapshot={...s,promptId:clean(s.promptId),name:boundedText(s.name,"prompt name",1,120),version:s.version as number|null,
+      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:"2",referenceDate:String(s.referenceDate),
+      composedPrompt:s.composedPrompt as string};
+  }
   const application=value.application,job=value.jobDescription,resume=value.sourceResume;
   if(!object(application)||!object(job)||!object(resume))throw new Error("Application, jobDescription, and sourceResume are required objects.");
   exactKeys(application,["id","applicationNumber"],"application");
@@ -68,7 +81,8 @@ export function validateTailoringInput(value:unknown):TailoringInput{
   const professionalExperience=resume.professionalExperience.map(validateExperience);
   if(!unique(professionalExperience.map(item=>item.id)))throw new Error("Source experience IDs must be unique.");
   return{
-    contractVersion:"1.2",
+    contractVersion:value.contractVersion,
+    ...(promptSnapshot?{promptSnapshot}:{}),
     application:{id:clean(application.id),applicationNumber:Number(application.applicationNumber)},
     jobDescription:{id:clean(job.id),company:boundedText(job.company,"jobDescription.company",1,200),jobTitle:boundedText(job.jobTitle,"jobDescription.jobTitle",1,300),descriptionText:boundedText(job.descriptionText,"jobDescription.descriptionText",100,300000),skills:jobSkills},
     sourceResume:{id:clean(resume.id),resumeNumber:Number(resume.resumeNumber),resumeType:"ORIGINAL",summary:boundedText(resume.summary,"sourceResume.summary",1,10000),skills:resumeSkills,professionalExperience}

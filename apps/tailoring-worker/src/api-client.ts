@@ -2,6 +2,11 @@ import type{TailoringInput,TailoringPreview}from"./types.js";
 import{validateTailoringInput}from"./validation.js";
 
 type Fetcher=typeof fetch;
+export async function promptTestRequest(apiBaseUrl:string,ticket:string,action:"CLAIM"|"SUBMIT"|"FAIL",extra:Record<string,unknown>={},fetcher:Fetcher=fetch){
+  if(!/^tpt_[0-9a-f]{64}$/.test(ticket))throw new Error("Invalid prompt test ticket.");
+  const data=await ticketCall(apiBaseUrl,"/tailoring-prompt-test-runner",{ticket,action,...extra},"POST",fetcher);
+  return action==="CLAIM"?{...data,input:validateTailoringInput(data.input)}:data;
+}
 const base=(value:string)=>{const url=new URL(value);if(url.protocol!=="https:"&&!(url.protocol==="http:"&&["localhost","127.0.0.1"].includes(url.hostname)))throw new Error("Tailoring API base URL must use HTTPS, except for localhost development.");return url.href.replace(/\/$/,"");};
 async function call(apiBaseUrl:string,accessToken:string,path:string,init:RequestInit={},fetcher:Fetcher=fetch){
   if(accessToken.trim().length<20)throw new Error("TAILORING_ACCESS_TOKEN is missing or invalid.");

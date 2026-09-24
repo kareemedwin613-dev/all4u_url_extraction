@@ -48,7 +48,8 @@ import {
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { navigate, parseRoute } from "./router.js";
+import { parseRoute } from "./router.js";
+import { confirmNavigation } from "./shared/navigation-guard.js";
 import { filterHref, periodFromFilterQuery } from "./shared/filter-preferences.js";
 import { FilterPageContext, FilterPreferencesContext, useRememberedRoute } from "./shared/use-filter-preferences.js";
 import { bulkDraftHref } from "./features/bulk-applications/bulk-drafts.js";
@@ -169,6 +170,7 @@ const StructuredResumeView = lazyNamed(() => import("./features/resume-upload/st
 const CandidateProfilePage = lazyNamed(() => import("./features/candidates/candidate-profile-page.jsx"), "CandidateProfilePage");
 const ResumeAnswerLibrary = lazyNamed(() => import("./features/resume-answers/resume-answer-library.jsx"), "ResumeAnswerLibrary");
 const TailoringQueuePage = lazyNamed(() => import("./features/tailoring/tailoring-pages.jsx"), "TailoringQueuePage");
+const TailoringPromptsPage = lazyNamed(() => import("./features/tailoring/prompts-page.jsx"), "TailoringPromptsPage");
 const TailoringReviewPage = lazyNamed(() => import("./features/tailoring/tailoring-pages.jsx"), "TailoringReviewPage");
 const TailoringBatchDetailPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchDetailPage");
 const TailoringBatchesPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchesPage");
@@ -2761,6 +2763,7 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
                 ["Resume Name", resume.resume_name || "Not recorded"],
                 ["Resume Type", formatLabel(resume.resume_type || "ORIGINAL")],
                 ["Parent Resume", resume.parent_resume_id ? "Original Resume available from this Application's tailoring history" : "None — this is an original Resume"],
+                ["Tailoring Prompt", resume.tailoring_prompt_provenance ? `${resume.tailoring_prompt_provenance.name} · v${resume.tailoring_prompt_provenance.version}` : resume.resume_type === "TAILORED" ? "Legacy — no saved prompt version" : "Not applicable"],
                 ["Candidate Email", resume.candidate_email || "Not recorded"],
                 ["Candidate Phone", resume.candidate_phone || "Not recorded"],
                 ["Autofill Metadata", formatLabel(resume.profile_review_status)],
@@ -3052,7 +3055,10 @@ export function App({ client, apiBaseUrl }) {
         setAccessError(null);
       }
     });
-    const hash = () => setRawRoute(parseRoute(location.hash));
+    const hash = (event) => {
+      if (!confirmNavigation()) { history.replaceState(null, "", event.oldURL); return; }
+      setRawRoute(parseRoute(location.hash));
+    };
     addEventListener("hashchange", hash);
     if (!location.hash) location.hash = "#/";
     return () => {
@@ -3272,6 +3278,8 @@ export function App({ client, apiBaseUrl }) {
     page = <ApplierWorkloadsPage client={client} apiBaseUrl={apiBaseUrl} query={route.query} />;
   else if (route.name === "applier-directory" || route.name === "users-directory")
     page = <ApplierDirectoryPage client={client} apiBaseUrl={apiBaseUrl} reload={reload} />;
+  else if (route.name === "tailoring-prompts")
+    page = <TailoringPromptsPage client={client} apiBaseUrl={apiBaseUrl} categories={categories} />;
   else if (route.name === "tailoring-jobs")
     page = <TailoringQueuePage client={client} apiBaseUrl={apiBaseUrl} reload={reload} query={route.query} />;
   else if (route.name === "tailoring-job-detail")

@@ -17,6 +17,7 @@ import { ApplicationBatchesModule } from "./application-batches/application-batc
 import { BulkAssignmentModule } from "./bulk-assignment/bulk-assignment.module.js";
 import { CandidateModule } from "./candidates/candidate.module.js";
 import { ResumeAnswerModule } from "./resume-answers/resume-answer.module.js";
+import { TailoringPromptsModule } from "./tailoring-prompts/tailoring-prompts.module.js";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ResumeAnswerModule } from "./resume-answers/resume-answer.module.js";
     BulkAssignmentModule,
     CandidateModule,
     ResumeAnswerModule,
+    TailoringPromptsModule,
   ],
   providers: [
     JsonLogger,

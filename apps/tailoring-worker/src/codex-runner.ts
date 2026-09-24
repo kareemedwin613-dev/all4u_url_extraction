@@ -116,7 +116,8 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
     await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
     const generatedAt=options.now?.()||new Date();
     let result:TailoringOutput;try{const generated=validateTailoringModelOutput(JSON.parse(await readFile(resultPath,"utf8")),input),skills=completeAtsSkills(generated.skills,input.jobDescription.skills,input.sourceResume.skills);result={...generated,skills,skillGroups:reconcileSkillGroups(skills),changeSummary:[],unsupportedRequirements:[],warnings:[]};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
-    const preview:TailoringPreview={contractVersion:"1.2",applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),result};
+    const preview:TailoringPreview={contractVersion:input.contractVersion,applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),result};
+    if(input.promptSnapshot){const{instructions:_instructions,composedPrompt:_prompt,...provenance}=input.promptSnapshot;preview.promptProvenance=provenance;}
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;
   }finally{
