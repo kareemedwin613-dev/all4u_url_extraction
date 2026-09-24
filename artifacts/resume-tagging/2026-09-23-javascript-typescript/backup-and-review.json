@@ -1,0 +1,1374 @@
+{
+  "reviewedCount": 44,
+  "selectedCount": 25,
+  "subtype": "javascript-typescript-engineering",
+  "scope": "ACTIVE ORIGINAL only; software engineering experience supported by original resume",
+  "plan": [
+    {
+      "candidate_name": "Brian Rose",
+      "id": "b8f7d76c-a885-41bb-81d4-e3cdd9b5fcdd",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 8,
+      "source_hash": "f84be39b60ccd58061c3f66e53d33c1b",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "04fcc753-104c-4b7d-98c2-d83b0f943261",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "b8f7d76c-a885-41bb-81d4-e3cdd9b5fcdd",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Corbin Woods",
+      "id": "a2b9ed55-d8b0-436c-be8b-58ca2cefd627",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 10,
+      "source_hash": "683b0006f8df784eb6babf87d39284e3",
+      "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "977b033e-da89-4157-bc4e-99187fdb8ef2",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "a2b9ed55-d8b0-436c-be8b-58ca2cefd627",
+          "sort_order": 0,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "bb5bd9b2-6528-4078-8c4a-58809813bae7",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "a2b9ed55-d8b0-436c-be8b-58ca2cefd627",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9de945e6-da78-45d2-9a43-5dc42c20c7a8",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "a2b9ed55-d8b0-436c-be8b-58ca2cefd627",
+          "sort_order": 2,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "c6e22a77-20fd-43bc-8034-cf9b3338bd94",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "a2b9ed55-d8b0-436c-be8b-58ca2cefd627",
+          "sort_order": 3,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Joseph Fontana",
+      "id": "146ccdbb-f84a-42ae-8b30-e78a86c3eee2",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 12,
+      "source_hash": "1e4a109b8276700efb48f7a88a370976",
+      "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "e5568b58-ebb4-464b-bb81-3061defd159b",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "146ccdbb-f84a-42ae-8b30-e78a86c3eee2",
+          "sort_order": 0,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "b0784ca7-0db0-4a81-9cd5-c95bf5315075",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "146ccdbb-f84a-42ae-8b30-e78a86c3eee2",
+          "sort_order": 1,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Erika Deissler",
+      "id": "67b9cdbc-7c86-4e3b-993c-4d93a5e4bb9c",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 16,
+      "source_hash": "2380e9ffaaf59df745a60805d061663f",
+      "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "ee0176fd-a7a2-40fb-8d10-b00a4516414e",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "67b9cdbc-7c86-4e3b-993c-4d93a5e4bb9c",
+          "sort_order": 0,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Demarcus Johnson",
+      "id": "db48dd2e-0ed0-461d-8d38-6996b03659ef",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 17,
+      "source_hash": "f99a1d6f078838effef2a13a0c20c2a5",
+      "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "35d1329a-f97f-4844-abac-6296637026eb",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "db48dd2e-0ed0-461d-8d38-6996b03659ef",
+          "sort_order": 0,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "a30c8706-345a-4014-bd48-b74220b39e3e",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "db48dd2e-0ed0-461d-8d38-6996b03659ef",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Jurgia Sanchez",
+      "id": "ea57cbb0-2392-4c05-b1b9-c85b1a78a81d",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 19,
+      "source_hash": "3fa2812a8b3bad2840c25d790d019c31",
+      "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "3fa228b3-807c-411a-aea0-c6cbc1f672c2",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "ea57cbb0-2392-4c05-b1b9-c85b1a78a81d",
+          "sort_order": 0,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "1903dc78-75ef-461b-85a1-9d9d783e4c9a",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "ea57cbb0-2392-4c05-b1b9-c85b1a78a81d",
+          "sort_order": 1,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f6e2973a-f334-4fa9-950a-e45175ff39a9",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "ea57cbb0-2392-4c05-b1b9-c85b1a78a81d",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Marko Krsikapa",
+      "id": "565ef222-a72f-4878-b13b-a71ac4f4fd85",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 20,
+      "source_hash": "c23dc5cd2d0417f34e53ad72a3c98062",
+      "subcategory_id": "d2eabd2b-6dd2-4162-b3bf-dfeaf594f063",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f768aabf-8eff-4ab2-a7af-8bebc912754f",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "565ef222-a72f-4878-b13b-a71ac4f4fd85",
+          "sort_order": 0,
+          "subcategory_id": "d2eabd2b-6dd2-4162-b3bf-dfeaf594f063"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "3fb3e7eb-1e71-4768-87bb-7fc34cdb43a2",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "565ef222-a72f-4878-b13b-a71ac4f4fd85",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "8985caf4-ca6a-4897-8d7c-7db310f4e61c",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "565ef222-a72f-4878-b13b-a71ac4f4fd85",
+          "sort_order": 2,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "7cc69cd3-dc9c-442a-b23c-0ade4497f59e",
+          "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+          "resume_id": "565ef222-a72f-4878-b13b-a71ac4f4fd85",
+          "sort_order": 3,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Alexander Clark",
+      "id": "8f997e58-6f9e-4409-a01c-bdedfefa1a28",
+      "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+      "resume_number": 21,
+      "source_hash": "7c1dbda73d203a7740895a8effc05728",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f2c1d194-80bc-43c7-bc90-d9812b04a4c5",
+          "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+          "resume_id": "8f997e58-6f9e-4409-a01c-bdedfefa1a28",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "00b768ae-823c-4e8d-b1eb-e46398e06c94",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "8f997e58-6f9e-4409-a01c-bdedfefa1a28",
+          "sort_order": 1,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Eric Zheng",
+      "id": "c560ae88-e168-422b-a7cc-660ba7170e9b",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 22,
+      "source_hash": "e8327edd9f88a668f8170b60b751976d",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "affccbcc-34fc-4b13-941e-646f91bf95dc",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "c560ae88-e168-422b-a7cc-660ba7170e9b",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9e20dca3-ab08-487d-bdb8-9e53d719a215",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "c560ae88-e168-422b-a7cc-660ba7170e9b",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "7e0cf9f5-bd10-49b8-bca7-cf66a964c63e",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "c560ae88-e168-422b-a7cc-660ba7170e9b",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Jacob Waller",
+      "id": "c9df72e7-412c-4f60-91d0-1d86c0235efe",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 25,
+      "source_hash": "5579c97cfacb573fef7d66a8921fc2ee",
+      "subcategory_id": "61bdf7a0-aacb-43e4-8b44-8d6600093d75",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "2e0ac3b1-9ad2-47af-b1b6-56475602ecd5",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "c9df72e7-412c-4f60-91d0-1d86c0235efe",
+          "sort_order": 0,
+          "subcategory_id": "61bdf7a0-aacb-43e4-8b44-8d6600093d75"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "86ae8f69-20f0-461a-9b6f-ee90b4b92bff",
+          "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+          "resume_id": "c9df72e7-412c-4f60-91d0-1d86c0235efe",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Joseph Martinez",
+      "id": "57c0bd8f-99b1-4fc0-9da4-d48f6829f31f",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 26,
+      "source_hash": "e04d9f0c197ec26a7fef03c9013217e2",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "e81e2a18-48bf-4476-81da-4789b43320f4",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "57c0bd8f-99b1-4fc0-9da4-d48f6829f31f",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "865d949a-c809-4160-adfd-4649d3f90345",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "57c0bd8f-99b1-4fc0-9da4-d48f6829f31f",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Andrew Thomas",
+      "id": "37b395e3-153b-4a01-81bb-7fcff2a3679c",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 33,
+      "source_hash": "f360187154f26461f080e25dbb399f89",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "01ac3a7a-b468-49fa-a33b-77c9883c29fa",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "37b395e3-153b-4a01-81bb-7fcff2a3679c",
+          "sort_order": 0,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Eddie Reveles",
+      "id": "4ea85b4a-1ab6-45ea-9788-1fd57b040d40",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 34,
+      "source_hash": "ab4f4ab5484c0ccc27fc32ec4191f39a",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "eafc3017-be7b-4cb4-859a-4185d0e3b172",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "4ea85b4a-1ab6-45ea-9788-1fd57b040d40",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Joshua Owens",
+      "id": "b793dd85-15c5-4474-ba8e-146782c9cb1f",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 37,
+      "source_hash": "0b41f6376ae52f2d71737330fb4e87f9",
+      "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "73b83391-3f69-4110-a933-1a33a7b5411a",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "b793dd85-15c5-4474-ba8e-146782c9cb1f",
+          "sort_order": 0,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "5f61b1ec-17c2-40d8-9336-b0b8f6e7defb",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "b793dd85-15c5-4474-ba8e-146782c9cb1f",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Jason Miller",
+      "id": "9a91ceaa-83d9-49c3-8a09-95f9ecb1a331",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 38,
+      "source_hash": "9e0794f89286d9e9664cc34614dcf4e9",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "13303383-5d95-48d9-814e-6c29635b467a",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "9a91ceaa-83d9-49c3-8a09-95f9ecb1a331",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f001ccec-d38d-4ab0-82a6-0354ae9257f5",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "9a91ceaa-83d9-49c3-8a09-95f9ecb1a331",
+          "sort_order": 1,
+          "subcategory_id": "61bdf7a0-aacb-43e4-8b44-8d6600093d75"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "348b3dff-0a4b-4af1-b5de-1c36667fef38",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "9a91ceaa-83d9-49c3-8a09-95f9ecb1a331",
+          "sort_order": 2,
+          "subcategory_id": "d2eabd2b-6dd2-4162-b3bf-dfeaf594f063"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "a577e4bf-6fe1-4b77-8ef4-7a56b4e1fecf",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "9a91ceaa-83d9-49c3-8a09-95f9ecb1a331",
+          "sort_order": 3,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Derek Williams",
+      "id": "11c2b775-3028-4c6e-8c90-8e15df38d226",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 39,
+      "source_hash": "088780aa5531bcc75e4cc4e1c2d3c66e",
+      "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "83909cc2-e9b5-4935-b683-b3d12f0370e9",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "11c2b775-3028-4c6e-8c90-8e15df38d226",
+          "sort_order": 0,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "84ff6f6f-8365-4965-b143-1b79eae34728",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "11c2b775-3028-4c6e-8c90-8e15df38d226",
+          "sort_order": 1,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "d333e614-5e8a-4412-b4a6-ffa0be368fa7",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "11c2b775-3028-4c6e-8c90-8e15df38d226",
+          "sort_order": 2,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9bedf471-25aa-4327-8b9b-cad90c1566b4",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "11c2b775-3028-4c6e-8c90-8e15df38d226",
+          "sort_order": 3,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Garrett Newman",
+      "id": "5c00b59c-36db-453d-bd9e-0077a392d976",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 40,
+      "source_hash": "52357eb6518b151fb367133e76eaa70a",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "0bd1ec22-1dd6-43cb-8fa9-ba8953364415",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "5c00b59c-36db-453d-bd9e-0077a392d976",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "4ef5f39d-e2ae-4c9d-b66c-1f4c705084b0",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "5c00b59c-36db-453d-bd9e-0077a392d976",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "7ebce2d8-6635-4624-99c8-10af8187be25",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "5c00b59c-36db-453d-bd9e-0077a392d976",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Nicholas Smith",
+      "id": "3b393ce3-33b4-471b-abe7-a4561a860b51",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 41,
+      "source_hash": "caf1618ce5a6572fc6a0ce0d56f42f51",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "2b9d964a-0f95-47c3-8318-744097a78a71",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "3b393ce3-33b4-471b-abe7-a4561a860b51",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "dc0ebdc1-ba52-49ae-95da-b8496ce9bf7e",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "3b393ce3-33b4-471b-abe7-a4561a860b51",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "05d4d767-1bb2-4c82-a8b2-76456a2c0a26",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "3b393ce3-33b4-471b-abe7-a4561a860b51",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Todd Phillips",
+      "id": "3a80a0b3-d54d-45a5-ac9a-a5447c28150b",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 43,
+      "source_hash": "f5f0b64270b14583374a6ab1027f3cb6",
+      "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "a4e4064f-5e1d-4217-b22c-c6d4d6e4d9dc",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "3a80a0b3-d54d-45a5-ac9a-a5447c28150b",
+          "sort_order": 0,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9c5e4a3d-f036-4323-9084-fafadc55893e",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "3a80a0b3-d54d-45a5-ac9a-a5447c28150b",
+          "sort_order": 1,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "96b041a0-d96d-481e-b10e-93b7571fd02d",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "3a80a0b3-d54d-45a5-ac9a-a5447c28150b",
+          "sort_order": 2,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "ddcfd16b-1e97-4cd6-9259-4f1ae5fb3385",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "3a80a0b3-d54d-45a5-ac9a-a5447c28150b",
+          "sort_order": 3,
+          "subcategory_id": "d2eabd2b-6dd2-4162-b3bf-dfeaf594f063"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "a13e2424-0fb8-44c1-86fa-b7fed1c6af8c",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "3a80a0b3-d54d-45a5-ac9a-a5447c28150b",
+          "sort_order": 4,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Hannah Gallagher",
+      "id": "efcbc6d7-274a-4cdc-97a4-3ef35241158e",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 46,
+      "source_hash": "8dff1cf07a785b7fa97c7c46b4bab917",
+      "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "da1421dd-3313-4e73-809e-696fb5bd906e",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "efcbc6d7-274a-4cdc-97a4-3ef35241158e",
+          "sort_order": 0,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "ee48a0df-eae6-4f71-8838-a1d019f1d6f3",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "efcbc6d7-274a-4cdc-97a4-3ef35241158e",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Consuelo Mejia",
+      "id": "ef51d72a-0bb3-4232-aba6-df5ca8d8b53a",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 48,
+      "source_hash": "d7efe384b0c811e398fbd04b07d07daa",
+      "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "04e75e5a-e41e-40fe-8912-cbd1889e691b",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "ef51d72a-0bb3-4232-aba6-df5ca8d8b53a",
+          "sort_order": 0,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "694487d5-70d8-415b-9375-e43061da5d05",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "ef51d72a-0bb3-4232-aba6-df5ca8d8b53a",
+          "sort_order": 1,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "22724d25-dd79-4f83-a3b9-82da6791590d",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "ef51d72a-0bb3-4232-aba6-df5ca8d8b53a",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Matan Diamond",
+      "id": "d679d5e4-87a7-4c92-acf7-20a4289830ee",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 12671,
+      "source_hash": "ecc061d30b2146e5ac9474eac9cec314",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f77acb6b-a6fd-4b2e-8bc1-d1576766474f",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "d679d5e4-87a7-4c92-acf7-20a4289830ee",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "32e74bd3-ba0b-40d5-a111-9f9082ad76c8",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "d679d5e4-87a7-4c92-acf7-20a4289830ee",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "cd1f7a14-7db6-49ff-8cc2-4aef34f4d3b9",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "d679d5e4-87a7-4c92-acf7-20a4289830ee",
+          "sort_order": 2,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "c95cba4e-2540-48bd-9bb7-f1c64e84113c",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "d679d5e4-87a7-4c92-acf7-20a4289830ee",
+          "sort_order": 3,
+          "subcategory_id": "61bdf7a0-aacb-43e4-8b44-8d6600093d75"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Pushpalatha Ongolu",
+      "id": "5afd0d79-d36c-4a94-bec6-5e0b74979c47",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 14087,
+      "source_hash": "4af7261b1c81254a50aaf2466fbba31d",
+      "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "09e1c8ab-476b-44be-8539-3cf0678edf59",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "5afd0d79-d36c-4a94-bec6-5e0b74979c47",
+          "sort_order": 0,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Brooke Jones",
+      "id": "7592faab-746a-478f-96af-0b8126e29c27",
+      "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+      "resume_number": 16914,
+      "source_hash": "58b6d97acf4385616ea041438d5ec34c",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "6f190dc5-c951-47c8-8bc4-889d2562d306",
+          "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+          "resume_id": "7592faab-746a-478f-96af-0b8126e29c27",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "70daf39c-f9d7-4909-8a50-4e91d9505b2c",
+          "primary_category_id": "01cb0b0c-4e9a-4d54-b817-20270f8f77fb",
+          "resume_id": "7592faab-746a-478f-96af-0b8126e29c27",
+          "sort_order": 1,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "d3d65431-eb33-44f9-ab1f-84184041da46",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "7592faab-746a-478f-96af-0b8126e29c27",
+          "sort_order": 2,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "David Alden",
+      "id": "a59353b5-a33c-4783-bc79-f55ad2e39745",
+      "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+      "resume_number": 20817,
+      "source_hash": "e8868c67a54e339e0db8d70242a2556a",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "ccf7ff19-a2f5-4ae1-b3de-6f6697f18263",
+          "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+          "resume_id": "a59353b5-a33c-4783-bc79-f55ad2e39745",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "2a124779-5d9f-4189-ad86-ecaa7b94b244",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "a59353b5-a33c-4783-bc79-f55ad2e39745",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "bebc2a8b-6138-4ae1-993b-ad430bfed3bb",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "a59353b5-a33c-4783-bc79-f55ad2e39745",
+          "sort_order": 2,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    }
+  ],
+  "unchanged": [
+    {
+      "candidate_name": "Bradley Anderson",
+      "id": "63e49c3c-371b-40ec-bb33-9ab24feb35af",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 2,
+      "source_hash": "14f7d4d0a7f9b44dcbef7ec560533e23",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "7f8dfbae-037f-4e45-b2f2-9a4463129c92",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "63e49c3c-371b-40ec-bb33-9ab24feb35af",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "c37039ef-3440-4dd0-9a3b-5376381de02d",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "63e49c3c-371b-40ec-bb33-9ab24feb35af",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Joseph Melberg",
+      "id": "00e4951a-1290-4a18-a5ec-62c20e428495",
+      "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+      "resume_number": 9,
+      "source_hash": "d3d7f5fc5766284205ed6e6c63bdb4f2",
+      "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7",
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "24616fd7-e456-46f5-b61b-9d1391fbe02e",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "00e4951a-1290-4a18-a5ec-62c20e428495",
+          "sort_order": 0,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "a11679c7-9b66-46fc-aa96-c9bc90a3f83a",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "00e4951a-1290-4a18-a5ec-62c20e428495",
+          "sort_order": 1,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "3dee29e1-529b-44ab-bab1-5049e5f3367d",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "00e4951a-1290-4a18-a5ec-62c20e428495",
+          "sort_order": 2,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "57bd4849-72da-4e2e-85fd-c73ce788eb48",
+          "primary_category_id": "eaae452b-5923-426d-8391-bafd5583efac",
+          "resume_id": "00e4951a-1290-4a18-a5ec-62c20e428495",
+          "sort_order": 3,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Derek Myers",
+      "id": "4ed27e2d-8926-4e91-a6ea-94b32de632b5",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 11,
+      "source_hash": "e3707d4c9b8f99a6bdab43450b6dac11",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f14204fa-08ae-4f06-82fc-a5af8108276a",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "4ed27e2d-8926-4e91-a6ea-94b32de632b5",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "aab3328b-84f7-4c6d-ac46-ccb96b69bb15",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "4ed27e2d-8926-4e91-a6ea-94b32de632b5",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Devin Belden",
+      "id": "c819e922-e417-4a86-8c39-429efcbd3208",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 13,
+      "source_hash": "c7ad2e55dbe1b8f455aaca71cdb75839",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "629a5c60-7ec0-4a3d-8715-ca4e65e9ddd3",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "c819e922-e417-4a86-8c39-429efcbd3208",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "eaa853a8-c305-4b40-8d28-9f963d28e418",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "c819e922-e417-4a86-8c39-429efcbd3208",
+          "sort_order": 1,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "addc52ab-a864-4627-a8bc-e86aefb892d6",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "c819e922-e417-4a86-8c39-429efcbd3208",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Katelyn Farmwald",
+      "id": "eb35e243-303c-4a35-9caf-b5bc951cb42f",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 15,
+      "source_hash": "592d766ac1a8ece648ff2c237b6d4fc2",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "913de7c8-9120-47cd-a11f-ae236b645692",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "eb35e243-303c-4a35-9caf-b5bc951cb42f",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9827fd7e-4aa1-4ec5-bbc8-f4e5bf41699a",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "eb35e243-303c-4a35-9caf-b5bc951cb42f",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Michael Walker",
+      "id": "731c7580-b97c-49e7-bf54-25e53300f01b",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 23,
+      "source_hash": "0aafbcaedb395e41539b7f8a5690ab9f",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "92121d99-0d5a-48f5-8cc4-b28da6946d34",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "731c7580-b97c-49e7-bf54-25e53300f01b",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "7f3049a5-1d69-4b99-aab6-25b81ab9cf9e",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "731c7580-b97c-49e7-bf54-25e53300f01b",
+          "sort_order": 1,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "ac4c1564-3c49-4452-b770-1c60237e1f28",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "731c7580-b97c-49e7-bf54-25e53300f01b",
+          "sort_order": 2,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "cd1ee03d-3c0e-4e60-9350-f36098da40a6",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "731c7580-b97c-49e7-bf54-25e53300f01b",
+          "sort_order": 3,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "William Young",
+      "id": "3cd63676-b078-4bae-bb11-dc246a0a8e6a",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 24,
+      "source_hash": "91c01ed2d078caa6ccf61c19fd0460cb",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "d67938e3-c2a7-4458-9cce-6786f19e82a4",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "3cd63676-b078-4bae-bb11-dc246a0a8e6a",
+          "sort_order": 0,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Mohammed Uddin",
+      "id": "83826dfe-31c9-412d-b993-187815d2db14",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 27,
+      "source_hash": "e607a78070fd57d044b954bdd1d531cd",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "8dee20cd-2c60-4c8b-a9b6-49eee86940e5",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "83826dfe-31c9-412d-b993-187815d2db14",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f97ae957-2b35-4299-b8aa-926f44c81194",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "83826dfe-31c9-412d-b993-187815d2db14",
+          "sort_order": 1,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9c91ce59-fda9-424f-b727-04ecd104da58",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "83826dfe-31c9-412d-b993-187815d2db14",
+          "sort_order": 2,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "1faba911-48af-4592-8042-afe4a27c94bb",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "83826dfe-31c9-412d-b993-187815d2db14",
+          "sort_order": 3,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Luke Lopez",
+      "id": "691e70a9-3893-4058-b562-8c04684e321c",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 35,
+      "source_hash": "e6eb8f22f20e78fbb2ed454f28bec220",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "9c8cf187-64cc-48c3-9435-6ba82765f1c6",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "691e70a9-3893-4058-b562-8c04684e321c",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "152ce210-e68a-47d6-9c60-272fd672be5b",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "691e70a9-3893-4058-b562-8c04684e321c",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Christopher Stewart",
+      "id": "c09299ad-f2c6-420f-be66-6c6571ccc7cf",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 36,
+      "source_hash": "8d84007698d72d8dd2cc70c6144b2f17",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "535ed865-2558-460b-a332-640911433943",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "c09299ad-f2c6-420f-be66-6c6571ccc7cf",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "f2588494-7b25-4551-bcf3-8aacb30cef83",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "c09299ad-f2c6-420f-be66-6c6571ccc7cf",
+          "sort_order": 1,
+          "subcategory_id": "3b124706-8495-4df3-8b27-5ab674f589ff"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Jared Ratto",
+      "id": "2a95c8b5-5681-46e5-b6ea-13725c9cdb38",
+      "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+      "resume_number": 45,
+      "source_hash": "bbd646c0bdca3aef1eb45a428be65e33",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "8bf33d01-118e-436d-a159-3401fc3d2637",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "2a95c8b5-5681-46e5-b6ea-13725c9cdb38",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "22c32a51-b2fe-4fea-9100-24500706494b",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "2a95c8b5-5681-46e5-b6ea-13725c9cdb38",
+          "sort_order": 1,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "111eb5b1-262e-4826-94bf-a011e4c95fa9",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "2a95c8b5-5681-46e5-b6ea-13725c9cdb38",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Brian Schillaci",
+      "id": "514752b1-bca7-4950-b105-89124feb781d",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 11296,
+      "source_hash": "85d27dcdeeeea1ff29a50a77b19c2352",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "d5230035-e982-4961-adf6-840c6461bb49",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "514752b1-bca7-4950-b105-89124feb781d",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "104e4aa2-44ef-48f7-aa65-6edd2fd8b180",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "514752b1-bca7-4950-b105-89124feb781d",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Freddy Criollo",
+      "id": "a4e6d6bb-4703-4deb-89f7-a091546a3ad8",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 11299,
+      "source_hash": "79ff645933bf957434d6c944fb00b01c",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "5e4e310a-b05e-40f3-8216-83cb7ed78990",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "a4e6d6bb-4703-4deb-89f7-a091546a3ad8",
+          "sort_order": 0,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Avi Patel",
+      "id": "40bf6b86-73d9-4991-a079-1d6d7b496117",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 12605,
+      "source_hash": "d82b0bf66b3668e854cb378fed012892",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-13T19:30:34.616685+00:00",
+          "id": "77079344-2b04-4bcf-8528-71dd552cd13b",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "40bf6b86-73d9-4991-a079-1d6d7b496117",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-13T19:30:34.616685+00:00",
+          "id": "cba5345e-1636-4e10-875f-6092185d01cf",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "40bf6b86-73d9-4991-a079-1d6d7b496117",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-13 19:30:34.616685+00"
+    },
+    {
+      "candidate_name": "Brian Jones",
+      "id": "afebcf30-47ab-497d-8865-f4fd073df6a2",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 12608,
+      "source_hash": "5f0ca421dc9fe52241e2b2079b5cd8b2",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "e2129bf1-1ed8-4959-ad47-017b7865eb08",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "afebcf30-47ab-497d-8865-f4fd073df6a2",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "6b244e0a-629a-434a-804d-2e0551f97c86",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "afebcf30-47ab-497d-8865-f4fd073df6a2",
+          "sort_order": 1,
+          "subcategory_id": "f2c311f2-139f-425c-a3d6-13d644ead0c7"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Terry Lewis",
+      "id": "d942b955-e132-4cf1-9c27-a1ea85ee2d83",
+      "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+      "resume_number": 12625,
+      "source_hash": "1ff07ff3c9e6965dc19d5ec527c8fc4b",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "e2fd3dba-be6b-4f8d-b8d6-fce4295cf92d",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "d942b955-e132-4cf1-9c27-a1ea85ee2d83",
+          "sort_order": 0,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "James Harkrader",
+      "id": "6ea73a66-3be1-4b5c-a3fc-4661898c6cb6",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 12692,
+      "source_hash": "bc34340d1dab9c38c38fd0fcde224faf",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "83b9fc50-c661-4646-9bcc-3bf9cd7b8d29",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "6ea73a66-3be1-4b5c-a3fc-4661898c6cb6",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "25f3b5f9-d0c8-4c9e-a79a-3be02e71d7ad",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "6ea73a66-3be1-4b5c-a3fc-4661898c6cb6",
+          "sort_order": 1,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Syed Hammadul Haque",
+      "id": "587d9230-f634-4dbd-aec6-35679d572286",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 14426,
+      "source_hash": "e0eacc1e61041c8c25f05fa5250ce7a5",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "d49e9351-6d99-4ff8-87f4-e403d48fb76f",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "587d9230-f634-4dbd-aec6-35679d572286",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "6be7ecf7-d207-4999-b548-058cf3f5d4d3",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "587d9230-f634-4dbd-aec6-35679d572286",
+          "sort_order": 1,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "038c95e1-c711-46dd-883d-d1500b902748",
+          "primary_category_id": "15a0022e-8edc-4000-a3a2-e02726196f19",
+          "resume_id": "587d9230-f634-4dbd-aec6-35679d572286",
+          "sort_order": 2,
+          "subcategory_id": "4bc9e26d-236a-4ff5-b2dd-59cc0a28ec4e"
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    },
+    {
+      "candidate_name": "Ryan Alman",
+      "id": "74cf6a3b-256b-41b1-932e-202e3f373167",
+      "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+      "resume_number": 20816,
+      "source_hash": "1ecc9aa86c859b4b8abff17ce88926df",
+      "subcategory_id": null,
+      "tags": [
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "593ba75a-7bd8-4170-a531-652ac662be2f",
+          "primary_category_id": "63b5e015-cc2c-425d-8b52-41f751cbbd9b",
+          "resume_id": "74cf6a3b-256b-41b1-932e-202e3f373167",
+          "sort_order": 0,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "3380f948-9b79-458e-b575-8b768eceeeb1",
+          "primary_category_id": "9010fba7-b6f5-4552-b1ea-7941b48c82f5",
+          "resume_id": "74cf6a3b-256b-41b1-932e-202e3f373167",
+          "sort_order": 1,
+          "subcategory_id": null
+        },
+        {
+          "created_at": "2026-09-23T07:48:57.584084+00:00",
+          "id": "23aaf656-0b96-4327-a02a-706f949a3d4d",
+          "primary_category_id": "67e65ffd-dd98-4904-9549-dd3e4302e07a",
+          "resume_id": "74cf6a3b-256b-41b1-932e-202e3f373167",
+          "sort_order": 2,
+          "subcategory_id": null
+        }
+      ],
+      "updated_at": "2026-09-23 07:48:57.584084+00"
+    }
+  ]
+}

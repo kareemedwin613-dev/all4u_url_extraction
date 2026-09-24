@@ -7,6 +7,7 @@ export function parseRoute(hash = "#/") {
   if (!parts.length) return {name: "overview", path: "/", query};
   if (parts[0] === "login" && parts.length === 1) return {name: "login", path: "/login", query};
   if (parts[0] === "profile" && parts.length === 1) return {name: "profile", path: "/profile", query};
+  if (parts[0] === "tailoring-prompts" && parts.length === 1) return {name: "tailoring-prompts", path: "/tailoring-prompts", query};
   if (parts[0] === "pending-access" && parts.length === 1) return {name: "pending-access", path: "/pending-access", query};
   if (parts[0] === "account-inactive" && parts.length === 1) return {name: "account-inactive", path: "/account-inactive", query};
   if (parts[0] === "access-denied" && parts.length === 1) return {name: "access-denied", path: "/access-denied", query};

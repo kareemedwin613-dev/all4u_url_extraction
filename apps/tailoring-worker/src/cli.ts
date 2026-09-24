@@ -6,6 +6,7 @@ import { claimTailoringBatchTicket, claimTailoringRunnerTicket, loadTailoringJob
 import { tailoringBatchConcurrency } from "./concurrency.js";
 import { scoreMaterializedResume } from "./score-comparison.js";
 import { workerEvent, workerFailure, workerResult } from "./runner-events.js";
+import { runPromptTest } from "./prompt-test-runner.js";
 
 export function isRateLimitFailure(value:unknown){return /(?:\b429\b|rate[ -]?limit|usage limit|too many requests|quota[^.\n]*(?:exceed|reset)|capacity[^.\n]*(?:reached|exceeded))/i.test(value instanceof Error?value.message:String(value));}
 export function retryDelaySeconds(value:unknown,attempt=1){const text=value instanceof Error?value.message:String(value),match=text.match(/retry(?: after| in)?[^\d]{0,20}(\d{1,4})\s*(?:s|sec|seconds?)\b/i),fallback=60*Math.pow(2,Math.max(0,attempt-1));return Math.max(30,Math.min(900,Number(match?.[1]||fallback)));}
@@ -92,8 +93,10 @@ function argumentsFrom(values:string[]){
 async function main(){
   const args=argumentsFrom(process.argv.slice(2)),fixture=String(args.fixture||""),applicationId=String(args["application-id"]||""),jobId=String(args["job-id"]||""),ticketArgument=String(args.tickets||args.ticket||""),tickets=ticketArgument.split(",").map(value=>value.trim()).filter(Boolean),batchTicket=String(args["batch-ticket"]||process.env.TAILORING_BATCH_TICKET||""),requestedOutput=String(args.output||"");
   const apiBaseUrl=String(args["api-base-url"]||process.env.TAILORING_API_BASE_URL||""),accessToken=String(process.env.TAILORING_ACCESS_TOKEN||"");
-  const fixtureMode=Boolean(fixture||applicationId),apiMode=Boolean(jobId||accessToken),ticketMode=Boolean(tickets.length),batchMode=Boolean(batchTicket),modeCount=Number(fixtureMode)+Number(apiMode)+Number(ticketMode)+Number(batchMode);
-  if(modeCount!==1)throw new Error("Use exactly one mode: fixture, authenticated job, --ticket/--tickets, or --batch-ticket with --api-base-url.");
+  const promptTestTicket=String(args["prompt-test-ticket"]||"");
+  const fixtureMode=Boolean(fixture||applicationId),apiMode=Boolean(jobId||accessToken),ticketMode=Boolean(tickets.length),batchMode=Boolean(batchTicket),modeCount=Number(fixtureMode)+Number(apiMode)+Number(ticketMode)+Number(batchMode)+Number(Boolean(promptTestTicket));
+  if(modeCount!==1)throw new Error("Use exactly one mode: fixture, authenticated job, --ticket/--tickets, --batch-ticket, or --prompt-test-ticket with --api-base-url.");
+  if(promptTestTicket&&!apiBaseUrl)throw new Error("Prompt test mode requires --api-base-url.");
   if(fixtureMode&&(!fixture||!applicationId))throw new Error("Fixture mode requires --fixture and --application-id.");
   if(apiMode&&(!jobId||!apiBaseUrl||!accessToken))throw new Error("API mode requires --job-id, TAILORING_API_BASE_URL (or --api-base-url), and TAILORING_ACCESS_TOKEN.");
   if(ticketMode&&!apiBaseUrl)throw new Error("Ticket mode requires --api-base-url (or TAILORING_API_BASE_URL).");
@@ -101,6 +104,11 @@ async function main(){
   if(tickets.length>5||new Set(tickets).size!==tickets.length)throw new Error("Bulk ticket mode accepts between 1 and 5 unique tickets.");
   if((fixtureMode||apiMode)&&!requestedOutput)throw new Error("Fixture and authenticated job modes require --output <new-json-file>.");
   const invocationDirectory=resolve(process.env.INIT_CWD||process.cwd());
+  if(promptTestTicket){
+    process.stdout.write("Draft prompt test started. This terminal stays open until generation and submission finish.\n");
+    const receipt=await runPromptTest(apiBaseUrl,promptTestTicket,resolve(invocationDirectory,requestedOutput||`apps/tailoring-worker/artifacts/prompt-test-${Date.now()}.preview.json`));
+    process.stdout.write(`Prompt test ${receipt.id} completed. View the result in Tailoring Prompts. No Resume or Application was changed.\n`);return;
+  }
   if(batchMode){await runBatch(apiBaseUrl,batchTicket,args,invocationDirectory);return;}
   if(ticketMode){
     let completed=0;const failures:string[]=[],claims:Array<{ticket:string;jobId:string;input:any}>=[];

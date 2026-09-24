@@ -1,11 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { loadFixture } from "../src/codex-runner.js";
 import { buildTailoringPrompt, tailoringModelContext, tailoringRoleTargets } from "../src/prompt.js";
+import { GENERIC_TAILORING_PROMPT_V1, TAILORING_OUTPUT_INSTRUCTIONS, TAILORING_PROMPT_HEADER, TAILORING_PROMPT_CONTRACT_VERSION } from "../src/prompt-template.js";
 
 const fixturePath=fileURLToPath(new URL("../fixtures/application-19.json",import.meta.url));
 const applicationId="11111111-1111-4111-8111-111111111119";
+
+test("Generic v1 produces the exact pre-configuration prompt", async () => {
+  const input = await loadFixture(fixturePath, applicationId);
+  const prompt = buildTailoringPrompt(input, new Date("2026-09-01T00:00:00Z"));
+  // Captured from the original builder before extracting the template.
+  assert.equal(createHash("sha256").update(prompt).digest("hex"),
+    "c802df7582408a5ca4905f129d6658e2f73739540a0d16db5dbe8d96c782e4c2");
+});
+
+test("Generic v1 separates writing instructions from the fixed output contract", async () => {
+  assert.equal(GENERIC_TAILORING_PROMPT_V1.key, "generic");
+  assert.equal(GENERIC_TAILORING_PROMPT_V1.version, 1);
+  assert.equal(Object.isFrozen(GENERIC_TAILORING_PROMPT_V1), true);
+  assert.equal(TAILORING_PROMPT_CONTRACT_VERSION, "1");
+  assert.doesNotMatch(GENERIC_TAILORING_PROMPT_V1.instructions, /BEGIN_UNTRUSTED_INPUT_JSON|SAFETY AND FORMAT|\nOUTPUT\n/);
+  const prompt = buildTailoringPrompt(await loadFixture(fixturePath, applicationId));
+  assert.ok(prompt.startsWith(TAILORING_PROMPT_HEADER));
+  assert.ok(prompt.includes(`TAILORING\n${GENERIC_TAILORING_PROMPT_V1.instructions}\n\n${TAILORING_OUTPUT_INSTRUCTIONS}`));
+});
 
 test("tailoring prompt is compact and retains the essential Resume rules",async()=>{
   const input=await loadFixture(fixturePath,applicationId),prompt=buildTailoringPrompt(input,new Date("2026-09-01T00:00:00Z"));
