@@ -46,10 +46,12 @@ test("Application status is merged and renderers stay outside the API cold path"
 });
 
 test("tailoring asks the model for the lean generation-only contract",async()=>{
-  const[schema,prompt]=await Promise.all([
+  const[schema,builder,template]=await Promise.all([
     read("../apps/tailoring-worker/schemas/tailoring-output.schema.json").then(JSON.parse),
     read("../apps/tailoring-worker/src/prompt.ts"),
+    read("../apps/tailoring-worker/src/prompt-template.ts"),
   ]);
+  const prompt=`${builder}\n${template}`;
   assert.deepEqual(schema.required,["summary","professionalExperience","skills"]);
   assert.equal(schema.properties.skills.maxItems,24);
   assert.equal(schema.properties.skillGroups,undefined);

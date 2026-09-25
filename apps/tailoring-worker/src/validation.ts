@@ -144,3 +144,24 @@ export function validateTailoringModelOutput(value:unknown,input:TailoringInput)
   });
   return{summary,professionalExperience,skills};
 }
+
+export const MAX_SUMMARY_WORDS=160;
+const BULLET_MARKER=/^[-•*–—]\s*/;
+// Checks the fixed-contract rules the JSON schema cannot express. Marker variants are normalized
+// to "- "; other violations are thrown so the runner can request one repair.
+export function enforceGenerationContract<T extends Pick<TailoringOutput,"summary"|"professionalExperience">>(output:T,targets:Array<{sourceExperienceId:string;bullets:number}>):T{
+  if(/[\r\n]/.test(output.summary))throw new Error("summary must be one paragraph without line breaks.");
+  const words=output.summary.split(/\s+/).filter(Boolean).length;
+  if(words>MAX_SUMMARY_WORDS)throw new Error(`summary has ${words} words; the maximum is ${MAX_SUMMARY_WORDS}.`);
+  const limits=new Map(targets.map(target=>[target.sourceExperienceId,target.bullets]));
+  const professionalExperience=output.professionalExperience.map(role=>{
+    const lines=role.tailoredDetails.split(/\r?\n/).map(line=>line.trim()).filter(Boolean),limit=limits.get(role.sourceExperienceId);
+    const unmarked=lines.find(line=>!BULLET_MARKER.test(line));
+    if(unmarked)throw new Error(`${role.sourceExperienceId}: every tailoredDetails line must be a bullet starting with "- "; found "${unmarked.slice(0,60)}".`);
+    const bullets=lines.map(line=>`- ${line.replace(BULLET_MARKER,"")}`);
+    if(bullets.some(bullet=>bullet.length<4))throw new Error(`${role.sourceExperienceId}: bullets must not be empty.`);
+    if(limit!==undefined&&bullets.length>limit)throw new Error(`${role.sourceExperienceId} has ${bullets.length} bullets; the maximum is ${limit}.`);
+    return{...role,tailoredDetails:bullets.join("\n")};
+  });
+  return{...output,professionalExperience};
+}

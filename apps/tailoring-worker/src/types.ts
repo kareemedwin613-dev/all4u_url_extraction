@@ -79,6 +79,7 @@ export interface TailoringPreview {
   sourceResumeId: string;
   sourceResumeNumber: number;
   generatedAt: string;
+  generationAttempts?: number;
   result: TailoringOutput;
 }
 

@@ -1,4 +1,4 @@
-import type{TailoringInput,TailoringPreview}from"./types.js";
+import type{TailoringInput,TailoringOutput,TailoringPreview}from"./types.js";
 import{validateTailoringInput}from"./validation.js";
 
 type Fetcher=typeof fetch;
@@ -57,6 +57,8 @@ export interface TailoringBatchJob {
   leaseExpiresAt:string;
   attemptNumber:number;
   input:TailoringInput;
+  // Present when an earlier attempt's preview was approved but its PDF could not be created.
+  approvedPreview?:TailoringOutput;
 }
 export type TailoringBatchNext=TailoringBatchJob|{state:string;[key:string]:unknown};
 
