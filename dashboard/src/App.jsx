@@ -48,7 +48,7 @@ import {
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { parseRoute } from "./router.js";
+import { navigate, parseRoute } from "./router.js";
 import { confirmNavigation } from "./shared/navigation-guard.js";
 import { filterHref, periodFromFilterQuery } from "./shared/filter-preferences.js";
 import { FilterPageContext, FilterPreferencesContext, useRememberedRoute } from "./shared/use-filter-preferences.js";
