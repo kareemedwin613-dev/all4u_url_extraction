@@ -78,6 +78,7 @@ import { isApplicationManager } from "./features/applications/validation.js";
 import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, saveResumeCoverLetterText, uploadResumeCoverLetter } from "./services/storage-read-service.js";
 import { CoverLetterBackfillButton, CoverLetterCard } from "./features/cover-letters/cover-letter-card.jsx";
 import { extractCoverLetterText } from "./features/cover-letters/cover-letter-text.js";
+import { ResumeHeadlineCard } from "./features/resumes/resume-headline-card.jsx";
 import {
   getMyAccessContext,
   listSystemRoles,
@@ -2896,6 +2897,15 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
             <Card size="small" title="Industries">
               <Tags values={resume.industries} empty="No industries recorded" />
             </Card>
+            {isOriginal && canManage && (
+              <ResumeHeadlineCard
+                client={client}
+                apiBaseUrl={apiBaseUrl}
+                resume={resume}
+                toast={toast}
+                onResumeChange={(next) => setResume((current) => ({ ...current, ...next }))}
+              />
+            )}
             <CoverLetterCard
               client={client}
               apiBaseUrl={apiBaseUrl}

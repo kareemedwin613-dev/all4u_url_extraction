@@ -36,3 +36,8 @@ export async function downloadCoverLetterPdf(client,{id,apiBaseUrl}){
   setTimeout(()=>URL.revokeObjectURL(url),10000);
   return filename;
 }
+export async function saveResumeHeadline(client,{id,apiBaseUrl,headline}){
+  if(!id)throw{code:"VALIDATION_ERROR",message:"The Resume reference is invalid."};
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/headline`,method:"PUT",body:{headline:String(headline||"")}});
+  return payload.data;
+}
