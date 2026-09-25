@@ -41,4 +41,4 @@ fourth output and exempts it from the summary/bullet style rules, so prompts nee
 
 ## Status
 
-The v4 compiler was reverted by `202609251200_v3_120_revert_cover_letter_compiler.sql` before any v4 job was created: new jobs compile with contract v3 / input 1.3 and produce no cover letter. The `cover_letter_text` column and `set_resume_cover_letter_text_v119` remain (inert, no data). To re-enable, add a migration that reapplies the v3.119 compiler, source input, and provenance trigger, after every worker runs this branch.
+v3.120 reverted the v4 compiler before any v4 job existed; `202609251400_v3_122_reenable_cover_letters.sql` restores the v3.119 definitions verbatim. Run the base-letter backfill before applying it, so the first v4 jobs already carry each candidate's base letter.
