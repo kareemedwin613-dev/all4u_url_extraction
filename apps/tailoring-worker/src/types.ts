@@ -43,7 +43,7 @@ export interface TailoringPromptSnapshot {
   name: string;
   version: number | null;
   instructions: string;
-  contractVersion: "2";
+  contractVersion: "2" | "3";
   referenceDate: string;
   composedPrompt: string;
   isTest?: boolean;
@@ -79,6 +79,7 @@ export interface TailoringPreview {
   sourceResumeId: string;
   sourceResumeNumber: number;
   generatedAt: string;
+  generationAttempts?: number;
   result: TailoringOutput;
 }
 

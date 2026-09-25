@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadFixture, runTailoringProof } from "./codex-runner.js";
@@ -6,13 +6,24 @@ import { claimTailoringBatchTicket, claimTailoringRunnerTicket, loadTailoringJob
 import { tailoringBatchConcurrency } from "./concurrency.js";
 import { workerEvent, workerFailure, workerResult } from "./runner-events.js";
 import { runPromptTest } from "./prompt-test-runner.js";
+import type { TailoringOutput, TailoringPreview } from "./types.js";
+import { validateTailoringInput } from "./validation.js";
 
 export function isRateLimitFailure(value:unknown){return /(?:\b429\b|rate[ -]?limit|usage limit|too many requests|quota[^.\n]*(?:exceed|reset)|capacity[^.\n]*(?:reached|exceeded))/i.test(value instanceof Error?value.message:String(value));}
 export function retryDelaySeconds(value:unknown,attempt=1){const text=value instanceof Error?value.message:String(value),match=text.match(/retry(?: after| in)?[^\d]{0,20}(\d{1,4})\s*(?:s|sec|seconds?)\b/i),fallback=60*Math.pow(2,Math.max(0,attempt-1));return Math.max(30,Math.min(900,Number(match?.[1]||fallback)));}
 const wait=(milliseconds:number)=>new Promise(resolve=>setTimeout(resolve,milliseconds));
 
+// An approved preview whose PDF failed is resubmitted as-is; regenerating it would cost a model call.
+async function reuseApprovedPreview(rawInput:unknown,result:TailoringOutput,outputPath:string):Promise<TailoringPreview>{
+  const input=validateTailoringInput(rawInput);
+  const preview:TailoringPreview={contractVersion:input.contractVersion,applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:new Date().toISOString(),generationAttempts:0,result};
+  await writeFile(outputPath,`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
+  process.stdout.write(`Reusing the approved preview for Application #${input.application.applicationNumber}; no model call is needed.\n`);
+  return preview;
+}
+
 export async function runBatch(apiBaseUrl:string,ticket:string,args:Record<string,string|boolean>,invocationDirectory:string,
-  dependencies:{claim?:typeof claimTailoringBatchTicket;next?:typeof nextTailoringBatchItem;sleep?:typeof wait}={}){
+  dependencies:{claim?:typeof claimTailoringBatchTicket;next?:typeof nextTailoringBatchItem;sleep?:typeof wait;generate?:typeof runTailoringProof;submit?:typeof submitTailoringBatchPreview;report?:typeof reportTailoringBatchFailure}={}){
   const claim=await(dependencies.claim||claimTailoringBatchTicket)(apiBaseUrl,ticket),pause=dependencies.sleep||wait;
   workerEvent("tailoring.claimed",{batchId:claim.batchId});
   const concurrency=tailoringBatchConcurrency(typeof args.concurrency==="string"?args.concurrency:undefined);
@@ -25,15 +36,15 @@ export async function runBatch(apiBaseUrl:string,ticket:string,args:Record<strin
     workerEvent("tailoring.started",{jobId:next.jobId,attempt:next.attemptNumber,stage});
     try{
       await mkdir(dirname(outputPath),{recursive:true});
-      const preview=await runTailoringProof(next.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});stage="API_SUBMISSION";
+      const preview=next.approvedPreview?await reuseApprovedPreview(next.input,next.approvedPreview,outputPath):await(dependencies.generate||runTailoringProof)(next.input,{outputPath,keepWorkspace:Boolean(args.keepWorkspace)});stage="API_SUBMISSION";
       workerEvent("tailoring.stage",{jobId:next.jobId,stage});
-      const created:any=await submitTailoringBatchPreview(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
+      const created:any=await(dependencies.submit||submitTailoringBatchPreview)(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),preview);
       workerEvent("tailoring.completed",{jobId:next.jobId,durationMs:Date.now()-started});
       process.stdout.write(`Tailored Resume${created?.tailoredResumeNumber?` #${created.tailoredResumeNumber}`:""} automatically created with ${created?.renderTemplateKey||"a random template"} for Application #${preview.applicationNumber}: ${outputPath}\n`);
     }catch(error){
-      const message=error instanceof Error?error.message:String(error),rateLimited=isRateLimitFailure(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED",retryAfterSeconds=rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined;
+      const message=error instanceof Error?error.message:String(error),validation=message.startsWith("TAILORING_VALIDATION_FAILED:"),rateLimited=!validation&&isRateLimitFailure(error),code=rateLimited?"PROVIDER_RATE_LIMIT":validation?"VALIDATION_FAILED":stage==="API_SUBMISSION"?"API_SUBMISSION_FAILED":"CODEX_FAILED",retryAfterSeconds=rateLimited?retryDelaySeconds(error,Number(next.attemptNumber||1)):undefined;
       if(retryAfterSeconds)providerPauseUntil=Math.max(providerPauseUntil,Date.now()+retryAfterSeconds*1000);
-      await reportTailoringBatchFailure(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),{stage:validation?"OUTPUT_VALIDATION":stage,code,message,retryable:!validation,rateLimited,retryAfterSeconds}).catch(reportError=>process.stderr.write(`Failure diagnostics could not be recorded: ${reportError instanceof Error?reportError.message:String(reportError)}\n`));
+      await(dependencies.report||reportTailoringBatchFailure)(apiBaseUrl,ticket,String(next.itemId),String(next.leaseToken),{stage:validation?"OUTPUT_VALIDATION":stage,code,message,retryable:!validation,rateLimited,retryAfterSeconds}).catch(reportError=>process.stderr.write(`Failure diagnostics could not be recorded: ${reportError instanceof Error?reportError.message:String(reportError)}\n`));
       process.stderr.write(`Tailoring job ${next.jobId} failed after ${Date.now()-started} ms [${code}]: ${message}\n`);
       const diagnostic=error as {exitCode?:number;signal?:string};
       workerEvent("tailoring.failed",{jobId:next.jobId,stage,code,durationMs:Date.now()-started,exitCode:diagnostic?.exitCode,signal:diagnostic?.signal});

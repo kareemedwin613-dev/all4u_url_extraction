@@ -39,6 +39,7 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   const validator=migration('202608310108_v3_31_minimal_tailoring_validation.sql');
   await db.exec(validator.slice(validator.indexOf('create or replace function public.assert_tailoring_preview_v14'),validator.indexOf('$$;',validator.indexOf('create or replace function public.assert_tailoring_preview_v14'))+3));
   await db.exec(migration('202609241020_v3_113_tailoring_prompt_draft_tests.sql'));
+  await db.exec(migration('202609241100_v3_117_tailoring_prompt_source_context.sql'));
   const value=async(sql,args=[]) => (await db.query(sql,args)).rows[0]?.result;
   const createJob=async n=>db.query('insert into tailoring_jobs(id,application_id,resume_id,job_description_id) values($1,$2,$3,$4)',[id(n),id(30),id(20),id(10)]);
   const input=n=>value('select build_tailoring_input_v21($1) result',[id(n)]);
@@ -56,9 +57,14 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   await t.test('new jobs capture exact prompt and source; old jobs stay explicitly legacy',async()=>{
     await createJob(41); captured=await input(41);
     assert.equal(captured.contractVersion,'1.3'); assert.equal(captured.promptSnapshot.version,1);
-    assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v2/);
+    assert.equal(captured.promptSnapshot.contractVersion,'3');
+    assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v3/);
     assert.match(captured.promptSnapshot.composedPrompt,/"bullets": 7/);
-    assert.doesNotMatch(captured.promptSnapshot.composedPrompt,/Original details|Original summary/);
+    // The model must see the candidate's real experience to reframe it rather than invent it.
+    const context=JSON.parse(captured.promptSnapshot.composedPrompt.split('BEGIN_UNTRUSTED_INPUT_JSON\n')[1].split('\nEND_UNTRUSTED_INPUT_JSON')[0]);
+    assert.equal(context.sourceResume.summary,'Original summary');
+    assert.equal(context.sourceResume.professionalExperience[0].details,'Original details');
+    assert.equal('id' in context.jobDescription,false);
     assert.equal((await input(40)).contractVersion,'1.2');
     await db.query('update tailoring_jobs set application_id=application_id where id=$1',[id(40)]);
     assert.equal((await input(40)).contractVersion,'1.2');

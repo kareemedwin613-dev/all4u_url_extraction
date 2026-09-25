@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { validateTailoringInput, validateTailoringOutput } from "../src/validation.js";
+import { enforceGenerationContract, MAX_SUMMARY_WORDS, validateTailoringInput, validateTailoringOutput } from "../src/validation.js";
 import { compliantOutput, validationDate } from "./compliant-output.js";
 
 const fixturePath=fileURLToPath(new URL("../fixtures/application-19.json",import.meta.url));
@@ -79,4 +79,17 @@ test("allows short summaries, reordered skills, and ambiguous dates without warn
   assert.deepEqual(validateTailoringOutput(reorderedSkills,input,validationDate).skills,reorderedSkills.skills);
   const ambiguousInput={...input,sourceResume:{...input.sourceResume,professionalExperience:input.sourceResume.professionalExperience.map((item,index)=>index?item:{...item,startDate:"2022"})}},ambiguousOutput={...validOutput,professionalExperience:validOutput.professionalExperience.map((item,index)=>index?item:{...item,tailoredDetails:item.tailoredDetails.split("\n").slice(0,4).join("\n")})};
   assert.doesNotThrow(()=>validateTailoringOutput({...ambiguousOutput,warnings:[]},ambiguousInput,validationDate));
+});
+
+test("generation contract enforces bullet limits and format, normalizing only marker variants",()=>{
+  const targets=[{sourceExperienceId:"amazon-data-engineer",bullets:5},{sourceExperienceId:"contoso-data-engineer",bullets:2}];
+  const role=(tailoredDetails:string)=>({...validOutput,professionalExperience:[validOutput.professionalExperience[0],{sourceExperienceId:"contoso-data-engineer",tailoredDetails}]});
+  assert.equal(enforceGenerationContract(role("• Built ingestion.\r\n\r\n*Tuned queries."),targets).professionalExperience[1].tailoredDetails,"- Built ingestion.\n- Tuned queries.");
+  assert.equal(enforceGenerationContract(role("- Built ingestion."),targets).professionalExperience[1].tailoredDetails,"- Built ingestion.");
+  assert.throws(()=>enforceGenerationContract(role("- One.\n- Two.\n- Three."),targets),/contoso-data-engineer has 3 bullets; the maximum is 2/);
+  assert.throws(()=>enforceGenerationContract(role("Data Platform\n- Built ingestion."),targets),/must be a bullet starting with "- "; found "Data Platform"/);
+  assert.throws(()=>enforceGenerationContract(role("- Built ingestion.\n-"),targets),/must not be empty/);
+  assert.throws(()=>enforceGenerationContract({...validOutput,summary:"First paragraph.\n\nSecond."},targets),/one paragraph/);
+  assert.throws(()=>enforceGenerationContract({...validOutput,summary:Array(MAX_SUMMARY_WORDS+1).fill("word").join(" ")},targets),/the maximum is 160/);
+  assert.equal(enforceGenerationContract(validOutput,[]).professionalExperience[0].tailoredDetails,validOutput.professionalExperience[0].tailoredDetails);
 });

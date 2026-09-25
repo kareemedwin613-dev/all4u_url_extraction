@@ -1,7 +1,8 @@
 # Retire JavaScript / TypeScript Engineering
 
 Prepared migration: `202609241040_v3_115_retire_javascript_typescript_subtype.sql`.
-Status: tested locally, **not applied to the linked database**.
+Status: applied to the linked database on 2026-09-24 after the migration-history
+audit/repair. The final migration dry run reports the database is up to date.
 
 The preflight found 83 JD junction assignments and 25 tagged active original
 resumes. The category itself is retained with `active=false`. Its JD/resume
@@ -34,7 +35,7 @@ Six PostgreSQL-backed checks passed, covering cleanup/recovery records, preserve
 skills and applications, primary-category preservation, matching before/after
 retagging, stale client rejection, and audit-table permissions.
 
-## Deployment blocker
+## Resolved deployment blocker
 
 The migration dry run reports `LegacyDbPushMissingRemoteError` and asks to replay
 12 older local migrations dated September 20-23. Some corresponding behavior is
@@ -43,16 +44,32 @@ scoped blocking functions. Do not run `--include-all` blindly: that list include
 the earlier JD-wide sibling-blocking migration. Audit/reconcile the missing history
 with the authoritative deployment records first; do not mark migrations applied
 solely because one function appears present. No history repairs or production
-changes were made during this retirement task.
+changes were made during the initial retirement task.
 
-Once history is reconciled and the dry run proposes only the intended retirement,
-apply it through the normal migration workflow, then run:
+In the subsequent authorized repair, the existing review schema, keys/indexes,
+RLS/grants, active subtype, and whitespace-normalized function bodies were audited.
+Six already-present/superseded migration entries (202609231000 through 202609231500)
+were marked applied. The missing v110 was then applied, followed by v115 and a new
+v116 restoring the priority/due-date fix overwritten by the older replay. No review
+tables were dropped. `scripts/sql/audit-september-migration-state.sql` and
+`scripts/sql/verify-september-migration-repair.sql` document the checks.
+
+Important: before this repair, the user's older v106 replay recorded 8,941
+`CANCELLED` → `BLOCKED` application transitions at 2026-09-24 20:01:18 UTC. This repair
+does not reverse those historical row changes. Any recovery must be separately
+authorized and protect applications updated since that timestamp. New JD-wide
+cascades are disabled, and the priority/due-date preservation checks pass.
+
+Post-deployment verification can be repeated with:
 
 ```powershell
 npx supabase db query --linked --file scripts/sql/verify-javascript-typescript-retirement.sql
 ```
 
-Expected: `active=false`, zero remaining subtype assignments, nonzero recovery
-records, and `unwanted_primary_only_matches=0`. Removed taxonomy assignments can
+Verified: `active=false`, zero remaining subtype assignments, 3,840 recovery
+records, and both matching retirement guards enabled. There were 83 affected JDs;
+19 have no remaining subtype and are excluded until retagged. The post-deployment
+check uses function-definition guards rather than an expensive production-wide
+JD/resume Cartesian matching query. Removed taxonomy assignments can
 be reconstructed from the recovery table if an explicit rollback is requested;
 do not overwrite subsequent human/AI retagging when doing so.

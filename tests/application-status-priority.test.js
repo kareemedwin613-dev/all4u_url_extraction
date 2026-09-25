@@ -7,7 +7,9 @@ const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 const fix=read('../supabase/migrations/202609241030_v3_114_application_status_preserve_priority.sql');
 const legacy=read('../supabase/migrations/202609151400_v3_85_block_jd_on_application_blocked.sql');
 const start=legacy.indexOf('create or replace function public.update_application_status_v101(');
-const definitions={v85:legacy.slice(start,legacy.indexOf('$$;',start)+3),v110:read('./fixtures/application-status-v110.sql')};
+const definitions={v85:legacy.slice(start,legacy.indexOf('$$;',start)+3),v110:read('./fixtures/application-status-v110.sql'),
+  v116:read('../supabase/migrations/202609211800_v3_106_block_siblings_on_job_block.sql').match(/create or replace function public.update_application_status_v101\([\s\S]*?\$\$;/)[0]};
+const restore=read('../supabase/migrations/202609241050_v3_116_restore_application_status_guards.sql');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const due='2026-10-01T00:00:00+00:00';
 
@@ -53,7 +55,8 @@ for(const[version,definition]of Object.entries(definitions))test(`${version}: st
   };
   await actor();
   await assert.rejects(()=>update(),/APPLICATION_INVALID_PRIORITY/,'reproduce the exact extension failure before the patch');
-  await db.exec('reset role'); await db.exec(fix);
+  await db.exec('reset role'); await db.exec(version==='v116'?restore:fix);
+  if(version==='v116')await db.exec(restore); // Fresh/repaired/retried restores are idempotent.
   await t.test('admin, manager and multi-role accounts can mark Applied without editing priority',async()=>{
     for(const roles of ['ADMIN','APPLYING_MANAGER','ADMIN,APPLIER']){
       await reset();await actor(roles);
@@ -89,7 +92,7 @@ for(const[version,definition]of Object.entries(definitions))test(`${version}: st
     await actor('ADMIN',id(99),false);await assert.rejects(()=>update(),/APPLICATION_ACCESS_DENIED/);
     await db.exec('reset role; set role anon');await assert.rejects(()=>update(),/permission denied/);
   });
-  if(version==='v110')await t.test('local blocking stays local: no JD block or sibling cancellation is restored',async()=>{
+  if(version==='v110'||version==='v116')await t.test('local blocking stays local: no JD block or sibling cancellation is restored',async()=>{
     await reset();await actor('APPLIER',id(20));
     const row=await update({status:'BLOCKED',notes:'References required'});assert.equal(row.status,'BLOCKED');assert.equal(row.siblings_cancelled,0);
     assert.equal((await db.query('select status from applications where id=$1',[id(2)])).rows[0].status,'ASSIGNED');

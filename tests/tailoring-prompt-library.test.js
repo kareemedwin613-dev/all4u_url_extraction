@@ -65,7 +65,8 @@ test("versioned prompt library executes publication, selection, and permission r
     assert.equal(prompts.length, 1);
     assert.equal("draft_body" in prompts[0], false);
     generic = await detail(prompts[0]);
-    assert.equal(generic.versions[0].body, baseline);
+    // A Windows checkout gives the migration CRLF line endings; the seeded text is otherwise identical.
+    assert.equal(generic.versions[0].body.replace(/\r\n/g, "\n"), baseline);
     assert.equal(generic.versions[0].contract_version, "1");
     assert.equal(generic.events[0].action, "SEED");
     assert.equal((await preview(101)).scope, "GENERIC");

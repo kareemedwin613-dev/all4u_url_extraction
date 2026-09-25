@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TailoringInput, TailoringOutput, TailoringPreview } from "./types.js";
-import { buildTailoringPrompt, tailoringModelContext } from "./prompt.js";
+import { buildTailoringPrompt, tailoringModelContext, tailoringRoleTargets } from "./prompt.js";
 import{MAX_TAILORED_SKILLS,reconcileSkillGroups}from"./skill-groups.js";
-import { validateTailoringInput, validateTailoringModelOutput } from "./validation.js";
+import { enforceGenerationContract, validateTailoringInput, validateTailoringModelOutput } from "./validation.js";
 
 const moduleDirectory=dirname(fileURLToPath(import.meta.url));
 export const OUTPUT_SCHEMA_PATH=resolve(moduleDirectory,"../schemas/tailoring-output.schema.json");
@@ -51,6 +51,12 @@ export function codexPerformanceArgs(environment:NodeJS.ProcessEnv=process.env){
   return["--model",model,"-c",`model_reasoning_effort="${effort}"`,"-c",'model_reasoning_summary="none"',"-c",`service_tier="${tier}"`];
 }
 
+// On Windows the child is the Node launcher; child.kill() would leave the native Codex process running.
+export function stopProcessTree(child:{pid?:number;kill:()=>unknown},platform=process.platform,launch:typeof spawn=spawn){
+  if(platform!=="win32"||!child.pid){child.kill();return;}
+  launch("taskkill",["/pid",String(child.pid),"/T","/F"],{windowsHide:true,stdio:"ignore"}).on("error",()=>child.kill());
+}
+
 export const executeCodex:CodexExecutor=async request=>new Promise((accept,reject)=>{
   const invocation=resolveCodexInvocation();
   const args=["exec",...codexPerformanceArgs(),"--ephemeral","--sandbox","read-only","--ignore-user-config","--skip-git-repo-check","--output-schema",request.schemaPath,"-o",request.outputPath,"-"];
@@ -61,7 +67,7 @@ export const executeCodex:CodexExecutor=async request=>new Promise((accept,rejec
   child.stderr.on("data",value=>{stderr=append(stderr,value);});
   const timer=setTimeout(()=>{
     if(settled)return;
-    settled=true;child.kill();reject(new Error(`Codex execution exceeded ${request.timeoutMs} ms.`));
+    settled=true;stopProcessTree(child);reject(new Error(`Codex execution exceeded ${request.timeoutMs} ms.`));
   },request.timeoutMs);
   child.on("error",error=>{if(settled)return;settled=true;clearTimeout(timer);reject(error);});
   child.on("close",(code,signal)=>{
@@ -93,9 +99,22 @@ export function specializeOutputSchema(schema:Record<string,any>,input:Tailoring
   return result;
 }
 
-export function completeAtsSkills(generatedSkills:string[],jobSkills:string[],sourceSkills:string[]){
+const normalizeSkill=(value:string)=>value.trim().replace(/\s+/g," ");
+const escapeRegExp=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+// Short terms (C, R, Go) match too much ordinary prose to count as evidence; they need the candidate's skills list.
+export function skillEvidenced(skill:string,evidence:string){
+  const term=normalizeSkill(skill);
+  if(term.length<3)return false;
+  return new RegExp(`(?<![A-Za-z0-9])${term.split(" ").map(escapeRegExp).join("\\s+")}(?![A-Za-z0-9])`,"i").test(evidence);
+}
+
+// JD skills lead for ATS ordering, but only those the candidate's skills list or resume text supports.
+// Model additions must also appear in the resume text; the JD alone never adds a skill.
+export function completeAtsSkills(generatedSkills:string[],jobSkills:string[],sourceSkills:string[],evidence=""){
+  const owned=new Set(sourceSkills.map(skill=>normalizeSkill(skill).toLocaleLowerCase()));
+  const supported=(skill:string)=>owned.has(normalizeSkill(skill).toLocaleLowerCase())||skillEvidenced(skill,evidence);
   const seen=new Set<string>(),result:string[]=[];
-  for(const raw of [...jobSkills,...sourceSkills,...generatedSkills]){
+  for(const raw of [...jobSkills.filter(supported),...sourceSkills,...generatedSkills.filter(skill=>skillEvidenced(skill,evidence))]){
     const skill=raw.trim().replace(/\s+/g," "),key=skill.toLocaleLowerCase();
     if(!skill||seen.has(key))continue;
     seen.add(key);result.push(skill);
@@ -104,19 +123,38 @@ export function completeAtsSkills(generatedSkills:string[],jobSkills:string[],so
   return result;
 }
 
+// One repair attempt: the rejection reason is worker-written text, appended after the saved prompt.
+export const MAX_GENERATION_ATTEMPTS=2;
+export const repairPrompt=(prompt:string,reason:string)=>`${prompt}
+
+PREVIOUS ATTEMPT REJECTED
+The worker rejected your previous JSON: ${reason}
+Return a corrected JSON object that fixes this and still follows every rule above.`;
+
 export async function runTailoringProof(rawInput:unknown,options:RunProofOptions):Promise<TailoringPreview>{
   const input=validateTailoringInput(rawInput),workspace=await mkdtemp(resolve(tmpdir(),"resume-tailoring-v12-"));
-  const schemaSource=resolve(options.schemaPath||OUTPUT_SCHEMA_PATH),schemaPath=resolve(workspace,"tailoring-output.schema.json"),resultPath=resolve(workspace,"codex-result.json"),prompt=buildTailoringPrompt(input),modelContext=tailoringModelContext(input),schema=specializeOutputSchema(JSON.parse(await readFile(schemaSource,"utf8")),input);
+  // Saved prompts computed ROLE_TARGETS_JSON at snapshot time; enforce the same limits.
+  const referenceDate=input.promptSnapshot?new Date(input.promptSnapshot.referenceDate):new Date(),targets=tailoringRoleTargets(input,referenceDate);
+  const schemaSource=resolve(options.schemaPath||OUTPUT_SCHEMA_PATH),schemaPath=resolve(workspace,"tailoring-output.schema.json"),resultPath=resolve(workspace,"codex-result.json"),prompt=buildTailoringPrompt(input,referenceDate),modelContext=tailoringModelContext(input),schema=specializeOutputSchema(JSON.parse(await readFile(schemaSource,"utf8")),input);
+  const evidence=[input.sourceResume.summary,...input.sourceResume.professionalExperience.map(role=>role.details)].join("\n");
   try{
     await Promise.all([
       writeFile(resolve(workspace,"input.json"),`${JSON.stringify(modelContext)}\n`,"utf8"),
       writeFile(resolve(workspace,"prompt.md"),`${prompt}\n`,"utf8"),
       writeFile(schemaPath,`${JSON.stringify(schema,null,2)}\n`,"utf8")
     ]);
-    await(options.execute||executeCodex)({workspace,prompt,schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
-    const generatedAt=options.now?.()||new Date();
-    let result:TailoringOutput;try{const generated=validateTailoringModelOutput(JSON.parse(await readFile(resultPath,"utf8")),input),skills=completeAtsSkills(generated.skills,input.jobDescription.skills,input.sourceResume.skills);result={...generated,skills,skillGroups:reconcileSkillGroups(skills),changeSummary:[],unsupportedRequirements:[],warnings:[]};}catch(error){throw new Error(`TAILORING_VALIDATION_FAILED: ${error instanceof Error?error.message:String(error)}`,{cause:error});}
-    const preview:TailoringPreview={contractVersion:input.contractVersion,applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),result};
+    let generated:Pick<TailoringOutput,"summary"|"professionalExperience"|"skills">|undefined,rejection="",attempts=0;
+    while(!generated&&attempts<MAX_GENERATION_ATTEMPTS){
+      attempts++;
+      await rm(resultPath,{force:true});
+      await(options.execute||executeCodex)({workspace,prompt:attempts===1?prompt:repairPrompt(prompt,rejection),schemaPath,outputPath:resultPath,timeoutMs:options.timeoutMs||300000});
+      try{generated=enforceGenerationContract(validateTailoringModelOutput(JSON.parse(await readFile(resultPath,"utf8")),input),targets);}
+      catch(error){rejection=error instanceof Error?error.message:String(error);}
+    }
+    if(!generated)throw new Error(`TAILORING_VALIDATION_FAILED: ${rejection}`);
+    const generatedAt=options.now?.()||new Date(),skills=completeAtsSkills(generated.skills,input.jobDescription.skills,input.sourceResume.skills,evidence);
+    const result:TailoringOutput={...generated,skills,skillGroups:reconcileSkillGroups(skills),changeSummary:[],unsupportedRequirements:[],warnings:[]};
+    const preview:TailoringPreview={contractVersion:input.contractVersion,applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),generationAttempts:attempts,result};
     if(input.promptSnapshot){const{instructions:_instructions,composedPrompt:_prompt,...provenance}=input.promptSnapshot;preview.promptProvenance=provenance;}
     await writeFile(resolve(options.outputPath),`${JSON.stringify(preview,null,2)}\n`,{encoding:"utf8",flag:"wx"});
     return preview;
