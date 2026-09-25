@@ -32,6 +32,9 @@ Migration: `202609251000_v3_119_tailored_cover_letters.sql`.
 1. Apply the migration before deploying the API: the Resume detail query reads the new column.
 2. Deploy the API and dashboard, then update every worker (contract `1.4` / `v4`).
    Older workers stop with "Update the tailoring worker" on new jobs.
-3. Add a cover letter section to each published tailoring prompt (Generic and primary
-   category prompts), so the editable instructions agree with the fixed contract.
-4. Run the backfill, spot-check a few base letters, then draft-test a prompt.
+3. Run the backfill, spot-check a few base letters, then draft-test a prompt.
+
+Cover letter guidance lives in the fixed compiler contract, not in the editable prompts:
+most prompts are near the 20,000-character limit, and they share a core that lists only
+three outputs and forbids first-person pronouns. The contract makes `coverLetter` a required
+fourth output and exempts it from the summary/bullet style rules, so prompts need no edits.
