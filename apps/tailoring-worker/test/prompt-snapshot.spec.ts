@@ -16,6 +16,10 @@ test('saved v2 prompt is used verbatim regardless of retry date',()=>{
   assert.equal(buildTailoringPrompt(input,new Date('2030-01-01')),snapshot.composedPrompt);
   const whitespace=validateTailoringInput({...fixture,contractVersion:'1.3',promptSnapshot:{...snapshot,composedPrompt:'  Saved prompt\n'}});
   assert.equal(buildTailoringPrompt(whitespace),'  Saved prompt\n');
+  // Compiler v3 adds source context but keeps the same output contract; frozen v2 jobs still run.
+  const v3=validateTailoringInput({...fixture,contractVersion:'1.3',promptSnapshot:{...snapshot,contractVersion:'3'}});
+  assert.equal(v3.promptSnapshot?.contractVersion,'3');
+  assert.equal(buildTailoringPrompt(v3),snapshot.composedPrompt);
   for(const patch of [{contractVersion:'9'},{version:0},{composedPrompt:''},{referenceDate:'invalid'}])
     assert.throws(()=>validateTailoringInput({...fixture,contractVersion:'1.3',promptSnapshot:{...snapshot,...patch}}));
   assert.throws(()=>validateTailoringInput({...fixture,contractVersion:'1.3'}),/snapshot/);

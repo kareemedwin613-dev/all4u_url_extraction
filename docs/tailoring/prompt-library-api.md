@@ -122,7 +122,8 @@ Tests snapshot the saved draft revision, never publish, and never create/assign 
 resume. The local test command loads `apps/tailoring-worker/.env`. Claiming returns
 input contract `1.3` with `promptSnapshot.isTest=true`, `version=null`, and
 `draftRevision`. Normal jobs use an immutable published numeric version. Both have
-fixed compiler contract `2`, exact `composedPrompt`, and `referenceDate`.
+a fixed compiler contract (`3` for new snapshots, `2` for earlier ones), exact
+`composedPrompt`, and `referenceDate`.
 
 New job inputs are snapshotted on creation, not on claim. Current published prompt
 selection never overrides an existing job snapshot. Public job metadata uses

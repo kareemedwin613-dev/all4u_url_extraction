@@ -56,14 +56,14 @@ export function validateTailoringInput(value:unknown):TailoringInput{
   let promptSnapshot:import("./types.js").TailoringPromptSnapshot|undefined;
   if(value.contractVersion==="1.3"){
     const s=value.promptSnapshot;
-    if(!object(s)||s.contractVersion!=="2")throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: A v2 prompt snapshot is required.");
+    if(!object(s)||(s.contractVersion!=="2"&&s.contractVersion!=="3"))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: A v2 or v3 prompt snapshot is required.");
     exactKeys(s,["promptId","name","version","instructions","contractVersion","referenceDate","composedPrompt","scope","primaryCategoryId","subcategoryId","priority","jobDescriptionId","reason","isTest","draftRevision"],"promptSnapshot");
     if(!UUID.test(clean(s.promptId))||!Number.isFinite(Date.parse(String(s.referenceDate))))throw new Error("Invalid prompt snapshot identity or reference date.");
     if(s.isTest!==undefined&&typeof s.isTest!=="boolean")throw new Error("Invalid prompt snapshot test flag.");
     if(s.isTest===true?(!Number.isSafeInteger(s.draftRevision)||Number(s.draftRevision)<1||s.version!==null):(!Number.isSafeInteger(s.version)||Number(s.version)<1))throw new Error("Invalid prompt snapshot version.");
     boundedText(s.composedPrompt,"composed prompt",1,2000000);
     promptSnapshot={...s,promptId:clean(s.promptId),name:boundedText(s.name,"prompt name",1,120),version:s.version as number|null,
-      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:"2",referenceDate:String(s.referenceDate),
+      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion,referenceDate:String(s.referenceDate),
       composedPrompt:s.composedPrompt as string};
   }
   const application=value.application,job=value.jobDescription,resume=value.sourceResume;

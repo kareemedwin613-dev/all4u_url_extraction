@@ -71,12 +71,16 @@ retained and remains accessible by its test ID through the manager API.
 - Instructions are selected from the **JD**, not the resume's categories.
 - Missing/archived/unpublished overrides fall back to primary, then Generic.
 - New jobs atomically save input, selected body/version, exact composed prompt,
-  compiler contract `2`, and role-target reference date. Retries read that snapshot;
+  compiler contract, and role-target reference date. Retries read that snapshot;
   publication and source text edits do not recompose it. Existing source eligibility
   checks still run. Personal/role/date rendering remains source-controlled.
 - Prompt body publication metadata and the fixed compiler contract are separately
-  versioned. Generic body v1 remains the original writing instructions; compiler v2
+  versioned. Generic body v1 remains the original writing instructions; the compiler
   appends the non-editable JSON/role/skill rules after dashboard instructions.
+- Compiler v3 (migration v3.117) adds `sourceResume.summary` and each role's
+  `details` to the model context, and its fixed rules require content grounded in
+  them (fewer bullets rather than invented ones). Earlier v2 snapshots stay frozen
+  without source content; workers accept both. The output schema is unchanged.
 - Authenticated, single-ticket, and batch inputs expose the same snapshot contract.
 - Job/resume detail displays name/version. Full prompt/input text is not returned
   in ordinary listing metadata or written to terminal logs.
