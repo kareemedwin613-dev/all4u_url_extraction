@@ -8,7 +8,7 @@ test("dashboard is rooted in the Ant Design provider and App context",async()=>{
 
 test("primary dashboard workflows use Ant Design components",async()=>{const files=await Promise.all([read("../src/App.jsx"),read("../src/pages/admin-pages.jsx"),read("../src/features/applications/application-pages.jsx"),read("../src/features/resume-upload/resume-upload-page.jsx")]);for(const source of files)assert.match(source,/from "antd"/);for(const component of ["Layout","Menu","Table","Form","Upload","Descriptions","Alert","Card"])assert.ok(files.some(source=>source.includes(component)),`${component} is used`);});
 
-test("authenticated shell shows the saved profile name with email fallback",async()=>{const app=await read("../src/App.jsx");assert.match(app,/access\?\.fullName/);assert.match(app,/profileName\s*\|\|\s*access\?\.email/);});
+test("authenticated shell shows the saved profile name with email fallback",async()=>{const app=await read("../src/App.jsx");assert.match(app,/access\?\.fullName/);assert.match(app,/personDisplayName\(\{\s*fullName: profileName,\s*email: access\?\.email/);});
 
 test("dashboard Sider follows the collapsible overlay interaction",async()=>{
   const [app,css]=await Promise.all([read("../src/App.jsx"),read("../src/styles/antd-dashboard.css")]);

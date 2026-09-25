@@ -10,7 +10,7 @@ test("v1.7 Applier list is one set-based caller-scoped RPC",async()=>{
   const result:any=await service.mine(user,{status:"ASSIGNED",sort:"updated_desc",limit:100,resumeId:"223e4567-e89b-42d3-a456-426614174000"});
   assert.equal(calls.length,1);
   assert.equal(calls[0].name,"list_my_applications_v20");
-  assert.deepEqual(calls[0].args,{p_status:"ASSIGNED",p_sort:"updated_desc",p_limit:100,p_resume_id:"223e4567-e89b-42d3-a456-426614174000"});
+  assert.deepEqual(calls[0].args,{p_status:"ASSIGNED",p_sort:"updated_desc",p_limit:100,p_resume_id:"223e4567-e89b-42d3-a456-426614174000",p_screenshot_feedback:""});
   assert.equal(result.items[0].resume_number,42);
   assert.equal(result.resumes[0].resumeName,"Alex");
   assert.equal(result.total,1);

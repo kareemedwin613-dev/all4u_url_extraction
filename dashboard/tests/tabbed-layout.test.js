@@ -54,5 +54,6 @@ test("primary paginated tables use bounded viewport scrolling", async () => {
     read("../src/pages/admin-pages.jsx"),
     read("../src/features/bulk-applications/bulk-pages.jsx"),
   ]);
-  for (const source of sources) assert.match(source, /y: "calc\(100vh - /);
+  // Bounded either by the shared measured-height hook or an explicit viewport calc.
+  for (const source of sources) assert.match(source, /useTableBodyHeight\(|y: "calc\(100vh - /);
 });
