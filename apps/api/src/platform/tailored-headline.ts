@@ -49,8 +49,10 @@ export function tailoredHeadline(jobTitle: unknown, resumeSeniority: unknown, co
   let title = cleanJobTitle(jobTitle, company).replace(/\bfounding\b/gi, " ");
   // A plural role ("Data Engineers Databricks") is a posting headline, not a person's title.
   if (/\b(?:engineers|developers|scientists|analysts|architects)\b/i.test(title)) return null;
-  if (!title || !ROLE_NOUN.test(title) || NOISE.test(title)) return null;
+  if (!title || NOISE.test(title)) return null;
+  // Management titles need no IC role noun ("Engineering Manager"), but only managers may use them.
   if (MANAGEMENT.test(title)) return MANAGEMENT_SENIORITIES.has(seniority) && title.length <= 60 ? title : null;
+  if (!ROLE_NOUN.test(title)) return null;
   const found = LEVEL_WORDS.filter(([pattern]) => { pattern.lastIndex = 0; return pattern.test(title); });
   const highest = found.length ? Math.max(...found.map(([, rank]) => rank)) : -1, cap = IC_RANK[seniority];
   // Never claim a level above the Resume's. Unknown seniority keeps no level word at all.
