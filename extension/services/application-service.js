@@ -162,6 +162,16 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
   return{...data,downloadId,downloadName};
 }
+// The server renders the letter (tailored if the attached Resume has one, else the base letter) and
+// checks Application access, so no Storage read of the original Resume's upload is needed here.
+export async function downloadApplicationCoverLetter(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
+  const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter`,{timeoutMs:30000});
+  if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(String(data?.contentBase64||""))||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter download metadata is invalid.");
+  const downloadName=safeDownloadName(data.filename||"Cover Letter.pdf");
+  const downloadId=await downloadImpl({url:`data:application/pdf;base64,${data.contentBase64}`,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
+  if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_COVER_LETTER_DOWNLOAD_FAILED","Chrome could not start the cover letter download.");
+  return{kind:data.kind,downloadId,downloadName};
+}
 export async function listApplicationScreenshots(client,_baseUrl,applicationId){
   const{data,error}=await client.from("application_screenshots")
     .select("id,storage_bucket,storage_path,original_filename,mime_type,file_size_bytes,created_at")
