@@ -1,13 +1,17 @@
 // Extracts the body of an uploaded cover letter as editable text. The header (name, contact),
 // greeting, and sign-off are dropped: the tailoring renderer adds them from the Resume.
 const SALUTATION=/^(?:dear\b|to whom it may concern|hello\b|hi\b|greetings\b)/i;
-const SIGN_OFF=/^(?:sincerely|yours sincerely|yours truly|best regards|kind regards|warm regards|regards|respectfully|best wishes|thank you)[,.!]?$/i;
+const SIGN_OFF=/^(?:sincerely|yours sincerely|yours truly|best regards|kind regards|warm regards|regards|respectfully|best wishes|thank you)([,.!]?)(.*)$/i;
+// A capitalized name may follow on the same line ("Sincerely,Derek Myers" from some DOCX files),
+// but "Thank you for your time." is body text, not a sign-off.
+const NAME=/^\s*\p{Lu}[\p{L}.'-]*(?:\s+\p{Lu}[\p{L}.'-]*){0,3}$/u;
+const isSignOff=line=>{const match=SIGN_OFF.exec(line);return Boolean(match)&&(!match[2]||(Boolean(match[1])&&NAME.test(match[2])));};
 export const MAX_COVER_LETTER_TEXT=20000;
 
 export function cleanCoverLetterBody(raw){
   const lines=String(raw||"").replace(/\0/g,"").replace(/\r\n?/g,"\n").split("\n").map(line=>line.replace(/\s+/g," ").trim());
   const salutation=lines.findIndex(line=>SALUTATION.test(line)),start=salutation<0?0:salutation+1;
-  const signOff=lines.findIndex((line,index)=>index>=start&&line.length<=40&&SIGN_OFF.test(line)),end=signOff<0?lines.length:signOff;
+  const signOff=lines.findIndex((line,index)=>index>=start&&line.length<=60&&isSignOff(line)),end=signOff<0?lines.length:signOff;
   const paragraphs=[];let current=[];
   for(const line of lines.slice(start,end)){
     if(line)current.push(line);

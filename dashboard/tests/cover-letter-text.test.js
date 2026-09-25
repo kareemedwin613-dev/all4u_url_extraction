@@ -28,3 +28,9 @@ test("PDF paragraph breaks come from vertical gaps larger than normal line spaci
   ];
   assert.equal(cleanCoverLetterBody(joinPdfLines(lines)), "First paragraph line one, line two.\n\nSecond paragraph. Continues here.\n\nThird paragraph on a new page.");
 });
+
+test("a sign-off with the name on the same line is removed, but a short thank-you sentence is kept", () => {
+  assert.equal(cleanCoverLetterBody("Dear Team,\nFirst paragraph.\n\nThank you for your time.\n\nSincerely,Derek Myers"), "First paragraph.\n\nThank you for your time.");
+  assert.equal(cleanCoverLetterBody("Dear Team,\nFirst paragraph.\n\nBest regards, Ana María López"), "First paragraph.");
+  assert.equal(cleanCoverLetterBody("Dear Team,\nFirst paragraph.\n\nRegards to the whole team, as always.\nMore text."), "First paragraph.\n\nRegards to the whole team, as always. More text.");
+});
