@@ -75,7 +75,9 @@ import {
 } from "./features/overview/overview-count-cards.jsx";
 import { getApplicationCounts, getApplierProfileWorkload } from "./features/applications/application-service.js";
 import { isApplicationManager } from "./features/applications/validation.js";
-import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, uploadResumeCoverLetter } from "./services/storage-read-service.js";
+import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLetter, saveResumeCoverLetterText, uploadResumeCoverLetter } from "./services/storage-read-service.js";
+import { CoverLetterBackfillButton, CoverLetterCard } from "./features/cover-letters/cover-letter-card.jsx";
+import { extractCoverLetterText } from "./features/cover-letters/cover-letter-text.js";
 import {
   getMyAccessContext,
   listSystemRoles,
@@ -2046,6 +2048,9 @@ function Resumes({ client, apiBaseUrl, categories, query, reload, access }) {
         <Loading text="Loading resumes…" />
       ) : (
         <Card className="page-list-card">
+          {hasCapability(access, CAPABILITIES.APPLICATION_MANAGE) && (
+            <CoverLetterBackfillButton client={client} apiBaseUrl={apiBaseUrl} toast={toast} />
+          )}
           <div ref={tableHostRef} className="page-list-table-host">
           <AntTable
             rowKey="id"
@@ -2715,6 +2720,15 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
       const next = await uploadResumeCoverLetter(client, { id: resume.id, apiBaseUrl, file });
       setResume((current) => ({ ...current, ...next }));
       toast("success", hasCoverLetter ? "Cover Letter replaced." : "Cover Letter uploaded.");
+      // Tailoring reads the base letter as text; keep it in step with the new upload.
+      try {
+        const text = await extractCoverLetterText(file, { mimeType: file.type, filename: file.name });
+        const saved = await saveResumeCoverLetterText(client, { id: resume.id, apiBaseUrl, text });
+        setResume((current) => ({ ...current, ...saved }));
+        toast("success", "Cover letter text extracted. Review it in the Base cover letter card.");
+      } catch (value) {
+        toast("warning", `Upload saved, but its text could not be extracted: ${value.message} Paste the text into the Base cover letter card.`);
+      }
     } catch (value) {
       toast("error", value.message);
     } finally {
@@ -2882,6 +2896,14 @@ function ResumeDetail({ client, apiBaseUrl, categories, id, back, reload, access
             <Card size="small" title="Industries">
               <Tags values={resume.industries} empty="No industries recorded" />
             </Card>
+            <CoverLetterCard
+              client={client}
+              apiBaseUrl={apiBaseUrl}
+              resume={resume}
+              canManage={canManage}
+              toast={toast}
+              onResumeChange={(next) => setResume((current) => ({ ...current, ...next }))}
+            />
             <ResumeBannedCompaniesCard
               client={client}
               apiBaseUrl={apiBaseUrl}

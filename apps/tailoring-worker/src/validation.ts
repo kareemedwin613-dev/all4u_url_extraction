@@ -51,26 +51,28 @@ function validateExperience(value:unknown,index:number):SourceExperience{
 
 export function validateTailoringInput(value:unknown):TailoringInput{
   if(!object(value))throw new Error("Tailoring input must be an object.");
-  exactKeys(value,["contractVersion","application","jobDescription","sourceResume",...(value.contractVersion==="1.3"?["promptSnapshot"]:[])],"Tailoring input");
-  if(value.contractVersion!=="1.2"&&value.contractVersion!=="1.3")throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
+  // 1.3 carries a v2/v3 snapshot; 1.4 adds the base cover letter and requires a v4 snapshot.
+  const snapshotted=value.contractVersion==="1.3"||value.contractVersion==="1.4",withCoverLetter=value.contractVersion==="1.4";
+  exactKeys(value,["contractVersion","application","jobDescription","sourceResume",...(snapshotted?["promptSnapshot"]:[])],"Tailoring input");
+  if(value.contractVersion!=="1.2"&&!snapshotted)throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
   let promptSnapshot:import("./types.js").TailoringPromptSnapshot|undefined;
-  if(value.contractVersion==="1.3"){
-    const s=value.promptSnapshot;
-    if(!object(s)||(s.contractVersion!=="2"&&s.contractVersion!=="3"))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: A v2 or v3 prompt snapshot is required.");
+  if(snapshotted){
+    const s=value.promptSnapshot,allowed=withCoverLetter?["4"]:["2","3"];
+    if(!object(s)||!allowed.includes(String(s.contractVersion)))throw new Error(`TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Input ${value.contractVersion} requires a v${allowed.join(" or v")} prompt snapshot.`);
     exactKeys(s,["promptId","name","version","instructions","contractVersion","referenceDate","composedPrompt","scope","primaryCategoryId","subcategoryId","priority","jobDescriptionId","reason","isTest","draftRevision"],"promptSnapshot");
     if(!UUID.test(clean(s.promptId))||!Number.isFinite(Date.parse(String(s.referenceDate))))throw new Error("Invalid prompt snapshot identity or reference date.");
     if(s.isTest!==undefined&&typeof s.isTest!=="boolean")throw new Error("Invalid prompt snapshot test flag.");
     if(s.isTest===true?(!Number.isSafeInteger(s.draftRevision)||Number(s.draftRevision)<1||s.version!==null):(!Number.isSafeInteger(s.version)||Number(s.version)<1))throw new Error("Invalid prompt snapshot version.");
     boundedText(s.composedPrompt,"composed prompt",1,2000000);
     promptSnapshot={...s,promptId:clean(s.promptId),name:boundedText(s.name,"prompt name",1,120),version:s.version as number|null,
-      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion,referenceDate:String(s.referenceDate),
+      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion as "2"|"3"|"4",referenceDate:String(s.referenceDate),
       composedPrompt:s.composedPrompt as string};
   }
   const application=value.application,job=value.jobDescription,resume=value.sourceResume;
   if(!object(application)||!object(job)||!object(resume))throw new Error("Application, jobDescription, and sourceResume are required objects.");
   exactKeys(application,["id","applicationNumber"],"application");
   exactKeys(job,["id","company","jobTitle","descriptionText","skills"],"jobDescription");
-  exactKeys(resume,["id","resumeNumber","resumeType","summary","skills","professionalExperience"],"sourceResume");
+  exactKeys(resume,["id","resumeNumber","resumeType","summary","skills","professionalExperience",...(withCoverLetter?["coverLetter"]:[])],"sourceResume");
   if(!UUID.test(clean(application.id))||!UUID.test(clean(job.id))||!UUID.test(clean(resume.id)))throw new Error("Application, JD, and Resume IDs must be UUIDs.");
   if(!Number.isSafeInteger(application.applicationNumber)||Number(application.applicationNumber)<1)throw new Error("applicationNumber must be a positive integer.");
   if(!Number.isSafeInteger(resume.resumeNumber)||Number(resume.resumeNumber)<1)throw new Error("resumeNumber must be a positive integer.");
@@ -80,12 +82,13 @@ export function validateTailoringInput(value:unknown):TailoringInput{
   if(!Array.isArray(resume.professionalExperience)||resume.professionalExperience.length<1||resume.professionalExperience.length>30)throw new Error("sourceResume.professionalExperience must contain between 1 and 30 records.");
   const professionalExperience=resume.professionalExperience.map(validateExperience);
   if(!unique(professionalExperience.map(item=>item.id)))throw new Error("Source experience IDs must be unique.");
+  const coverLetter=withCoverLetter?(resume.coverLetter==null?null:boundedText(resume.coverLetter,"sourceResume.coverLetter",1,20000)):undefined;
   return{
-    contractVersion:value.contractVersion,
+    contractVersion:value.contractVersion as TailoringInput["contractVersion"],
     ...(promptSnapshot?{promptSnapshot}:{}),
     application:{id:clean(application.id),applicationNumber:Number(application.applicationNumber)},
     jobDescription:{id:clean(job.id),company:boundedText(job.company,"jobDescription.company",1,200),jobTitle:boundedText(job.jobTitle,"jobDescription.jobTitle",1,300),descriptionText:boundedText(job.descriptionText,"jobDescription.descriptionText",100,300000),skills:jobSkills},
-    sourceResume:{id:clean(resume.id),resumeNumber:Number(resume.resumeNumber),resumeType:"ORIGINAL",summary:boundedText(resume.summary,"sourceResume.summary",1,10000),skills:resumeSkills,professionalExperience}
+    sourceResume:{id:clean(resume.id),resumeNumber:Number(resume.resumeNumber),resumeType:"ORIGINAL",summary:boundedText(resume.summary,"sourceResume.summary",1,10000),skills:resumeSkills,professionalExperience,...(coverLetter!==undefined?{coverLetter}:{})}
   };
 }
 
@@ -122,9 +125,13 @@ export function validateTailoringOutput(value:unknown,input:TailoringInput,_refe
   };
 }
 
-export function validateTailoringModelOutput(value:unknown,input:TailoringInput):Pick<TailoringOutput,"summary"|"professionalExperience"|"skills">{
+export type GeneratedOutput=Pick<TailoringOutput,"summary"|"professionalExperience"|"skills"|"coverLetter">;
+export function validateTailoringModelOutput(value:unknown,input:TailoringInput):GeneratedOutput{
   if(!object(value))throw new Error("Codex output must be a JSON object.");
-  exactKeys(value,["summary","professionalExperience","skills"],"Codex output");
+  const withCoverLetter=input.contractVersion==="1.4";
+  exactKeys(value,["summary","professionalExperience","skills",...(withCoverLetter?["coverLetter"]:[])],"Codex output");
+  const coverLetter=withCoverLetter?boundedText(value.coverLetter,"coverLetter",1,6000):undefined;
+  if(coverLetter&&REFUSAL.test(coverLetter))throw new Error("Codex returned a refusal or placeholder instead of a cover letter.");
   const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",24,120);
   if(REFUSAL.test(summary))throw new Error("Codex returned a refusal or placeholder instead of a tailored summary.");
   if(!unique(skills))throw new Error("Codex skills must not contain duplicates.");
@@ -142,14 +149,32 @@ export function validateTailoringModelOutput(value:unknown,input:TailoringInput)
     if(REFUSAL.test(tailoredDetails))throw new Error(`Codex returned a refusal or placeholder for source experience ${sourceExperienceId}.`);
     return{sourceExperienceId,tailoredDetails};
   });
-  return{summary,professionalExperience,skills};
+  return{summary,professionalExperience,skills,...(coverLetter!==undefined?{coverLetter}:{})};
 }
 
 export const MAX_SUMMARY_WORDS=160;
 const BULLET_MARKER=/^[-•*–—]\s*/;
 // Checks the fixed-contract rules the JSON schema cannot express. Marker variants are normalized
 // to "- "; other violations are thrown so the runner can request one repair.
-export function enforceGenerationContract<T extends Pick<TailoringOutput,"summary"|"professionalExperience">>(output:T,targets:Array<{sourceExperienceId:string;bullets:number}>):T{
+export const MAX_COVER_LETTER_WORDS=450;
+const SALUTATION=/^(?:dear\b|to whom it may concern|hello\b|hi\b|greetings\b)/i;
+const SIGN_OFF=/^(?:sincerely|best regards|kind regards|warm regards|regards|respectfully|yours truly|best wishes)\b/i;
+const PLACEHOLDER=/\[[^\]]*\]|\{\{|\}\}|<[^>]+>/;
+// The renderer adds the greeting, sign-off, and signature; the model supplies body paragraphs only.
+export function enforceCoverLetter(value:string){
+  const paragraphs=value.split(/\r?\n[ \t]*\r?\n/).map(paragraph=>paragraph.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).join(" ")).filter(Boolean);
+  if(paragraphs.length<2||paragraphs.length>5)throw new Error(`coverLetter must have 3 to 4 paragraphs separated by one blank line; found ${paragraphs.length}.`);
+  const words=paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
+  if(words>MAX_COVER_LETTER_WORDS)throw new Error(`coverLetter has ${words} words; the maximum is ${MAX_COVER_LETTER_WORDS}.`);
+  if(SALUTATION.test(paragraphs[0]))throw new Error("coverLetter must not include a greeting; the system adds it.");
+  const last=paragraphs[paragraphs.length-1];
+  if(last.length<120&&SIGN_OFF.test(last))throw new Error("coverLetter must not include a sign-off or signature; the system adds it.");
+  const placeholder=paragraphs.join(" ").match(PLACEHOLDER);
+  if(placeholder)throw new Error(`coverLetter must not contain placeholders; found "${placeholder[0].slice(0,40)}".`);
+  return paragraphs.join("\n\n");
+}
+
+export function enforceGenerationContract<T extends Pick<TailoringOutput,"summary"|"professionalExperience">&{coverLetter?:string}>(output:T,targets:Array<{sourceExperienceId:string;bullets:number}>):T{
   if(/[\r\n]/.test(output.summary))throw new Error("summary must be one paragraph without line breaks.");
   const words=output.summary.split(/\s+/).filter(Boolean).length;
   if(words>MAX_SUMMARY_WORDS)throw new Error(`summary has ${words} words; the maximum is ${MAX_SUMMARY_WORDS}.`);
@@ -163,5 +188,5 @@ export function enforceGenerationContract<T extends Pick<TailoringOutput,"summar
     if(limit!==undefined&&bullets.length>limit)throw new Error(`${role.sourceExperienceId} has ${bullets.length} bullets; the maximum is ${limit}.`);
     return{...role,tailoredDetails:bullets.join("\n")};
   });
-  return{...output,professionalExperience};
+  return{...output,professionalExperience,...(output.coverLetter!==undefined?{coverLetter:enforceCoverLetter(output.coverLetter)}:{})};
 }
