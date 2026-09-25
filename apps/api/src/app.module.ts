@@ -18,6 +18,7 @@ import { BulkAssignmentModule } from "./bulk-assignment/bulk-assignment.module.j
 import { CandidateModule } from "./candidates/candidate.module.js";
 import { ResumeAnswerModule } from "./resume-answers/resume-answer.module.js";
 import { TailoringPromptsModule } from "./tailoring-prompts/tailoring-prompts.module.js";
+import { ExtensionPairingModule } from "./extension-pairing/extension-pairing.module.js";
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { TailoringPromptsModule } from "./tailoring-prompts/tailoring-prompts.mo
     CandidateModule,
     ResumeAnswerModule,
     TailoringPromptsModule,
+    ExtensionPairingModule,
   ],
   providers: [
     JsonLogger,

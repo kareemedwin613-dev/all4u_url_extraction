@@ -48,7 +48,7 @@ import {
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { navigate, parseRoute } from "./router.js";
+import { navigate, parseRoute, rememberReturnRoute, takeReturnRoute } from "./router.js";
 import { confirmNavigation } from "./shared/navigation-guard.js";
 import { filterHref, periodFromFilterQuery } from "./shared/filter-preferences.js";
 import { FilterPageContext, FilterPreferencesContext, useRememberedRoute } from "./shared/use-filter-preferences.js";
@@ -79,6 +79,7 @@ import { createCoverLetterSignedUrl, createResumeSignedUrl, removeResumeCoverLet
 import { CoverLetterBackfillButton, CoverLetterCard } from "./features/cover-letters/cover-letter-card.jsx";
 import { extractCoverLetterText } from "./features/cover-letters/cover-letter-text.js";
 import { ResumeHeadlineCard } from "./features/resumes/resume-headline-card.jsx";
+import { ConnectExtensionPage } from "./features/extension-connect/connect-extension-page.jsx";
 import {
   getMyAccessContext,
   listSystemRoles,
@@ -3130,7 +3131,10 @@ export function App({ client, apiBaseUrl }) {
   useEffect(() => {
     if (session !== undefined && (!session || access)) {
       const redirect = guardAccessRoute(route, session, access);
-      if (redirect) go(redirect, true);
+      // Keep the extension's Connect link across sign-in instead of landing on Overview.
+      if (redirect === "#/login" && route.name === "connect-extension") rememberReturnRoute(location.hash);
+      const back = redirect === "#/" && route.name === "login" ? takeReturnRoute() : null;
+      if (back || redirect) go(back || redirect, true);
     }
     document.title = `${route.name === "overview" ? "Overview" : formatLabel(route.name)} — Resume JD Operations`;
     queueMicrotask(() => document.querySelector("h1")?.focus());
@@ -3242,6 +3246,8 @@ export function App({ client, apiBaseUrl }) {
   if (route.name === "pending-access") page = <PendingAccessPage />;
   else if (route.name === "account-inactive") page = <InactiveAccountPage />;
   else if (route.name === "access-denied") page = <AccessDeniedPage />;
+  else if (route.name === "connect-extension")
+    page = <ConnectExtensionPage client={client} apiBaseUrl={apiBaseUrl} access={access} query={route.query} />;
   else if (route.name === "profile")
     page = (
       <ProfilePage

@@ -41,3 +41,7 @@ export async function saveResumeHeadline(client,{id,apiBaseUrl,headline}){
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/headline`,method:"PUT",body:{headline:String(headline||"")}});
   return payload.data;
 }
+export async function approveExtensionPairing(client,{apiBaseUrl,pairingId,challenge}){
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:"/api/v1/extension-pairings/approve",method:"POST",body:{pairingId,challenge}});
+  return payload.data;
+}

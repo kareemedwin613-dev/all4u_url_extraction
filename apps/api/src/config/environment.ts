@@ -10,6 +10,9 @@ export interface Environment {
   SUPABASE_JWT_ISSUER: string;
   SUPABASE_JWKS_URL: string;
   SUPABASE_JWT_AUDIENCE?: string;
+  // Admin key used only by the extension-pairing module to create extension sessions. Optional:
+  // without it the API runs normally and "Connect with dashboard" reports it is not configured.
+  SUPABASE_SECRET_KEY?: string;
   RATE_LIMIT_TTL_MS: number;
   RATE_LIMIT_MAX: number;
   INGESTION_RATE_LIMIT_MAX: number;
@@ -27,6 +30,7 @@ const schema = Joi.object<Environment>({
   SUPABASE_JWT_ISSUER: Joi.string().uri({ scheme: ["https"] }).required(),
   SUPABASE_JWKS_URL: Joi.string().uri({ scheme: ["https"] }).required(),
   SUPABASE_JWT_AUDIENCE: Joi.string().allow("").optional(),
+  SUPABASE_SECRET_KEY: Joi.string().min(20).allow("").optional(),
   RATE_LIMIT_TTL_MS: Joi.number().integer().min(1000).default(60000),
   RATE_LIMIT_MAX: Joi.number().integer().min(1).default(60),
   INGESTION_RATE_LIMIT_MAX: Joi.number().integer().min(1).default(20),
