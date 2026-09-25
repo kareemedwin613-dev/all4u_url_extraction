@@ -42,39 +42,33 @@ async function setup(t) {
     prefs: (userId = "alice", apiBaseUrl = "https://api.test") => createFilterPreferences({ userId, apiBaseUrl, storage: () => storage }) };
 }
 
-test("restoration precedes the first data load and survives navigation, refresh, explicit links and reset", async t => {
-  const { prefs, render, controls, loads, replacements, step, root } = await setup(t);
+test("filters stay on the URL only and are not restored after navigation", async t => {
+  const { prefs, render, controls, loads, replacements, step } = await setup(t);
   prefs().remember(parseRoute("#/jobs?company=Acme&page=5&pageSize=100"));
   await render();
-  assert.deepEqual(loads, [{ path: "/jobs", query: "pageSize=100&company=Acme" }]);
-  assert.equal(replacements.at(-1), "#/jobs?pageSize=100&company=Acme");
-  await step(() => controls.navigate("#/resumes"));
-  await step(() => controls.navigate("#/jobs"));
-  assert.equal(loads.at(-1).query, "pageSize=100&company=Acme");
+  assert.deepEqual(loads, [{ path: "/jobs", query: "" }]);
+  assert.equal(replacements.length, 0);
   await step(() => controls.navigate("#/jobs?company=Linked"));
   assert.equal(loads.at(-1).query, "company=Linked");
-  await step(() => controls.navigate(filterHref("#/jobs")));
   await step(() => controls.navigate("#/resumes"));
   await step(() => controls.navigate("#/jobs"));
   assert.equal(loads.at(-1).query, "");
-  await step(() => root.render(null));
-  await render();
-  assert.equal(loads.at(-1).query, "");
+  await step(() => controls.navigate(filterHref("#/jobs")));
+  assert.equal(loads.at(-1).query, "filters=default");
 });
 
-test("switching accounts or API environments never copies the previous account's hydrated filters", async t => {
+test("switching accounts or API environments does not hydrate previous filters", async t => {
   const { prefs, render, loads } = await setup(t);
   prefs().remember(parseRoute("#/jobs?company=Alice"));
   prefs("bob").remember(parseRoute("#/jobs?company=Bob"));
-  await render(); assert.equal(loads.at(-1).query, "company=Alice");
-  await render({ user: "bob" }); assert.equal(loads.at(-1).query, "company=Bob");
+  await render(); assert.equal(loads.at(-1).query, "");
+  await render({ user: "bob" }); assert.equal(loads.at(-1).query, "");
   await render({ user: null });
-  await render({ user: "alice" }); assert.equal(loads.at(-1).query, "company=Alice");
-  await render({ user: "alice", apiBaseUrl: "http://localhost:3000" }); assert.equal(loads.at(-1).query, "");
-  assert.equal(prefs().resolve(parseRoute("#/jobs")).query, "company=Alice");
+  await render({ user: "alice" }); assert.equal(loads.at(-1).query, "");
+  assert.equal(prefs().resolve(parseRoute("#/jobs")).query, "");
 });
 
-test("local searches and preview filters restore per page but selected rows never do", async t => {
+test("local searches and preview filters reset when leaving the page; selected rows never persist", async t => {
   const { render, controls, step, root } = await setup(t);
   await render();
   await step(() => {
@@ -83,23 +77,20 @@ test("local searches and preview filters restore per page but selected rows neve
     controls.setFilters(previous => ({ ...previous, pageSize: 100 }));
     controls.setSelected(["application-a"]);
   });
-  assert.equal(controls.search, "Alex "); // Do not trim away spaces while typing.
+  assert.equal(controls.search, "Alex ");
   const originalFilters = controls.filters;
   await step(() => controls.setFilters(previous => ({ ...previous, pageSize: 100 })));
-  assert.equal(controls.filters, originalFilters); // Same page size must not reset bulk pagination.
+  assert.equal(controls.filters, originalFilters);
   await step(() => controls.navigate("#/resumes"));
   assert.equal(controls.search, ""); assert.equal(controls.filters.eligibility, "");
   await step(() => controls.navigate("#/jobs"));
-  assert.equal(controls.search, "Alex "); assert.equal(controls.filters.pageSize, 100);
-  assert.equal(controls.filters.eligibility, "ELIGIBLE"); assert.deepEqual(controls.selected, []);
+  assert.equal(controls.search, ""); assert.equal(controls.filters.pageSize, 25);
+  assert.equal(controls.filters.eligibility, ""); assert.deepEqual(controls.selected, []);
   await step(() => root.render(null)); await render();
-  assert.equal(controls.search, "Alex "); assert.deepEqual(controls.selected, []);
-  await step(() => controls.setSearch(""));
-  await step(() => root.render(null)); await render();
-  assert.equal(controls.search, "");
+  assert.equal(controls.search, ""); assert.deepEqual(controls.selected, []);
 });
 
-test("client-side table sorting is restored with its indicator, supports nested columns and can be cleared", async t => {
+test("client-side table sorting is not restored after navigation and can be cleared", async t => {
   const { render, controls, step } = await setup(t);
   await render();
   await step(() => controls.tableSort.onSort({ field: "company", order: "ascend" }));
@@ -107,27 +98,24 @@ test("client-side table sorting is restored with its indicator, supports nested 
   await step(() => controls.navigate("#/resumes"));
   assert.equal(controls.tableSort.columns[0].sortOrder, null);
   await step(() => controls.navigate("#/jobs"));
-  assert.equal(controls.tableSort.columns[0].sortOrder, "ascend");
+  assert.equal(controls.tableSort.columns[0].sortOrder, null);
   await step(() => controls.tableSort.onSort([{ columnKey: "status", order: "descend" }]));
   assert.equal(controls.tableSort.columns[1].children[0].sortOrder, "descend");
-  assert.equal(controls.tableSort.columns[0].sortOrder, null);
   await step(() => controls.tableSort.resetSort());
-  await step(() => controls.navigate("#/resumes"));
-  await step(() => controls.navigate("#/jobs"));
   assert.equal(controls.tableSort.columns[1].children[0].sortOrder, null);
   await step(() => controls.tableSort.onSort({ field: "action", order: "ascend" }));
   assert.equal(controls.tableSort.columns[2].sortOrder, undefined);
 });
 
-test("StrictMode does not overwrite stored filters with defaults or loop during hydration", async t => {
+test("StrictMode does not invent filter queries when persistence is off", async t => {
   const { prefs, render, loads, controls, step } = await setup(t);
   prefs().remember(parseRoute("#/jobs?company=Acme"));
   await render({}, true);
   assert.ok(loads.length > 0 && loads.length <= 2);
-  assert.ok(loads.every(load => load.query === "company=Acme"));
+  assert.ok(loads.every(load => load.query === ""));
   await step(() => controls.setSearch("Alex"));
   await step(() => controls.navigate("#/resumes"));
   await step(() => controls.navigate("#/jobs"));
-  assert.equal(controls.search, "Alex");
-  assert.equal(controls.route.query, "company=Acme");
+  assert.equal(controls.search, "");
+  assert.equal(controls.route.query, "");
 });

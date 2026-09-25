@@ -60,7 +60,7 @@ const routeParsers = {
   "application-batch-detail": parseBatchResultQuery,
 };
 
-// Only parsed, allowlisted filter fields are stored. Never store row selections,
+// Only parsed, allowlisted filter fields are considered. Never store row selections,
 // runner tickets, draft IDs, API responses or the current pagination position.
 export function savedFilterQuery(query, parse) {
   const defaults = parse(""), value = parse(query), params = new URLSearchParams();
@@ -70,43 +70,15 @@ export function savedFilterQuery(query, parse) {
   return params.toString();
 }
 
-export function createFilterPreferences({ userId, apiBaseUrl = "", storage = () => globalThis.localStorage } = {}) {
+// Filter sections are intentionally not persisted across page changes or sessions.
+export function createFilterPreferences({ userId, apiBaseUrl = "" } = {}) {
   const scope = JSON.stringify([userId || "", String(apiBaseUrl).replace(/\/+$/, "")]);
-  const prefix = `dashboard-filters:v1:${encodeURIComponent(scope)}:`;
-  const memory = new Map();
-  const keyFor = page => `${prefix}${encodeURIComponent(page)}`;
-  function read(page, parse) {
-    if (!userId) return "";
-    if (memory.has(page)) return memory.get(page);
-    try {
-      const raw = storage()?.getItem(keyFor(page));
-      if (!raw || raw.length > 20000) return "";
-      const value = JSON.parse(raw);
-      return value?.version === 1 && typeof value.query === "string" ? savedFilterQuery(value.query, parse) : "";
-    } catch { return ""; }
-  }
-  function write(page, query, parse) {
-    if (!userId) return;
-    const clean = savedFilterQuery(query, parse);
-    memory.set(page, clean);
-    try {
-      const target = storage(), key = keyFor(page);
-      if (!clean) target?.removeItem(key);
-      else {
-        const value = JSON.stringify({ version: 1, query: clean });
-        if (target?.getItem(key) !== value) target?.setItem(key, value);
-      }
-    } catch { /* Browsing still works when storage is disabled or full. */ }
-  }
-  function resolve(route) {
-    const parse = routeParsers[route.name];
-    if (!parse || !userId || route.query) return route;
-    const query = read(route.path, parse);
-    return query ? { ...route, query } : route;
-  }
-  function remember(route) {
-    const parse = routeParsers[route.name];
-    if (parse) write(route.path, new URLSearchParams(route.query).get("filters") === "default" ? "" : route.query, parse);
-  }
-  return { scope, read, write, resolve, remember };
+  return {
+    scope,
+    read: () => "",
+    write: () => {},
+    resolve: (route) => route,
+    remember: () => {},
+    routeParsers,
+  };
 }
