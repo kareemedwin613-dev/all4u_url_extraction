@@ -11,7 +11,7 @@ test("dashboard routes and XLSX are loaded only when requested",async()=>{
     read("../dashboard/vite.config.js"),
   ]);
   assert.match(app,/lazyNamed\(\s*\(\) => import\("\.\/features\/applications\/application-pages\.jsx"\)/);
-  assert.match(app,/<Suspense fallback=/);
+  assert.match(app,/<Suspense[^>]*fallback=/);
   assert.match(exporter,/await import\("xlsx"\)/);
   assert.doesNotMatch(exporter,/import\s+\*\s+as\s+XLSX\s+from\s+"xlsx"/);
   assert.doesNotMatch(vite,/["']ant-design["']\s*:/);

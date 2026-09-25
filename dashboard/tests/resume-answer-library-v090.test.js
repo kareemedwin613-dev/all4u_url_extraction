@@ -15,7 +15,8 @@ test("Resume Answer Library uses authenticated backend CRUD routes only",async()
 
 test("Resume detail exposes the Ant Design library only to Application managers",async()=>{
  const [app,view]=await Promise.all([readFile(new URL("../src/App.jsx",import.meta.url),"utf8"),readFile(new URL("../src/features/resume-answers/resume-answer-library.jsx",import.meta.url),"utf8")]);
- assert.match(app,/hasCapability\(access,CAPABILITIES\.APPLICATION_MANAGE\)/);
+ assert.match(app,/canManage = hasCapability\(access, CAPABILITIES\.APPLICATION_MANAGE\)/);
+ assert.match(app,/\.\.\.\(canManage\?\[\{\s*key:"answers"/);
  assert.match(app,/ResumeAnswerLibrary/);
  assert.match(view,/Save configured answers/);assert.match(view,/Manual setup/);assert.match(view,/saveResumeAnswers/);assert.match(view,/used automatically/);
  assert.match(view,/authorized_to_work/);assert.match(view,/remote_work_preference/);assert.match(view,/gender_identity/);assert.match(view,/race_ethnicity/);assert.match(view,/veteran_status/);

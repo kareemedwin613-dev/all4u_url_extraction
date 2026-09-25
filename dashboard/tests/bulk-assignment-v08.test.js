@@ -22,7 +22,7 @@ test("bulk-assignment wizard uses profile-only steps", () => {
 test("Application selection allows assigned Applications for reassignment", () => {
   assert.match(appSource, /Assign \/ Reassign Selected/);
   assert.match(appSource, /Assignment \/ Reassignment/);
-  assert.match(appSource, /\["CANCELLED","CLOSED","COMPLETED"\]/);
+  assert.match(appSource, /\["CANCELLED",\s*"CLOSED",\s*"COMPLETED"\]/);
   assert.match(appSource, /applications\/bulk-assign/);
   assert.match(appSource, /storeAssignmentIds/);
   assert.doesNotMatch(appSource, /record\.assigned_to != null/);
