@@ -34,7 +34,8 @@ export function cleanJobTitle(raw: unknown, company: unknown = ""): string {
   title = title.split(/\s*\|\s*|\s·\s/)[0];                                                // " | Root Insurance", " · Full time"
   const [head, ...dashed] = title.split(/\s[-–—]\s|\s[–—]|[–—]\s/);                      // " - Frontend", " – Data & Analytics"
   const [base, ...commaed] = head.split(",");
-  const suffix = collapse(commaed.join(",")) || collapse(dashed[0] || "");
+  // Only the first qualifier counts; later ones are usually brands or locations ("eCommerce, HOKA NA").
+  const suffix = collapse(commaed[0] || "") || collapse(dashed[0] || "");
   title = keepSuffix(suffix, String(company ?? "")) ? `${collapse(base)}, ${suffix}` : collapse(base);
   title = title.replace(/(?:#|\bno\.?\s*)?\b[A-Z]{0,4}-?\d{3,}\b/gi, " ")                   // requisition IDs
     .replace(/\b(?:level|lvl|grade|band)\s*\d+\b|\b(?:l|ic|p|e)\d\b/gi, " ")                 // L5, IC4, Level 3

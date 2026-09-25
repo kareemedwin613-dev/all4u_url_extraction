@@ -8,6 +8,8 @@ const cases: Array<[string, string, string, string | null]> = [
   ["Data Engineer II", "SENIOR", "", "Data Engineer"],
   ["Sr. Software Engineer II - Billing & Subscriptions Engineering (Remote Eligible)", "SENIOR", "", "Senior Software Engineer"],
   ["Senior Software Engineer, Backend", "SENIOR", "", "Senior Software Engineer, Backend"],
+  ["Sr. UI Developer, eCommerce, HOKA NA", "SENIOR", "Deckers Brands", "Senior UI Developer, eCommerce"],
+  ["Data Engineer, Analytics, Remote", "SENIOR", "", "Data Engineer, Analytics"],
   ["Software Engineer - Frontend", "SENIOR", "", "Software Engineer, Frontend"],
   ["AI Engineer (Agents) - Remote Work | REF#302676", "SENIOR", "", "AI Engineer"],
   ["Cloud Engineer L3", "SENIOR", "", "Cloud Engineer"],
