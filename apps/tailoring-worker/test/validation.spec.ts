@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { enforceGenerationContract, MAX_SUMMARY_WORDS, validateTailoringInput, validateTailoringOutput } from "../src/validation.js";
+import { enforceCoverLetter, enforceGenerationContract, MAX_SUMMARY_WORDS, validateTailoringInput, validateTailoringModelOutput, validateTailoringOutput } from "../src/validation.js";
 import { compliantOutput, validationDate } from "./compliant-output.js";
 
 const fixturePath=fileURLToPath(new URL("../fixtures/application-19.json",import.meta.url));
@@ -92,4 +92,33 @@ test("generation contract enforces bullet limits and format, normalizing only ma
   assert.throws(()=>enforceGenerationContract({...validOutput,summary:"First paragraph.\n\nSecond."},targets),/one paragraph/);
   assert.throws(()=>enforceGenerationContract({...validOutput,summary:Array(MAX_SUMMARY_WORDS+1).fill("word").join(" ")},targets),/the maximum is 160/);
   assert.equal(enforceGenerationContract(validOutput,[]).professionalExperience[0].tailoredDetails,validOutput.professionalExperience[0].tailoredDetails);
+});
+
+const letterSnapshot={promptId:"11111111-1111-4111-8111-111111111111",name:"Generic",version:3,instructions:"Tailor.",contractVersion:"4",referenceDate:"2026-09-01T00:00:00Z",composedPrompt:"Saved prompt."};
+const letterInput=(coverLetter:unknown)=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:letterSnapshot,sourceResume:{...fixture.sourceResume,coverLetter}});
+const body=["I am applying for the Senior Data Engineer role at Example, where AWS pipeline work matters most.","At Amazon I build Snowflake and Redshift marts and SSIS pipelines processing over 100 million rows per batch.","I would welcome the chance to bring that experience to your data platform team."].join("\n\n");
+
+test("input 1.4 carries the base cover letter and requires a v4 snapshot",()=>{
+  assert.equal(letterInput("  Base letter.  ").sourceResume.coverLetter,"Base letter.");
+  assert.equal(letterInput(null).sourceResume.coverLetter,null);
+  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/requires a v4 prompt snapshot/);
+  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.3",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/unsupported fields: coverLetter/);
+  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.3",promptSnapshot:letterSnapshot}),/requires a v2 or v3 prompt snapshot/);
+});
+
+test("model output must include a cover letter only for input 1.4",()=>{
+  const generated={summary:validOutput.summary,professionalExperience:validOutput.professionalExperience,skills:[]};
+  assert.equal(validateTailoringModelOutput({...generated,coverLetter:body},letterInput(null)).coverLetter,body);
+  assert.throws(()=>validateTailoringModelOutput(generated,letterInput(null)),/coverLetter must contain between 1/);
+  assert.throws(()=>validateTailoringModelOutput({...generated,coverLetter:body},input),/unsupported fields: coverLetter/);
+});
+
+test("cover letters are body paragraphs only, within length, with no greeting, sign-off, or placeholders",()=>{
+  assert.equal(enforceCoverLetter(body.replace("\n\n","\r\n \r\n").replace("most.","most.\n")),body);
+  assert.throws(()=>enforceCoverLetter("One paragraph only."),/3 to 4 paragraphs.*found 1/);
+  assert.throws(()=>enforceCoverLetter(`Dear Hiring Manager,\n\n${body}`),/must not include a greeting/);
+  assert.throws(()=>enforceCoverLetter(`${body}\n\nSincerely,\nAditya`),/sign-off/);
+  assert.throws(()=>enforceCoverLetter(body.replace("Example","[Company Name]")),/placeholders; found "\[Company Name\]"/);
+  assert.throws(()=>enforceCoverLetter(`${body}\n\n${Array(460).fill("word").join(" ")}`),/the maximum is 450/);
+  assert.equal(enforceGenerationContract({...validOutput,coverLetter:body},[]).coverLetter,body);
 });

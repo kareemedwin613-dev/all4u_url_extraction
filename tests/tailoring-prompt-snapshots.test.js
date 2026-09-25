@@ -17,9 +17,10 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
     create table categories(id uuid primary key,parent_id uuid,active boolean);
     create table job_descriptions(id uuid primary key,category_id uuid,subcategory_id uuid,status text,company text,job_title text,description_text text,detected_skills text[]);
     create function job_description_subcategory_ids(uuid) returns uuid[] language sql stable as $$ select '{}'::uuid[] $$;
-    create table resumes(id uuid primary key,resume_type text,status text,resume_number integer,skills text[],structured_content jsonb);
+    create table resumes(id uuid primary key,resume_type text,status text,resume_number integer,skills text[],structured_content jsonb,updated_at timestamptz);
+    create function application_actor_can_manage() returns boolean language sql stable as $$ select current_setting('test.role',true) in ('ADMIN','APPLYING_MANAGER') $$;
     create table applications(id uuid primary key,resume_id uuid,job_description_id uuid,application_number integer);
-    create table tailoring_jobs(id uuid primary key,application_id uuid,resume_id uuid,job_description_id uuid,tailored_resume_id uuid,status text default 'PENDING');
+    create table tailoring_jobs(id uuid primary key,application_id uuid,resume_id uuid,job_description_id uuid,tailored_resume_id uuid,status text default 'PENDING',output_preview jsonb);
     create function build_tailoring_input_v21(uuid) returns jsonb language plpgsql as $$
       begin if current_setting('test.eligible',true)='false' then raise exception 'TAILORING_SOURCE_CHANGED'; end if;
       return jsonb_build_object('contractVersion','1.2'); end $$;
@@ -40,6 +41,8 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   await db.exec(validator.slice(validator.indexOf('create or replace function public.assert_tailoring_preview_v14'),validator.indexOf('$$;',validator.indexOf('create or replace function public.assert_tailoring_preview_v14'))+3));
   await db.exec(migration('202609241020_v3_113_tailoring_prompt_draft_tests.sql'));
   await db.exec(migration('202609241100_v3_117_tailoring_prompt_source_context.sql'));
+  await db.exec(migration('202609251000_v3_119_tailored_cover_letters.sql'));
+  await db.exec(migration('202609251200_v3_120_revert_cover_letter_compiler.sql'));
   const value=async(sql,args=[]) => (await db.query(sql,args)).rows[0]?.result;
   const createJob=async n=>db.query('insert into tailoring_jobs(id,application_id,resume_id,job_description_id) values($1,$2,$3,$4)',[id(n),id(30),id(20),id(10)]);
   const input=n=>value('select build_tailoring_input_v21($1) result',[id(n)]);
@@ -55,10 +58,14 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
     assert.deepEqual(targets.map(({projects,bullets})=>[projects,bullets]),[[2,4],[3,4],[3,4],[4,5],[4,5],[4,7],[2,4],[2,4]]);
   });
   await t.test('new jobs capture exact prompt and source; old jobs stay explicitly legacy',async()=>{
+    assert.equal((await value("select set_resume_cover_letter_text_v119($1,'  Base letter body.  ') result",[id(20)])).coverLetterText,'Base letter body.');
     await createJob(41); captured=await input(41);
+    // v3.120 reverted the v4 compiler: new jobs are 1.3 / v3 without a cover letter.
     assert.equal(captured.contractVersion,'1.3'); assert.equal(captured.promptSnapshot.version,1);
     assert.equal(captured.promptSnapshot.contractVersion,'3');
     assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v3/);
+    assert.doesNotMatch(captured.promptSnapshot.composedPrompt,/coverLetter/);
+    assert.equal('coverLetter' in captured.sourceResume,false);
     assert.match(captured.promptSnapshot.composedPrompt,/"bullets": 7/);
     // The model must see the candidate's real experience to reframe it rather than invent it.
     const context=JSON.parse(captured.promptSnapshot.composedPrompt.split('BEGIN_UNTRUSTED_INPUT_JSON\n')[1].split('\nEND_UNTRUSTED_INPUT_JSON')[0]);
@@ -92,8 +99,22 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
     await db.query('update tailoring_jobs set application_id=$1 where id=$2',[id(30),id(43)]);
     assert.equal((await input(43)).contractVersion,'1.3');
     await db.query("insert into resumes(id,resume_type) values($1,'TAILORED')",[id(21)]);
+    await db.query(`update tailoring_jobs set output_preview='{"coverLetter":"  Tailored letter body.  "}' where id=$1`,[id(41)]);
     await db.query('update tailoring_jobs set tailored_resume_id=$1 where id=$2',[id(21),id(41)]);
     assert.equal((await value('select tailoring_prompt_provenance result from resumes where id=$1',[id(21)])).version,1);
+    assert.equal(await value('select cover_letter_text result from resumes where id=$1',[id(21)]),null);
+  });
+  await t.test('only managers edit base letters, and only on original Resumes',async()=>{
+    await assert.rejects(()=>value("select set_resume_cover_letter_text_v119($1,'Letter') result",[id(21)]),/RESUME_TYPE_INVALID/);
+    await assert.rejects(()=>value("select set_resume_cover_letter_text_v119($1,$2) result",[id(20),'x'.repeat(20001)]),/at most 20,000/);
+    assert.equal((await value("select set_resume_cover_letter_text_v119($1,'   ') result",[id(20)])).coverLetterText,null);
+    await value("select set_resume_cover_letter_text_v119($1,'Base letter body.') result",[id(20)]);
+    await db.exec("select set_config('test.role','APPLIER',false)");
+    await assert.rejects(()=>value("select set_resume_cover_letter_text_v119($1,'Letter') result",[id(20)]),/FORBIDDEN/);
+    await db.exec("select set_config('test.role','ADMIN',false)");
+    await db.exec('set role authenticated');
+    await assert.rejects(()=>db.exec("select compile_tailoring_prompt_v112('{}','{}',now())"),/permission denied/);
+    await db.exec('reset role');
   });
   const createTest=()=>value('select create_tailoring_prompt_test_v113($1,$2,$3) result',[generic.id,generic.revision,id(30)]);
   const run=(ticket,action,result=null)=>value('select run_tailoring_prompt_test_v113($1,$2,$3) result',[ticket,action,result]);

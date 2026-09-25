@@ -20,8 +20,8 @@ export function tailoringModelContext(input:TailoringInput){
 }
 
 export function buildTailoringPrompt(input:TailoringInput,referenceDate=new Date()){
-  if(input.contractVersion==="1.3"){
-    if(!input.promptSnapshot||(input.promptSnapshot.contractVersion!=="2"&&input.promptSnapshot.contractVersion!=="3"))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
+  if(input.contractVersion==="1.3"||input.contractVersion==="1.4"){
+    if(!input.promptSnapshot||!["2","3","4"].includes(input.promptSnapshot.contractVersion))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
     return input.promptSnapshot.composedPrompt;
   }
   const context=JSON.stringify(tailoringModelContext(input));

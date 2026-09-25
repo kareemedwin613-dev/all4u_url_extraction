@@ -169,3 +169,19 @@ test("tailoring defaults to standard processing with medium reasoning and disabl
   assert.throws(()=>codexPerformanceArgs({TAILORING_CODEX_REASONING_EFFORT:"minimal"}),/must be none, low, medium, high, or xhigh/);
   assert.throws(()=>codexPerformanceArgs({TAILORING_CODEX_SERVICE_TIER:"priority"}),/must be auto, default, or fast/);
 });
+
+test("a 1.4 job requires a cover letter in the schema and keeps the normalized letter in the preview",async()=>{
+  const directory=await mkdtemp(resolve(tmpdir(),"tailoring-letter-test-")),base=await loadFixture(fixturePath,applicationId);
+  const input={...base,contractVersion:"1.4",sourceResume:{...base.sourceResume,coverLetter:"Base letter body."},
+    promptSnapshot:{promptId:"11111111-1111-4111-8111-111111111111",name:"Generic",version:3,instructions:"Tailor.",contractVersion:"4",referenceDate:"2026-09-01T00:00:00Z",composedPrompt:"Saved v4 prompt."}};
+  const letter="I am applying for the Data Engineer role at Example.\n\nAt Amazon I build Snowflake marts and SSIS pipelines.\n\nI would welcome the chance to discuss the role.";
+  let schema:any;
+  const execute:CodexExecutor=async request=>{schema=JSON.parse(await readFile(request.schemaPath,"utf8"));await writeFile(request.outputPath,JSON.stringify({...modelOutput(base),coverLetter:letter.replace(/\n\n/g,"\n \n")}));return{stdout:"",stderr:""};};
+  try{
+    const preview=await runTailoringProof(input,{outputPath:resolve(directory,"letter.json"),execute,now:()=>validationDate});
+    assert.deepEqual(schema.required,["summary","professionalExperience","skills","coverLetter"]);
+    assert.equal(schema.properties.coverLetter.type,"string");
+    assert.equal(preview.contractVersion,"1.4");
+    assert.equal(preview.result.coverLetter,letter);
+  }finally{await rm(directory,{recursive:true,force:true});}
+});

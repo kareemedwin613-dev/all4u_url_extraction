@@ -22,3 +22,22 @@ export async function removeResumeCoverLetter(client,{id,apiBaseUrl}){
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/cover-letter`,method:"DELETE"});
   return payload.data;
 }
+export async function saveResumeCoverLetterText(client,{id,apiBaseUrl,text}){
+  if(!id)throw{code:"VALIDATION_ERROR",message:"The Resume reference is invalid."};
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/cover-letter/text`,method:"PUT",body:{text:String(text||"")}});
+  return payload.data;
+}
+export async function downloadCoverLetterPdf(client,{id,apiBaseUrl}){
+  if(!id)throw{code:"VALIDATION_ERROR",message:"The Resume reference is invalid."};
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/cover-letter/pdf`,timeoutMs:30000});
+  const{filename,mimeType,contentBase64}=payload.data,bytes=Uint8Array.from(atob(contentBase64),character=>character.charCodeAt(0));
+  const url=URL.createObjectURL(new Blob([bytes],{type:mimeType||"application/pdf"})),link=document.createElement("a");
+  link.href=url;link.download=filename||"Cover_Letter.pdf";document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  return filename;
+}
+export async function saveResumeHeadline(client,{id,apiBaseUrl,headline}){
+  if(!id)throw{code:"VALIDATION_ERROR",message:"The Resume reference is invalid."};
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/headline`,method:"PUT",body:{headline:String(headline||"")}});
+  return payload.data;
+}

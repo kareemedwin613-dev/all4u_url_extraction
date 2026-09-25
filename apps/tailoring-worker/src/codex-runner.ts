@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { TailoringInput, TailoringOutput, TailoringPreview } from "./types.js";
 import { buildTailoringPrompt, tailoringModelContext, tailoringRoleTargets } from "./prompt.js";
 import{MAX_TAILORED_SKILLS,reconcileSkillGroups}from"./skill-groups.js";
-import { enforceGenerationContract, validateTailoringInput, validateTailoringModelOutput } from "./validation.js";
+import { enforceGenerationContract, type GeneratedOutput, validateTailoringInput, validateTailoringModelOutput } from "./validation.js";
 
 const moduleDirectory=dirname(fileURLToPath(import.meta.url));
 export const OUTPUT_SCHEMA_PATH=resolve(moduleDirectory,"../schemas/tailoring-output.schema.json");
@@ -96,6 +96,10 @@ export function specializeOutputSchema(schema:Record<string,any>,input:Tailoring
   experience.minItems=input.sourceResume.professionalExperience.length;
   experience.maxItems=input.sourceResume.professionalExperience.length;
   identifier.enum=input.sourceResume.professionalExperience.map(item=>item.id);
+  if(input.contractVersion==="1.4"){
+    result.properties.coverLetter={type:"string",minLength:1,maxLength:6000,description:"Cover letter body paragraphs separated by one blank line; no greeting, sign-off, or contact details."};
+    result.required=[...result.required,"coverLetter"];
+  }
   return result;
 }
 
@@ -143,7 +147,7 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
       writeFile(resolve(workspace,"prompt.md"),`${prompt}\n`,"utf8"),
       writeFile(schemaPath,`${JSON.stringify(schema,null,2)}\n`,"utf8")
     ]);
-    let generated:Pick<TailoringOutput,"summary"|"professionalExperience"|"skills">|undefined,rejection="",attempts=0;
+    let generated:GeneratedOutput|undefined,rejection="",attempts=0;
     while(!generated&&attempts<MAX_GENERATION_ATTEMPTS){
       attempts++;
       await rm(resultPath,{force:true});

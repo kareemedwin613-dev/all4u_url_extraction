@@ -3,9 +3,10 @@ import type { AuthenticatedUser } from "@resume-jd/contracts";
 import { createHash, randomUUID } from "node:crypto";
 import { ApiException } from "../common/errors/api.exception.js";
 import { SupabaseService } from "../supabase/supabase.service.js";
+import { renderCoverLetterPdf } from "./cover-letter-pdf.renderer.js";
 
 export const RESUME_LIST_FIELDS="id,resume_number,resume_type,parent_resume_id,candidate_name,candidate_email,candidate_phone,resume_name,primary_category_id,subcategory_id,seniority,skills,industries,original_filename,mime_type,file_size_bytes,file_sha256,status,archived_at,archived_by,profile_review_status,created_at,updated_at,cover_letter_storage_path,cover_letter_original_filename";
-export const RESUME_DETAIL_FIELDS=`${RESUME_LIST_FIELDS},tailoring_prompt_provenance,user_id,candidate_first_name,candidate_middle_name,candidate_last_name,address_line_1,address_line_2,address_city,address_state_region,address_postal_code,address_country,linkedin_url,github_url,portfolio_url,profile_reviewed_by,profile_reviewed_at,profile_schema_version,resume_text,structured_content,structured_schema_version,storage_bucket,storage_path,cover_letter_storage_bucket,cover_letter_mime_type,cover_letter_file_size_bytes,cover_letter_file_sha256`;
+export const RESUME_DETAIL_FIELDS=`${RESUME_LIST_FIELDS},tailoring_prompt_provenance,user_id,candidate_first_name,candidate_middle_name,candidate_last_name,address_line_1,address_line_2,address_city,address_state_region,address_postal_code,address_country,linkedin_url,github_url,portfolio_url,profile_reviewed_by,profile_reviewed_at,profile_schema_version,resume_text,structured_content,structured_schema_version,storage_bucket,storage_path,cover_letter_storage_bucket,cover_letter_mime_type,cover_letter_file_size_bytes,cover_letter_file_sha256,cover_letter_text,resume_headline`;
 const COVER_LETTER_MIMES=["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"];
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SORTS:any={number_asc:["resume_number",true],number_desc:["resume_number",false],candidate_asc:["candidate_name",true],candidate_desc:["candidate_name",false],name_asc:["resume_name",true],name_desc:["resume_name",false],category_asc:["primary_category_id",true],category_desc:["primary_category_id",false],subcategory_asc:["subcategory_id",true],subcategory_desc:["subcategory_id",false],seniority_asc:["seniority",true],seniority_desc:["seniority",false],status_asc:["status",true],status_desc:["status",false],mime_asc:["mime_type",true],mime_desc:["mime_type",false],updated_asc:["updated_at",true],updated_desc:["updated_at",false]};
@@ -173,6 +174,26 @@ export class ResumeService{
     const{data,error}=await this.supabase.forUser(user.token).storage.from(row.cover_letter_storage_bucket).createSignedUrl(row.cover_letter_storage_path,90);
     if(error||!data?.signedUrl)fail(error,"The private cover letter file could not be opened.");
     return{signedUrl:data.signedUrl,expiresInSeconds:90,filename:row.cover_letter_original_filename,mimeType:row.cover_letter_mime_type,fileSizeBytes:row.cover_letter_file_size_bytes};
+  }
+
+  async saveCoverLetterText(user:AuthenticatedUser,id:string,text:string){
+    const{error}=await this.supabase.forUser(user.token).rpc("set_resume_cover_letter_text_v119",{p_resume_id:id,p_text:text});
+    if(error)fail(error,"The cover letter text could not be saved.");
+    return this.detail(user,id);
+  }
+
+  async saveHeadline(user:AuthenticatedUser,id:string,headline:string){
+    const{error}=await this.supabase.forUser(user.token).rpc("set_resume_headline_v121",{p_resume_id:id,p_headline:headline});
+    if(error)fail(error,"The Resume headline could not be saved.");
+    return this.detail(user,id);
+  }
+
+  async coverLetterPdf(user:AuthenticatedUser,id:string){
+    const row=await this.detail(user,id);
+    if(!row)throw new ApiException("NOT_FOUND","The Resume was not found.",HttpStatus.NOT_FOUND);
+    if(!row.cover_letter_text)throw new ApiException("COVER_LETTER_NOT_FOUND",row.resume_type==="TAILORED"?"This tailored Resume has no cover letter. It was created before cover letters were tailored.":"This Resume has no cover letter text yet.",HttpStatus.NOT_FOUND);
+    const bytes=await renderCoverLetterPdf(row),name=String(row.candidate_name||"Candidate").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"");
+    return{filename:`${name||"Candidate"}_Cover_Letter${row.resume_number?`_${row.resume_number}`:""}.pdf`,mimeType:"application/pdf",contentBase64:bytes.toString("base64")};
   }
 
   async removeCoverLetter(user:AuthenticatedUser,id:string){

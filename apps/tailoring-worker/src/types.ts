@@ -28,10 +28,12 @@ export interface TailoringSourceResume {
   summary: string;
   skills: string[];
   professionalExperience: SourceExperience[];
+  // Base cover letter text; present (possibly null) for input contract 1.4.
+  coverLetter?: string | null;
 }
 
 export interface TailoringInput {
-  contractVersion: "1.2" | "1.3";
+  contractVersion: "1.2" | "1.3" | "1.4";
   promptSnapshot?: TailoringPromptSnapshot;
   application: TailoringApplication;
   jobDescription: TailoringJobDescription;
@@ -43,7 +45,7 @@ export interface TailoringPromptSnapshot {
   name: string;
   version: number | null;
   instructions: string;
-  contractVersion: "2" | "3";
+  contractVersion: "2" | "3" | "4";
   referenceDate: string;
   composedPrompt: string;
   isTest?: boolean;
@@ -69,10 +71,12 @@ export interface TailoringOutput {
   changeSummary: string[];
   unsupportedRequirements: string[];
   warnings: string[];
+  // Body paragraphs only; present for input contract 1.4.
+  coverLetter?: string;
 }
 
 export interface TailoringPreview {
-  contractVersion: "1.2" | "1.3";
+  contractVersion: "1.2" | "1.3" | "1.4";
   promptProvenance?: Omit<TailoringPromptSnapshot, "instructions" | "composedPrompt">;
   applicationId: string;
   applicationNumber: number;
