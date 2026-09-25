@@ -27,7 +27,7 @@ function techStackLabels(application = {}) {
   return application.category_name ? [application.category_name] : [];
 }
 
-export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, extensionBusy }) {
+export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, onDownloadCoverLetter, extensionBusy }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
   const isTailored = application.resume_type === "TAILORED";
@@ -109,6 +109,7 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
         <Space wrap>
           <Button size="small" onClick={() => onUpdateStatus(application)}>Update Status</Button>
           <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_RESUME`} onClick={() => onDownloadResume(application)}>Download Resume</Button>
+          {onDownloadCoverLetter && <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_COVER_LETTER`} onClick={() => onDownloadCoverLetter(application)}>Download Cover Letter</Button>}
           <Button size="small" type="primary" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
         </Space>
       </div>
