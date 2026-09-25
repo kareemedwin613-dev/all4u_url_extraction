@@ -38,3 +38,7 @@ Cover letter guidance lives in the fixed compiler contract, not in the editable 
 most prompts are near the 20,000-character limit, and they share a core that lists only
 three outputs and forbids first-person pronouns. The contract makes `coverLetter` a required
 fourth output and exempts it from the summary/bullet style rules, so prompts need no edits.
+
+## Status
+
+The v4 compiler was reverted by `202609251200_v3_120_revert_cover_letter_compiler.sql` before any v4 job was created: new jobs compile with contract v3 / input 1.3 and produce no cover letter. The `cover_letter_text` column and `set_resume_cover_letter_text_v119` remain (inert, no data). To re-enable, add a migration that reapplies the v3.119 compiler, source input, and provenance trigger, after every worker runs this branch.

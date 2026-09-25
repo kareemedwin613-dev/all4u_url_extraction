@@ -42,6 +42,7 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   await db.exec(migration('202609241020_v3_113_tailoring_prompt_draft_tests.sql'));
   await db.exec(migration('202609241100_v3_117_tailoring_prompt_source_context.sql'));
   await db.exec(migration('202609251000_v3_119_tailored_cover_letters.sql'));
+  await db.exec(migration('202609251200_v3_120_revert_cover_letter_compiler.sql'));
   const value=async(sql,args=[]) => (await db.query(sql,args)).rows[0]?.result;
   const createJob=async n=>db.query('insert into tailoring_jobs(id,application_id,resume_id,job_description_id) values($1,$2,$3,$4)',[id(n),id(30),id(20),id(10)]);
   const input=n=>value('select build_tailoring_input_v21($1) result',[id(n)]);
@@ -59,11 +60,12 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   await t.test('new jobs capture exact prompt and source; old jobs stay explicitly legacy',async()=>{
     assert.equal((await value("select set_resume_cover_letter_text_v119($1,'  Base letter body.  ') result",[id(20)])).coverLetterText,'Base letter body.');
     await createJob(41); captured=await input(41);
-    assert.equal(captured.contractVersion,'1.4'); assert.equal(captured.promptSnapshot.version,1);
-    assert.equal(captured.promptSnapshot.contractVersion,'4');
-    assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v4/);
-    assert.match(captured.promptSnapshot.composedPrompt,/- coverLetter: the body of a cover letter/);
-    assert.equal(captured.sourceResume.coverLetter,'Base letter body.');
+    // v3.120 reverted the v4 compiler: new jobs are 1.3 / v3 without a cover letter.
+    assert.equal(captured.contractVersion,'1.3'); assert.equal(captured.promptSnapshot.version,1);
+    assert.equal(captured.promptSnapshot.contractVersion,'3');
+    assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v3/);
+    assert.doesNotMatch(captured.promptSnapshot.composedPrompt,/coverLetter/);
+    assert.equal('coverLetter' in captured.sourceResume,false);
     assert.match(captured.promptSnapshot.composedPrompt,/"bullets": 7/);
     // The model must see the candidate's real experience to reframe it rather than invent it.
     const context=JSON.parse(captured.promptSnapshot.composedPrompt.split('BEGIN_UNTRUSTED_INPUT_JSON\n')[1].split('\nEND_UNTRUSTED_INPUT_JSON')[0]);
@@ -95,12 +97,12 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   await t.test('unbound jobs snapshot on attachment; materialization copies provenance',async()=>{
     await db.query('insert into tailoring_jobs(id,resume_id,job_description_id) values($1,$2,$3)',[id(43),id(20),id(10)]);
     await db.query('update tailoring_jobs set application_id=$1 where id=$2',[id(30),id(43)]);
-    assert.equal((await input(43)).contractVersion,'1.4');
+    assert.equal((await input(43)).contractVersion,'1.3');
     await db.query("insert into resumes(id,resume_type) values($1,'TAILORED')",[id(21)]);
     await db.query(`update tailoring_jobs set output_preview='{"coverLetter":"  Tailored letter body.  "}' where id=$1`,[id(41)]);
     await db.query('update tailoring_jobs set tailored_resume_id=$1 where id=$2',[id(21),id(41)]);
     assert.equal((await value('select tailoring_prompt_provenance result from resumes where id=$1',[id(21)])).version,1);
-    assert.equal(await value('select cover_letter_text result from resumes where id=$1',[id(21)]),'Tailored letter body.');
+    assert.equal(await value('select cover_letter_text result from resumes where id=$1',[id(21)]),null);
   });
   await t.test('only managers edit base letters, and only on original Resumes',async()=>{
     await assert.rejects(()=>value("select set_resume_cover_letter_text_v119($1,'Letter') result",[id(21)]),/RESUME_TYPE_INVALID/);
