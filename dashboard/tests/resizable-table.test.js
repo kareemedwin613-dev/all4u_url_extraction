@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { columnId, leafColumnIds, withResizableColumns } from "../src/shared/resizable-table.jsx";
+import { createElement } from "react";
+import { columnId, leafColumnIds, withResizableColumns } from "../src/shared/resizable-table-columns.js";
 
 test("columns are identified by key, then dataIndex, then title", () => {
   assert.equal(columnId({ key: "status", dataIndex: "x" }, 0), "status");
   assert.equal(columnId({ dataIndex: ["job", "title"] }, 1), "job.title");
   assert.equal(columnId({ title: "Company" }, 2), "Company");
-  assert.equal(columnId({ title: <span>Icon</span> }, 3), "column-3");
+  assert.equal(columnId({ title: createElement("span", null, "Icon") }, 3), "column-3");
   assert.deepEqual(leafColumnIds([{ key: "a" }, { key: "group", children: [{ key: "b" }, { dataIndex: "c" }] }]), ["a", "group/b", "group/c"]);
 });
 

@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Table } from "antd";
+import { leafColumnIds, withResizableColumns } from "./resizable-table-columns.js";
+export { columnId, leafColumnIds, withResizableColumns } from "./resizable-table-columns.js";
 
 // Drop-in replacement for Ant Design's Table with drag-to-resize columns.
 // Drag a header's right edge to resize; double-click it to restore automatic widths.
@@ -15,41 +17,6 @@ function writeWidths(key, widths) {
     if (Object.keys(widths).length) globalThis.localStorage?.setItem(STORAGE_PREFIX + key, JSON.stringify(widths));
     else globalThis.localStorage?.removeItem(STORAGE_PREFIX + key);
   } catch { /* storage unavailable: widths last for this page view only */ }
-}
-
-export function columnId(column, index) {
-  if (column.key !== undefined && column.key !== null) return String(column.key);
-  if (Array.isArray(column.dataIndex)) return column.dataIndex.join(".");
-  if (column.dataIndex !== undefined && column.dataIndex !== null) return String(column.dataIndex);
-  return typeof column.title === "string" ? column.title : `column-${index}`;
-}
-
-export function leafColumnIds(columns = [], prefix = "") {
-  return columns.flatMap((column, index) => {
-    const id = `${prefix}${columnId(column, index)}`;
-    return Array.isArray(column.children) ? leafColumnIds(column.children, `${id}/`) : [id];
-  });
-}
-
-// Pure: apply saved widths to leaf columns and attach the resize handle props to their headers,
-// keeping any onHeaderCell the page already defines.
-export function withResizableColumns(columns = [], widths = {}, handlers = {}, prefix = "") {
-  return columns.map((column, index) => {
-    const id = `${prefix}${columnId(column, index)}`;
-    if (Array.isArray(column.children)) return { ...column, children: withResizableColumns(column.children, widths, handlers, `${id}/`) };
-    const width = widths[id] ?? column.width;
-    return {
-      ...column,
-      ...(width !== undefined ? { width } : {}),
-      onHeaderCell: (col) => ({
-        ...(column.onHeaderCell?.(col) || {}),
-        "data-column-id": id,
-        resizable: true,
-        onResizeWidth: (next, commit) => handlers.onResizeWidth?.(id, next, commit),
-        onResetWidths: () => handlers.onResetWidths?.(),
-      }),
-    };
-  });
 }
 
 function ResizableHeaderCell({ resizable, onResizeWidth, onResetWidths, children, ...rest }) {
