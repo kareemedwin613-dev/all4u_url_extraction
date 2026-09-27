@@ -92,6 +92,7 @@ import {
   unblockJobDescriptionApplications,
 } from "./application-service.js";
 import { ApplicationScreenshotsCard } from "./application-screenshots-card.jsx";
+import { downloadApplicationCoverLetterPdf } from "../../services/storage-read-service.js";
 import { ApplicationMatchPanel, MatchingModeSelect } from "../application-matching/match-components.jsx";
 import { categoryMatchingDescription } from "../application-matching/match-state.js";
 import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.js";
@@ -1316,6 +1317,19 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       setBusy(false);
     }
   }
+  async function downloadCoverLetter() {
+    setBusy(true);
+    try {
+      const result = await downloadApplicationCoverLetterPdf(client, { id, apiBaseUrl });
+      setIsError(false);
+      setMessage(`${result.kind === "TAILORED" ? "Tailored" : "Base"} cover letter downloaded as ${result.filename}.`);
+    } catch (x) {
+      setIsError(true);
+      setMessage(x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function requestTailoring() {
     setBusy(true);
     setMessage("");
@@ -1579,6 +1593,13 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                       disabled={!actions.canOpenResume}
                     >
                       Open Resume securely
+                    </Button>
+                    <Button
+                      onClick={downloadCoverLetter}
+                      loading={busy}
+                      disabled={!actions.canOpenResume}
+                    >
+                      Download Cover Letter
                     </Button>
                     {manager&&<Button type="primary" onClick={requestTailoring} loading={busy}>Request or View Tailoring</Button>}
                   </Space>
