@@ -7,10 +7,10 @@ import {
   Descriptions,
   Flex,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import {
   ArrowLeftOutlined,
   CheckCircleOutlined,

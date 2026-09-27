@@ -51,3 +51,11 @@ html,body,#app{min-height:100%;margin:0}.ant-app{min-height:100vh}.dashboard-lay
 .ant-table-wrapper .ant-table-tbody>tr>td{
   line-height:1.35;
 }
+
+/* Drag-to-resize column handle (shared/resizable-table.jsx). Fixed columns are already sticky,
+   which positions the handle; other header cells need a containing block. */
+.ant-table-thead>tr>th:has(>.column-resize-handle):not(.ant-table-cell-fix-left):not(.ant-table-cell-fix-right){position:relative}
+.column-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;z-index:3;user-select:none;touch-action:none}
+.column-resize-handle::after{content:"";position:absolute;top:25%;bottom:25%;right:3px;width:2px;border-radius:1px;background:transparent;transition:background .15s}
+.ant-table-thead>tr>th:hover .column-resize-handle::after,.column-resize-handle:hover::after{background:var(--ant-color-primary,#1677ff)}
+body.column-resizing,body.column-resizing *{cursor:col-resize!important;user-select:none!important}

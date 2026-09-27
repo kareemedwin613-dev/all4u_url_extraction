@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState}from"react";
 import{filterHref,parseTailoringQuery}from"../../shared/filter-preferences.js";
-import{Alert,App as AntApp,Button,Card,Descriptions,Empty,Flex,Form,Input,Select,Space,Table,Tag,Typography}from"antd";
+import{Alert,App as AntApp,Button,Card,Descriptions,Empty,Flex,Form,Input,Select,Space,Tag,Typography}from"antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import{formatDate,formatLabel}from"../../shared/formatters.js";
 import{EllipsisCell,LoadingState,StatusTag}from"../../components/ui.jsx";
 import{createBulkTailoringRunnerTickets,createTailoringRunnerTicket,getTailoringJob,getTailoringResumeUrl,getTailoringReviews,listTailoringJobs,listTailoringTemplates,materializeTailoredResume,reviewTailoringPreview,selectTailoringTemplate}from"./tailoring-service.js";

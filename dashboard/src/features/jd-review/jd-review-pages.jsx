@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useState} from "react";
-import {Alert, Button, Card, Popconfirm, Progress, Space, Table, Tag, Typography} from "antd";
+import {Alert, Button, Card, Popconfirm, Progress, Space, Tag, Typography} from "antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import {jdReviewRequest} from "../../services/jd-review-service.js";
 const {Title, Paragraph, Text} = Typography;
 const terminal = status => !["PENDING", "RUNNING"].includes(status);

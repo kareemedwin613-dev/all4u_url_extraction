@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 import { useSavedSearch } from "../../shared/use-filter-preferences.js";
 import { useSavedTableSort } from "../../shared/use-saved-table-sort.js";
-import { Button, Dropdown, Empty, Input, Table } from "antd";
+import { Button, Dropdown, Empty, Input} from "antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { tableRowNumberColumn } from "../../shared/table-sorting.js";
 import {

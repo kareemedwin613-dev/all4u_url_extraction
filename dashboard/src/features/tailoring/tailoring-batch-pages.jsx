@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useMemo,useState}from"react";
-import{Alert,Button,Card,Col,Empty,Flex,Popconfirm,Progress,Row,Space,Statistic,Table,Tag,Typography}from"antd";
+import{Alert,Button,Card,Col,Empty,Flex,Popconfirm,Progress,Row,Space,Statistic,Tag,Typography}from"antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import{cancelTailoringBatch,createTailoringBatchRunnerTicket,getTailoringBatch,listTailoringBatches,retryTailoringBatch}from"./tailoring-service.js";
 import{useRealtimeRefresh}from"../../shared/use-realtime-refresh.js";
 import { TailoringTimeEstimate } from "./tailoring-time.jsx";

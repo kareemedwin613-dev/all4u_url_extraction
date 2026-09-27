@@ -18,11 +18,11 @@ import {
   Select,
   Space,
   Statistic,
-  Table as AntTable,
   Tag,
   Tooltip,
   Typography,
 } from "antd";
+import { ResizableTable as AntTable } from "../../shared/resizable-table.jsx";
 import { FileImageOutlined, WarningOutlined } from "@ant-design/icons";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
