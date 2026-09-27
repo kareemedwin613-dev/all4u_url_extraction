@@ -2,6 +2,9 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from
 import type { Response } from "express";
 import { ApiException } from "./api.exception.js";
 import type { ApiRequest } from "../types/request.js";
+import { JsonLogger } from "../logging/json-logger.service.js";
+
+const logger = new JsonLogger();
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -22,6 +25,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       message = "The request body is too large. Create fewer Applications in one batch.";
     }
     if (status === HttpStatus.INTERNAL_SERVER_ERROR && process.env.NODE_ENV === "test" && error instanceof Error) details = error.message;
+    if (status >= 500 && process.env.NODE_ENV !== "test") logger.error("Request failed", undefined, { requestId: request.requestId, method: request.method, path: request.path, status, code, cause: error instanceof ApiException ? error.diagnostic : rawMessage });
     response.status(status).json({ code, message, requestId: request.requestId, ...(details === undefined ? {} : { details }), ...(fieldErrors ? { fieldErrors } : {}) });
   }
 }
