@@ -30,7 +30,16 @@ export async function saveResumeCoverLetterText(client,{id,apiBaseUrl,text}){
 export async function downloadCoverLetterPdf(client,{id,apiBaseUrl}){
   if(!id)throw{code:"VALIDATION_ERROR",message:"The Resume reference is invalid."};
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/cover-letter/pdf`,timeoutMs:30000});
-  const{filename,mimeType,contentBase64}=payload.data,bytes=Uint8Array.from(atob(contentBase64),character=>character.charCodeAt(0));
+  return saveBase64Pdf(payload.data);
+}
+// The tailored letter when the Application's Resume has one, otherwise the original Resume's base letter.
+export async function downloadApplicationCoverLetterPdf(client,{id,apiBaseUrl}){
+  if(!id)throw{code:"VALIDATION_ERROR",message:"The Application reference is invalid."};
+  const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/applications/${encodeURIComponent(id)}/cover-letter`,timeoutMs:30000});
+  return {filename:saveBase64Pdf(payload.data),kind:payload.data.kind};
+}
+function saveBase64Pdf({filename,mimeType,contentBase64}){
+  const bytes=Uint8Array.from(atob(contentBase64),character=>character.charCodeAt(0));
   const url=URL.createObjectURL(new Blob([bytes],{type:mimeType||"application/pdf"})),link=document.createElement("a");
   link.href=url;link.download=filename||"Cover_Letter.pdf";document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),10000);
