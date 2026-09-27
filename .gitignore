@@ -18,3 +18,13 @@ dashboard/.env.*.local
 supabase/.temp/
 *.log
 .clasp.json
+
+# Database dumps and exports: never commit (they contain production and auth data).
+/*.sql
+supabase/*.sql
+!supabase/seed.sql
+*production-data*
+*-dump.sql
+*.dump
+*.backup
+*.sql.gz
