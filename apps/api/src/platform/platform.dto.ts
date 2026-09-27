@@ -15,6 +15,8 @@ export class TailoredExperienceDto{@IsString()@MaxLength(120)sourceExperienceId!
 export class TailoredSkillGroupDto{@IsIn([...TAILORED_SKILL_GROUP_NAMES])name!:TailoredSkillGroupName;@IsArray()@ArrayMinSize(1)@ArrayMaxSize(250)@ArrayUnique(value=>String(value).toLowerCase())@IsString({each:true})@MaxLength(120,{each:true})skills!:string[];}
 export class TailoringPreviewResultDto{
   @IsString()@MaxLength(4000)summary!:string;
+  // Optional for legacy previews; new workers generate a cover-letter body alongside the Resume.
+  @IsOptional()@IsString()@MaxLength(6000)@Matches(/\S/)coverLetter?:string;
   @IsArray()@ArrayMinSize(1)@ArrayMaxSize(30)@ValidateNested({each:true})@Type(()=>TailoredExperienceDto)professionalExperience!:TailoredExperienceDto[];
   @IsArray()@ArrayMaxSize(250)@ArrayUnique(value=>String(value).toLowerCase())@IsString({each:true})@MaxLength(120,{each:true})skills!:string[];
   @IsOptional()@IsArray()@ArrayMinSize(1)@ArrayMaxSize(11)@ValidateNested({each:true})@Type(()=>TailoredSkillGroupDto)skillGroups?:TailoredSkillGroupDto[];
