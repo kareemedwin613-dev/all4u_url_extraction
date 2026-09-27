@@ -11,10 +11,10 @@ import {
   Input,
   Select,
   Space,
-  Table as AntTable,
   Tag,
   Typography,
 } from "antd";
+import { ResizableTable as AntTable } from "../shared/resizable-table.jsx";
 import { SearchOutlined } from "@ant-design/icons";
 import {
   AccountStatusBadge,

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Empty, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Modal, Select, Space, Tag, Typography } from "antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import { ErrorState, LoadingState } from "../../components/ui.jsx";
 import { clientSortColumns } from "../../shared/table-sorting.js";
 import { listActiveAppliers } from "./application-service.js";

@@ -18,10 +18,10 @@ import {
   Select,
   Space,
   Statistic,
-  Table as AntTable,
   Tag,
   Typography,
 } from "antd";
+import { ResizableTable as AntTable } from "../../shared/resizable-table.jsx";
 import {
   ErrorState,
   FilterPanel,

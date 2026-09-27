@@ -9,12 +9,12 @@ import {
   Flex,
   Pagination,
   Spin,
-  Table,
   Tabs,
   Tag,
   Tooltip,
   Typography,
 } from "antd";
+import { ResizableTable as Table } from "../shared/resizable-table.jsx";
 import { formatLabel } from "../shared/formatters.js";
 import { clientSortColumns } from "../shared/table-sorting.js";
 

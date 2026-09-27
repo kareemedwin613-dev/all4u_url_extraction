@@ -22,13 +22,14 @@ test("v3106 repairs prior cascade-cancelled Applications on blocked JDs", () => 
   assert.match(sql, /insert into public\.application_status_history/);
 });
 
-test("API and UI say siblings become Blocked", () => {
-  const service = readFileSync(new URL("../apps/api/src/applications/application.service.ts", import.meta.url), "utf8");
+// The JD-wide sibling cascade was disabled (v3.110 application-scoped blocking, commit 0f522af);
+// both clients now tell users that blocking affects only the one Application.
+test("API and UI say blocking affects only this Application", () => {
   const modal = readFileSync(new URL("../extension/sidepanel/components/ApplicationStatusModal.jsx", import.meta.url), "utf8");
   const progress = readFileSync(new URL("../dashboard/src/features/applications/application-pages.jsx", import.meta.url), "utf8");
-  assert.match(service, /siblingsBlocked/);
-  assert.match(modal, /will be set to Blocked/);
-  assert.match(modal, /other open Application\$\{siblingsBlocked === 1 \? "" : "s"\} blocked\./);
-  assert.match(progress, /will be set to Blocked/);
-  assert.match(progress, /other open Application\$\{siblingsBlocked === 1 \? "" : "s"\} blocked\./);
+  assert.match(modal, /Only this Application is affected/);
+  assert.match(modal, /Other Applications remain unchanged/);
+  assert.match(progress, /Blocking affects only this Application/);
+  assert.match(progress, /Other Applications remain unchanged/);
+  for (const source of [modal, progress]) assert.doesNotMatch(source, /will be set to Blocked/);
 });

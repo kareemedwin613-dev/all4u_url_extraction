@@ -3,6 +3,8 @@ import {CAPABILITIES, hasCapability} from "./capabilities.js";
 export const ROUTE_CAPABILITIES = Object.freeze({
   overview: null,
   profile: CAPABILITIES.PROFILE_VIEW_SELF,
+  // Any active user with a role may connect their own extension.
+  "connect-extension": null,
   jobs: CAPABILITIES.JOB_DESCRIPTION_READ,
   "job-detail": CAPABILITIES.JOB_DESCRIPTION_READ,
   resumes: CAPABILITIES.BUSINESS_DATA_READ,

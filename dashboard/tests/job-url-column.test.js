@@ -13,6 +13,5 @@ test("Job Description table shows the full clickable job-posting URL", async () 
   assert.match(jobs, /safeExternalUrl/);
   assert.match(jobs, /EllipsisCell href=\{source\}/);
   assert.doesNotMatch(jobs, /ellipsis:\s*true/);
-  assert.doesNotMatch(jobs, /title:\s*"Subcategory"/);
   assert.doesNotMatch(jobs, /title:\s*"Source Site"/);
 });

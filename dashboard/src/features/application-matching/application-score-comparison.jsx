@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Button, Card, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Space, Tag, Typography } from "antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import { getApplicationMatchComparison } from "../applications/application-service.js";
 import { startMatchPreviewPolling, previewFailureMessage } from "./preview-polling.js";
 import { COMPARISON_DIMENSIONS, comparisonDifference, comparisonScoreLabel } from "./comparison-state.js";

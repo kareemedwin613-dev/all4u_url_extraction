@@ -6,9 +6,9 @@ import {
   Dropdown,
   Empty,
   Input,
-  Table,
   Typography,
 } from "antd";
+import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import {
   MoreOutlined,
   SearchOutlined,

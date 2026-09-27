@@ -54,4 +54,4 @@ test("bulk pages use Ant Design, original Resume scope, disabled exclusions, con
   assert.doesNotMatch(batches,/<FilterPanel/);
 });
 
-test("JD page exposes selection only behind the bulk capability",async()=>{const source=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");assert.match(source,/APPLICATION_BULK_MANAGE/);assert.match(source,/rowSelection=\{\s*canBulk\s*\?/);assert.match(source,/preserveSelectedRowKeys\s*:\s*true/);assert.match(source,/Create Applications/);});
+test("JD page exposes selection only behind the bulk capability",async()=>{const source=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");assert.match(source,/APPLICATION_BULK_MANAGE/);assert.match(source,/canSelect = canBulk \|\| canReview/);assert.match(source,/rowSelection=\{\s*canSelect\s*\?/);assert.match(source,/preserveSelectedRowKeys\s*:\s*true/);assert.match(source,/Create Applications/);});

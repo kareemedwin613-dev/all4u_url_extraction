@@ -6,10 +6,10 @@ import {
   Input,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
+import { ResizableTable as Table } from "../shared/resizable-table.jsx";
 import { SearchOutlined } from "@ant-design/icons";
 import {
   DataPagination,

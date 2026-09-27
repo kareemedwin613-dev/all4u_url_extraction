@@ -7,6 +7,7 @@ export function parseRoute(hash = "#/") {
   if (!parts.length) return {name: "overview", path: "/", query};
   if (parts[0] === "login" && parts.length === 1) return {name: "login", path: "/login", query};
   if (parts[0] === "profile" && parts.length === 1) return {name: "profile", path: "/profile", query};
+  if (parts[0] === "connect-extension" && parts.length === 1) return {name: "connect-extension", path: "/connect-extension", query};
   if (parts[0] === "tailoring-prompts" && parts.length === 1) return {name: "tailoring-prompts", path: "/tailoring-prompts", query};
   if (parts[0] === "pending-access" && parts.length === 1) return {name: "pending-access", path: "/pending-access", query};
   if (parts[0] === "account-inactive" && parts.length === 1) return {name: "account-inactive", path: "/account-inactive", query};
@@ -50,3 +51,13 @@ export function guardRoute(route, session) {
 }
 
 export const navigate = (path, {replace = false} = {}) => replace ? location.replace(path) : location.assign(path);
+
+// The extension's Connect link may be opened while signed out. Remember only that route (never an
+// arbitrary one) across the sign-in redirect, then restore it once.
+const RETURN_KEY = "resume-jd:return-after-login", RETURNABLE = /^#\/connect-extension\?[A-Za-z0-9=&_%.-]+$/;
+export function rememberReturnRoute(hash, storage = globalThis.sessionStorage) {
+  try { if (RETURNABLE.test(String(hash || ""))) storage?.setItem(RETURN_KEY, String(hash)); } catch { /* storage unavailable */ }
+}
+export function takeReturnRoute(storage = globalThis.sessionStorage) {
+  try { const value = storage?.getItem(RETURN_KEY); storage?.removeItem(RETURN_KEY); return RETURNABLE.test(String(value || "")) ? value : null; } catch { return null; }
+}

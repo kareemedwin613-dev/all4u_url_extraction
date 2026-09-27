@@ -3,7 +3,10 @@ import { cp,mkdir,readFile,writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 const root=resolve("extension"),dist=resolve(root,"dist"),watch=process.argv.includes("--watch");
 try{await import("./clean.mjs");}catch(error){if(error?.code!=="EPERM")throw error;console.warn("Extension dist is in use by Chrome; rebuilding files in place.");}await mkdir(resolve(dist,"background"),{recursive:true});await mkdir(resolve(dist,"content"),{recursive:true});await mkdir(resolve(dist,"sidepanel"),{recursive:true});await mkdir(resolve(dist,"assets"),{recursive:true});
-const shared={bundle:true,outdir:dist,format:"esm",platform:"browser",target:"chrome114",jsx:"automatic",sourcemap:false,minify:true,legalComments:"none"};
+// Optional build-time overrides of extension/config/defaults.js, e.g. for a localhost build.
+const configOverrides=Object.fromEntries([["projectUrl","EXTENSION_SUPABASE_URL"],["publishableKey","EXTENSION_SUPABASE_PUBLISHABLE_KEY"],["apiBaseUrl","EXTENSION_API_BASE_URL"],["dashboardUrl","EXTENSION_DASHBOARD_URL"]].flatMap(([key,name])=>process.env[name]?[[key,process.env[name].trim()]]:[]));
+if(/^sb_secret_|service_role/i.test(String(configOverrides.publishableKey||"")))throw new Error("EXTENSION_SUPABASE_PUBLISHABLE_KEY must be a publishable key, never a secret key.");
+const shared={bundle:true,outdir:dist,format:"esm",platform:"browser",target:"chrome114",jsx:"automatic",sourcemap:false,minify:true,legalComments:"none",define:{__EXTENSION_CONFIG_OVERRIDES__:JSON.stringify(configOverrides)}};
 const builds=[
   {...shared,entryPoints:{"background/service-worker":resolve(root,"background/service-worker.js"),"content/dashboard-bridge":resolve(root,"content/dashboard-bridge.js"),"content/resume-upload":resolve(root,"content/resume-upload.js"),"content/personal-autofill":resolve(root,"content/personal-autofill.js")}},
   {...shared,entryPoints:{"sidepanel/index":resolve(root,"sidepanel/main.jsx")},splitting:true,chunkNames:"chunks/[name]-[hash]"},

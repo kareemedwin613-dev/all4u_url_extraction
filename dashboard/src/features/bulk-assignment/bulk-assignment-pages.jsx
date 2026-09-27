@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { filterHref, parseWorkloadQuery } from "../../shared/filter-preferences.js";
 import {
   Alert, Button, Card, Checkbox, Col, Descriptions, Flex, Form, Input,
-  InputNumber, Modal, Result, Row, Space, Statistic, Steps, Switch,
-  Table as AntTable, Tag, Typography,
+  InputNumber, Modal, Result, Row, Space, Statistic, Steps, Switch, Tag, Typography,
 } from "antd";
+import { ResizableTable as AntTable } from "../../shared/resizable-table.jsx";
 import { ErrorState, LoadingState, StatusTag } from "../../components/ui.jsx";
 import { formatDate } from "../../shared/formatters.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";

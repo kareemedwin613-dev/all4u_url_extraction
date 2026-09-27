@@ -15,7 +15,7 @@ test("Resume dashboard identifies original Resumes by decimal number",()=>{
 });
 
 test("Resume list places Status after Updated",()=>{
-  const start=app.indexOf('title: "No"');
+  const start=app.indexOf('title: "No"',app.indexOf("function Resumes("));
   const end=app.indexOf("filters.sort", start);
   assert.ok(start>=0 && end>start, "Resume list columns are defined");
   const list=app.slice(start, end);

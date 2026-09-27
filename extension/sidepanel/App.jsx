@@ -17,6 +17,7 @@ import {
 import { currentSession, signIn, signOut } from "../services/auth-service.js";
 import { getMyAccessContext } from "../services/access-service.js";
 import { recordLogin } from "../services/session-events-service.js";
+import { createPairing, pairingUrl, waitForApproval } from "../services/extension-pairing-service.js";
 import {
   canAccessMyApplications,
   canAccessResumeQueue,
@@ -88,6 +89,9 @@ export function App() {
   const [config, setConfig] = useState(null);
   const [minimumScore, setMinimumScore] = useState(60);
   const [backendBaseUrl, setBackendBaseUrl] = useState("");
+  const [dashboardUrl, setDashboardUrl] = useState("");
+  const [connecting, setConnecting] = useState(null);
+  const connectAbortRef = useRef(null);
   const [connectionText, setConnectionText] = useState("Not configured");
   const [client, setClient] = useState(null);
   const [session, setSession] = useState(null);
@@ -175,6 +179,7 @@ export function App() {
         const stored = await loadConfig();
         setConfig(stored.supabaseConfig);
         setBackendBaseUrl(stored.backendConfig?.baseUrl || "");
+        setDashboardUrl(stored.dashboardUrl || "");
         setMinimumScore(Number(stored.matchingSettings.minimumScore ?? 60));
         const check = validateSupabaseConfig(stored.supabaseConfig);
         if (!check.valid) {
@@ -376,6 +381,32 @@ export function App() {
     }
   }
 
+  // Sign in by approving this extension from an already signed-in dashboard tab.
+  async function handleConnect() {
+    const controller = new AbortController();
+    connectAbortRef.current = controller;
+    try {
+      const pairing = await createPairing();
+      setConnecting({ code: pairing.code });
+      await chrome.tabs.create({ url: pairingUrl(dashboardUrl, pairing) });
+      const granted = await waitForApproval(backendBaseUrl, pairing, { signal: controller.signal });
+      const { error } = await client.auth.setSession({ access_token: granted.accessToken, refresh_token: granted.refreshToken });
+      if (error) throw error;
+      await enterAuthenticated(client);
+      setStatus({ message: "Connected to the dashboard and signed in.", kind: "success" });
+    } catch (error) {
+      if (error?.code !== "EXTENSION_CONNECT_CANCELLED") handleError(error);
+    } finally {
+      if (connectAbortRef.current === controller) connectAbortRef.current = null;
+      setConnecting(null);
+    }
+  }
+
+  function handleCancelConnect() {
+    connectAbortRef.current?.abort();
+    setConnecting(null);
+  }
+
   async function handleSignOut() {
     try {
       await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION }).catch(() => {});
@@ -431,7 +462,7 @@ export function App() {
         clearBusy={clearBusy}
       />
     ),
-    auth: <AuthView onSignIn={handleSignIn} />,
+    auth: <AuthView onSignIn={handleSignIn} onConnect={handleConnect} onCancelConnect={handleCancelConnect} connecting={connecting} />,
     access: <AccessView access={access} />,
     capture: (
       <CaptureView
