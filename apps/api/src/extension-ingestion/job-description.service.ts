@@ -30,7 +30,7 @@ export class JobDescriptionService {
       user_id: user.id,
       company: normalizedCompany,
       job_title: normalizedJobTitle,
-      category_id: input.categoryId,
+      category_id: input.categoryId || null,
       subcategory_id: subcategoryIds[0] || null,
       subcategory_ids: subcategoryIds,
       industry_domain_category_id: input.industryDomainCategoryId || null,
@@ -86,7 +86,7 @@ export class JobDescriptionService {
     if (identityMatch.data) return this.completed(identityMatch.data,true,"COMPANY_JOB_TITLE");
     const { data, error } = await client.from("job_descriptions").insert(insertRow).select(FIELDS).single();
     if (!error) {
-      if (subcategoryIds.length && data?.id) {
+      if (input.categoryId && subcategoryIds.length && data?.id) {
         try {
           await client.rpc("replace_job_description_subcategories", {
             p_job_description_id: data.id,

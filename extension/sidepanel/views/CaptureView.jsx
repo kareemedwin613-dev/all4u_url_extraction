@@ -581,10 +581,18 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
           <Form.Item label="Job title" name="jobTitle" rules={[{ required: true, max: 200, message: "Job title must contain 1–200 characters." }]}>
             <Input maxLength={200} />
           </Form.Item>
-          <Form.Item label="Primary category" name="jobCategory" rules={[{ required: true, message: "Select a primary category." }]}>
+          <Form.Item
+            label="Job description"
+            name="descriptionText"
+            rules={[{ required: true, message: "Description must contain 100–200,000 characters." }]}
+          >
+            <TextArea rows={16} />
+          </Form.Item>
+          <Form.Item label={<>Primary category <Text type="secondary">(optional)</Text></>} name="jobCategory">
             <Select
               options={categoryOptions}
               placeholder="Select category"
+              allowClear
               onChange={() => form.setFieldValue("jobSubcategories", [])}
             />
           </Form.Item>
@@ -661,13 +669,6 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
             name="sourceUrl"
           >
             <Input disabled={!urlEditable} maxLength={4000} />
-          </Form.Item>
-          <Form.Item
-            label="Job description"
-            name="descriptionText"
-            rules={[{ required: true, message: "Description must contain 100–200,000 characters." }]}
-          >
-            <TextArea rows={16} />
           </Form.Item>
           <Form.Item
             label={<>Detected skills <Text type="secondary">(comma-separated, editable)</Text></>}
