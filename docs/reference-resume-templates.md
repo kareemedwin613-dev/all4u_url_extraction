@@ -48,7 +48,7 @@ Tests cover all layouts, font embedding, section order, preserved text, bounds, 
 1. Review the generated sample PDFs.
 2. Deploy the API code **with `apps/api/assets/resume-fonts`**. Vercel's `includeFiles` explicitly includes this directory. Keep it at the same relative location for other deployment targets.
 3. Verify the API template catalog includes the six new keys.
-4. Apply `202609281000_v3_128_reference_resume_templates.sql` to the intended Supabase project. This extends the existing key constraints and selector and replaces the random-selection function; no new tables or columns are introduced.
+4. Apply `202609281010_v3_128_reference_resume_templates.sql` to the intended Supabase project. This extends the existing key constraints and selector and replaces the random-selection function; no new tables or columns are introduced.
 5. Run one new tailoring job and verify its selected key, PDF, and application attachment before starting a larger batch.
 
 Do not activate the migration against an older API: it cannot render the new keys. Rolling back only the API after new-key jobs exist is also unsafe; retain new-key rendering support while changing the selection pool if rollback is needed.

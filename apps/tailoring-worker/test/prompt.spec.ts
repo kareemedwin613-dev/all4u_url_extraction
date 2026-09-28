@@ -69,3 +69,11 @@ test("role targets precompute exact project and bullet counts without model date
   const unclear={...input,sourceResume:{...input.sourceResume,professionalExperience:[{...input.sourceResume.professionalExperience[0],startDate:"2022"}]}};
   assert.deepEqual(tailoringRoleTargets(unclear,new Date("2026-09-01T00:00:00Z")),[{sourceExperienceId:"amazon-data-engineer",projects:2,bullets:4}]);
 });
+
+test("contract v5 role targets are bullet ranges by time in the role (matches v3.127)",async()=>{
+  const input=await loadFixture(fixturePath,applicationId),reference=new Date("2026-09-01T00:00:00Z");
+  const v5=(roles:Array<{startDate:string|null;endDate:string|null}>)=>tailoringRoleTargets({...input,promptSnapshot:{promptId:"11111111-1111-4111-8111-111111111111",name:"Generic",version:1,instructions:"Tailor.",contractVersion:"5",referenceDate:reference.toISOString(),composedPrompt:"Saved v5 prompt."},
+    sourceResume:{...input.sourceResume,professionalExperience:roles.map((dates,index)=>({...input.sourceResume.professionalExperience[0],id:`role-${index}`,...dates}))}},reference);
+  assert.deepEqual(v5([{startDate:"2020-01",endDate:"2022-01"},{startDate:"2020-01",endDate:"2022-02"},{startDate:"2020-01",endDate:"2024-01"},{startDate:"2020-01",endDate:"2024-02"},{startDate:"2025-01",endDate:null},{startDate:"2022",endDate:null}])
+    .map(({projects,minBullets,maxBullets})=>[projects,minBullets,maxBullets]),[[2,4,6],[3,7,8],[3,7,8],[4,8,10],[2,4,6],[2,4,6]]);
+});

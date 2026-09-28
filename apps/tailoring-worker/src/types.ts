@@ -45,7 +45,7 @@ export interface TailoringPromptSnapshot {
   name: string;
   version: number | null;
   instructions: string;
-  contractVersion: "2" | "3" | "4";
+  contractVersion: "2" | "3" | "4" | "5";
   referenceDate: string;
   composedPrompt: string;
   isTest?: boolean;
