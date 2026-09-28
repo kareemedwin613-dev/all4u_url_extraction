@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { readFile } from "node:fs/promises";
-import { renderedSkillGroups, resolveResumeHeadline } from "./tailored-resume-layout.js";
+import { renderedSkillGroups, resolveResumeHeadline, resumeEducationEntries } from "./tailored-resume-layout.js";
 import type { ReferenceResumeLayout } from "./reference-resume-templates.js";
 
 type RecordValue = Record<string, any>;
@@ -147,7 +147,7 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     const roleHeight=(item:RecordValue)=>{
       const title=clean(item.job_title)+(spec.inlineEmployer&&clean(item.company)?`, ${clean(item.company)}`:"");
       const h=wrap(rich(title,"bold"),width-(dates(item)?measure(dates(item))+14:0)).length*spec.leading;
-      return h+(!spec.inlineEmployer&&clean(item.company)?spec.leading:0)+(clean(item.location)?spec.leading:0)+Math.min(2,wrap(rich(bulletLines(details.get(clean(item.id))||"")[0]||""),width-9).length)*spec.leading;
+      return h+(!spec.inlineEmployer&&clean(item.company)?spec.leading:0)+Math.min(2,wrap(rich(bulletLines(details.get(clean(item.id))||"")[0]||""),width-9).length)*spec.leading;
     };
     section("Professional Experience","experience",roleHeight(roles[0]));
     roles.forEach((item,index)=>{
@@ -157,7 +157,7 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
       if(spec.inlineEmployer&&clean(item.company))runs.push({text:`, ${clean(item.company)}`,face:spec.key==="AMIRI_COMPACT_V1"?"italic":"regular"});
       titleRow(runs,dates(item));
       if(!spec.inlineEmployer&&clean(item.company))paragraph(clean(item.company),spec.header==="banner"?"regular":"italic");
-      if(clean(item.location))paragraph(clean(item.location),"italic");
+      // Role locations are not rendered; the contact header already carries the candidate's location.
       for(const line of bulletLines(details.get(clean(item.id))||""))bullet(line);
     });
   }
@@ -193,25 +193,28 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
       if(queues.some(queue=>queue.length))newPage();
     }
   }
+  // Every template: degree in bold with its dates right-aligned, the school on the line below.
+  // When only the one-line form ("Degree, School") still fits on the current page, use it rather
+  // than pushing a short Education section onto a page of its own.
   function education(){
-    const items=list(structured.education),legacy=clean(structured.education_legacy_text);if(!items.length&&!legacy)return;
-    const blocks=items.map(item=>{
-      const degree=[item.degree,item.field_of_study,item.gpa?`GPA: ${item.gpa}`:""].map(clean).filter(Boolean).join(", ");
-      const primary=spec.degreeFirst?degree||clean(item.institution):clean(item.institution)||degree;
-      const secondary=spec.degreeFirst&&degree?clean(item.institution):!spec.degreeFirst&&clean(item.institution)?degree:"";
-      const inline=spec.inlineEmployer&&Boolean(secondary),runs:Run[]=[{text:primary,face:"bold"}];
-      if(inline)runs.push({text:`, ${secondary}`,face:spec.key==="AMIRI_COMPACT_V1"?"italic":"regular"});
-      const height=wrap(runs,width-(dates(item)?measure(dates(item))+14:0)).length*spec.leading+(secondary&&!inline?spec.leading:0);
-      return {item,runs,secondary,inline,height};
+    const entries=resumeEducationEntries(structured),legacy=clean(structured.education_legacy_text);if(!entries.length&&!legacy)return;
+    const layout=(inline:boolean)=>entries.map(entry=>{
+      const primary=entry.degree||entry.institution,secondary=entry.degree?entry.institution:"";
+      const runs:Run[]=[{text:primary,face:"bold"}];if(inline&&secondary)runs.push({text:`, ${secondary}`,face:"regular"});
+      const height=wrap(runs,width-(entry.range?measure(entry.range)+14:0)).length*spec.leading+(secondary&&!inline?spec.leading:0)+(entry.details?wrap(rich(entry.details),width).length*spec.leading:0);
+      return {entry,runs,secondary:inline?"":secondary,height};
     });
+    const total=(items:ReturnType<typeof layout>)=>spec.sectionGap+spec.headingSize+10+items.reduce((sum,item,index)=>sum+item.height+(index?spec.roleGap:0),0);
+    const stacked=layout(false),inline=layout(true);
+    const blocks=y+total(stacked)>bottom&&y+total(inline)<=bottom?inline:stacked;
     section("Education","education",blocks[0]?.height||Math.min(2,wrap(rich(legacy),width).length)*spec.leading);
-    if(!items.length){paragraph(legacy);return;}
-    blocks.forEach(({item,runs,secondary,inline,height},index)=>{
+    if(!entries.length){paragraph(legacy);return;}
+    blocks.forEach(({entry,runs,secondary,height},index)=>{
       if(index)y+=spec.roleGap;
       ensure(height);
-      titleRow(runs,dates(item));
-      if(secondary&&!inline)paragraph(secondary,spec.header==="banner"?"regular":"italic");
-      if(clean(item.details))paragraph(clean(item.details));
+      titleRow(runs,entry.range);
+      if(secondary)paragraph(secondary);
+      if(entry.details)paragraph(entry.details);
     });
   }
   header();
