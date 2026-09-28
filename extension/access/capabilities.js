@@ -1,6 +1,7 @@
 export const EXTENSION_CAPABILITIES = Object.freeze({
   BUSINESS_READ: "BUSINESS_READ",
   BUSINESS_WRITE: "EXTENSION_BUSINESS_WRITE",
+  JD_DUPLICATE_CHECK: "JD_DUPLICATE_CHECK",
   RESUME_QUEUE_READ: "RESUME_QUEUE_READ",
   MY_APPLICATIONS_READ: "MY_APPLICATIONS_READ",
   TAILORING_CREATE: "TAILORING_CREATE",
@@ -9,7 +10,8 @@ export const EXTENSION_CAPABILITIES = Object.freeze({
 });
 
 const BUSINESS_READ_ROLES = new Set(["APPLIER", "APPLYING_MANAGER", "DEVELOPER", "DEVELOPMENT_MANAGER", "JD_FINDER", "ADMIN"]);
-const BUSINESS_WRITE_ROLES = new Set(["APPLYING_MANAGER", "JD_FINDER", "ADMIN"]);
+const BUSINESS_WRITE_ROLES = new Set(["APPLYING_MANAGER", "ADMIN"]);
+const JD_DUPLICATE_CHECK_ROLES = new Set(["APPLYING_MANAGER", "JD_FINDER", "ADMIN"]);
 const RESUME_QUEUE_ROLES = new Set(["ADMIN"]);
 const MY_APPLICATIONS_ROLES = new Set(["APPLIER"]);
 const TAILORING_CREATE_ROLES = new Set(["APPLYING_MANAGER","ADMIN"]);
@@ -26,6 +28,7 @@ export function normalizeExtensionAccess(raw) {
   if (status === "ACTIVE") {
     if (roles.some(role=>BUSINESS_READ_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.BUSINESS_READ);
     if (roles.some(role=>BUSINESS_WRITE_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.BUSINESS_WRITE);
+    if (roles.some(role=>JD_DUPLICATE_CHECK_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.JD_DUPLICATE_CHECK);
     if (roles.some(role=>RESUME_QUEUE_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.RESUME_QUEUE_READ);
     if (roles.some(role=>MY_APPLICATIONS_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.MY_APPLICATIONS_READ);
     if (roles.some(role=>TAILORING_CREATE_ROLES.has(role))) capabilities.add(EXTENSION_CAPABILITIES.TAILORING_CREATE);
@@ -37,6 +40,7 @@ export function normalizeExtensionAccess(raw) {
 
 export const canReadBusiness=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.BUSINESS_READ)===true;
 export const canWriteBusiness=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.BUSINESS_WRITE)===true;
+export const canCheckJobDuplicates=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.JD_DUPLICATE_CHECK)===true;
 export const canAccessResumeQueue=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.RESUME_QUEUE_READ)===true;
 export const canAccessMyApplications=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.MY_APPLICATIONS_READ)===true;
 export const canCreateTailoring=access=>access?.capabilities?.has(EXTENSION_CAPABILITIES.TAILORING_CREATE)===true;
@@ -48,6 +52,7 @@ export function extensionAccessMessage(access) {
   if (access.status === "INACTIVE") return "Your platform account is inactive.";
   if (!access.roles.length) return "Your account is waiting for an administrator to assign a role.";
   if (!canReadBusiness(access)) return "Your role does not allow access to business data in this extension.";
+  if (!canWriteBusiness(access) && canCheckJobDuplicates(access)) return "You can check JD duplicates. Only Admins and Applying Managers can save new JDs.";
   if (!canWriteBusiness(access)) return "Your role allows read-only business access. Save and management actions are unavailable.";
   return "Business capture and resume-management access is enabled.";
 }

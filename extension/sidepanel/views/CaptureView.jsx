@@ -109,7 +109,7 @@ const DEFAULT_VALUES = {
   detectedSkills: "",
 };
 
-export function CaptureView({ client, backendBaseUrl, userId, categories, industryDomains, minimumScore, canWrite, canCreateTailoring=false, onStatus, onError }) {
+export function CaptureView({ client, backendBaseUrl, userId, categories, industryDomains, minimumScore, canWrite, canCheckDuplicates=false, canCreateTailoring=false, onStatus, onError }) {
   const [form] = Form.useForm();
   const { modal } = AntdApp.useApp();
   const [captureMethod, setCaptureMethod] = useState("manual");
@@ -382,6 +382,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   }
 
   async function handleCheckDuplicate() {
+    if (!canCheckDuplicates) return;
     const values = form.getFieldsValue();
     setCheckingDuplicate(true);
     setDuplicateCheck(null);
@@ -410,6 +411,10 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   }
 
   async function submit() {
+    if (!canWrite) {
+      onStatus({ message: "Only Admins and Applying Managers can save new JDs.", kind: "warning" });
+      return;
+    }
     setSaving(true);
     try {
       const job = jobPayload();
@@ -511,7 +516,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
             block
             icon={<SearchOutlined />}
             loading={checkingDuplicate}
-            disabled={!canWrite || saving || extracting}
+            disabled={!canCheckDuplicates || saving || extracting}
             onClick={handleCheckDuplicate}
           >
             Check Duplicate
@@ -535,6 +540,10 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
               Save JD
             </Button>
           </Flex>
+          {!canWrite && (
+            <Alert type="info" showIcon message="Only Admins and Applying Managers can save new JDs."
+              description={canCheckDuplicates ? "You can extract a job and check whether it already exists without saving it." : undefined} />
+          )}
           {duplicateCheck && (
             <Alert
               type={duplicateCheck.duplicate ? "warning" : "success"}
@@ -555,7 +564,9 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
                     ]
                       .filter(Boolean)
                       .join("\n")
-                  : "This capture looks new in the Job Descriptions catalog. You can save it."
+                  : canWrite
+                    ? "This capture looks new in the Job Descriptions catalog. You can save it."
+                    : "No duplicate found. An Admin or Applying Manager must save this JD."
               }
               style={{ whiteSpace: "pre-wrap" }}
             />
