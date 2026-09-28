@@ -10,7 +10,6 @@ export function validateJob(job={}) {
   const errors={};
   if(!String(job.company||"").trim()||String(job.company).trim().length>200)errors.company="Company must contain 1–200 characters.";
   if(!String(job.jobTitle||"").trim()||String(job.jobTitle).trim().length>200)errors.jobTitle="Job title must contain 1–200 characters.";
-  if(!job.categoryId)errors.categoryId="Select a primary category.";
   if(job.industryDomainCategoryId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(job.industryDomainCategoryId))errors.industryDomainCategoryId="Select a valid industry domain.";
   if(!SENIORITY_VALUES.includes(job.seniority))errors.seniority="Select a valid seniority.";
   if(job.locationText&&String(job.locationText).length>300)errors.locationText="Location must contain no more than 300 characters.";

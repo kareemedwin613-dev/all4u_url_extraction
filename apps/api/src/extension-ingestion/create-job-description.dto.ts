@@ -12,7 +12,7 @@ export class CreateJobDescriptionDto {
   @Transform(trim) @IsString() @Length(1, 200) company!: string;
   @Transform(trim) @IsString() @Length(1, 200) jobTitle!: string;
   @Transform(trim) @IsString() @MinLength(100) @MaxLength(200000) descriptionText!: string;
-  @IsUUID() categoryId!: string;
+  @IsOptional() @IsUUID() categoryId?: string | null;
   @IsOptional() @IsUUID() subcategoryId?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(12) @IsUUID("4", { each: true }) subcategoryIds?: string[];
   @IsOptional() @IsUUID() industryDomainCategoryId?: string | null;
