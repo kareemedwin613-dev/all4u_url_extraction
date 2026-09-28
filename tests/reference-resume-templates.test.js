@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {PGlite} from "@electric-sql/pglite";
 const read=path=>readFileSync(new URL(path,import.meta.url),"utf8");
-const migration=read("../supabase/migrations/202609281000_v3_128_reference_resume_templates.sql");
+const migration=read("../supabase/migrations/202609281010_v3_128_reference_resume_templates.sql");
 const active=["ALEGREYA_CLASSIC_V1","AMIRI_COMPACT_V1","LORA_BANDS_V1","CRIMSON_BANDS_V1","TITILLIUM_BANNER_V1","TITILLIUM_EXPERIENCE_V1"];
 const legacy=["CLASSIC_V1","MODERN_V1","COMPACT_V1","EXECUTIVE_V1","TECHNICAL_V1","MINIMAL_V1","CORPORATE_V1","ELEGANT_V1","SLATE_V1","EMERALD_V1","ACADEMIC_V1","IMPACT_V1"];
 test("new layout keys agree across API, persistence, and contracts; fonts are packaged offline",()=>{
