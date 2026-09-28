@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
-import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment}from"./tailored-resume-layout.js";
+import{renderedSkillGroups,resolveResumeHeadline,resumeEducationEntries,roleEnvironment}from"./tailored-resume-layout.js";
 import { referenceResumeLayout } from "./reference-resume-templates.js";
 import { renderReferenceResumePdf } from "./reference-resume-pdf.renderer.js";
 
@@ -44,17 +44,17 @@ export async function renderTailoredResumePdf(input:JsonRecord):Promise<Buffer>{
   for(const item of values(structured.professional_experience)){
     const role=[text(item.job_title),text(item.company)].filter(Boolean).join(" — "),range=dateRange(item);
     bold().text(role,{continued:Boolean(range)});if(range)document.font(fonts.italic).text(`    ${range}`,{align:"right"});
-    if(text(item.location))document.font(fonts.italic).fontSize(bodySize).text(text(item.location));
     for(const line of cleanLines(previewById.get(text(item.id))))regular().text(`• ${line}`,{indent:10,lineGap:spec.compact?0:1});
     const environment=roleEnvironment(preview.skills,item.experience_details);
     if(environment.length){bold().text("Environment: ",{indent:10,continued:true});regular().text(environment.join(", "));}
     document.moveDown(spec.compact ? .25 : .45);
   }
-  const education=values(structured.education);
+  // Degree in bold with its dates right-aligned, the school on the line below (same as reference layouts).
+  const education=resumeEducationEntries(structured);
   if(education.length||text(structured.education_legacy_text)){
     section("Education");
-    for(const item of education){const range=dateRange(item);bold().text(text(item.institution),{continued:Boolean(range)});if(range)document.font(fonts.italic).text(`    ${range}`,{align:"right"});const degree=[item.degree,item.field_of_study,item.gpa?`GPA: ${item.gpa}`:""].map(text).filter(Boolean).join(" — ");if(degree)regular().text(degree);if(text(item.details))regular().text(text(item.details));document.moveDown(spec.compact ? .2 : .35);}
-    if(!education.length&&text(structured.education_legacy_text))regular().text(text(structured.education_legacy_text));
+    for(const entry of education){const primary=entry.degree||entry.institution;bold().text(primary,{continued:Boolean(entry.range)});if(entry.range)regular().text(`    ${entry.range}`,{align:"right"});if(entry.degree&&entry.institution)regular().text(entry.institution);if(entry.details)regular().text(entry.details);document.moveDown(spec.compact ? .2 : .35);}
+    if(!education.length)regular().text(text(structured.education_legacy_text));
   }
   const certifications=values(structured.certifications);if(certifications.length){section("Certifications");for(const item of certifications)regular().text(`• ${text(item.name??item)}`,{indent:10});}
   const range=document.bufferedPageRange();for(let index=range.start;index<range.start+range.count;index++){
