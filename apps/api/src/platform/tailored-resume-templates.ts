@@ -1,4 +1,5 @@
-export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1"|"EXECUTIVE_V1"|"TECHNICAL_V1"|"MINIMAL_V1"|"CORPORATE_V1"|"ELEGANT_V1"|"SLATE_V1"|"EMERALD_V1"|"ACADEMIC_V1"|"IMPACT_V1";
+import { REFERENCE_RESUME_LAYOUTS, type ReferenceTemplateKey } from "./reference-resume-templates.js";
+export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1"|"EXECUTIVE_V1"|"TECHNICAL_V1"|"MINIMAL_V1"|"CORPORATE_V1"|"ELEGANT_V1"|"SLATE_V1"|"EMERALD_V1"|"ACADEMIC_V1"|"IMPACT_V1"|ReferenceTemplateKey;
 export type TailoredResumeTemplateSpec={key:TailoredResumeTemplateKey;name:string;description:string;font:string;fontSize:number;nameSize:number;accent:string;nameColor:string;nameAlignment:"left"|"center";margin:number;line:number;compact:boolean;uppercaseHeadings:boolean;headingRule:boolean};
 
 export const TAILORED_RESUME_TEMPLATES:ReadonlyArray<Readonly<TailoredResumeTemplateSpec>>=Object.freeze([
@@ -14,6 +15,7 @@ export const TAILORED_RESUME_TEMPLATES:ReadonlyArray<Readonly<TailoredResumeTemp
   Object.freeze({key:"EMERALD_V1",name:"Emerald",description:"Clean green-accent layout for modern operations and product roles.",font:"Calibri",fontSize:20,nameSize:32,accent:"1B6B57",nameColor:"174D40",nameAlignment:"left",margin:700,line:270,compact:false,uppercaseHeadings:false,headingRule:true}),
   Object.freeze({key:"ACADEMIC_V1",name:"Academic",description:"Formal serif layout for research, education, and analytical careers.",font:"Times New Roman",fontSize:20,nameSize:32,accent:"333333",nameColor:"111111",nameAlignment:"center",margin:720,line:276,compact:false,uppercaseHeadings:false,headingRule:false}),
   Object.freeze({key:"IMPACT_V1",name:"Impact",description:"Strong oversized name and bold section rules for concise senior profiles.",font:"Arial",fontSize:20,nameSize:36,accent:"174A7E",nameColor:"174A7E",nameAlignment:"left",margin:620,line:260,compact:false,uppercaseHeadings:true,headingRule:true}),
+  ...REFERENCE_RESUME_LAYOUTS.map(layout => Object.freeze({key:layout.key,name:layout.name,description:layout.description,font:layout.font,fontSize:layout.body*2,nameSize:layout.nameSize*2,accent:layout.header==="banner"?"0B6082":"111111",nameColor:layout.header==="banner"?"FFFFFF":"111111",nameAlignment:layout.header==="centered"?"center" as const:"left" as const,margin:layout.margin*20,line:layout.leading*20,compact:true,uppercaseHeadings:layout.uppercase,headingRule:layout.heading==="rule"})),
 ]);
 export const TAILORED_RESUME_TEMPLATE_KEYS:ReadonlyArray<TailoredResumeTemplateKey>=Object.freeze(TAILORED_RESUME_TEMPLATES.map(item=>item.key));
 const TEMPLATE_BY_KEY=new Map(TAILORED_RESUME_TEMPLATES.map(item=>[item.key,item]));

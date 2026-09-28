@@ -271,7 +271,7 @@ export interface JobDescriptionCapturer {
 }
 
 export type TailoringJobStatus = "PENDING"|"PROCESSING"|"NEEDS_REVIEW"|"APPROVED"|"MATERIALIZING"|"REJECTED"|"COMPLETED"|"FAILED"|"CANCELLED";
-export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1"|"EXECUTIVE_V1"|"TECHNICAL_V1"|"MINIMAL_V1"|"CORPORATE_V1"|"ELEGANT_V1"|"SLATE_V1"|"EMERALD_V1"|"ACADEMIC_V1"|"IMPACT_V1";
+export type TailoredResumeTemplateKey="CLASSIC_V1"|"MODERN_V1"|"COMPACT_V1"|"EXECUTIVE_V1"|"TECHNICAL_V1"|"MINIMAL_V1"|"CORPORATE_V1"|"ELEGANT_V1"|"SLATE_V1"|"EMERALD_V1"|"ACADEMIC_V1"|"IMPACT_V1"|"ALEGREYA_CLASSIC_V1"|"AMIRI_COMPACT_V1"|"LORA_BANDS_V1"|"CRIMSON_BANDS_V1"|"TITILLIUM_BANNER_V1"|"TITILLIUM_EXPERIENCE_V1";
 export interface TailoredResumeTemplateOption {key:TailoredResumeTemplateKey;name:string;description:string;}
 export interface SelectTailoringTemplateRequest {renderTemplateKey:TailoredResumeTemplateKey;expectedUpdatedAt:string;}
 export interface TailoringTemplateSelection {jobId:string;renderTemplateKey:TailoredResumeTemplateKey;selectedBy:string;selectedAt:string;updatedAt:string;}

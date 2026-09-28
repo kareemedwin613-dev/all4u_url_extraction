@@ -18,7 +18,7 @@ test("v1.9 renders a bounded template-aware PDF",async()=>{
 test("all template choices render bounded one-page PDFs for the same concise Resume",async()=>{
   const rendered=await Promise.all(TAILORED_RESUME_TEMPLATES.map(template=>renderTailoredResumePdf({...input,renderTemplateKey:template.key})));
   for(const bytes of rendered){assert.equal(bytes.subarray(0,5).toString(),"%PDF-");assert.ok(bytes.length>1000&&bytes.length<5242880);assert.equal(pdfPageCount(bytes),1);}
-  assert.equal(new Set(rendered.map(bytes=>bytes.toString("base64"))).size,12);
+  assert.equal(new Set(rendered.map(bytes=>bytes.toString("base64"))).size,TAILORED_RESUME_TEMPLATES.length);
 });
 
 test("v1.9 PDF materialization stays caller-scoped and finalizes once",async()=>{

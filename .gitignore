@@ -9,6 +9,7 @@ apps/tailoring-worker/dist/
 apps/tailoring-worker/artifacts/
 artifacts/worker-runs/
 artifacts/resume-tagging/
+artifacts/template-previews/
 packages/contracts/dist/
 dashboard/.env.local
 dashboard/.env.*.local

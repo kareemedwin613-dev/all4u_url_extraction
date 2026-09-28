@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "templates:preview": "npm run build:api && node apps/api/scripts/preview-reference-resumes.mjs",
     "clean": "node scripts/clean.mjs",
     "build": "npm run build:extension && npm run build:dashboard",
     "build:extension": "node scripts/build.mjs",

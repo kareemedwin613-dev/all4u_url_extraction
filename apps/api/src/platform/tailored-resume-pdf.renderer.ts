@@ -1,6 +1,8 @@
 import PDFDocument from "pdfkit";
 import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
 import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment}from"./tailored-resume-layout.js";
+import { referenceResumeLayout } from "./reference-resume-templates.js";
+import { renderReferenceResumePdf } from "./reference-resume-pdf.renderer.js";
 
 type JsonRecord=Record<string,any>;
 const text=(value:unknown):string=>String(value??"").trim();
@@ -11,6 +13,8 @@ const cleanLines=(value:unknown):string[]=>text(value).split(/\r?\n/).map(line=>
 
 export async function renderTailoredResumePdf(input:JsonRecord):Promise<Buffer>{
   const spec=resolveTailoredResumeTemplate(input.renderTemplateKey),candidate=input.candidate||{},structured=input.sourceStructuredContent||{},preview=input.approvedPreview||{};
+  const reference=referenceResumeLayout(spec.key);
+  if(reference)return renderReferenceResumePdf(input,reference);
   const previewById=new Map(values(preview.professionalExperience).map(item=>[text(item.sourceExperienceId),text(item.tailoredDetails)]));
   const margin=Math.max(25,Math.round(spec.margin/20)),bodySize=spec.fontSize/2,nameSize=spec.nameSize/2,accent=`#${spec.accent}`;
   const serif=spec.font==="Georgia"||spec.font==="Times New Roman",fonts=serif?{regular:"Times-Roman",bold:"Times-Bold",italic:"Times-Italic"}:{regular:"Helvetica",bold:"Helvetica-Bold",italic:"Helvetica-Oblique"};
