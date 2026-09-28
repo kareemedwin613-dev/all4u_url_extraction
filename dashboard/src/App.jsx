@@ -45,6 +45,7 @@ import {
   SafetyCertificateOutlined,
   SearchOutlined,
   SettingOutlined,
+  StopOutlined,
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -80,6 +81,7 @@ import { CoverLetterBackfillButton, CoverLetterCard } from "./features/cover-let
 import { extractCoverLetterText } from "./features/cover-letters/cover-letter-text.js";
 import { ResumeHeadlineCard } from "./features/resumes/resume-headline-card.jsx";
 import { ConnectExtensionPage } from "./features/extension-connect/connect-extension-page.jsx";
+import { BannedCompaniesPage } from "./features/banned-companies/banned-companies-page.jsx";
 import {
   getMyAccessContext,
   listSystemRoles,
@@ -230,6 +232,7 @@ const NAV_ICONS = Object.freeze({
     "tailoring-jobs": <FileSearchOutlined />,
     "tailoring-batches": <HistoryOutlined />,
     jobs: <FileSearchOutlined />,
+    "banned-companies": <StopOutlined />,
     resumes: <ProfileOutlined />,
     "resume-upload": <UploadOutlined />,
     "users-directory": <UserOutlined />,
@@ -3330,6 +3333,8 @@ export function App({ client, apiBaseUrl }) {
     page = <TailoringBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
   else if (route.name === "tailoring-batch-detail")
     page = <TailoringBatchDetailPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
+  else if (route.name === "banned-companies")
+    page = <BannedCompaniesPage client={client} apiBaseUrl={apiBaseUrl} access={access} />;
   else if (route.name === "jobs")
     page = (
       <Jobs

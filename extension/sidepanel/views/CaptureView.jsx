@@ -31,6 +31,8 @@ import { detectJobConditions } from "../../shared/structured-parsing.js";
 import { detectIndustryDomain as detectIndustryDomainSlug } from "../../shared/industry-domain.js";
 import { detectSalary, SALARY_PERIODS } from "../../shared/salary-detection.js";
 import { CLEARANCE_REQUIREMENTS, validateJob, WORK_ARRANGEMENTS } from "../../shared/validation.js";
+import { findGlobalBannedCompany } from "../../shared/banned-company.js";
+import { listGlobalBannedCompanies } from "../../services/global-banned-companies-service.js";
 import { scoreMatch, summarizeBatch } from "../../shared/matching.js";
 import { checkJobDuplicate, createJob } from "../../services/job-service.js";
 import { eligibleResumes } from "../../services/resume-service.js";
@@ -130,6 +132,23 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   const latestDraft = useRef(null);
   const draftKey = `capture-current:${userId || "anonymous"}`;
   const jobCategoryValue = Form.useWatch("jobCategory", form);
+  const [bannedCompanies, setBannedCompanies] = useState(null);
+  const [bannedListError, setBannedListError] = useState("");
+  const [bannedResult, setBannedResult] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    listGlobalBannedCompanies(client, backendBaseUrl)
+      .then((rows) => {
+        if (live) setBannedCompanies(rows);
+      })
+      .catch((error) => {
+        if (live) setBannedListError(error.message || "The global banned company list could not be loaded.");
+      });
+    return () => {
+      live = false;
+    };
+  }, [client, backendBaseUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +202,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
 
   function scheduleDraftSave(_changedValues, allValues) {
     setDuplicateCheck(null);
+    if (Object.prototype.hasOwnProperty.call(_changedValues || {}, "company")) setBannedResult(null);
     clearTimeout(draftTimer.current);
     const draft = {
       version: 1,
@@ -240,6 +260,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
     setSavedJob(null);
     setDuplicateJob(null);
     setDuplicateCheck(null);
+    setBannedResult(null);
     setMatches([]);
     setSelectedResumeIds(new Set());
   }
@@ -381,19 +402,43 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
     }
   }
 
+  async function resolveBannedCompanies() {
+    if (Array.isArray(bannedCompanies) && !bannedListError) return { entries: bannedCompanies, error: "" };
+    try {
+      const entries = await listGlobalBannedCompanies(client, backendBaseUrl);
+      setBannedCompanies(entries || []);
+      setBannedListError("");
+      return { entries: entries || [], error: "" };
+    } catch (error) {
+      const message = error.message || "The global banned company list could not be loaded.";
+      setBannedListError(message);
+      return { entries: [], error: message };
+    }
+  }
+
   async function handleCheckDuplicate() {
     if (!canCheckDuplicates) return;
     const values = form.getFieldsValue();
     setCheckingDuplicate(true);
     setDuplicateCheck(null);
+    setBannedResult(null);
     try {
-      const result = await checkJobDuplicate(client, backendBaseUrl, {
-        company: values.company,
-        jobTitle: values.jobTitle,
-        sourceUrl: values.sourceUrl,
-      });
+      const [result, bannedList] = await Promise.all([
+        checkJobDuplicate(client, backendBaseUrl, {
+          company: values.company,
+          jobTitle: values.jobTitle,
+          sourceUrl: values.sourceUrl,
+        }),
+        resolveBannedCompanies(),
+      ]);
+      const match = bannedList.error ? null : findGlobalBannedCompany(values.company, bannedList.entries);
       setDuplicateCheck(result);
-      if (result.duplicate) {
+      setBannedResult({ match, error: bannedList.error });
+      if (bannedList.error) {
+        onStatus({ message: "The banned company list could not be checked.", kind: "warning" });
+      } else if (match) {
+        onStatus({ message: "This company is on the global banned list. Skip this job.", kind: "error" });
+      } else if (result.duplicate) {
         const capturer = result.job?.captured_by_name || result.job?.captured_by_email || "another user";
         const message =
           result.duplicate_reason === "COMPANY_JOB_TITLE"
@@ -401,7 +446,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
             : `Duplicate found: same source URL (Captured By ${capturer}).`;
         onStatus({ message, kind: "warning" });
       } else {
-        onStatus({ message: "No duplicate found for this URL or company and job title.", kind: "success" });
+        onStatus({ message: "No duplicate found, and this company is not on the banned list.", kind: "success" });
       }
     } catch (error) {
       onError(error);
@@ -413,6 +458,10 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
   async function submit() {
     if (!canWrite) {
       onStatus({ message: "Only Admins and Applying Managers can save new JDs.", kind: "warning" });
+      return;
+    }
+    if (findGlobalBannedCompany(form.getFieldValue("company"), bannedCompanies)) {
+      onStatus({ message: "This company is on the global banned list. Skip this job.", kind: "error" });
       return;
     }
     setSaving(true);
@@ -519,7 +568,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
             disabled={!canCheckDuplicates || saving || extracting}
             onClick={handleCheckDuplicate}
           >
-            Check Duplicate
+            Check Duplicate & Banned Company
           </Button>
           <Flex gap={8}>
             <Button
@@ -533,7 +582,7 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
               type="primary"
               icon={<SaveOutlined />}
               loading={saving}
-              disabled={!canWrite || checkingDuplicate}
+              disabled={!canWrite || checkingDuplicate || Boolean(bannedResult?.match)}
               onClick={() => form.submit()}
               style={{ flex: 1 }}
             >
@@ -542,8 +591,23 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
           </Flex>
           {!canWrite && (
             <Alert type="info" showIcon message="Only Admins and Applying Managers can save new JDs."
-              description={canCheckDuplicates ? "You can extract a job and check whether it already exists without saving it." : undefined} />
+              description={canCheckDuplicates ? "You can extract a job and check duplicates and banned companies without saving it." : undefined} />
           )}
+          {bannedResult?.error ? (
+            <Alert type="warning" showIcon message="Banned company list unavailable" description={bannedResult.error} />
+          ) : null}
+          {bannedResult?.match ? (
+            <Alert
+              type="error"
+              showIcon
+              message="Banned company — skip this job"
+              description={
+                bannedResult.match.description
+                  ? `${bannedResult.match.companyName || bannedResult.match.company_name} is banned: ${bannedResult.match.description}`
+                  : `${bannedResult.match.companyName || bannedResult.match.company_name} is on the global banned company list. Do not capture this posting.`
+              }
+            />
+          ) : null}
           {duplicateCheck && (
             <Alert
               type={duplicateCheck.duplicate ? "warning" : "success"}
@@ -564,9 +628,13 @@ export function CaptureView({ client, backendBaseUrl, userId, categories, indust
                     ]
                       .filter(Boolean)
                       .join("\n")
-                  : canWrite
-                    ? "This capture looks new in the Job Descriptions catalog. You can save it."
-                    : "No duplicate found. An Admin or Applying Manager must save this JD."
+                  : bannedResult?.error
+                    ? "The banned company list could not be checked."
+                    : bannedResult?.match
+                      ? "This company is on the global banned list. Skip this job."
+                      : canWrite
+                        ? "This capture looks new in the Job Descriptions catalog, and this company is not on the banned list. You can save it."
+                        : "No duplicate found, and this company is not on the banned list. An Admin or Applying Manager must save this JD."
               }
               style={{ whiteSpace: "pre-wrap" }}
             />
