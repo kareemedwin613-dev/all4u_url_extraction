@@ -94,14 +94,28 @@ test("generation contract enforces bullet limits and format, normalizing only ma
   assert.equal(enforceGenerationContract(validOutput,[]).professionalExperience[0].tailoredDetails,validOutput.professionalExperience[0].tailoredDetails);
 });
 
+test("contract v5 enforces the bullet range and rejects repeated bullets across roles",()=>{
+  const targets=[{sourceExperienceId:"amazon-data-engineer",minBullets:1,maxBullets:3},{sourceExperienceId:"contoso-data-engineer",minBullets:2,maxBullets:3}];
+  const output=(first:string,second:string)=>({...validOutput,professionalExperience:[{sourceExperienceId:"amazon-data-engineer",tailoredDetails:first},{sourceExperienceId:"contoso-data-engineer",tailoredDetails:second}]});
+  const distinct=output("- Designed Kafka ingestion for payment events, cutting reconciliation time by 40%.","- Migrated reporting to Snowflake, reducing dashboard latency by 60%.\n- Automated Airflow data-quality checks for finance datasets.");
+  assert.equal(enforceGenerationContract(distinct,targets).professionalExperience[1].tailoredDetails.split("\n").length,2);
+  assert.throws(()=>enforceGenerationContract(output("- Built ingestion.","- Tuned queries."),targets),/contoso-data-engineer has 1 bullets; the minimum is 2/);
+  assert.throws(()=>enforceGenerationContract(output("- A.\n- B.\n- C.\n- D.","- E.\n- F."),targets),/amazon-data-engineer has 4 bullets; the maximum is 3/);
+  // Same accomplishment lightly reworded in another role.
+  assert.throws(()=>enforceGenerationContract(output("- Designed Kafka ingestion for payment events, cutting reconciliation time by 40%.","- Designed the Kafka ingestion for payment events, cutting reconciliation time by 40%.\n- Automated Airflow data-quality checks for finance datasets."),targets),/bullets repeat: .*\(amazon-data-engineer\) and .*\(contoso-data-engineer\)/);
+  // Earlier contracts (single maximum) do not check repetition, so retried v4 jobs behave as before.
+  assert.doesNotThrow(()=>enforceGenerationContract(output("- Built ingestion.","- Built ingestion."),[{sourceExperienceId:"amazon-data-engineer",bullets:2},{sourceExperienceId:"contoso-data-engineer",bullets:2}]));
+});
+
 const letterSnapshot={promptId:"11111111-1111-4111-8111-111111111111",name:"Generic",version:3,instructions:"Tailor.",contractVersion:"4",referenceDate:"2026-09-01T00:00:00Z",composedPrompt:"Saved prompt."};
 const letterInput=(coverLetter:unknown)=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:letterSnapshot,sourceResume:{...fixture.sourceResume,coverLetter}});
 const body=["I am applying for the Senior Data Engineer role at Example, where AWS pipeline work matters most.","At Amazon I build Snowflake and Redshift marts and SSIS pipelines processing over 100 million rows per batch.","I would welcome the chance to bring that experience to your data platform team."].join("\n\n");
 
-test("input 1.4 carries the base cover letter and requires a v4 snapshot",()=>{
+test("input 1.4 carries the base cover letter and requires a v4 or v5 snapshot",()=>{
   assert.equal(letterInput("  Base letter.  ").sourceResume.coverLetter,"Base letter.");
   assert.equal(letterInput(null).sourceResume.coverLetter,null);
-  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/requires a v4 prompt snapshot/);
+  assert.equal(validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"5"},sourceResume:{...fixture.sourceResume,coverLetter:null}}).promptSnapshot?.contractVersion,"5");
+  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/requires a v4 or v5 prompt snapshot/);
   assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.3",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/unsupported fields: coverLetter/);
   assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.3",promptSnapshot:letterSnapshot}),/requires a v2 or v3 prompt snapshot/);
 });

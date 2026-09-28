@@ -44,11 +44,12 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   await db.exec(migration('202609251000_v3_119_tailored_cover_letters.sql'));
   await db.exec(migration('202609251200_v3_120_revert_cover_letter_compiler.sql'));
   await db.exec(migration('202609251400_v3_122_reenable_cover_letters.sql'));
+  await db.exec(migration('202609281000_v3_127_role_bullet_ranges.sql'));
   const value=async(sql,args=[]) => (await db.query(sql,args)).rows[0]?.result;
   const createJob=async n=>db.query('insert into tailoring_jobs(id,application_id,resume_id,job_description_id) values($1,$2,$3,$4)',[id(n),id(30),id(20),id(10)]);
   const input=n=>value('select build_tailoring_input_v21($1) result',[id(n)]);
   let captured,generic;
-  await t.test('compiler preserves role-duration boundary rules and explicit reference dates',async()=>{
+  await t.test('compiler v5 sets bullet ranges at the 2- and 4-year boundaries with explicit reference dates',async()=>{
     const months=[24,25,36,37,48,49];
     const roles=months.map((m,i)=>({id:`role-${i}`,startDate:'2020-01',endDate:`${2020+Math.floor(m/12)}-${String(m%12+1).padStart(2,'0')}`}));
     roles.push({id:'year-only',startDate:'2020',endDate:null},{id:'reversed',startDate:'2025-01',endDate:'2020-01'});
@@ -56,18 +57,23 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
       {sourceResume:{professionalExperience:roles,skills:[]},jobDescription:{id:id(10)}},
       {instructions:'Test'},'2026-09-01T00:00:00Z']);
     const targets=JSON.parse(compiled.promptSnapshot.composedPrompt.split('ROLE_TARGETS_JSON\n')[1].split('\n\n')[0]);
-    assert.deepEqual(targets.map(({projects,bullets})=>[projects,bullets]),[[2,4],[3,4],[3,4],[4,5],[4,5],[4,7],[2,4],[2,4]]);
+    assert.deepEqual(targets.map(({projects,minBullets,maxBullets})=>[projects,minBullets,maxBullets]),[[2,4,6],[3,7,8],[3,7,8],[3,7,8],[3,7,8],[4,8,10],[2,4,6],[2,4,6]]);
   });
   await t.test('new jobs capture exact prompt and source; old jobs stay explicitly legacy',async()=>{
     assert.equal((await value("select set_resume_cover_letter_text_v119($1,'  Base letter body.  ') result",[id(20)])).coverLetterText,'Base letter body.');
     await createJob(41); captured=await input(41);
-    // v3.122 re-enabled the v4 compiler after the v3.120 revert: new jobs carry the base letter.
+    // v3.127 (contract v5): new jobs carry the base letter and per-role bullet ranges.
     assert.equal(captured.contractVersion,'1.4'); assert.equal(captured.promptSnapshot.version,1);
-    assert.equal(captured.promptSnapshot.contractVersion,'4');
-    assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v4/);
+    assert.equal(captured.promptSnapshot.contractVersion,'5');
+    assert.match(captured.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v5/);
+    assert.doesNotMatch(captured.promptSnapshot.composedPrompt,/Do not invent projects|return fewer instead of inventing/);
+    assert.match(captured.promptSnapshot.composedPrompt,/- No repetition: every bullet in the whole resume must describe a different accomplishment\./);
+    assert.match(captured.promptSnapshot.composedPrompt,/return at least minBullets and at most maxBullets bullets/);
+    // The cover letter rules are unchanged from v4.
+    assert.match(captured.promptSnapshot.composedPrompt,/Ground every claim in sourceResume, including sourceResume\.coverLetter/);
     assert.match(captured.promptSnapshot.composedPrompt,/- coverLetter: the body of a cover letter/);
     assert.equal(captured.sourceResume.coverLetter,'Base letter body.');
-    assert.match(captured.promptSnapshot.composedPrompt,/"bullets": 7/);
+    assert.match(captured.promptSnapshot.composedPrompt,/"maxBullets": 10, "minBullets": 8/);
     // The model must see the candidate's real experience to reframe it rather than invent it.
     const context=JSON.parse(captured.promptSnapshot.composedPrompt.split('BEGIN_UNTRUSTED_INPUT_JSON\n')[1].split('\nEND_UNTRUSTED_INPUT_JSON')[0]);
     assert.equal(context.sourceResume.summary,'Original summary');

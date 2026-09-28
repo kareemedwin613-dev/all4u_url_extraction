@@ -57,7 +57,7 @@ export function validateTailoringInput(value:unknown):TailoringInput{
   if(value.contractVersion!=="1.2"&&!snapshotted)throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
   let promptSnapshot:import("./types.js").TailoringPromptSnapshot|undefined;
   if(snapshotted){
-    const s=value.promptSnapshot,allowed=withCoverLetter?["4"]:["2","3"];
+    const s=value.promptSnapshot,allowed=withCoverLetter?["4","5"]:["2","3"];
     if(!object(s)||!allowed.includes(String(s.contractVersion)))throw new Error(`TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Input ${value.contractVersion} requires a v${allowed.join(" or v")} prompt snapshot.`);
     exactKeys(s,["promptId","name","version","instructions","contractVersion","referenceDate","composedPrompt","scope","primaryCategoryId","subcategoryId","priority","jobDescriptionId","reason","isTest","draftRevision"],"promptSnapshot");
     if(!UUID.test(clean(s.promptId))||!Number.isFinite(Date.parse(String(s.referenceDate))))throw new Error("Invalid prompt snapshot identity or reference date.");
@@ -65,7 +65,7 @@ export function validateTailoringInput(value:unknown):TailoringInput{
     if(s.isTest===true?(!Number.isSafeInteger(s.draftRevision)||Number(s.draftRevision)<1||s.version!==null):(!Number.isSafeInteger(s.version)||Number(s.version)<1))throw new Error("Invalid prompt snapshot version.");
     boundedText(s.composedPrompt,"composed prompt",1,2000000);
     promptSnapshot={...s,promptId:clean(s.promptId),name:boundedText(s.name,"prompt name",1,120),version:s.version as number|null,
-      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion as "2"|"3"|"4",referenceDate:String(s.referenceDate),
+      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion as "2"|"3"|"4"|"5",referenceDate:String(s.referenceDate),
       composedPrompt:s.composedPrompt as string};
   }
   const application=value.application,job=value.jobDescription,resume=value.sourceResume;
@@ -174,19 +174,42 @@ export function enforceCoverLetter(value:string){
   return paragraphs.join("\n\n");
 }
 
-export function enforceGenerationContract<T extends Pick<TailoringOutput,"summary"|"professionalExperience">&{coverLetter?:string}>(output:T,targets:Array<{sourceExperienceId:string;bullets:number}>):T{
+// Near-duplicate bullets: the share of meaningful words two bullets have in common (Jaccard).
+export const BULLET_REPEAT_THRESHOLD=0.8;
+const STOP_WORDS=new Set(["the","and","for","with","from","into","that","this","across","while","using","via","over","their","through","within","to","of","in","on","by","a","an","as","at","or"]);
+const bulletWords=(bullet:string)=>new Set(bullet.toLowerCase().replace(BULLET_MARKER,"").split(/[^a-z0-9%+#.]+/).map(word=>word.replace(/\.+$/,"")).filter(word=>word.length>2&&!STOP_WORDS.has(word)));
+function similarity(left:Set<string>,right:Set<string>){
+  if(!left.size||!right.size)return 0;
+  let shared=0;for(const word of left)if(right.has(word))shared++;
+  return shared/(left.size+right.size-shared);
+}
+function rejectRepeatedBullets(roles:Array<{sourceExperienceId:string;bullets:string[]}>){
+  const all=roles.flatMap(role=>role.bullets.map(bullet=>({role:role.sourceExperienceId,bullet,words:bulletWords(bullet)})));
+  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
+    if(similarity(all[i].words,all[j].words)>=BULLET_REPEAT_THRESHOLD)
+      throw new Error(`bullets repeat: "${all[i].bullet.slice(2,80)}" (${all[i].role}) and "${all[j].bullet.slice(2,80)}" (${all[j].role}). Rewrite one so every bullet describes a different accomplishment.`);
+  }
+}
+
+type BulletTarget={sourceExperienceId:string;bullets?:number;minBullets?:number;maxBullets?:number};
+// Contract v5 targets carry a bullet range and also reject repeated bullets; earlier targets carry only a maximum.
+export function enforceGenerationContract<T extends Pick<TailoringOutput,"summary"|"professionalExperience">&{coverLetter?:string}>(output:T,targets:BulletTarget[]):T{
   if(/[\r\n]/.test(output.summary))throw new Error("summary must be one paragraph without line breaks.");
   const words=output.summary.split(/\s+/).filter(Boolean).length;
   if(words>MAX_SUMMARY_WORDS)throw new Error(`summary has ${words} words; the maximum is ${MAX_SUMMARY_WORDS}.`);
-  const limits=new Map(targets.map(target=>[target.sourceExperienceId,target.bullets]));
-  const professionalExperience=output.professionalExperience.map(role=>{
-    const lines=role.tailoredDetails.split(/\r?\n/).map(line=>line.trim()).filter(Boolean),limit=limits.get(role.sourceExperienceId);
+  const byRole=new Map(targets.map(target=>[target.sourceExperienceId,target])),ranges=targets.some(target=>target.minBullets!==undefined);
+  const checked=output.professionalExperience.map(role=>{
+    const lines=role.tailoredDetails.split(/\r?\n/).map(line=>line.trim()).filter(Boolean),target=byRole.get(role.sourceExperienceId);
     const unmarked=lines.find(line=>!BULLET_MARKER.test(line));
     if(unmarked)throw new Error(`${role.sourceExperienceId}: every tailoredDetails line must be a bullet starting with "- "; found "${unmarked.slice(0,60)}".`);
     const bullets=lines.map(line=>`- ${line.replace(BULLET_MARKER,"")}`);
     if(bullets.some(bullet=>bullet.length<4))throw new Error(`${role.sourceExperienceId}: bullets must not be empty.`);
-    if(limit!==undefined&&bullets.length>limit)throw new Error(`${role.sourceExperienceId} has ${bullets.length} bullets; the maximum is ${limit}.`);
-    return{...role,tailoredDetails:bullets.join("\n")};
+    const maximum=target?.maxBullets??target?.bullets,minimum=target?.minBullets;
+    if(maximum!==undefined&&bullets.length>maximum)throw new Error(`${role.sourceExperienceId} has ${bullets.length} bullets; the maximum is ${maximum}.`);
+    if(minimum!==undefined&&bullets.length<minimum)throw new Error(`${role.sourceExperienceId} has ${bullets.length} bullets; the minimum is ${minimum}.`);
+    return{role,bullets};
   });
+  if(ranges)rejectRepeatedBullets(checked.map(({role,bullets})=>({sourceExperienceId:role.sourceExperienceId,bullets})));
+  const professionalExperience=checked.map(({role,bullets})=>({...role,tailoredDetails:bullets.join("\n")}));
   return{...output,professionalExperience,...(output.coverLetter!==undefined?{coverLetter:enforceCoverLetter(output.coverLetter)}:{})};
 }

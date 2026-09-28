@@ -5,9 +5,17 @@ const monthIndex=(value:string|null,present:Date):number|null=>{
   if(value===null)return present.getUTCFullYear()*12+present.getUTCMonth();
   const match=/^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);return match?Number(match[1])*12+Number(match[2])-1:null;
 };
-export function tailoringRoleTargets(input:TailoringInput,referenceDate=new Date()){
+export type TailoringRoleTarget={sourceExperienceId:string;projects:number;bullets?:number;minBullets?:number;maxBullets?:number};
+// Must match compile_tailoring_prompt_v112 for the snapshot's contract: v5 (v3.127) uses bullet
+// ranges; earlier contracts use a single maximum.
+export function tailoringRoleTargets(input:TailoringInput,referenceDate=new Date()):TailoringRoleTarget[]{
+  const ranges=input.promptSnapshot?.contractVersion==="5";
   return input.sourceResume.professionalExperience.map(role=>{
     const start=monthIndex(role.startDate,referenceDate),end=monthIndex(role.endDate,referenceDate),months=start===null||end===null||end<start?null:end-start;
+    if(ranges){
+      const band=months===null||months<=24?0:months<=48?1:2;
+      return{sourceExperienceId:role.id,projects:[2,3,4][band],minBullets:[4,7,8][band],maxBullets:[6,8,10][band]};
+    }
     return{sourceExperienceId:role.id,projects:months===null||months<=24?2:months<=36?3:4,bullets:months===null||months<=36?4:months<=48?5:7};
   });
 }
@@ -21,7 +29,7 @@ export function tailoringModelContext(input:TailoringInput){
 
 export function buildTailoringPrompt(input:TailoringInput,referenceDate=new Date()){
   if(input.contractVersion==="1.3"||input.contractVersion==="1.4"){
-    if(!input.promptSnapshot||!["2","3","4"].includes(input.promptSnapshot.contractVersion))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
+    if(!input.promptSnapshot||!["2","3","4","5"].includes(input.promptSnapshot.contractVersion))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
     return input.promptSnapshot.composedPrompt;
   }
   const context=JSON.stringify(tailoringModelContext(input));
