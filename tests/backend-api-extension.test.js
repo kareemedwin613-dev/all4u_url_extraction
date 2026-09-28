@@ -50,7 +50,9 @@ test("extension JD service preserves the backend duplicate result instead of rep
   assert.match(view,/if\(saved\.duplicate\)/);
   assert.match(view,/Not saved: this source URL already exists/);
   assert.match(view,/kind:"warning"/);
-  assert.match(view,/Check Duplicate/);
+  assert.match(view,/Check Duplicate & Banned Company/);
+  assert.match(view,/findGlobalBannedCompany\(values\.company/);
+  assert.doesNotMatch(view,/findGlobalBannedCompany\(companyValue/);
   assert.match(view,/handleCheckDuplicate/);
   assert.match(view,/checkJobDuplicate/);
 });
