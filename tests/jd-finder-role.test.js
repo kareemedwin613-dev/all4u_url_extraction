@@ -12,18 +12,19 @@ test("JD Finder is a fixed assignable role across shared and Admin contracts",as
   assert.match(migration,/active,is_system\)[\s\S]*true,true\)/);
 });
 
-test("JD Finder can capture and read owned JDs without broader operational access",async()=>{
+test("JD Finder can read JDs but cannot use the ingestion API",async()=>{
   const[ingestion,lookups,jobs,applications,resumes]=await Promise.all([
     read("../apps/api/src/extension-ingestion/job-description.controller.ts"),read("../apps/api/src/lookups/lookup.controller.ts"),read("../apps/api/src/job-descriptions/job-description-read.controller.ts"),read("../apps/api/src/applications/application.controller.ts"),read("../apps/api/src/resumes/resume.controller.ts")
   ]);
-  assert.match(ingestion,/RequireRoles\("APPLYING_MANAGER", "JD_FINDER", "ADMIN"\)/);
+  assert.match(ingestion,/RequireRoles\("APPLYING_MANAGER", "ADMIN"\)/);
+  assert.doesNotMatch(ingestion,/JD_FINDER/);
   assert.match(lookups,/"JD_FINDER"/);
   assert.match(jobs,/"JD_FINDER"/);
   assert.doesNotMatch(applications,/JD_FINDER/);
   assert.doesNotMatch(resumes,/JD_FINDER/);
 });
 
-test("JD Finder RLS permits own capture writes without update or delete; shared catalog read is v3.97",async()=>{
+test("historical Finder insert policy is retired by v3.127; shared catalog read remains",async()=>{
   const[original,shared]=await Promise.all([
     read("../supabase/migrations/202608030043_jd_finder_role.sql"),
     read("../supabase/migrations/202609161400_v3_97_jd_finder_full_jd_read.sql"),
@@ -32,4 +33,5 @@ test("JD Finder RLS permits own capture writes without update or delete; shared 
   assert.doesNotMatch(original,/for update|for delete/i);
   assert.match(shared,/has_any_role\(array\['APPLYING_MANAGER','ADMIN','JD_FINDER'\]\)/);
   assert.match(shared,/drop policy if exists "jd finders read own jobs"/);
+  assert.match(await read("../supabase/migrations/202609271200_v3_127_manager_only_jd_capture.sql"),/drop policy if exists "jd finders insert own jobs"/);
 });

@@ -31,6 +31,7 @@ export function parseRoute(hash = "#/") {
   if (parts[0] === "tailoring-batches" && parts.length === 2) return isUuid(parts[1]) ? {name: "tailoring-batch-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "users" && parts.length === 1) return {name: "users-directory", path: "/users", query};
   if (parts[0] === "jobs" && parts.length === 1) return {name: "jobs", path: "/jobs", query};
+  if (parts[0] === "banned-companies" && parts.length === 1) return {name: "banned-companies", path: "/banned-companies", query};
   if (parts[0] === "jobs" && parts.length === 2) return isUuid(parts[1]) ? {name: "job-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "resumes" && parts.length === 1) return {name: "resumes", path: "/resumes", query};
   if (parts[0] === "resumes" && parts[1] === "upload" && parts.length === 2) return {name: "resume-upload", path: "/resumes/upload", query};

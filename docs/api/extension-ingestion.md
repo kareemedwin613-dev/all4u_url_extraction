@@ -4,6 +4,8 @@
 
 Headers: Bearer Supabase token and JSON content type are required. `Idempotency-Key` is recommended and `X-Request-ID` is optional.
 
+Only active `ADMIN` and `APPLYING_MANAGER` users may save new JDs. `JD_FINDER` users retain read-only duplicate checks through `check_job_description_duplicate_v3104`, but cannot save through this endpoint, the capture RPC, or direct table inserts (migration v3.127).
+
 Required fields are `sourceUrl`, `company`, `jobTitle`, `descriptionText`, and `categoryId`. Reviewed subcategory, industry domain, seniority, location, arrangement, clearance, travel, salary, skills, capture metadata, capture time, and extension version are supported.
 
 Limits: company/job title 200 characters, URL 4,000, description 100–200,000, location 300, travel/salary text 500, 250 skills of at most 100 characters, and five controlled clearance values. Unknown properties are rejected.

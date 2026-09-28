@@ -19,6 +19,7 @@ import { CandidateModule } from "./candidates/candidate.module.js";
 import { ResumeAnswerModule } from "./resume-answers/resume-answer.module.js";
 import { TailoringPromptsModule } from "./tailoring-prompts/tailoring-prompts.module.js";
 import { ExtensionPairingModule } from "./extension-pairing/extension-pairing.module.js";
+import { BannedCompanyModule } from "./banned-companies/banned-company.module.js";
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ExtensionPairingModule } from "./extension-pairing/extension-pairing.mo
     ResumeAnswerModule,
     TailoringPromptsModule,
     ExtensionPairingModule,
+    BannedCompanyModule,
   ],
   providers: [
     JsonLogger,

@@ -1,10 +1,9 @@
 begin;
-select plan(7);
+select plan(10);
 
 select is((select name from public.roles where code='JD_FINDER'),'JD Finder','JD Finder is seeded in the fixed role catalog');
 select ok((select active and is_system from public.roles where code='JD_FINDER'),'JD Finder is an active system role');
 select policies_are('public','job_descriptions',array[
-  'jd finders insert own jobs',
   'managers and admins insert jobs',
   'managers own or admins delete jobs',
   'managers own or admins update jobs',
@@ -18,11 +17,21 @@ select 'f1000000-0000-4000-8000-000000000001',id from public.roles where code='J
 insert into public.categories(id,slug,name)
 values('f3000000-0000-4000-8000-000000000001','jd-finder-test','JD Finder Test');
 
-set local role authenticated;
-select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000001',true);
+-- Seed a legacy capture as the test owner; Finder creation is now forbidden.
 insert into public.job_descriptions(id,user_id,company,job_title,category_id,description_text)
 values('f2000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001','Finder Co','Data Engineer','f3000000-0000-4000-8000-000000000001',repeat('job ',30));
-select is((select count(*)::integer from public.job_descriptions where id='f2000000-0000-4000-8000-000000000001'),1,'JD Finder can save and read their own JD');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000001',true);
+select is((select count(*)::integer from public.job_descriptions where id='f2000000-0000-4000-8000-000000000001'),1,'JD Finder can still read an existing JD');
+select throws_ok(
+  $$insert into public.job_descriptions(user_id,company,job_title,category_id,description_text) values('f1000000-0000-4000-8000-000000000001','New','Role','f3000000-0000-4000-8000-000000000001',repeat('job ',30))$$,
+  '42501',null,'JD Finder cannot save a new JD even for themselves'
+);
+select throws_ok(
+  $$select public.capture_job_description_v353('{}'::jsonb)$$,
+  '42501',null,'JD Finder cannot bypass insert RLS through capture RPC'
+);
+select is((public.check_job_description_duplicate_v3104('Finder Co','Data Engineer','')->>'duplicate')::boolean,true,'JD Finder can still check catalog duplicates');
 select throws_ok(
   $$insert into public.job_descriptions(user_id,company,job_title,category_id,description_text) values('00000000-0000-0000-0000-000000000000','Other','Role','f3000000-0000-4000-8000-000000000001',repeat('job ',30))$$,
   '42501',null,'JD Finder cannot attribute a JD to another user'
