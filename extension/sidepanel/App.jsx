@@ -26,6 +26,7 @@ import {
   canListOwnJobs,
   canReadBusiness,
   canWriteBusiness,
+  canCheckJobDuplicates,
   extensionAccessMessage,
 } from "../access/capabilities.js";
 import { listCategories } from "../services/category-service.js";
@@ -473,6 +474,7 @@ export function App() {
         industryDomains={industryDomains}
         minimumScore={minimumScore}
         canWrite={canWriteBusiness(access)}
+        canCheckDuplicates={canCheckJobDuplicates(access)}
         canCreateTailoring={canCreateTailoring(access)}
         onStatus={setStatus}
         onError={handleError}

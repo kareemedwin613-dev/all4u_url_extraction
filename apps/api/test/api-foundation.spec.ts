@@ -102,6 +102,20 @@ test("role guard trusts the database RPC and rejects inactive or unauthorized us
   await assert.rejects(() => make({ status: "ACTIVE", roles: ["APPLIER"] }).canActivate(context), (error: any) => error.code === "FORBIDDEN");
 });
 
+test("ingestion role guard denies Finders but allows active Admins and Applying Managers", async () => {
+  const { Reflector } = await import("@nestjs/core");
+  const reflector = new Reflector();
+  const request = { user: { id: "u", token: "jwt" } };
+  const context: any = { getHandler: () => JobDescriptionController.prototype.create, getClass: () => JobDescriptionController, switchToHttp: () => ({ getRequest: () => request }) };
+  const guard = (roles: string[], status = "ACTIVE") => new RolesGuard(reflector, { accessContext: async () => ({ data: { roles, status }, error: null }) } as any, {warn:()=>{}} as any);
+  for (const roles of [["ADMIN"],["APPLYING_MANAGER"],["JD_FINDER","ADMIN"],["JD_FINDER","APPLYING_MANAGER"]]) {
+    assert.equal(await guard(roles).canActivate(context), true);
+    await assert.rejects(() => guard(roles,"INACTIVE").canActivate(context), (error: any) => error.code === "FORBIDDEN");
+  }
+  for (const roles of [["JD_FINDER"],["JD_FINDER","APPLIER"],["APPLIER"],["DEVELOPER"],[]])
+    await assert.rejects(() => guard(roles).canActivate(context), (error: any) => error.code === "FORBIDDEN");
+});
+
 test("access context cache deduplicates role checks for the same signed token", async () => {
   const originalFetch=globalThis.fetch;let calls=0;
   globalThis.fetch=(async(_url:any,options:any)=>{calls+=1;assert.match(String(options.headers.Authorization),/^Bearer jwt-/);return new Response(JSON.stringify({status:"ACTIVE",roles:["APPLIER"]}),{status:200,headers:{"content-type":"application/json"}});}) as any;
