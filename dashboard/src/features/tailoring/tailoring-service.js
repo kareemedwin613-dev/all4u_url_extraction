@@ -4,6 +4,7 @@ async function api(client,baseUrl,path,{method="GET",body}={}){try{const{payload
 export const listTailoringJobs=(client,baseUrl,status="ALL")=>api(client,baseUrl,`/api/v1/tailoring-jobs?status=${encodeURIComponent(status)}`);
 export const listTailoringTemplates=(client,baseUrl)=>api(client,baseUrl,"/api/v1/tailoring-jobs/templates");
 export const getTailoringJob=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}`);
+export const getTailoringKeywordCoverage=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/keyword-coverage`);
 export const getTailoringReviews=(client,baseUrl,id)=>api(client,baseUrl,`/api/v1/tailoring-jobs/${encodeURIComponent(id)}/reviews`);
 export const requestApplicationTailoring=(client,baseUrl,applicationId)=>api(client,baseUrl,`/api/v1/tailoring-jobs/application/${encodeURIComponent(applicationId)}`,{method:"POST"});
 export const requestBulkApplicationTailoring=(client,baseUrl,applicationIds)=>api(client,baseUrl,"/api/v1/tailoring-jobs/bulk-request",{method:"POST",body:{applicationIds}});

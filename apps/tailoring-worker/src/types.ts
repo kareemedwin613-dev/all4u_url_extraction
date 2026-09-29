@@ -28,6 +28,8 @@ export interface TailoringSourceResume {
   summary: string;
   skills: string[];
   professionalExperience: SourceExperience[];
+  // Full original section, including its labels; present for prompt contract v6.
+  skillsSection?: string;
   // Base cover letter text; present (possibly null) for input contract 1.4.
   coverLetter?: string | null;
 }
@@ -45,7 +47,7 @@ export interface TailoringPromptSnapshot {
   name: string;
   version: number | null;
   instructions: string;
-  contractVersion: "2" | "3" | "4" | "5";
+  contractVersion: "2" | "3" | "4" | "5" | "6";
   referenceDate: string;
   composedPrompt: string;
   isTest?: boolean;

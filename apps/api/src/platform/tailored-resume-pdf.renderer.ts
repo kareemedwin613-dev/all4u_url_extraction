@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
-import{renderedSkillGroups,resolveResumeHeadline,resumeEducationEntries,roleEnvironment}from"./tailored-resume-layout.js";
+import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment,resumeEducationEntries}from"./tailored-resume-layout.js";
 import { referenceResumeLayout } from "./reference-resume-templates.js";
 import { renderReferenceResumePdf } from "./reference-resume-pdf.renderer.js";
 
@@ -49,12 +49,23 @@ export async function renderTailoredResumePdf(input:JsonRecord):Promise<Buffer>{
     if(environment.length){bold().text("Environment: ",{indent:10,continued:true});regular().text(environment.join(", "));}
     document.moveDown(spec.compact ? .25 : .45);
   }
-  // Degree in bold with its dates right-aligned, the school on the line below (same as reference layouts).
   const education=resumeEducationEntries(structured);
-  if(education.length||text(structured.education_legacy_text)){
+  if(education.length){
     section("Education");
-    for(const entry of education){const primary=entry.degree||entry.institution;bold().text(primary,{continued:Boolean(entry.range)});if(entry.range)regular().text(`    ${entry.range}`,{align:"right"});if(entry.degree&&entry.institution)regular().text(entry.institution);if(entry.details)regular().text(entry.details);document.moveDown(spec.compact ? .2 : .35);}
-    if(!education.length)regular().text(text(structured.education_legacy_text));
+    for(const entry of education){
+      const range=entry.range,primary=entry.degree||entry.institution;
+      const rest=[entry.degree?entry.institution:"",entry.details].filter(Boolean);
+      const width=document.page.width-margin*2,dateWidth=range?regular().widthOfString(range)+16:0;
+      const titleHeight=bold().heightOfString(primary,{width:width-dateWidth,lineGap:3});
+      const height=titleHeight+rest.reduce((sum,value)=>sum+3+regular().heightOfString(value,{width,lineGap:3}),0);
+      if(document.y+height>document.page.height-margin&&height<document.page.height-margin*2)document.addPage();
+      const y=document.y;
+      if(range)regular().text(range,margin+width-dateWidth+16,y,{width:dateWidth-16,align:"right"});
+      bold().text(primary,margin,y,{width:width-dateWidth,lineGap:3});
+      document.x=margin;
+      for(const value of rest){document.y+=3;regular().text(value,{width,lineGap:3});}
+      document.moveDown(.65);
+    }
   }
   const certifications=values(structured.certifications);if(certifications.length){section("Certifications");for(const item of certifications)regular().text(`• ${text(item.name??item)}`,{indent:10});}
   const range=document.bufferedPageRange();for(let index=range.start;index<range.start+range.count;index++){

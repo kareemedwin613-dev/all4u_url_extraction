@@ -57,7 +57,7 @@ export function validateTailoringInput(value:unknown):TailoringInput{
   if(value.contractVersion!=="1.2"&&!snapshotted)throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
   let promptSnapshot:import("./types.js").TailoringPromptSnapshot|undefined;
   if(snapshotted){
-    const s=value.promptSnapshot,allowed=withCoverLetter?["4","5"]:["2","3"];
+    const s=value.promptSnapshot,allowed=withCoverLetter?["4","5","6"]:["2","3"];
     if(!object(s)||!allowed.includes(String(s.contractVersion)))throw new Error(`TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Input ${value.contractVersion} requires a v${allowed.join(" or v")} prompt snapshot.`);
     exactKeys(s,["promptId","name","version","instructions","contractVersion","referenceDate","composedPrompt","scope","primaryCategoryId","subcategoryId","priority","jobDescriptionId","reason","isTest","draftRevision"],"promptSnapshot");
     if(!UUID.test(clean(s.promptId))||!Number.isFinite(Date.parse(String(s.referenceDate))))throw new Error("Invalid prompt snapshot identity or reference date.");
@@ -65,19 +65,21 @@ export function validateTailoringInput(value:unknown):TailoringInput{
     if(s.isTest===true?(!Number.isSafeInteger(s.draftRevision)||Number(s.draftRevision)<1||s.version!==null):(!Number.isSafeInteger(s.version)||Number(s.version)<1))throw new Error("Invalid prompt snapshot version.");
     boundedText(s.composedPrompt,"composed prompt",1,2000000);
     promptSnapshot={...s,promptId:clean(s.promptId),name:boundedText(s.name,"prompt name",1,120),version:s.version as number|null,
-      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion as "2"|"3"|"4"|"5",referenceDate:String(s.referenceDate),
+      instructions:boundedText(s.instructions,"prompt instructions",1,20000),contractVersion:s.contractVersion as "2"|"3"|"4"|"5"|"6",referenceDate:String(s.referenceDate),
       composedPrompt:s.composedPrompt as string};
   }
   const application=value.application,job=value.jobDescription,resume=value.sourceResume;
   if(!object(application)||!object(job)||!object(resume))throw new Error("Application, jobDescription, and sourceResume are required objects.");
   exactKeys(application,["id","applicationNumber"],"application");
   exactKeys(job,["id","company","jobTitle","descriptionText","skills"],"jobDescription");
-  exactKeys(resume,["id","resumeNumber","resumeType","summary","skills","professionalExperience",...(withCoverLetter?["coverLetter"]:[])],"sourceResume");
+  const completeSkills=promptSnapshot?.contractVersion==="6";
+  exactKeys(resume,["id","resumeNumber","resumeType","summary","skills","professionalExperience",...(withCoverLetter?["coverLetter"]:[]),...(completeSkills?["skillsSection"]:[])],"sourceResume");
+  if(completeSkills&&typeof resume.skillsSection!=="string")throw new Error("sourceResume.skillsSection must contain the original skills section (or an empty string).");
   if(!UUID.test(clean(application.id))||!UUID.test(clean(job.id))||!UUID.test(clean(resume.id)))throw new Error("Application, JD, and Resume IDs must be UUIDs.");
   if(!Number.isSafeInteger(application.applicationNumber)||Number(application.applicationNumber)<1)throw new Error("applicationNumber must be a positive integer.");
   if(!Number.isSafeInteger(resume.resumeNumber)||Number(resume.resumeNumber)<1)throw new Error("resumeNumber must be a positive integer.");
   if(resume.resumeType!=="ORIGINAL")throw new Error("Only an ORIGINAL Resume can be tailored.");
-  const jobSkills=boundedStrings(job.skills,"jobDescription.skills",250,120),resumeSkills=boundedStrings(resume.skills,"sourceResume.skills",250,120);
+  const jobSkills=boundedStrings(job.skills,"jobDescription.skills",250,120),resumeSkills=boundedStrings(resume.skills,"sourceResume.skills",completeSkills?10000:250,completeSkills?300000:120);
   if(!unique(resumeSkills))throw new Error("sourceResume.skills must not contain duplicates.");
   if(!Array.isArray(resume.professionalExperience)||resume.professionalExperience.length<1||resume.professionalExperience.length>30)throw new Error("sourceResume.professionalExperience must contain between 1 and 30 records.");
   const professionalExperience=resume.professionalExperience.map(validateExperience);
@@ -88,7 +90,7 @@ export function validateTailoringInput(value:unknown):TailoringInput{
     ...(promptSnapshot?{promptSnapshot}:{}),
     application:{id:clean(application.id),applicationNumber:Number(application.applicationNumber)},
     jobDescription:{id:clean(job.id),company:boundedText(job.company,"jobDescription.company",1,200),jobTitle:boundedText(job.jobTitle,"jobDescription.jobTitle",1,300),descriptionText:boundedText(job.descriptionText,"jobDescription.descriptionText",100,300000),skills:jobSkills},
-    sourceResume:{id:clean(resume.id),resumeNumber:Number(resume.resumeNumber),resumeType:"ORIGINAL",summary:boundedText(resume.summary,"sourceResume.summary",1,10000),skills:resumeSkills,professionalExperience,...(coverLetter!==undefined?{coverLetter}:{})}
+    sourceResume:{id:clean(resume.id),resumeNumber:Number(resume.resumeNumber),resumeType:"ORIGINAL",summary:boundedText(resume.summary,"sourceResume.summary",1,10000),skills:resumeSkills,professionalExperience,...(completeSkills?{skillsSection:boundedText(resume.skillsSection,"sourceResume.skillsSection",0,300000)}:{}),...(coverLetter!==undefined?{coverLetter}:{})}
   };
 }
 
@@ -132,7 +134,9 @@ export function validateTailoringModelOutput(value:unknown,input:TailoringInput)
   exactKeys(value,["summary","professionalExperience","skills",...(withCoverLetter?["coverLetter"]:[])],"Codex output");
   const coverLetter=withCoverLetter?boundedText(value.coverLetter,"coverLetter",1,6000):undefined;
   if(coverLetter&&REFUSAL.test(coverLetter))throw new Error("Codex returned a refusal or placeholder instead of a cover letter.");
-  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",24,120);
+  const completeSkills=input.promptSnapshot?.contractVersion==="6";
+  const summary=boundedText(value.summary,"summary",1,4000),skills=boundedStrings(value.skills,"skills",completeSkills?MAX_TAILORED_SKILLS:24,120);
+  if(completeSkills&&!skills.length)throw new Error("skills must contain the complete ranked section, not an empty additions list.");
   if(REFUSAL.test(summary))throw new Error("Codex returned a refusal or placeholder instead of a tailored summary.");
   if(!unique(skills))throw new Error("Codex skills must not contain duplicates.");
   if(!Array.isArray(value.professionalExperience)||value.professionalExperience.length!==input.sourceResume.professionalExperience.length)throw new Error("Codex must return exactly one tailored entry for every source experience.");

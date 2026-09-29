@@ -1,9 +1,9 @@
 import { tailoredHeadline } from "./tailored-headline.js";
-import { resolveTailoredSkillGroups, type TailoredSkillGroup } from "./tailored-skill-groups.js";
+import { MAX_TAILORED_SKILLS, resolveTailoredSkillGroups, type TailoredSkillGroup } from "./tailored-skill-groups.js";
 
-// Layout decisions for the tailored PDF. The prioritized skills list arrives JD-supported first,
-// then the candidate's own skills, then evidenced additions; these helpers keep that order.
-export const RENDERED_SKILL_LIMIT = 30;
+// Keep the complete ranked section, not a silent top-30 subset of the saved preview.
+// The PDF renderers paginate nonempty groups; the same 80-skill limit applies end to end.
+export const RENDERED_SKILL_LIMIT = MAX_TAILORED_SKILLS;
 export const ENVIRONMENT_LIMIT = 10;
 
 const clean = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ");

@@ -8,11 +8,11 @@ const legacy = read("../supabase/migrations/202609201300_v3_105_catalog_wide_jd_
 const migration = read("../supabase/migrations/202609271200_v3_127_manager_only_jd_capture.sql");
 const actorId = "00000000-0000-4000-8000-000000000001";
 
-test("capture UI separates duplicate permission and guards form submission", () => {
+test("capture UI separates duplicate permission and guards form submission against banned companies", () => {
   const view = read("../extension/sidepanel/views/CaptureView.jsx");
   assert.match(view, /disabled=\{!canCheckDuplicates \|\| saving \|\| extracting\}/);
   assert.match(view, /async function submit\(\) \{\s*if \(!canWrite\)/);
-  assert.match(view, /disabled=\{!canWrite \|\| checkingDuplicate\}/);
+  assert.match(view, /disabled=\{\s*!canWrite\s*\|\|\s*checkingDuplicate\s*\|\|\s*Boolean\(bannedResult\?\.match\)\s*\}/);
   assert.match(view, /An Admin or Applying Manager must save this JD/);
   assert.match(read("../extension/sidepanel/App.jsx"), /canCheckDuplicates=\{canCheckJobDuplicates\(access\)\}/);
 });

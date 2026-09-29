@@ -136,11 +136,11 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     ensure(Math.min(lines.length,2)*spec.leading);
     lines.forEach((line,index)=>{ensure(spec.leading);if(index===0)draw([{text:spec.header==="banner"?"-":"•",face:"regular"}],left,y);draw(line,left+9,y);y+=spec.leading;});
   }
-  function titleRow(runs:Run[],range:string){
+  function titleRow(runs:Run[],range:string,leading=spec.leading){
     const dateWidth=range?measure(range,"regular")+14:0, titleWidth=width-dateWidth;
     const lines=wrap(runs,titleWidth);
     if(range)draw([{text:range,face:"regular"}],left+width-measure(range),y,spec.body,spec.header==="banner"?blue:black);
-    for(const line of lines){ensure(spec.leading);draw(line,left,y);y+=spec.leading;}
+    for(const line of lines){ensure(leading);draw(line,left,y);y+=leading;}
   }
   function experience(){
     const roles=list(structured.professional_experience);if(!roles.length)return;
@@ -194,27 +194,31 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     }
   }
   // Every template: degree in bold with its dates right-aligned, the school on the line below.
-  // When only the one-line form ("Degree, School") still fits on the current page, use it rather
-  // than pushing a short Education section onto a page of its own.
+  // Measure the complete entry before drawing so its spaced lines stay together.
   function education(){
-    const entries=resumeEducationEntries(structured),legacy=clean(structured.education_legacy_text);if(!entries.length&&!legacy)return;
+    const entries=resumeEducationEntries(structured);if(!entries.length)return;
+    const leading=Math.max(spec.leading,spec.body*1.3),lineGap=3;
     const layout=(inline:boolean)=>entries.map(entry=>{
-      const primary=entry.degree||entry.institution,secondary=entry.degree?entry.institution:"";
-      const runs:Run[]=[{text:primary,face:"bold"}];if(inline&&secondary)runs.push({text:`, ${secondary}`,face:"regular"});
-      const height=wrap(runs,width-(entry.range?measure(entry.range)+14:0)).length*spec.leading+(secondary&&!inline?spec.leading:0)+(entry.details?wrap(rich(entry.details),width).length*spec.leading:0);
-      return {entry,runs,secondary:inline?"":secondary,height};
+      const primary=entry.degree||entry.institution;
+      const runs:Run[]=[{text:primary,face:"bold"}];
+      if(inline&&entry.degree&&entry.institution)runs.push({text:`, ${entry.institution}`,face:"regular"});
+      const range=entry.range;
+      const rest=[entry.degree&&!inline?entry.institution:"",entry.details].filter(Boolean);
+      const height=wrap(runs,width-(range?measure(range)+14:0)).length*leading+
+        rest.reduce((sum,value)=>sum+lineGap+wrap(rich(value),width).length*leading,0);
+      return {runs,range,rest,height};
     });
-    const total=(items:ReturnType<typeof layout>)=>spec.sectionGap+spec.headingSize+10+items.reduce((sum,item,index)=>sum+item.height+(index?spec.roleGap:0),0);
     const stacked=layout(false),inline=layout(true);
+    const total=(blocks:ReturnType<typeof layout>)=>spec.sectionGap+spec.headingSize+10+
+      blocks.reduce((sum,block,index)=>sum+block.height+(index?Math.max(spec.roleGap,10):0),0);
+    // Keep the spacious stacked layout unless one-line entries avoid an extra page.
     const blocks=y+total(stacked)>bottom&&y+total(inline)<=bottom?inline:stacked;
-    section("Education","education",blocks[0]?.height||Math.min(2,wrap(rich(legacy),width).length)*spec.leading);
-    if(!entries.length){paragraph(legacy);return;}
-    blocks.forEach(({entry,runs,secondary,height},index)=>{
-      if(index)y+=spec.roleGap;
+    section("Education","education",blocks[0].height);
+    blocks.forEach(({runs,range,rest,height},index)=>{
+      if(index)y+=Math.max(spec.roleGap,10);
       ensure(height);
-      titleRow(runs,entry.range);
-      if(secondary)paragraph(secondary);
-      if(entry.details)paragraph(entry.details);
+      titleRow(runs,range,leading);
+      for(const value of rest){y+=lineGap;paragraph(value,"regular",0,spec.body,leading);}
     });
   }
   header();
