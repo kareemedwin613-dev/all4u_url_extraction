@@ -8,6 +8,7 @@ import { workerEvent, workerFailure, workerResult } from "./runner-events.js";
 import { runPromptTest } from "./prompt-test-runner.js";
 import type { TailoringOutput, TailoringPreview } from "./types.js";
 import { validateTailoringInput } from "./validation.js";
+import { MAX_TAILORED_SKILLS } from "./skill-groups.js";
 
 export function isRateLimitFailure(value:unknown){return /(?:\b429\b|rate[ -]?limit|usage limit|too many requests|quota[^.\n]*(?:exceed|reset)|capacity[^.\n]*(?:reached|exceeded))/i.test(value instanceof Error?value.message:String(value));}
 export function retryDelaySeconds(value:unknown,attempt=1){const text=value instanceof Error?value.message:String(value),match=text.match(/retry(?: after| in)?[^\d]{0,20}(\d{1,4})\s*(?:s|sec|seconds?)\b/i),fallback=60*Math.pow(2,Math.max(0,attempt-1));return Math.max(30,Math.min(900,Number(match?.[1]||fallback)));}
@@ -100,6 +101,9 @@ function argumentsFrom(values:string[]){
 }
 
 async function main(){
+  if(process.argv.length===3&&process.argv[2]==="--capabilities"){
+    process.stdout.write(JSON.stringify({service:"tailoring-worker",supportedPromptContracts:["2","3","4","5","6"],maxSkills:MAX_TAILORED_SKILLS,completeRankedSkillsContract:"6"})+"\n");return;
+  }
   const args=argumentsFrom(process.argv.slice(2)),fixture=String(args.fixture||""),applicationId=String(args["application-id"]||""),jobId=String(args["job-id"]||""),ticketArgument=String(args.tickets||args.ticket||""),tickets=ticketArgument.split(",").map(value=>value.trim()).filter(Boolean),batchTicket=String(args["batch-ticket"]||process.env.TAILORING_BATCH_TICKET||""),requestedOutput=String(args.output||"");
   const apiBaseUrl=String(args["api-base-url"]||process.env.TAILORING_API_BASE_URL||""),accessToken=String(process.env.TAILORING_ACCESS_TOKEN||"");
   const promptTestTicket=String(args["prompt-test-ticket"]||"");

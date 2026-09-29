@@ -13,6 +13,11 @@ function failure(error:any,fallback:string):never{const raw=String(error?.messag
   async activityLog(u:AuthenticatedUser,q:any){const size=q.pageSize||50,page=q.page||1,data:any[]=await this.rpc(u,"list_admin_activity_log_v33",{p_from:q.from,p_to:q.to,p_applier_id:q.applierId||null,p_application_id:q.applicationId||null,p_action:q.action||null,p_search:q.search||"",p_limit:size,p_offset:(page-1)*size},"The activity log could not be loaded."),total=Number(data?.[0]?.total_count)||0;return{items:(data||[]).map(({total_count,...item})=>item),page,pageSize:size,total,totalPages:Math.ceil(total/size)};}
 }
 @Injectable()export class TailoringService{constructor(@Inject(SupabaseService)private readonly supabase:SupabaseService){}
+  async keywordCoverage(u:AuthenticatedUser,id:string){
+    const job=await this.detail(u,id);
+    const {loadKeywordCoverage}=await import("./tailoring-keyword-coverage.js");
+    return loadKeywordCoverage(this.supabase.forUser(u.token),job);
+  }
   private async rpc(u:AuthenticatedUser,name:string,args:any,fallback:string){const{data,error}=await this.supabase.forUser(u.token).rpc(name,args);if(error)failure(error,fallback);return data;}
   async create(u:AuthenticatedUser,m:any){const unique=new Map<string,any>();for(const item of m.matches)if(!unique.has(item.resumeId))unique.set(item.resumeId,item);return this.rpc(u,"create_tailoring_jobs_v13",{p_job_description_id:m.jobDescriptionId,p_matches:[...unique.values()]} ,"Tailoring jobs could not be created.");}
   requestApplication(u:AuthenticatedUser,applicationId:string){return this.rpc(u,"request_application_tailoring_v13",{p_application_id:applicationId},"The Application tailoring request could not be created.");}

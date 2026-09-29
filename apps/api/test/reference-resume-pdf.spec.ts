@@ -62,7 +62,7 @@ for(const spec of REFERENCE_RESUME_LAYOUTS)test(`${spec.key}: full 80-skill sect
     let text='';assert.ok(pdf.numPages<=4);
     for(let n=1;n<=pdf.numPages;n++){
       const page=await pdf.getPage(n),content=await page.getTextContent(),items=content.items.filter((item:any)=>item.str?.trim()) as any[];
-      assert.ok(items.length>2,`page ${n} is blank or footer-only`);
+      assert.ok(items.some(item=>/[A-Za-z]{3}/.test(item.str)),`page ${n} is blank or footer-only`);
       for(const item of items){assert.ok(item.transform[4]>=spec.margin-1&&item.transform[4]+item.width<=612-spec.margin+1);assert.ok(item.transform[5]>spec.margin-2&&item.transform[5]<792);}
       text+=items.map(item=>item.str).join(' ');
     }

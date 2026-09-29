@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import { readFile } from "node:fs/promises";
 import { renderedSkillGroups, resolveResumeHeadline } from "./tailored-resume-layout.js";
 import type { ReferenceResumeLayout } from "./reference-resume-templates.js";
+import { resumeEducationEntries } from "./resume-education.js";
 
 type RecordValue = Record<string, any>;
 type Face = "regular" | "bold" | "italic";
@@ -136,11 +137,11 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     ensure(Math.min(lines.length,2)*spec.leading);
     lines.forEach((line,index)=>{ensure(spec.leading);if(index===0)draw([{text:spec.header==="banner"?"-":"•",face:"regular"}],left,y);draw(line,left+9,y);y+=spec.leading;});
   }
-  function titleRow(runs:Run[],range:string){
+  function titleRow(runs:Run[],range:string,leading=spec.leading){
     const dateWidth=range?measure(range,"regular")+14:0, titleWidth=width-dateWidth;
     const lines=wrap(runs,titleWidth);
     if(range)draw([{text:range,face:"regular"}],left+width-measure(range),y,spec.body,spec.header==="banner"?blue:black);
-    for(const line of lines){ensure(spec.leading);draw(line,left,y);y+=spec.leading;}
+    for(const line of lines){ensure(leading);draw(line,left,y);y+=leading;}
   }
   function experience(){
     const roles=list(structured.professional_experience);if(!roles.length)return;
@@ -194,24 +195,27 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     }
   }
   function education(){
-    const items=list(structured.education),legacy=clean(structured.education_legacy_text);if(!items.length&&!legacy)return;
-    const blocks=items.map(item=>{
+    const entries=resumeEducationEntries(structured);if(!entries.length)return;
+    const leading=Math.max(spec.leading,spec.body*1.3),lineGap=3;
+    const blocks=entries.map(entry=>{
+      const item=entry.item||{};
       const degree=[item.degree,item.field_of_study,item.gpa?`GPA: ${item.gpa}`:""].map(clean).filter(Boolean).join(", ");
-      const primary=spec.degreeFirst?degree||clean(item.institution):clean(item.institution)||degree;
+      const primary=entry.lines?.[0]||(spec.degreeFirst?degree||clean(item.institution):clean(item.institution)||degree);
       const secondary=spec.degreeFirst&&degree?clean(item.institution):!spec.degreeFirst&&clean(item.institution)?degree:"";
-      const inline=spec.inlineEmployer&&Boolean(secondary),runs:Run[]=[{text:primary,face:"bold"}];
+      const inline=!entry.lines&&spec.inlineEmployer&&Boolean(secondary),runs:Run[]=[{text:primary,face:"bold"}];
       if(inline)runs.push({text:`, ${secondary}`,face:spec.key==="AMIRI_COMPACT_V1"?"italic":"regular"});
-      const height=wrap(runs,width-(dates(item)?measure(dates(item))+14:0)).length*spec.leading+(secondary&&!inline?spec.leading:0);
-      return {item,runs,secondary,inline,height};
+      const range=entry.dateLabel||dates(item);
+      const rest=entry.lines?entry.lines.slice(1):[secondary&&!inline?secondary:"",clean(item.details)].filter(Boolean);
+      const height=wrap(runs,width-(range?measure(range)+14:0)).length*leading+
+        rest.reduce((sum,value)=>sum+lineGap+wrap(rich(value),width).length*leading,0);
+      return {runs,range,rest,height};
     });
-    section("Education","education",blocks[0]?.height||Math.min(2,wrap(rich(legacy),width).length)*spec.leading);
-    if(!items.length){paragraph(legacy);return;}
-    blocks.forEach(({item,runs,secondary,inline,height},index)=>{
-      if(index)y+=spec.roleGap;
+    section("Education","education",blocks[0].height);
+    blocks.forEach(({runs,range,rest,height},index)=>{
+      if(index)y+=Math.max(spec.roleGap,10);
       ensure(height);
-      titleRow(runs,dates(item));
-      if(secondary&&!inline)paragraph(secondary,spec.header==="banner"?"regular":"italic");
-      if(clean(item.details))paragraph(clean(item.details));
+      titleRow(runs,range,leading);
+      for(const value of rest){y+=lineGap;paragraph(value,"regular",0,spec.body,leading);}
     });
   }
   header();
