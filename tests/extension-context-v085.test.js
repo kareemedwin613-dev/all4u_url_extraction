@@ -20,7 +20,7 @@ test("Manifest V3 bridge uses a narrow dashboard content script and memory-safe 
   assert.deepEqual(manifest.content_scripts[0].matches,["https://all4u-url-extraction.vercel.app/*","http://localhost/*","http://127.0.0.1/*"]);
   assert.match(background,/chrome\.storage\.session/);
   assert.match(background,/targetTabId/);
-  assert.match(background,/preferCurrent=internal&&payload\.action==="AUTOFILL"/);
+  assert.match(background,/preferCurrent=internal,/);
   assert.match(background,/usedCurrentTab:preferCurrent/);
   assert.match(background,/sourceUrl:normalizeUrl\(payload\.targetUrl\)/);
   assert.match(background,/DASHBOARD_ORIGIN_DENIED/);

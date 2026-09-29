@@ -42,7 +42,7 @@ import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
 import { JobReviewView } from "./views/JobReviewView.jsx";
 import { MyJobDescriptionsView } from "./views/MyJobDescriptionsView.jsx";
-import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, recordApplicationAutofillTelemetry, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
+import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, loadApplicationResumeForSession, recordApplicationAutofillTelemetry, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
 import { autofillValue, autofillValues, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
@@ -72,6 +72,34 @@ const TAB_LABELS = {
 };
 
 const TOAST_TYPES = { success: "success", warning: "warning", error: "error" };
+
+function extensionError(response, fallback) {
+  return Object.assign(new Error(response?.error?.message || fallback), { code: response?.error?.code });
+}
+
+async function attachSessionResume(sessionId) {
+  const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_LOADED_RESUME, payload: { sessionId } });
+  if (!response?.ok) throw extensionError(response, "The Resume could not be attached.");
+  return response.data;
+}
+
+function applicationSessionBanner({ session, context, loadedResume, attachment }) {
+  const applicationNumber = context.application.applicationNumber ?? "—";
+  const attached = attachment?.status === "ATTACHED";
+  const label = session.action === "AUTOFILL" ? "Autofill" : attached ? "Resume Attached" : loadedResume?.ready ? "Resume Ready" : "Attach Resume";
+  const description = attached
+    ? `${loadedResume?.filename || "The Resume"} was attached and verified for Application #${applicationNumber}. Review the page before continuing; the extension will not submit it.`
+    : attachment
+      ? attachment.message || "The Resume could not be attached automatically. Retry, or use the job site's file chooser."
+      : loadedResume?.ready
+        ? `${loadedResume.filename} (${Math.ceil(loadedResume.fileSizeBytes / 1024)} KiB) is held in extension memory. Attach it after reviewing the tracked job page.`
+        : `Application #${applicationNumber} is connected.`;
+  return {
+    type: attached ? "success" : attachment ? "warning" : loadedResume?.ready ? "success" : "info",
+    message: `${label}: ${context.job.company} — ${context.job.jobTitle}`,
+    description,
+  };
+}
 
 function availableViews(accessContext) {
   return [
@@ -103,6 +131,8 @@ export function App() {
   const [clearBusy, setClearBusy] = useState(false);
   const [activeApplicationSession, setActiveApplicationSession] = useState(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  // Attachment results by session id, so a re-scan does not re-upload (ATS parsers would overwrite edited fields).
+  const attachmentsRef = useRef(new Map());
   const [autofillBusy, setAutofillBusy] = useState(false);
   const navRef = useRef(null);
   const mountedViewsRef = useRef(new Set());
@@ -209,24 +239,36 @@ export function App() {
     try {
       const context = await getApplicationExtensionContext(client, backendBaseUrl, response.data.applicationId);
       await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "TARGET_READY");
-      let loadedResume = null;
+      let loadedResume = null, attachment = attachmentsRef.current.get(response.data.id) || null;
       if (response.data.action === "LOAD_RESUME") {
-        const loaded = await chrome.runtime.sendMessage({
-          type: MESSAGE_TYPES.LOAD_APPLICATION_RESUME,
-          payload: {
-            sessionId: response.data.id,
-            applicationId: response.data.applicationId,
-            baseUrl: backendBaseUrl,
-            accessToken: session.access_token,
-          },
-        });
-        if (!loaded?.ok) throw new Error(loaded?.error?.message || "The private Resume could not be loaded.");
-        loadedResume = loaded.data;
+        loadedResume = await loadApplicationResumeForSession(client, backendBaseUrl, response.data);
+        if (!attachment) {
+          attachment = await attachSessionResume(response.data.id);
+          attachmentsRef.current.set(response.data.id, attachment);
+          if (attachment.status === "ATTACHED") {
+            await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "COMPLETED");
+            setStatus({ message: `${loadedResume.filename} attached and verified. Review the page before submitting.`, kind: "success" });
+          } else setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
+        }
       }
       let autofillContext = null, autofillFields = [], unresolvedAutofillQuestions=[], autofillAdapter=null, autofillTargetDomain="", autofillTargetOrigin="", selectedAutofillFieldIds = [], autofillResults = [];
       if (response.data.action === "AUTOFILL") {
         autofillContext = await getApplicationAutofillContext(client, backendBaseUrl, response.data.applicationId, response.data.id);
         const priorRecovery=await getApplicationAutofillRecovery(client,backendBaseUrl,response.data.id).catch(()=>null);
+        // Attach the Resume before detecting fields: ATS resume parsers (Lever, Workday, …) repopulate fields on upload.
+        // A Resume problem never blocks field Autofill; it is reported in the banner with a retry.
+        if (context?.permissions?.canLoadResume) {
+          try {
+            loadedResume = await loadApplicationResumeForSession(client, backendBaseUrl, response.data);
+            const resumed = priorRecovery && priorRecovery.stepIdentifier !== "NEW";
+            if (!attachment && !resumed && !autofillContext?.preferences?.requireReviewEveryField) {
+              attachment = await attachSessionResume(response.data.id);
+              attachmentsRef.current.set(response.data.id, attachment);
+            }
+          } catch (error) {
+            attachment = { status: "FAILED", code: typeof error?.code === "string" ? error.code : "RESUME_ATTACHMENT_FAILED", message: `The Resume was not attached: ${error?.message || "unknown error"}` };
+          }
+        }
         const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext) } });
         if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
         autofillFields = prepared.data.fields || [];
@@ -255,7 +297,7 @@ export function App() {
         const telemetry=buildAutofillTelemetry({resumeUpdatedAt:autofillContext.resumeUpdatedAt,adapter:autofillAdapter,targetDomain:autofillTargetDomain,fields:autofillFields,selectedFieldIds:selectedAutofillFieldIds,results:autofillResults,unresolved:unresolvedAutofillQuestions});
         await recordApplicationAutofillTelemetry(client,backendBaseUrl,response.data.id,telemetry).catch(()=>{});
       }
-      setActiveApplicationSession({ session: response.data, context, loadedResume, autofillContext, autofillFields, unresolvedAutofillQuestions, autofillAdapter, autofillTargetDomain, autofillTargetOrigin, selectedAutofillFieldIds, autofillResults, autofillOverrides: {} });
+      setActiveApplicationSession({ session: response.data, context, loadedResume, attachment, autofillContext, autofillFields, unresolvedAutofillQuestions, autofillAdapter, autofillTargetDomain, autofillTargetOrigin, selectedAutofillFieldIds, autofillResults, autofillOverrides: {} });
       setCurrentView("applications");
     } catch (error) {
       const safeCode=typeof error?.code==="string"&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:(response.data.action === "AUTOFILL" ? "AUTOFILL_FAILED" : "RESUME_LOAD_FAILED");
@@ -275,6 +317,7 @@ export function App() {
 
   async function resetApplicationSession() {
     const id = activeApplicationSession?.session?.id;
+    if (id) attachmentsRef.current.delete(id);
     if (id) await updateApplicationExtensionSession(client, backendBaseUrl, id, "CANCELLED").catch(() => {});
     await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION });
     setActiveApplicationSession(null);
@@ -282,17 +325,17 @@ export function App() {
 
   async function attachActiveResume() {
     const active = activeApplicationSession;
-    if (!active?.loadedResume?.ready || attachmentBusy) return;
+    if (!active?.session || attachmentBusy) return;
     setAttachmentBusy(true);
     try {
       const latest=await getApplicationExtensionContext(client,backendBaseUrl,active.session.applicationId);
       if(!latest?.permissions?.canLoadResume||latest?.resume?.status!=="ACTIVE")throw Object.assign(new Error("The Resume is no longer eligible for attachment."),{code:"APPLICATION_RESUME_UNAVAILABLE"});
-      const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_LOADED_RESUME, payload: { sessionId: active.session.id } });
-      if (!response?.ok) throw new Error(response?.error?.message || "The Resume could not be attached.");
-      const attachment = response.data;
-      setActiveApplicationSession((current) => current ? { ...current, attachment } : current);
+      const loadedResume = active.loadedResume?.ready ? active.loadedResume : await loadApplicationResumeForSession(client, backendBaseUrl, active.session);
+      const attachment = await attachSessionResume(active.session.id);
+      attachmentsRef.current.set(active.session.id, attachment);
+      setActiveApplicationSession((current) => current ? { ...current, loadedResume, attachment } : current);
       if (attachment.status === "ATTACHED") {
-        await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
+        if (active.session.action === "LOAD_RESUME") await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
         setStatus({ message: "Resume attached and verified on the tracked job page.", kind: "success" });
       } else if (attachment.status === "MANUAL_REQUIRED" || attachment.status === "UNSUPPORTED") {
         setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
@@ -535,7 +578,11 @@ export function App() {
         </div>
       )}
       <Content className="sidepanel-content">
-        {activeApplicationSession && <Alert type={activeApplicationSession.attachment?.status === "ATTACHED" ? "success" : activeApplicationSession.attachment?.status === "MANUAL_REQUIRED" || activeApplicationSession.attachment?.status === "UNSUPPORTED" ? "warning" : activeApplicationSession.loadedResume?.ready ? "success" : "info"} showIcon closable onClose={resetApplicationSession} message={`${activeApplicationSession.attachment?.status === "ATTACHED" ? "Resume Attached" : activeApplicationSession.loadedResume?.ready ? "Resume Ready" : activeApplicationSession.session.action === "LOAD_RESUME" ? "Load Resume" : "Autofill"}: ${activeApplicationSession.context.job.company} — ${activeApplicationSession.context.job.jobTitle}`} description={activeApplicationSession.attachment?.status === "ATTACHED" ? `The standard file input was updated and verified for Application #${activeApplicationSession.context.application.applicationNumber ?? "—"}. Review the page before continuing; the extension will not submit it.` : activeApplicationSession.attachment?.message || (activeApplicationSession.loadedResume?.ready ? `${activeApplicationSession.loadedResume.filename} (${Math.ceil(activeApplicationSession.loadedResume.fileSizeBytes / 1024)} KiB) is held in extension memory. Attach it only after reviewing the tracked job page.` : `Application #${activeApplicationSession.context.application.applicationNumber ?? "—"} is connected.`)} action={activeApplicationSession.loadedResume?.ready && activeApplicationSession.attachment?.status !== "ATTACHED" ? <Button size="small" loading={attachmentBusy} onClick={attachActiveResume}>{activeApplicationSession.attachment ? "Retry Attachment" : "Attach Resume to Page"}</Button> : null} style={{ marginBottom: 12 }} />}
+        {activeApplicationSession && (() => {
+          const banner = applicationSessionBanner(activeApplicationSession);
+          const canAttach = (activeApplicationSession.loadedResume?.ready || activeApplicationSession.attachment) && activeApplicationSession.attachment?.status !== "ATTACHED";
+          return <Alert type={banner.type} showIcon closable onClose={resetApplicationSession} message={banner.message} description={banner.description} action={canAttach ? <Button size="small" loading={attachmentBusy} onClick={attachActiveResume}>{activeApplicationSession.attachment ? "Retry Attachment" : "Attach Resume to Page"}</Button> : null} style={{ marginBottom: 12 }} />;
+        })()}
         {activeApplicationSession?.session?.action === "AUTOFILL" && activeApplicationSession.autofillContext && <AutofillPreview active={activeApplicationSession} busy={autofillBusy} onSelectionChange={changeAutofillSelection} onValueChange={changeAutofillValue} onFill={fillActiveAutofill} onRescan={loadApplicationSession} />}
         {renderedViewKeys.map((key) => (
           <div key={key} hidden={key !== currentView}>

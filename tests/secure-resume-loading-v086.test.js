@@ -36,8 +36,9 @@ test("v0.8.6 keeps Resume bytes in an in-memory store and zeroes them when clear
 test("v0.8.6 service worker never persists Resume bytes, URLs, or tokens", async () => {
   const source = await readFile(new URL("../extension/background/service-worker.js", import.meta.url), "utf8");
   const loader = await readFile(new URL("../extension/background/resume-loader.js", import.meta.url), "utf8");
-  assert.match(source, /\/resume-access/);
-  assert.match(source, /attempt<2/);
+  // The panel resolves the attached (possibly TAILORED) Resume; the worker never receives the API token.
+  assert.doesNotMatch(source, /accessToken|\/resume-access/);
+  assert.match(source, /RESUME_ACCESS_EXPIRED/);
   assert.match(loader, /new File\(\[loaded\.bytes\]/);
   assert.doesNotMatch(source, /chrome\.storage\.(local|session)\.set\([^)]*(signedUrl|accessToken|bytes)/s);
   assert.doesNotMatch(source + loader, /console\.(log|info|debug|warn|error)/);

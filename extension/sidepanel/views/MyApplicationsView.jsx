@@ -38,8 +38,9 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
       const result=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.HANDOFF_APPLICATION_SESSION,payload:extensionSession});
       if(!result?.ok)throw Object.assign(new Error(result?.error?.message||"The Application could not be activated."),{code:result?.error?.code});
       await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"RECEIVED");
-      const targetHost=result.data?.targetTabUrl?new URL(result.data.targetTabUrl).hostname:"";
-      onStatus({message:action==="AUTOFILL"&&result.data?.usedCurrentTab?`Autofill is active on the current tab${targetHost?` (${targetHost})`:""}.`:`${action==="LOAD_RESUME"?"Resume loading":"Autofill"} context is active.`,kind:"success"});
+      const targetHost=result.data?.targetUrl?new URL(result.data.targetUrl).hostname:"";
+      const actionLabel=action==="LOAD_RESUME"?"Resume attachment":"Autofill";
+      onStatus({message:result.data?.usedCurrentTab?`${actionLabel} is running on the current tab${targetHost?` (${targetHost})`:""}.`:`${actionLabel} context is active.`,kind:"info"});
     } catch(error) {
       if(extensionSession?.id)await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"FAILED","HANDOFF_FAILED").catch(()=>{});
       onError(error);
