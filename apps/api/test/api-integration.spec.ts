@@ -71,6 +71,8 @@ before(async () => {
       autofillContext:async(_user:any,id:string,query:any)=>({applicationId:id,sessionId:query.sessionId,resumeId:"223e4567-e89b-42d3-a456-426614174000",resumeUpdatedAt:"2026-07-29T00:00:00Z",profileSchemaVersion:1,reviewedAt:"2026-07-29T00:00:00Z",job:{company:"Example",jobTitle:"Engineer",sourceUrl:"https://example.com/jobs/1"},values:{"candidate.email":"person@example.com"}}),
       updateExtensionSession:async(_user:any,id:string,body:any)=>({id,applicationId:"123e4567-e89b-42d3-a456-426614174000",action:"AUTOFILL",status:body.status,expiresAt:"2026-07-28T12:15:00Z"}),
       recordAutofillTelemetry:async(_user:any,id:string,body:any)=>({id,applicationId:"123e4567-e89b-42d3-a456-426614174000",...body,updatedAt:"2026-08-02T12:01:00Z"}),
+      recordResumeAttachment:async(_user:any,id:string,body:any)=>({sessionId:id,status:body.status,code:body.code,attempts:1}),
+      resumeAttachmentReport:async(_user:any,days:number)=>({days,generatedAt:"2026-09-29T12:00:00Z",items:[]}),
       resumeAccess:async()=>({signedUrl:"https://storage.example/signed-resume",filename:"candidate.pdf",mimeType:"application/pdf",fileSizeBytes:1024,expiresAt:"2026-07-28T12:01:00Z"}),
       preview:async()=>({combinations:[]}),bulkCreate:async()=>({batchId:"123e4567-e89b-42d3-a456-426614174000",createdCount:1}),batches:async()=>({items:[],total:0,page:1,pageSize:25,pageCount:0}),batchOptions:async()=>[],batch:async()=>({batch:{id:"123e4567-e89b-42d3-a456-426614174000"}}),
       resumeUrl:async()=>({signedUrl:"https://storage.example/resume",expiresInSeconds:90}),screenshots:async()=>[],addScreenshot:async()=>({id:"screenshot-1"}),removeScreenshot:async()=>({id:"screenshot-1"}),screenshotUrl:async()=>({signedUrl:"https://storage.example/screenshot",expiresInSeconds:90}),
@@ -299,7 +301,16 @@ test("v0.8.5 extension context and sessions enforce roles and validate state",as
   const telemetry={resumeUpdatedAt:"2026-08-02T12:00:00Z",adapterId:"greenhouse",adapterVersion:"1.0.0",targetDomain:"job-boards.greenhouse.io",detectedCount:1,selectedCount:1,succeededCount:1,failedCount:0,unresolvedCount:0,fields:[{fieldKey:"candidate.email",fieldIndex:0,confidence:93,outcome:"VERIFIED",errorCode:"FIELD_VERIFIED"}]};
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/autofill-telemetry`).set("Authorization","Bearer token").send(telemetry).expect(200).expect(({body})=>assert.equal(body.data.targetDomain,"job-boards.greenhouse.io"));
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/autofill-telemetry`).set("Authorization","Bearer token").send({...telemetry,fields:[{...telemetry.fields[0],value:"secret"}]}).expect(400);
+  const attachment={status:"UNSUPPORTED",code:"RESUME_INPUT_NOT_FOUND",adapterId:"greenhouse",targetDomain:"cribl.io",frameDomain:"job-boards.greenhouse.io",embedded:true};
+  await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/resume-attachment`).set("Authorization","Bearer token").send(attachment).expect(200).expect(({body})=>{assert.equal(body.data.status,"UNSUPPORTED");assert.equal(body.data.code,"RESUME_INPUT_NOT_FOUND");});
+  await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/resume-attachment`).set("Authorization","Bearer token").send({...attachment,status:"MAYBE"}).expect(400);
+  await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/resume-attachment`).set("Authorization","Bearer token").send({...attachment,filename:"Andrew Thomas Resume.pdf"}).expect(400);
+  await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/resume-attachment`).set("Authorization","Bearer token").send({...attachment,targetDomain:"https://cribl.io/job-detail"}).expect(400);
+  await request(app.getHttpServer()).get("/api/v1/resume-attachment-report").set("Authorization","Bearer token").expect(403);
+  roles=["APPLYING_MANAGER"];
+  await request(app.getHttpServer()).get("/api/v1/resume-attachment-report?days=7").set("Authorization","Bearer token").expect(200).expect(({body})=>assert.equal(body.data.days,7));
   roles=["DEVELOPER"];
+  await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/resume-attachment`).set("Authorization","Bearer token").send(attachment).expect(403);
   await request(app.getHttpServer()).patch(`/api/v1/extension-sessions/${sessionId}/autofill-telemetry`).set("Authorization","Bearer token").send(telemetry).expect(403);
   roles=["APPLIER"];
   await request(app.getHttpServer()).post(`/api/v1/applications/${id}/resume-access`).set("Authorization","Bearer token").send({resumeId:"223e4567-e89b-42d3-a456-426614174000"}).expect(400);

@@ -77,6 +77,7 @@ export const getApplicationAutofillContext=(client,baseUrl,applicationId,session
 export const createApplicationExtensionSession=(client,baseUrl,applicationId,action)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-sessions`,{method:"POST",body:{action,extensionVersion:chrome.runtime.getManifest().version}});
 export const updateApplicationExtensionSession=(client,baseUrl,sessionId,status,errorCode)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}`,{method:"PATCH",body:{status,...(errorCode?{errorCode}:{})}});
 export const recordApplicationAutofillTelemetry=(client,baseUrl,sessionId,telemetry)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-telemetry`,{method:"PATCH",body:telemetry});
+export const recordApplicationResumeAttachment=(client,baseUrl,sessionId,outcome)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/resume-attachment`,{method:"PATCH",body:outcome});
 export const getApplicationAutofillRecovery=(client,baseUrl,sessionId)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`);
 export const updateApplicationAutofillRecovery=(client,baseUrl,sessionId,recovery)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-recovery`,{method:"PATCH",body:recovery});
 export async function updateApplicationProgress(client,_baseUrl,id,{status,applicationUrl,notes}){
