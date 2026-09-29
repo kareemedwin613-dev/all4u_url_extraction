@@ -30,7 +30,7 @@ for(const spec of REFERENCE_RESUME_LAYOUTS)for(const long of [false,true])test(`
     const text=all.join(" ").replace(/\s+/g," ");
     for(const phrase of ["Alex Morgan","alex@example.com","Bachelor of Science","Example University","Python","Jira"])assert.ok(text.includes(phrase),`missing ${phrase}`);
     const compact=text.replace(/\s+/g,"");
-    for(const skill of input.approvedPreview.skills.slice(0,30))assert.ok(compact.includes(skill.replace(/\s+/g,"")),`missing skill ${skill}`);
+    for(const skill of input.approvedPreview.skills.slice(0,80))assert.ok(compact.includes(skill.replace(/\s+/g,"")),`missing skill ${skill}`);
     for(const role of input.approvedPreview.professionalExperience)for(const line of role.tailoredDetails.split("\n"))
       assert.ok(compact.includes(line.replace(/^- /,"").replace(/\s+/g,"")),`missing bullet ${line}`);
     assert.equal((text.match(/Delivered/g)||[]).length,input.sourceStructuredContent.professional_experience.length);
@@ -51,5 +51,22 @@ test("long words and wrapped headers do not overflow or discard content",async()
   const pdf=await getDocument({data:new Uint8Array(bytes)}).promise;
   try{let combined="";for(let n=1;n<=pdf.numPages;n++){const page=await pdf.getPage(n),content=await page.getTextContent();for(const item of content.items as any[]){if(!item.str)continue;assert.ok(item.transform[4]+item.width<=579);combined+=item.str;}}
     assert.ok(combined.includes("integration".repeat(100)));assert.ok(combined.includes("for reliable processing."));
+  }finally{await pdf.destroy();}
+});
+
+for(const spec of REFERENCE_RESUME_LAYOUTS)test(`${spec.key}: full 80-skill section is preserved without blank pages or overflow`,async()=>{
+  const input={...referenceResumeFixture(),renderTemplateKey:spec.key};
+  input.approvedPreview.skills=Array.from({length:80},(_,i)=>`Quantitative Research Capability ${String(i+1).padStart(2,'0')}`);
+  const bytes=await renderTailoredResumePdf(input),pdf=await getDocument({data:new Uint8Array(bytes)}).promise;
+  try{
+    let text='';assert.ok(pdf.numPages<=4);
+    for(let n=1;n<=pdf.numPages;n++){
+      const page=await pdf.getPage(n),content=await page.getTextContent(),items=content.items.filter((item:any)=>item.str?.trim()) as any[];
+      assert.ok(items.length>2,`page ${n} is blank or footer-only`);
+      for(const item of items){assert.ok(item.transform[4]>=spec.margin-1&&item.transform[4]+item.width<=612-spec.margin+1);assert.ok(item.transform[5]>spec.margin-2&&item.transform[5]<792);}
+      text+=items.map(item=>item.str).join(' ');
+    }
+    const compact=text.replace(/\s+/g,'');
+    for(const skill of input.approvedPreview.skills)assert.ok(compact.includes(skill.replace(/\s+/g,'')),`missing ${skill}`);
   }finally{await pdf.destroy();}
 });

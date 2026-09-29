@@ -3,6 +3,7 @@ import type { TailoredSkillGroup } from "./types.js";
 export const SKILL_GROUP_NAMES=[
   "Languages & Runtimes",
   "AI / ML",
+  "Research & Analytics",
   "Frameworks & Libraries",
   "Cloud & DevOps",
   "Data & Databases",
@@ -22,7 +23,8 @@ const key=(value:unknown)=>clean(value).toLocaleLowerCase();
 
 export function inferSkillGroup(skill:string):SkillGroupName{
   const value=key(skill);
-  if(/(^|\b)(agentic ai|ai|artificial intelligence|machine learning|deep learning|llm|large language model|rag|retrieval[- ]augmented|knowledge retrieval|human-in-the-loop|prompt engineering|nlp|natural language processing|computer vision|tensorflow|pytorch|scikit|hugging face|langchain|llamaindex|generative ai|model training)(\b|$)/.test(value))return"AI / ML";
+  if(/(^|\b)(agentic ai|ai|artificial intelligence|machine learning|deep learning|llm|large language model|rag|retrieval[- ]augmented|knowledge retrieval|human-in-the-loop|prompt engineering|nlp|natural language processing|computer vision|tensorflow|pytorch|scikit|hugging face|langchain|llamaindex|generative ai|model training|predictive analytics|predictive modeling|model development|model evaluation|feature development|model validation|model productionization|reproducible modeling)(\b|$)/.test(value))return"AI / ML";
+  if(value==="optimization"||/(^|\b)(data science|quantitative|statistical|exploratory data analysis|analytical|research|mathematical optimization|decision modeling|scenario analysis|sensitivity analysis|data visualization|model results visualization)(\b|$)/.test(value))return"Research & Analytics";
   if(/^(c|c\+\+|c#|java|javascript|typescript|python|php|ruby|go|golang|rust|kotlin|swift|scala|r|matlab|dart|perl|bash|shell|powershell|visual basic|vb\.net|node\.js|nodejs)$/.test(value))return"Languages & Runtimes";
   if(/(^|\b)(\.net|asp\.net|mvc|react|angular|vue|next\.js|nuxt|spring|django|flask|fastapi|express|jquery|bootstrap|tailwind|laravel|rails|hibernate|entity framework|redux|rxjs|library|framework|reusable component)(\b|$)/.test(value))return"Frameworks & Libraries";
   if(/(^|\b)(aws|amazon web services|azure|gcp|google cloud|docker|kubernetes|terraform|ansible|jenkins|github actions|gitlab ci|circleci|ci\/cd|continuous integration|continuous delivery|devops|git|github|gitlab|bitbucket|subversion|svn|linux|unix|windows server|container|infrastructure as code|iac)(\b|$)/.test(value))return"Cloud & DevOps";
@@ -31,7 +33,7 @@ export function inferSkillGroup(skill:string):SkillGroupName{
   if(/(^|\b)(architecture|application modernization|microservice|service-oriented|service layer|soa|design pattern|security|authentication|authorization|rbac|role-based access control|oauth|jwt|iam|encryption|audit logging|observability|monitoring|logging|secure data|phi|pii|privacy|compliance|secrets management|zero trust)(\b|$)/.test(value))return"Architecture & Security";
   if(/(^|\b)(test|testing|quality|qa|regression|unit test|integration test|automation test|code review|data validation|debugging|troubleshooting|performance optimization|load test|acceptance test)(\b|$)/.test(value))return"Testing & Quality";
   if(/(^|\b)(agile|scrum|kanban|jira|confluence|excel|sdlc|requirements|stakeholder|sprint|documentation|workflow automation|release coordination|project management|support workflow|source control|issue tracking|scheduled job|wiki|crm|erp|provisioning|collaboration)(\b|$)/.test(value))return"Tools & Delivery";
-  if(/(^|\b)(healthcare|finance|financial|banking|insurance|retail|e-commerce|government|education|manufacturing|telecommunications|marketing|sales|accounting|human resources|supply chain|logistics)(\b|$)/.test(value))return"Domain Knowledge";
+  if(/(^|\b)(healthcare|finance|financial|banking|insurance|retail|e-commerce|government|education|manufacturing|telecommunications|marketing|sales|accounting|human resources|supply chain|logistics|market structure|fixed income|treasury|trading|agency mbs)(\b|$)/.test(value))return"Domain Knowledge";
   return"Additional Skills";
 }
 
