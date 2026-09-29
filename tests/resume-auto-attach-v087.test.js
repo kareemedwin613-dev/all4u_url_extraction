@@ -66,7 +66,9 @@ test("v0.8.7 injects only into the tracked tab and never submits the application
     readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(worker, /chrome\.tabs\.get\(active\.targetTabId\)/);
-  assert.match(worker, /files:\["content\/resume-upload\.js"\]/);
+  // Injection covers the tracked tab's frames (embedded ATS forms), then attaches in one chosen frame.
+  assert.match(worker, /probeFrames\(tab\.id,"content\/resume-upload\.js"/);
+  assert.match(worker, /\{frameId:frame\.frameId\}/);
   assert.match(content, /ATTACH_RESUME_TO_PAGE/);
   assert.match(adapter, /DataTransfer/);
   assert.match(adapter, /dispatchEvent\(new Event\("input"/);
