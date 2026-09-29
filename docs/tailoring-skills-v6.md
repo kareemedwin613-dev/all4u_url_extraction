@@ -36,4 +36,4 @@ The script creates a fresh job in an in-memory PostgreSQL database using the rea
 
 Verified locally: 36 original skills -> 36 ranked skills in four groups, one model attempt; all six PDFs retained all skills on one page. Regression tests also cover 80-skill PDFs, frozen older contracts, tag synchronization, and upload-path authorization/finalization.
 
-Broader repository checks still report unrelated existing issues: the literal JSX assertion in `tests/manager-only-jd-capture.test.js` does not account for the banned-company guard, and API test typechecking reports implicit/unknown types in `resume-banned-companies.spec.ts` and `resume-cover-letter.spec.ts`. Production API/worker builds and the API runtime test suite pass.
+The capture-permission regression test now includes the banned-company guard. Separate API test typechecking still reports existing implicit/unknown types in `resume-banned-companies.spec.ts` and `resume-cover-letter.spec.ts`. Production API/worker builds and the API runtime test suite pass.
