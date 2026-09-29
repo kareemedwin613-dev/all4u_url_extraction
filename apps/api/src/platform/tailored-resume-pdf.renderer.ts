@@ -1,9 +1,8 @@
 import PDFDocument from "pdfkit";
 import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
-import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment}from"./tailored-resume-layout.js";
+import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment,resumeEducationEntries}from"./tailored-resume-layout.js";
 import { referenceResumeLayout } from "./reference-resume-templates.js";
 import { renderReferenceResumePdf } from "./reference-resume-pdf.renderer.js";
-import { resumeEducationEntries } from "./resume-education.js";
 
 type JsonRecord=Record<string,any>;
 const text=(value:unknown):string=>String(value??"").trim();
@@ -54,8 +53,8 @@ export async function renderTailoredResumePdf(input:JsonRecord):Promise<Buffer>{
   if(education.length){
     section("Education");
     for(const entry of education){
-      const item=entry.item||{},range=entry.dateLabel||dateRange(item),primary=entry.lines?.[0]||text(item.institution);
-      const rest=entry.lines?.slice(1)||[[item.degree,item.field_of_study,item.gpa?`GPA: ${item.gpa}`:""].map(text).filter(Boolean).join(" — "),text(item.details)].filter(Boolean);
+      const range=entry.range,primary=entry.degree||entry.institution;
+      const rest=[entry.degree?entry.institution:"",entry.details].filter(Boolean);
       const width=document.page.width-margin*2,dateWidth=range?regular().widthOfString(range)+16:0;
       const titleHeight=bold().heightOfString(primary,{width:width-dateWidth,lineGap:3});
       const height=titleHeight+rest.reduce((sum,value)=>sum+3+regular().heightOfString(value,{width,lineGap:3}),0);

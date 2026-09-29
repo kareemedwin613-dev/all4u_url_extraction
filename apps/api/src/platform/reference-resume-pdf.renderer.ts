@@ -1,8 +1,7 @@
 import PDFDocument from "pdfkit";
 import { readFile } from "node:fs/promises";
-import { renderedSkillGroups, resolveResumeHeadline } from "./tailored-resume-layout.js";
+import { renderedSkillGroups, resolveResumeHeadline, resumeEducationEntries } from "./tailored-resume-layout.js";
 import type { ReferenceResumeLayout } from "./reference-resume-templates.js";
-import { resumeEducationEntries } from "./resume-education.js";
 
 type RecordValue = Record<string, any>;
 type Face = "regular" | "bold" | "italic";
@@ -195,24 +194,25 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     }
   }
   // Every template: degree in bold with its dates right-aligned, the school on the line below.
-  // When only the one-line form ("Degree, School") still fits on the current page, use it rather
-  // than pushing a short Education section onto a page of its own.
+  // Measure the complete entry before drawing so its spaced lines stay together.
   function education(){
     const entries=resumeEducationEntries(structured);if(!entries.length)return;
     const leading=Math.max(spec.leading,spec.body*1.3),lineGap=3;
-    const blocks=entries.map(entry=>{
-      const item=entry.item||{};
-      const degree=[item.degree,item.field_of_study,item.gpa?`GPA: ${item.gpa}`:""].map(clean).filter(Boolean).join(", ");
-      const primary=entry.lines?.[0]||(spec.degreeFirst?degree||clean(item.institution):clean(item.institution)||degree);
-      const secondary=spec.degreeFirst&&degree?clean(item.institution):!spec.degreeFirst&&clean(item.institution)?degree:"";
-      const inline=!entry.lines&&spec.inlineEmployer&&Boolean(secondary),runs:Run[]=[{text:primary,face:"bold"}];
-      if(inline)runs.push({text:`, ${secondary}`,face:spec.key==="AMIRI_COMPACT_V1"?"italic":"regular"});
-      const range=entry.dateLabel||dates(item);
-      const rest=entry.lines?entry.lines.slice(1):[secondary&&!inline?secondary:"",clean(item.details)].filter(Boolean);
+    const layout=(inline:boolean)=>entries.map(entry=>{
+      const primary=entry.degree||entry.institution;
+      const runs:Run[]=[{text:primary,face:"bold"}];
+      if(inline&&entry.degree&&entry.institution)runs.push({text:`, ${entry.institution}`,face:"regular"});
+      const range=entry.range;
+      const rest=[entry.degree&&!inline?entry.institution:"",entry.details].filter(Boolean);
       const height=wrap(runs,width-(range?measure(range)+14:0)).length*leading+
         rest.reduce((sum,value)=>sum+lineGap+wrap(rich(value),width).length*leading,0);
       return {runs,range,rest,height};
     });
+    const stacked=layout(false),inline=layout(true);
+    const total=(blocks:ReturnType<typeof layout>)=>spec.sectionGap+spec.headingSize+10+
+      blocks.reduce((sum,block,index)=>sum+block.height+(index?Math.max(spec.roleGap,10):0),0);
+    // Keep the spacious stacked layout unless one-line entries avoid an extra page.
+    const blocks=y+total(stacked)>bottom&&y+total(inline)<=bottom?inline:stacked;
     section("Education","education",blocks[0].height);
     blocks.forEach(({runs,range,rest,height},index)=>{
       if(index)y+=Math.max(spec.roleGap,10);
