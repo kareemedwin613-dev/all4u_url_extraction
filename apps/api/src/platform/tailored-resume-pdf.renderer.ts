@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
-import{renderedSkillGroups,resolveResumeHeadline,resumeEducationEntries,roleEnvironment}from"./tailored-resume-layout.js";
+import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment}from"./tailored-resume-layout.js";
 import { referenceResumeLayout } from "./reference-resume-templates.js";
 import { renderReferenceResumePdf } from "./reference-resume-pdf.renderer.js";
 import { resumeEducationEntries } from "./resume-education.js";

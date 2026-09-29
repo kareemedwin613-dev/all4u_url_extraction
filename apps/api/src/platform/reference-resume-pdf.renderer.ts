@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { readFile } from "node:fs/promises";
-import { renderedSkillGroups, resolveResumeHeadline, resumeEducationEntries } from "./tailored-resume-layout.js";
+import { renderedSkillGroups, resolveResumeHeadline } from "./tailored-resume-layout.js";
 import type { ReferenceResumeLayout } from "./reference-resume-templates.js";
 import { resumeEducationEntries } from "./resume-education.js";
 
