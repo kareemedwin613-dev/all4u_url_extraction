@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { readFile } from "node:fs/promises";
-import { renderedSkillGroups, resolveResumeHeadline } from "./tailored-resume-layout.js";
+import { renderedSkillGroups, resolveResumeHeadline, resumeEducationEntries } from "./tailored-resume-layout.js";
 import type { ReferenceResumeLayout } from "./reference-resume-templates.js";
 import { resumeEducationEntries } from "./resume-education.js";
 
@@ -148,7 +148,7 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
     const roleHeight=(item:RecordValue)=>{
       const title=clean(item.job_title)+(spec.inlineEmployer&&clean(item.company)?`, ${clean(item.company)}`:"");
       const h=wrap(rich(title,"bold"),width-(dates(item)?measure(dates(item))+14:0)).length*spec.leading;
-      return h+(!spec.inlineEmployer&&clean(item.company)?spec.leading:0)+(clean(item.location)?spec.leading:0)+Math.min(2,wrap(rich(bulletLines(details.get(clean(item.id))||"")[0]||""),width-9).length)*spec.leading;
+      return h+(!spec.inlineEmployer&&clean(item.company)?spec.leading:0)+Math.min(2,wrap(rich(bulletLines(details.get(clean(item.id))||"")[0]||""),width-9).length)*spec.leading;
     };
     section("Professional Experience","experience",roleHeight(roles[0]));
     roles.forEach((item,index)=>{
@@ -158,7 +158,7 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
       if(spec.inlineEmployer&&clean(item.company))runs.push({text:`, ${clean(item.company)}`,face:spec.key==="AMIRI_COMPACT_V1"?"italic":"regular"});
       titleRow(runs,dates(item));
       if(!spec.inlineEmployer&&clean(item.company))paragraph(clean(item.company),spec.header==="banner"?"regular":"italic");
-      if(clean(item.location))paragraph(clean(item.location),"italic");
+      // Role locations are not rendered; the contact header already carries the candidate's location.
       for(const line of bulletLines(details.get(clean(item.id))||""))bullet(line);
     });
   }
@@ -194,6 +194,9 @@ export async function renderReferenceResumePdf(input: RecordValue, spec: Readonl
       if(queues.some(queue=>queue.length))newPage();
     }
   }
+  // Every template: degree in bold with its dates right-aligned, the school on the line below.
+  // When only the one-line form ("Degree, School") still fits on the current page, use it rather
+  // than pushing a short Education section onto a page of its own.
   function education(){
     const entries=resumeEducationEntries(structured);if(!entries.length)return;
     const leading=Math.max(spec.leading,spec.body*1.3),lineGap=3;

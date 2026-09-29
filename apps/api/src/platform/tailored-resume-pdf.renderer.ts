@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import{resolveTailoredResumeTemplate}from"./tailored-resume-templates.js";
-import{renderedSkillGroups,resolveResumeHeadline,roleEnvironment}from"./tailored-resume-layout.js";
+import{renderedSkillGroups,resolveResumeHeadline,resumeEducationEntries,roleEnvironment}from"./tailored-resume-layout.js";
 import { referenceResumeLayout } from "./reference-resume-templates.js";
 import { renderReferenceResumePdf } from "./reference-resume-pdf.renderer.js";
 import { resumeEducationEntries } from "./resume-education.js";
@@ -45,7 +45,6 @@ export async function renderTailoredResumePdf(input:JsonRecord):Promise<Buffer>{
   for(const item of values(structured.professional_experience)){
     const role=[text(item.job_title),text(item.company)].filter(Boolean).join(" — "),range=dateRange(item);
     bold().text(role,{continued:Boolean(range)});if(range)document.font(fonts.italic).text(`    ${range}`,{align:"right"});
-    if(text(item.location))document.font(fonts.italic).fontSize(bodySize).text(text(item.location));
     for(const line of cleanLines(previewById.get(text(item.id))))regular().text(`• ${line}`,{indent:10,lineGap:spec.compact?0:1});
     const environment=roleEnvironment(preview.skills,item.experience_details);
     if(environment.length){bold().text("Environment: ",{indent:10,continued:true});regular().text(environment.join(", "));}
