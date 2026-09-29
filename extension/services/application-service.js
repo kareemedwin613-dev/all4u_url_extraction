@@ -1,4 +1,4 @@
-import {AppError} from "../shared/errors.js";import {apiRequest} from "./api-client.js";
+import {AppError} from "../shared/errors.js";import {MESSAGE_TYPES} from "../shared/messages.js";import {apiRequest} from "./api-client.js";
 async function token(client){const{data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");return data.session.access_token;}
 async function call(client,baseUrl,path,options={}){return(await apiRequest({baseUrl,path,token:await token(client),...options})).data;}
 function storageErrorDetail(error){return String(error?.message||error?.details||error?.hint||error?.error||"");}
@@ -138,7 +138,11 @@ async function applicationResumeDownloadViaRpc(client,applicationId){
     applicationNumber:Number(file?.applicationNumber)||null,
   };
 }
-export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
+// Resolves the Resume currently attached to the Application (the TAILORED child once materialized)
+// with a short-lived signed URL. Shared by Download Resume and in-page attachment so both deliver
+// the same file under the same candidate-facing filename.
+export async function getApplicationResumeAccess(client,baseUrl,applicationId){
+  const requestedAt=Date.now();
   let data;
   try{
     data=await applicationResumeDownloadViaRpc(client,applicationId);
@@ -147,7 +151,7 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
     if(!baseUrl||!missingRpc(error,"get_application_resume_download_v17"))throw error;
     data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/resume-file-url`,{timeoutMs:30000});
   }
-  const url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||"");
+  const url=new URL(String(data?.signedUrl||"")),number=Number(data?.resumeNumber),type=String(data?.resumeType||""),expiresInSeconds=Number(data?.expiresInSeconds)||90;
   if(url.protocol!=="https:"||!Number.isSafeInteger(number)||number<1||!["ORIGINAL","TAILORED"].includes(type))throw new AppError("APPLICATION_RESUME_METADATA_INVALID","The attached Resume download metadata is invalid.");
   const downloadName=buildApplicationResumeDownloadFilename({
     candidateName:data?.candidateName||data?.candidate_name,
@@ -156,11 +160,27 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
     mimeType:data?.mimeType||data?.mime_type,
     applicationNumber:data?.applicationNumber||data?.application_number,
   });
+  // Expiry is measured from before the request so the extension never trusts a URL longer than Storage does.
+  return{...data,signedUrl:url.toString(),downloadName,expiresAt:new Date(requestedAt+expiresInSeconds*1000).toISOString()};
+}
+export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
+  const data=await getApplicationResumeAccess(client,baseUrl,applicationId),{downloadName}=data;
   // Avoid Chrome's Save As dialog: with a large Downloads folder it can take
   // 10–30s to open. The generated filename already includes candidate + App ID.
-  const downloadId=await downloadImpl({url:url.toString(),filename:downloadName,saveAs:false,conflictAction:"uniquify"});
+  const downloadId=await downloadImpl({url:data.signedUrl,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
   return{...data,downloadId,downloadName};
+}
+// Loads the Application's attached Resume (original or TAILORED) into service-worker memory for in-page
+// attachment. The signed URL lives ~90s, so one fresh URL is requested if it expires before the fetch.
+export async function loadApplicationResumeForSession(client,baseUrl,session,sendMessage=(message)=>chrome.runtime.sendMessage(message)){
+  for(let attempt=0;attempt<2;attempt+=1){
+    const access=await getApplicationResumeAccess(client,baseUrl,session.applicationId);
+    const loaded=await sendMessage({type:MESSAGE_TYPES.LOAD_APPLICATION_RESUME,payload:{sessionId:session.id,applicationId:session.applicationId,access:{signedUrl:access.signedUrl,expiresAt:access.expiresAt,filename:access.downloadName,mimeType:access.mimeType,fileSizeBytes:access.fileSizeBytes}}});
+    if(loaded?.ok)return loaded.data;
+    if(loaded?.error?.code!=="RESUME_ACCESS_EXPIRED"||attempt===1)throw new AppError(loaded?.error?.code||"RESUME_LOAD_FAILED",loaded?.error?.message||"The private Resume could not be loaded.");
+  }
+  return null;
 }
 // The server renders the letter (tailored if the attached Resume has one, else the base letter) and
 // checks Application access, so no Storage read of the original Resume's upload is needed here.

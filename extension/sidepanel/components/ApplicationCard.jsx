@@ -108,6 +108,7 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
       <div style={{ marginTop: 8 }}>
         <Space wrap>
           <Button size="small" onClick={() => onUpdateStatus(application)}>Update Status</Button>
+          <Button size="small" icon={<PaperClipOutlined />} disabled={!extensionEligible} loading={extensionBusy === `${application.id}:LOAD_RESUME`} onClick={() => onExtensionAction(application,"LOAD_RESUME")}>Attach Resume</Button>
           <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_RESUME`} onClick={() => onDownloadResume(application)}>Download Resume</Button>
           {onDownloadCoverLetter && <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_COVER_LETTER`} onClick={() => onDownloadCoverLetter(application)}>Download Cover Letter</Button>}
           <Button size="small" type="primary" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
