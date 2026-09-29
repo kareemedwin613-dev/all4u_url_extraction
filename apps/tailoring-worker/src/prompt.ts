@@ -9,7 +9,7 @@ export type TailoringRoleTarget={sourceExperienceId:string;projects:number;bulle
 // Must match compile_tailoring_prompt_v112 for the snapshot's contract: v5 (v3.127) uses bullet
 // ranges; earlier contracts use a single maximum.
 export function tailoringRoleTargets(input:TailoringInput,referenceDate=new Date()):TailoringRoleTarget[]{
-  const ranges=input.promptSnapshot?.contractVersion==="5";
+  const ranges=["5","6"].includes(input.promptSnapshot?.contractVersion||"");
   return input.sourceResume.professionalExperience.map(role=>{
     const start=monthIndex(role.startDate,referenceDate),end=monthIndex(role.endDate,referenceDate),months=start===null||end===null||end<start?null:end-start;
     if(ranges){
@@ -21,6 +21,7 @@ export function tailoringRoleTargets(input:TailoringInput,referenceDate=new Date
 }
 
 export function tailoringModelContext(input:TailoringInput){
+  if(input.promptSnapshot?.contractVersion==="6")return{jobDescription:input.jobDescription,sourceResume:input.sourceResume};
   return{
     jobDescription:{company:input.jobDescription.company,jobTitle:input.jobDescription.jobTitle,descriptionText:input.jobDescription.descriptionText,skills:input.jobDescription.skills},
     sourceResume:{skills:input.sourceResume.skills,professionalExperience:input.sourceResume.professionalExperience.map(({id,company,title,location,startDate,endDate})=>({id,company,title,location,startDate,endDate}))},
@@ -29,7 +30,7 @@ export function tailoringModelContext(input:TailoringInput){
 
 export function buildTailoringPrompt(input:TailoringInput,referenceDate=new Date()){
   if(input.contractVersion==="1.3"||input.contractVersion==="1.4"){
-    if(!input.promptSnapshot||!["2","3","4","5"].includes(input.promptSnapshot.contractVersion))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
+    if(!input.promptSnapshot||!["2","3","4","5","6"].includes(input.promptSnapshot.contractVersion))throw new Error("TAILORING_PROMPT_CONTRACT_UNSUPPORTED: Update the tailoring worker.");
     return input.promptSnapshot.composedPrompt;
   }
   const context=JSON.stringify(tailoringModelContext(input));

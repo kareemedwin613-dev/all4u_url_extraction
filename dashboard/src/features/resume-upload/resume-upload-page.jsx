@@ -468,12 +468,10 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                       </Col>
                       <Col xs={24} md={12}>
                         <label>
-                          Original Skills section entries, comma-separated
+                          Skill tags (synced from Skills Section below)
                           <Input
                             value={draft.skills}
-                            onChange={(event) =>
-                              setField("skills", event.target.value)
-                            }
+                            readOnly
                           />
                         </label>
                       </Col>

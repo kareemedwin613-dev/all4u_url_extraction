@@ -96,6 +96,11 @@ export function specializeOutputSchema(schema:Record<string,any>,input:Tailoring
   experience.minItems=input.sourceResume.professionalExperience.length;
   experience.maxItems=input.sourceResume.professionalExperience.length;
   identifier.enum=input.sourceResume.professionalExperience.map(item=>item.id);
+  if(input.promptSnapshot?.contractVersion==="6"){
+    result.properties.skills.minItems=1;
+    result.properties.skills.maxItems=MAX_TAILORED_SKILLS;
+    result.properties.skills.description="The complete ranked skills section: relevant technologies, methods, practices, and domain capabilities, including relevant original skills. Not an additions list.";
+  }
   if(input.contractVersion==="1.4"){
     result.properties.coverLetter={type:"string",minLength:1,maxLength:6000,description:"Cover letter body paragraphs separated by one blank line; no greeting, sign-off, or contact details."};
     result.required=[...result.required,"coverLetter"];
@@ -124,6 +129,14 @@ export function completeAtsSkills(generatedSkills:string[],jobSkills:string[],so
     seen.add(key);result.push(skill);
     if(result.length===MAX_TAILORED_SKILLS)break;
   }
+  return result;
+}
+
+// v6: the model already returns the complete ranking. Do not prepend stale tags,
+// append all JD terms, or discard capabilities absent as literal strings in role details.
+export function rankedTailoredSkills(generatedSkills:string[]){
+  const seen=new Set<string>(),result:string[]=[];
+  for(const raw of generatedSkills){const skill=normalizeSkill(raw),key=skill.toLocaleLowerCase();if(!skill||seen.has(key))continue;seen.add(key);result.push(skill);if(result.length===MAX_TAILORED_SKILLS)break;}
   return result;
 }
 
@@ -156,7 +169,7 @@ export async function runTailoringProof(rawInput:unknown,options:RunProofOptions
       catch(error){rejection=error instanceof Error?error.message:String(error);}
     }
     if(!generated)throw new Error(`TAILORING_VALIDATION_FAILED: ${rejection}`);
-    const generatedAt=options.now?.()||new Date(),skills=completeAtsSkills(generated.skills,input.jobDescription.skills,input.sourceResume.skills,evidence);
+    const generatedAt=options.now?.()||new Date(),skills=input.promptSnapshot?.contractVersion==="6"?rankedTailoredSkills(generated.skills):completeAtsSkills(generated.skills,input.jobDescription.skills,input.sourceResume.skills,evidence);
     const result:TailoringOutput={...generated,skills,skillGroups:reconcileSkillGroups(skills),changeSummary:[],unsupportedRequirements:[],warnings:[]};
     const preview:TailoringPreview={contractVersion:input.contractVersion,applicationId:input.application.id,applicationNumber:input.application.applicationNumber,sourceResumeId:input.sourceResume.id,sourceResumeNumber:input.sourceResume.resumeNumber,generatedAt:generatedAt.toISOString(),generationAttempts:attempts,result};
     if(input.promptSnapshot){const{instructions:_instructions,composedPrompt:_prompt,...provenance}=input.promptSnapshot;preview.promptProvenance=provenance;}

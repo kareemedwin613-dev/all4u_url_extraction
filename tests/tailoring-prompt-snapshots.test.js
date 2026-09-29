@@ -3,9 +3,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import {originalSkillsSection} from './fixtures/original-skills.js';
 
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const migration = name => readFileSync(new URL(`../supabase/migrations/${name}`,import.meta.url),'utf8');
+const recoveryMigration = migration('202609282100_v3_131_restore_tailoring_contract_v5.sql');
+
+test('v5 recovery reinstalls the original compiler without changing its contract',()=>{
+  const compiler=sql=>sql.slice(sql.indexOf('create or replace function public.compile_tailoring_prompt_v112')).replace(/\r\n/g,'\n').trim();
+  assert.equal(compiler(recoveryMigration),compiler(migration('202609281000_v3_127_role_bullet_ranges.sql')));
+});
 test('new job snapshots and isolated draft tests execute against PostgreSQL',async t=>{
   const db=new PGlite({extensions:{pgcrypto}}); t.after(()=>db.close());
   await db.exec(`
@@ -49,6 +56,26 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
   const createJob=async n=>db.query('insert into tailoring_jobs(id,application_id,resume_id,job_description_id) values($1,$2,$3,$4)',[id(n),id(30),id(20),id(10)]);
   const input=n=>value('select build_tailoring_input_v21($1) result',[id(n)]);
   let captured,generic;
+  await t.test('forward migration restores v5 from v4 without changing existing job snapshots',async()=>{
+    // Reproduce the deployed state where the colliding version left the v4 compiler installed.
+    await db.exec(migration('202609251400_v3_122_reenable_cover_letters.sql'));
+    await createJob(39);
+    const existing=await input(39);
+    assert.equal(existing.promptSnapshot.contractVersion,'4');
+    const before=(await db.query('select * from tailoring_prompt_job_snapshots order by job_id')).rows;
+    await db.exec(recoveryMigration);
+    await db.exec(recoveryMigration);
+    assert.deepEqual((await db.query('select * from tailoring_prompt_job_snapshots order by job_id')).rows,before);
+    assert.deepEqual(await input(39),existing);
+    await createJob(38);
+    const upgraded=await input(38);
+    assert.equal(upgraded.contractVersion,'1.4');
+    assert.equal(upgraded.promptSnapshot.contractVersion,'5');
+    assert.match(upgraded.promptSnapshot.composedPrompt,/FIXED OUTPUT CONTRACT v5/);
+    assert.match(upgraded.promptSnapshot.composedPrompt,/"minBullets": 8/);
+    assert.equal(upgraded.promptSnapshot.version,existing.promptSnapshot.version);
+    assert.equal(upgraded.promptSnapshot.instructions,existing.promptSnapshot.instructions);
+  });
   await t.test('compiler v5 sets bullet ranges at the 2- and 4-year boundaries with explicit reference dates',async()=>{
     const months=[24,25,36,37,48,49];
     const roles=months.map((m,i)=>({id:`role-${i}`,startDate:'2020-01',endDate:`${2020+Math.floor(m/12)}-${String(m%12+1).padStart(2,'0')}`}));
@@ -159,5 +186,29 @@ test('new job snapshots and isolated draft tests execute against PostgreSQL',asy
     assert.equal(await value('select count(*)::integer result from tailoring_prompt_job_snapshots'),0);
     await assert.rejects(()=>db.exec("select compile_tailoring_prompt_v112('{}','{}',now())"),/permission denied/);
     await db.exec('reset role');
+  });
+  await t.test('v6 fresh job captures all original skills; old jobs retain their exact prompts and tags',async()=>{
+    await db.exec("select set_config('test.role','ADMIN',false);alter table resumes add column resume_text text");
+    const before=(await db.query('select * from tailoring_prompt_job_snapshots order by job_id')).rows;
+    await db.query("update resumes set structured_content=structured_content||jsonb_build_object('skills',$1::text) where id=$2",[originalSkillsSection,id(20)]);
+    await db.exec(migration('202609282200_v3_132_complete_resume_skills.sql'));
+    await db.exec(migration('202609282200_v3_132_complete_resume_skills.sql'));
+    assert.deepEqual((await db.query('select * from tailoring_prompt_job_snapshots order by job_id')).rows,before);
+    await createJob(50);
+    const fresh=await input(50);
+    assert.equal(fresh.promptSnapshot.contractVersion,'6');
+    assert.equal(fresh.sourceResume.skills.length,36);
+    assert.equal(fresh.sourceResume.skillsSection,originalSkillsSection);
+    assert.equal(fresh.promptSnapshot.instructions,'Use compact bullets.');
+    const context=JSON.parse(fresh.promptSnapshot.composedPrompt.split('BEGIN_UNTRUSTED_INPUT_JSON\n')[1].split('\nEND_UNTRUSTED_INPUT_JSON')[0]);
+    assert.deepEqual(context.sourceResume.skills,fresh.sourceResume.skills);
+    assert.equal(context.sourceResume.skillsSection,originalSkillsSection);
+    assert.match(fresh.promptSnapshot.composedPrompt,/skills: the COMPLETE ranked skills section/);
+    assert.doesNotMatch(fresh.promptSnapshot.composedPrompt,/at most 24 additional technologies/);
+    await db.query("update resumes set structured_content=structured_content||'{\"skills\":\"Python, SQL\"}' where id=$1",[id(20)]);
+    assert.deepEqual(await value('select to_jsonb(skills) result from resumes where id=$1',[id(20)]),['Python','SQL']);
+    assert.deepEqual(await input(50),fresh);
+    await createJob(51);
+    assert.deepEqual((await input(51)).sourceResume.skills,['Python','SQL']);
   });
 });

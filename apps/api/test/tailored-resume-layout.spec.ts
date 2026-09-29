@@ -19,6 +19,15 @@ test("skills are trimmed to the most relevant and grouped with the most relevant
   assert.ok(!groups.flatMap(group => group.skills).includes("Tool 39"));
 });
 
+test("default PDF grouping retains the complete section, up to 80 skills",()=>{
+  const skills=['Machine Learning','Statistical Analysis','Research Methodology','Agency MBS',...Array.from({length:80},(_,i)=>`Capability ${i}`)];
+  const groups=renderedSkillGroups(skills,[]),rendered=groups.flatMap(g=>g.skills);
+  assert.equal(rendered.length,80);
+  assert.ok(rendered.includes('Capability 75'));
+  assert.ok(!rendered.includes('Capability 76'));
+  assert.ok(groups.some(g=>g.name==='Research & Analytics'&&g.skills.includes('Statistical Analysis')));
+});
+
 test("a role's environment lists only final skills its own details name, in priority order", () => {
   const skills = ["AWS", "Python", "Snowflake", "Kubernetes", "Go", "SSIS"];
   const details = "Built SSIS and Python pipelines into Snowflake on AWS. Go-live support for analysts.";

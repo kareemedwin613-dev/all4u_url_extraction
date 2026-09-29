@@ -115,7 +115,7 @@ test("input 1.4 carries the base cover letter and requires a v4 or v5 snapshot",
   assert.equal(letterInput("  Base letter.  ").sourceResume.coverLetter,"Base letter.");
   assert.equal(letterInput(null).sourceResume.coverLetter,null);
   assert.equal(validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"5"},sourceResume:{...fixture.sourceResume,coverLetter:null}}).promptSnapshot?.contractVersion,"5");
-  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/requires a v4 or v5 prompt snapshot/);
+  assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.4",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/requires a v4 or v5 or v6 prompt snapshot/);
   assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.3",promptSnapshot:{...letterSnapshot,contractVersion:"3"},sourceResume:{...fixture.sourceResume,coverLetter:null}}),/unsupported fields: coverLetter/);
   assert.throws(()=>validateTailoringInput({...fixture,contractVersion:"1.3",promptSnapshot:letterSnapshot}),/requires a v2 or v3 prompt snapshot/);
 });
