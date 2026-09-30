@@ -1,5 +1,4 @@
 export const APPLIER_STATUS_FILTER_OPTIONS = Object.freeze([
-  { value: "", label: "All Statuses" },
   { value: "ASSIGNED", label: "Assigned" },
   { value: "APPLIED", label: "Applied" },
   { value: "BLOCKED", label: "Blocked" },
