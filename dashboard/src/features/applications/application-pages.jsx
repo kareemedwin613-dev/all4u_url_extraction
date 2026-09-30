@@ -413,6 +413,7 @@ export function ApplicationsPage({
     title: "No",
     key: "no",
     width: 64,
+    fixed: "left",
     sortable: false,
     render: (_value, _row, index) =>
       ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,

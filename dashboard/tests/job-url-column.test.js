@@ -8,6 +8,7 @@ test("Job Description table shows the full clickable job-posting URL", async () 
     source.indexOf("function Jobs("),
     source.indexOf("function Resumes("),
   );
+  assert.match(jobs, /title:\s*"No"[\s\S]*?fixed:\s*"left"/);
   assert.match(jobs, /title:\s*"Job Posting URL"/);
   assert.match(jobs, /dataIndex:\s*"source_url"/);
   assert.match(jobs, /safeExternalUrl/);

@@ -1,8 +1,9 @@
 import React,{useEffect,useState}from"react";
 import{Button,Card,Flex,Input,Select,Typography}from"antd";
+import{ReloadOutlined}from"@ant-design/icons";
 import{formatOverviewRangeLabel,OVERVIEW_WINDOWS}from"./overview-date.js";
 const{Text}=Typography;
-export function OverviewDateFilter({value,onChange,compact=false}){
+export function OverviewDateFilter({value,onChange,compact=false,onRefresh,refreshing=false}){
   const[mode,setMode]=useState(value.window),[from,setFrom]=useState(value.from||""),[to,setTo]=useState(value.to||"");
   useEffect(()=>{setMode(value.window);setFrom(value.from||"");setTo(value.to||"");},[value.window,value.from,value.to]);
   const invalid=mode==="CUSTOM"&&(!from||!to||from>to);
@@ -10,6 +11,10 @@ export function OverviewDateFilter({value,onChange,compact=false}){
   const labelClass=compact?"overview-header-filter-label":"";
   const labelStyle={display:"block",marginBottom:compact?2:4,lineHeight:1.5715};
   const controls=<Flex gap={8} wrap="wrap" align="center" className={compact?"overview-header-filter":""}>
+    {onRefresh?<div className="overview-date-filter-action">
+      <Text type="secondary" className={labelClass} style={labelStyle} aria-hidden="true">&nbsp;</Text>
+      <Button icon={<ReloadOutlined />} aria-label="Refresh overview" title="Refresh this table" loading={refreshing} onClick={onRefresh}>Refresh</Button>
+    </div>:null}
     <label>
       <Text type="secondary" className={labelClass} style={labelStyle}>Reporting Period</Text>
       <Select aria-label="Overview Time Window" value={mode} style={{width:compact?145:170}} options={OVERVIEW_WINDOWS} onChange={select}/>

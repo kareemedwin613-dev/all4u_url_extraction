@@ -53,8 +53,12 @@ html,body,#app{min-height:100%;margin:0}.ant-app{min-height:100vh}.dashboard-lay
 }
 
 /* Drag-to-resize column handle (shared/resizable-table.jsx). Fixed columns are already sticky,
-   which positions the handle; other header cells need a containing block. */
-.ant-table-thead>tr>th:has(>.column-resize-handle):not(.ant-table-cell-fix-left):not(.ant-table-cell-fix-right){position:relative}
+   which positions the handle; other header cells need a containing block.
+   Antd 6 marks pinned cells with -cell-fix, not the older -fix-left/-fix-right names.
+   position:relative on a pinned header also applies its sticky offset as a shift,
+   which covers the next column title. */
+.ant-table-thead>tr>th:has(>.column-resize-handle):not(.ant-table-cell-fix){position:relative}
+.page-list-table-host .ant-table-body{scrollbar-gutter:stable}
 .column-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;z-index:3;user-select:none;touch-action:none}
 .column-resize-handle::after{content:"";position:absolute;top:25%;bottom:25%;right:3px;width:2px;border-radius:1px;background:transparent;transition:background .15s}
 .ant-table-thead>tr>th:hover .column-resize-handle::after,.column-resize-handle:hover::after{background:var(--ant-color-primary,#1677ff)}

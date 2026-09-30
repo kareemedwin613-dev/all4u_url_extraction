@@ -122,7 +122,6 @@ export function ApplierProductivityPage({
               apiBaseUrl={apiBaseUrl}
               rows={rows}
               dateRange={dateRange}
-              windowDays={kpis.windowDays}
               dateLabel={dateLabel}
               showTitle={false}
             />

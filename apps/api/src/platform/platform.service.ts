@@ -7,6 +7,7 @@ function failure(error:any,fallback:string):never{const raw=String(error?.messag
   role=(u:AuthenticatedUser,id:string,code:string,assign:boolean)=>this.rpc(u,assign?"admin_assign_role":"admin_remove_role",{p_user_id:id,p_role_code:code},"The role assignment could not be changed.");
   status=(u:AuthenticatedUser,id:string,status:string)=>this.rpc(u,"admin_set_user_status",{p_user_id:id,p_status:status},"The account status could not be changed.");
   updateUserProfile=(u:AuthenticatedUser,id:string,name:string)=>this.rpc(u,"admin_update_user_profile",{p_user_id:id,p_full_name:String(name||"").trim()},"The user profile could not be updated.");
+  setAppliedSalaryRate=(u:AuthenticatedUser,id:string,rate:number)=>this.rpc(u,"admin_set_applied_salary_rate",{p_user_id:id,p_rate:rate},"The applied salary rate could not be updated.");
   profile=(u:AuthenticatedUser,name:string)=>this.rpc(u,"update_my_profile",{p_full_name:String(name||"").trim()},"The profile could not be updated.");
   overview=(u:AuthenticatedUser,from:string,to:string)=>this.rpc(u,"get_business_overview_v31",{p_from:from,p_to:to},"The business overview could not be loaded.");
   applierScorecard=(u:AuthenticatedUser,id:string,from:string,to:string)=>this.rpc(u,"get_applier_scorecard_v34",{p_applier_id:id,p_from:from,p_to:to},"The Applier scorecard could not be loaded.");

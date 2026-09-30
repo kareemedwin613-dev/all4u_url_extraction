@@ -17,7 +17,6 @@ import { UserAvatar } from "../../components/user-avatar.jsx";
 import { tableRowNumberColumn } from "../../shared/table-sorting.js";
 import { APPLIER_PERFORMANCE_METRICS } from "./applier-performance.js";
 import {
-  avgPerDayTone,
   formatApplierSalary,
   formatLastActivityMeta,
   gradeFromScore,
@@ -34,7 +33,7 @@ const DEFAULT_PRODUCTIVITY_SORT = Object.freeze({
 });
 
 function parseProductivityFilters(query = "") {
-  const params = new URLSearchParams(query), fields = ["name", "salary", "avgPerDay", "lastActivityAt", ...PRODUCTIVITY_TABLE_METRIC_KEYS];
+  const params = new URLSearchParams(query), fields = ["name", "searchedUrls", "mistakes", "salary", "lastActivityAt", ...PRODUCTIVITY_TABLE_METRIC_KEYS];
   return {
     ...parseLocalSearchQuery(query),
     field: fields.includes(params.get("field")) ? params.get("field") : DEFAULT_PRODUCTIVITY_SORT.field,
@@ -112,7 +111,7 @@ function ProductivityMetricTotal({ metricKey, value }) {
   );
 }
 
-function ProductivityTableSummary({ totals, salaryTotal }) {
+function ProductivityTableSummary({ totals, searchedUrlsTotal, mistakesTotal, salaryTotal }) {
   const metricCount = PRODUCTIVITY_TABLE_METRIC_KEYS.length;
   return (
     <Table.Summary fixed>
@@ -124,17 +123,31 @@ function ProductivityTableSummary({ totals, salaryTotal }) {
           </Table.Summary.Cell>
         ))}
         <Table.Summary.Cell index={2 + metricCount} align="center">
+          <span className="productivity-metric-value productivity-metric-value--searchedUrls productivity-metric-value--total">
+            {searchedUrlsTotal}
+          </span>
+        </Table.Summary.Cell>
+        <Table.Summary.Cell index={3 + metricCount} align="center">
+          <span
+            className={`productivity-metric-value productivity-metric-value--mistakes productivity-metric-value--total${
+              mistakesTotal ? " productivity-metric-value--danger" : ""
+            }`}
+          >
+            {mistakesTotal}
+          </span>
+        </Table.Summary.Cell>
+        <Table.Summary.Cell index={4 + metricCount} align="center">
           <span className="productivity-metric-value productivity-metric-value--total">
             {formatApplierSalary(salaryTotal)}
           </span>
         </Table.Summary.Cell>
-        <Table.Summary.Cell index={3 + metricCount} colSpan={2} />
+        <Table.Summary.Cell index={5 + metricCount} colSpan={2} />
       </Table.Summary.Row>
     </Table.Summary>
   );
 }
 
-function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo) {
+function buildColumns(client, apiBaseUrl, page, pageSize, sortedInfo) {
   const sortOrder = (field) => (sortedInfo.field === field ? sortedInfo.order : null);
 
   return [
@@ -186,6 +199,40 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
       ),
     },
     {
+      title: "URLs",
+      dataIndex: "searchedUrls",
+      key: "searchedUrls",
+      width: 72,
+      align: "center",
+      className: "productivity-metric-col productivity-metric-col--searchedUrls",
+      sorter: true,
+      sortOrder: sortOrder("searchedUrls"),
+      render: (value) => (
+        <span className="productivity-metric-value productivity-metric-value--searchedUrls">
+          {value}
+        </span>
+      ),
+    },
+    {
+      title: "Mistakes",
+      dataIndex: "mistakes",
+      key: "mistakes",
+      width: 88,
+      align: "center",
+      className: "productivity-metric-col productivity-metric-col--mistakes",
+      sorter: true,
+      sortOrder: sortOrder("mistakes"),
+      render: (value) => (
+        <span
+          className={`productivity-metric-value productivity-metric-value--mistakes${
+            value ? " productivity-metric-value--danger" : ""
+          }`}
+        >
+          {value}
+        </span>
+      ),
+    },
+    {
       title: "Salary",
       dataIndex: "salary",
       key: "salary",
@@ -198,23 +245,6 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
           {formatApplierSalary(value)}
         </span>
       ),
-    },
-    {
-      title: "Avg / Day",
-      dataIndex: "avgPerDay",
-      key: "avgPerDay",
-      width: 84,
-      align: "center",
-      sorter: true,
-      sortOrder: sortOrder("avgPerDay"),
-      render: (value, row) => {
-        const tone = avgPerDayTone(value, row.windowDays || windowDays);
-        return (
-          <span className={`productivity-pace productivity-pace--${tone}`}>
-            {Number(value).toFixed(1)}
-          </span>
-        );
-      },
     },
     {
       title: "Last Activity",
@@ -279,7 +309,6 @@ function buildColumns(windowDays, client, apiBaseUrl, page, pageSize, sortedInfo
 export function ApplierProductivityTable({
   rows = [],
   dateRange,
-  windowDays,
   client,
   apiBaseUrl,
   dateLabel = "Today",
@@ -306,16 +335,23 @@ export function ApplierProductivityTable({
   const columns = useMemo(
     () =>
       buildColumns(
-        windowDays || data[0]?.windowDays || 1,
         client,
         apiBaseUrl,
         1,
         Math.max(visible.length, 1),
         sortedInfo,
       ),
-    [windowDays, data, client, apiBaseUrl, visible.length, sortedInfo],
+    [client, apiBaseUrl, visible.length, sortedInfo],
   );
   const metricTotals = useMemo(() => sumProductivityMetricTotals(data), [data]);
+  const searchedUrlsTotal = useMemo(
+    () => data.reduce((sum, row) => sum + (Number(row.searchedUrls) || 0), 0),
+    [data],
+  );
+  const mistakesTotal = useMemo(
+    () => data.reduce((sum, row) => sum + (Number(row.mistakes) || 0), 0),
+    [data],
+  );
   const salaryTotal = useMemo(
     () => data.reduce((sum, row) => sum + (Number(row.salary) || 0), 0),
     [data],
@@ -386,6 +422,8 @@ export function ApplierProductivityTable({
             summary={() => (
               <ProductivityTableSummary
                 totals={metricTotals}
+                searchedUrlsTotal={searchedUrlsTotal}
+                mistakesTotal={mistakesTotal}
                 salaryTotal={Math.round(salaryTotal * 100) / 100}
               />
             )}
