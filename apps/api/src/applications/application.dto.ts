@@ -26,7 +26,7 @@ export class MyApplicationQueryDto{
   @IsOptional()@IsIn(APPLIER_MINE_STATUSES)status="";
   @IsOptional()@IsUUID("4")resumeId?:string;
   @IsOptional()@IsIn(["","HAS_FEEDBACK","NO_FEEDBACK"])screenshotFeedback="";
-  @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","captured_asc","captured_desc"])sort="captured_desc";
+  @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","captured_asc","captured_desc","assigned_asc"])sort="assigned_asc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)@Max(500)limit=100;
 }
 export class SearchOptionsQueryDto{@IsOptional()@IsString()@MaxLength(100)search="";}

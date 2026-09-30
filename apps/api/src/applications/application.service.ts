@@ -59,7 +59,7 @@ function failure(error:any,fallback:string):never{
   async mine(user:AuthenticatedUser,q:any){
     const data:any=await this.rpc(user,"list_my_applications_v20",{
       p_status:q.status||"",
-      p_sort:q.sort||"captured_desc",
+      p_sort:q.sort||"assigned_asc",
       p_limit:Math.min(Number(q.limit)||100,500),
       p_resume_id:q.resumeId||null,
       p_screenshot_feedback:q.screenshotFeedback||"",

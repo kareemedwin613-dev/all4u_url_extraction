@@ -89,6 +89,8 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
       </Space>
       <div>
         <Text type="secondary" style={{ fontSize: 12 }}>
+          Created {application.created_at ? new Date(application.created_at).toLocaleDateString() : "—"}
+          {" · "}
           Captured {application.captured_at ? new Date(application.captured_at).toLocaleDateString() : "—"}
         </Text>
       </div>
