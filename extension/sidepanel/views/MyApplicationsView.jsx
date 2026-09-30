@@ -16,7 +16,7 @@ function matchesStatusFilter(applicationStatus, filter) {
 }
 
 export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }) {
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("ASSIGNED");
   const [resumeFilter, setResumeFilter] = useState("");
   const [screenshotFeedback, setScreenshotFeedback] = useState("");
   const [items, setItems] = useState(null);
@@ -197,8 +197,8 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
           />
         </Card>
       ) : (
-        items.map((application) => (
-          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} onDownloadCoverLetter={downloadCoverLetter} extensionBusy={extensionBusy} />
+        items.map((application, index) => (
+          <ApplicationCard key={application.id} application={application} actionsEnabled={status !== "ASSIGNED" || index === 0} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} onDownloadCoverLetter={downloadCoverLetter} extensionBusy={extensionBusy} />
         ))
       )}
       {editingApplication && (

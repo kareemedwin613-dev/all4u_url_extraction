@@ -27,11 +27,12 @@ function techStackLabels(application = {}) {
   return application.category_name ? [application.category_name] : [];
 }
 
-export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, onDownloadCoverLetter, extensionBusy }) {
+export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, onDownloadCoverLetter, extensionBusy, actionsEnabled = true }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
   const isTailored = application.resume_type === "TAILORED";
   const extensionEligible = Boolean(jobUrl && application.resume_id && !["APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"].includes(application.status));
+  const actionTitle = actionsEnabled ? undefined : "Actions are available on the first application.";
   return (
     <Card
       size="small"
@@ -109,11 +110,11 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
       </Space>
       <div style={{ marginTop: 8 }}>
         <Space wrap>
-          <Button size="small" onClick={() => onUpdateStatus(application)}>Update Status</Button>
-          <Button size="small" icon={<PaperClipOutlined />} disabled={!extensionEligible} loading={extensionBusy === `${application.id}:LOAD_RESUME`} onClick={() => onExtensionAction(application,"LOAD_RESUME")}>Attach Resume</Button>
-          <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_RESUME`} onClick={() => onDownloadResume(application)}>Download Resume</Button>
-          {onDownloadCoverLetter && <Button size="small" icon={<DownloadOutlined />} disabled={!application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_COVER_LETTER`} onClick={() => onDownloadCoverLetter(application)}>Download Cover Letter</Button>}
-          <Button size="small" type="primary" disabled={!extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
+          <Button size="small" title={actionTitle} disabled={!actionsEnabled} onClick={() => onUpdateStatus(application)}>Update Status</Button>
+          <Button size="small" title={actionTitle} icon={<PaperClipOutlined />} disabled={!actionsEnabled || !extensionEligible} loading={extensionBusy === `${application.id}:LOAD_RESUME`} onClick={() => onExtensionAction(application,"LOAD_RESUME")}>Attach Resume</Button>
+          <Button size="small" title={actionTitle} icon={<DownloadOutlined />} disabled={!actionsEnabled || !application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_RESUME`} onClick={() => onDownloadResume(application)}>Download Resume</Button>
+          {onDownloadCoverLetter && <Button size="small" title={actionTitle} icon={<DownloadOutlined />} disabled={!actionsEnabled || !application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_COVER_LETTER`} onClick={() => onDownloadCoverLetter(application)}>Download Cover Letter</Button>}
+          <Button size="small" title={actionTitle} type="primary" disabled={!actionsEnabled || !extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
         </Space>
       </div>
     </Card>

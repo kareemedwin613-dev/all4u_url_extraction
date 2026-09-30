@@ -54,9 +54,11 @@ test("My Applications status filter shows only core Applier workflow statuses", 
   const view = read("../extension/sidepanel/views/MyApplicationsView.jsx");
   const modal = read("../extension/sidepanel/components/ApplicationStatusModal.jsx");
   const statuses = read("../extension/shared/applier-application-statuses.js");
-  for (const label of ["All Statuses", "Assigned", "Applied", "Blocked"]) {
+  for (const label of ["Assigned", "Applied", "Blocked"]) {
     assert.match(statuses, new RegExp(`label: "${label}"`));
   }
+  assert.doesNotMatch(statuses, /label: "All Statuses"/);
+  assert.match(view, /useState\("ASSIGNED"\)/);
   assert.match(view, /APPLIER_STATUS_FILTER_OPTIONS/);
   assert.match(modal, /APPLIER_STATUS_UPDATE_OPTIONS/);
   for (const label of ["Screening", "Interview Scheduled", "Offer Received", "Rejected", "Withdrawn", "Closed", "Cancelled"]) {
