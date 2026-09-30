@@ -76,6 +76,23 @@ test("screenshot upload goes directly to private Storage and then the attachment
   assert.match(calls[0].path, new RegExp(`^${APPLICATION_ID}/`));
   assert.equal(calls[1].name, "attach_application_screenshot");
   assert.equal(calls[1].args.p_file_size_bytes, file.size);
+  assert.equal(calls[1].args.p_original_filename, "confirmation.png");
+});
+
+test("screenshot uploads are stored as Application {number}.{original extension}", async () => {
+  const { applicationScreenshotFileName, attachApplicationScreenshot } = await import("../extension/services/application-service.js");
+  assert.equal(applicationScreenshotFileName(65646, { name: "IMG_2201.PNG", type: "image/png" }), "Application 65646.png");
+  assert.equal(applicationScreenshotFileName(65646, { name: "shot.JPEG", type: "image/jpeg" }), "Application 65646.jpeg");
+  const calls = [];
+  const file = new File(["image"], "confirmation.webp", { type: "image/webp" });
+  const client = {
+    storage: { from: () => ({ upload: async (path, uploaded) => { calls.push({ path, name: uploaded.name }); return { error: null }; }, remove: async () => ({ error: null }) }) },
+    rpc: async (_name, args) => { calls.push(args); return { data: { id: "screenshot-3" }, error: null }; },
+  };
+  await attachApplicationScreenshot(client, "https://api.example.com", APPLICATION_ID, file, 65646);
+  assert.equal(calls[0].name, "Application 65646.webp");
+  assert.match(calls[0].path, /Application_65646\.webp$/);
+  assert.equal(calls[1].p_original_filename, "Application 65646.webp");
 });
 
 test("screenshot upload retries transient Storage database timeouts", async () => {

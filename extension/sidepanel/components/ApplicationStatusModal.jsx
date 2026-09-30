@@ -32,7 +32,7 @@ export function ApplicationStatusModal({ application, client, backendBaseUrl, on
   async function handleUpload(file) {
     setUploading(true);
     try {
-      const created = await attachApplicationScreenshot(client, backendBaseUrl, application.id, file);
+      const created = await attachApplicationScreenshot(client, backendBaseUrl, application.id, file, application.application_number);
       setScreenshots((rows) => [created, ...rows.filter((row) => row.id !== created.id)]);
       onStatus({ message: "Screenshot attached.", kind: "success" });
     } catch (error) {

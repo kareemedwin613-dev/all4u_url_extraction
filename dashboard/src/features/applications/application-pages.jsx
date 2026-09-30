@@ -23,7 +23,7 @@ import {
   Typography,
 } from "antd";
 import { ResizableTable as AntTable } from "../../shared/resizable-table.jsx";
-import { FileImageOutlined, WarningOutlined } from "@ant-design/icons";
+import { CheckOutlined, FileImageOutlined, WarningOutlined } from "@ant-design/icons";
 import { formatDate, formatLabel } from "../../shared/formatters.js";
 import { safeExternalUrl } from "../../shared/url.js";
 import { clientSortColumns } from "../../shared/table-sorting.js";
@@ -75,6 +75,7 @@ import {
   parseApplicationQuery,
   serializeApplicationQuery,
 } from "./query-state.js";
+import { applicationReviewHref, screenshotReviewStatus } from "./screenshot-review.js";
 import {
   createApplication,
   bulkCancelApplications,
@@ -86,12 +87,12 @@ import {
   listApplicationResumes,
   listApplications,
   openApplicationResume,
-  openFirstApplicationScreenshot,
   reassignApplication,
   updateApplication,
   unblockJobDescriptionApplications,
 } from "./application-service.js";
 import { ApplicationScreenshotsCard } from "./application-screenshots-card.jsx";
+import { ScreenshotReviewModal } from "./screenshot-review-modal.jsx";
 import { downloadApplicationCoverLetterPdf } from "../../services/storage-read-service.js";
 import { ApplicationMatchPanel, MatchingModeSelect } from "../application-matching/match-components.jsx";
 import { categoryMatchingDescription } from "../application-matching/match-state.js";
@@ -135,7 +136,8 @@ function ApplicationListFilters({
     [searchDraft, setSearchDraft] = useState(filters.search),
     [companyDraft, setCompanyDraft] = useState(filters.company),
     [profileNameDraft, setProfileNameDraft] = useState(filters.profileName),
-    [resumeNameDraft, setResumeNameDraft] = useState(filters.resumeName);
+    [resumeNameDraft, setResumeNameDraft] = useState(filters.resumeName),
+    [screenshotFilenameDraft, setScreenshotFilenameDraft] = useState(filters.screenshotFilename);
   useEffect(() => {
     setSearchDraft(filters.search);
   }, [filters.search]);
@@ -148,6 +150,9 @@ function ApplicationListFilters({
   useEffect(() => {
     setResumeNameDraft(filters.resumeName);
   }, [filters.resumeName]);
+  useEffect(() => {
+    setScreenshotFilenameDraft(filters.screenshotFilename);
+  }, [filters.screenshotFilename]);
   function clearFilters() {
     onChange({
       search: "",
@@ -158,6 +163,7 @@ function ApplicationListFilters({
       categoryId: "",
       assignedTo: "",
       screenshotFeedback: "",
+      screenshotFilename: "",
       page: 1,
     });
   }
@@ -264,6 +270,23 @@ function ApplicationListFilters({
         </Col>
         <Col {...field}>
           <label>
+            Screenshot file name
+            <Input.Search
+              allowClear
+              value={screenshotFilenameDraft}
+              placeholder="Application 65646.png"
+              onChange={(event) => setScreenshotFilenameDraft(event.target.value)}
+              onSearch={(screenshotFilename) =>
+                onChange({
+                  screenshotFilename: screenshotFilename.trim().slice(0, 100),
+                  page: 1,
+                })
+              }
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
             Screenshot feedback
             <Select
               allowClear
@@ -337,7 +360,8 @@ export function ApplicationsPage({
     [cancelBusy,setCancelBusy]=useState(false),
     [deleteBusy,setDeleteBusy]=useState(false),
     [localReload, setLocalReload] = useState(0),
-    [openingScreenshotId, setOpeningScreenshotId] = useState(""),
+    [review, setReview] = useState(null),
+    reviewContext = useRef({ items: [], page: 1 }),
     requestId = useRef(0),
     [tableHostRef, tableBodyHeight] = useTableBodyHeight(Boolean(data));
   useEffect(() => {
@@ -370,18 +394,6 @@ export function ApplicationsPage({
     const text = serializeApplicationQuery({ ...filters, ...patch });
     go(filterHref("#/applications", text));
   };
-  async function openScreenshot(record) {
-    if (openingScreenshotId) return;
-    setOpeningScreenshotId(record.id);
-    setError("");
-    try {
-      await openFirstApplicationScreenshot(client, apiBaseUrl, record.id);
-    } catch (x) {
-      setError(x.message);
-    } finally {
-      setOpeningScreenshotId("");
-    }
-  }
   const searchFiltered = filters.search ? [filters.search] : null;
   const searchPlaceholder = "Application #, company, or job title";
   const sharedSearchKeys = ["application_number", "company", "job_title"];
@@ -391,7 +403,11 @@ export function ApplicationsPage({
     width: 88,
     fixed: "right",
     sortable: false,
-    render: (_, record) => <Button type="link" href={`#/applications/${record.id}`}>View</Button>,
+    render: (_, record) => (
+      <Button type="link" href={applicationReviewHref(record.id, filters)}>
+        View
+      </Button>
+    ),
   };
   const noColumn = {
     title: "No",
@@ -480,46 +496,50 @@ export function ApplicationsPage({
   const screenshotColumn = {
     title: "Screenshots",
     dataIndex: "screenshot_count",
-    width: 170,
+    width: 220,
     align: "center",
     sortable: false,
     render: (value, record) => {
       const count = Number(value) || 0;
       const feedback = String(record.screenshot_feedback || "").trim();
-      const opening = openingScreenshotId === record.id;
+      const reviewStatus = screenshotReviewStatus(record);
       return (
         <Space size={4} wrap>
           {count ? (
             <Tag
               icon={<FileImageOutlined />}
-              style={{ cursor: opening ? "wait" : "pointer" }}
+              style={{ cursor: "pointer" }}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                if (!opening) openScreenshot(record);
+                const current = reviewContext.current;
+                setReview({ application: record, items: current.items, page: current.page });
               }}
             >
-              {opening ? "Opening…" : count}
+              {count}
             </Tag>
           ) : (
             <Text type="secondary">—</Text>
           )}
-          {feedback ? (
+          {reviewStatus === "CORRECT" ? (
+            <Tag color="success" icon={<CheckOutlined />}>Correct</Tag>
+          ) : null}
+          {reviewStatus === "HAS_MISTAKES" ? (
             <Tooltip
               title={
-                <div style={{ maxWidth: 320, whiteSpace: "pre-wrap" }}>
-                  <div>{feedback}</div>
-                  {record.screenshot_feedback_at ? (
-                    <div style={{ marginTop: 8, opacity: 0.85 }}>
-                      Updated {formatDate(record.screenshot_feedback_at)}
-                    </div>
-                  ) : null}
-                </div>
+                feedback ? (
+                  <div style={{ maxWidth: 320, whiteSpace: "pre-wrap" }}>
+                    <div>{feedback}</div>
+                    {record.screenshot_feedback_at ? (
+                      <div style={{ marginTop: 8, opacity: 0.85 }}>
+                        Updated {formatDate(record.screenshot_feedback_at)}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : "Has mistakes"
               }
             >
-              <Tag color="warning" icon={<WarningOutlined />}>
-                Feedback
-              </Tag>
+              <Tag color="warning" icon={<WarningOutlined />}>Has mistakes</Tag>
             </Tooltip>
           ) : null}
         </Space>
@@ -642,7 +662,6 @@ export function ApplicationsPage({
       appliers,
       batches,
       categories,
-      openingScreenshotId,
     ],
   );
   const applierColumns = useMemo(
@@ -736,11 +755,10 @@ export function ApplicationsPage({
       filters.status,
       filters.categoryId,
       categories,
-      openingScreenshotId,
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2616 : 2100,
+    applicationsScrollX = manager ? 2666 : 2150,
     tooMany = selectedIds.length > 2000;
   const savedTableSort = useSavedTableSort("application-table-sort", clientSortColumns(columns));
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
@@ -836,7 +854,26 @@ export function ApplicationsPage({
       creationMode: manager ? creationMode : "",
       creationBatchId: manager ? creationBatchId : "",
       screenshotFeedback: filters.screenshotFeedback,
+      screenshotFilename: filters.screenshotFilename,
       page: 1,
+    });
+  }
+  reviewContext.current = { items: data?.items || [], page: filters.page || 1 };
+  function saveReviewFeedback(applicationId, updated) {
+    const patch = {
+      screenshot_feedback: updated?.screenshot_feedback || "",
+      screenshot_feedback_at: updated?.screenshot_feedback_at || null,
+      screenshot_review_status: updated?.screenshot_review_status || "",
+    };
+    setData((current) => current?.items ? {
+      ...current,
+      items: current.items.map((item) => item.id === applicationId ? { ...item, ...patch } : item),
+    } : current);
+    setReview((current) => {
+      if (!current) return current;
+      const items = current.items.map((item) => item.id === applicationId ? { ...item, ...patch } : item);
+      const application = current.application.id === applicationId ? { ...current.application, ...patch } : current.application;
+      return { ...current, application, items };
     });
   }
   return (
@@ -989,6 +1026,16 @@ export function ApplicationsPage({
           />
         </Card>
       )}
+      <ScreenshotReviewModal
+        client={client}
+        apiBaseUrl={apiBaseUrl}
+        manager={manager}
+        review={review}
+        filters={filters}
+        onClose={() => setReview(null)}
+        onMove={setReview}
+        onFeedbackSaved={saveReviewFeedback}
+      />
     </div>
   );
 }
@@ -1245,7 +1292,7 @@ function ProgressForm({ application, manager, onSave, busy }) {
 }
 
 
-export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }) {
+export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = "", reload }) {
   const { modal } = AntApp.useApp(),
     [detail, setDetail] = useState(),
     [appliers, setAppliers] = useState([]),
@@ -1254,12 +1301,14 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
     [isError, setIsError] = useState(false),
     [busy, setBusy] = useState(false),
     [activeTab, setActiveTab] = useState("overview"),
-    manager = isApplicationManager(access);
+    manager = isApplicationManager(access),
+    listFilters = parseApplicationQuery(query),
+    listHref = filterHref("#/applications", serializeApplicationQuery(listFilters));
   useEffect(() => {
     setActiveTab("overview");
   }, [id]);
   const load = () => {
-    setDetail();
+    let active = true;
     setScreenshotCount(null);
     setMessage("");
     Promise.all([
@@ -1267,13 +1316,18 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
       manager ? listActiveAppliers(client, apiBaseUrl) : Promise.resolve([]),
     ])
       .then(([d, a]) => {
+        if (!active) return;
         setDetail(d);
         setAppliers(a);
       })
       .catch((x) => {
+        if (!active) return;
         setIsError(true);
         setMessage(x.message);
       });
+    return () => {
+      active = false;
+    };
   };
   useEffect(load, [client, apiBaseUrl, id, reload, manager]);
   if (!detail)
@@ -1369,7 +1423,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
     ];
   return (
     <div className="page">
-      <Button type="link" href="#/applications">
+      <Button type="link" href={listHref}>
         ← Back to Applications
       </Button>
       <Flex justify="space-between" align="center" wrap>
@@ -1519,12 +1573,16 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, reload }
                 </Card>
                 <Collapse items={[{ key: "archived-scores", label: "Archived AI evaluation history", children: <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={false} /> }]} />
                 <ApplicationScreenshotsCard
+                  key={id}
                   client={client}
                   apiBaseUrl={apiBaseUrl}
                   applicationId={id}
                   manager={manager}
-                  feedback={a.screenshot_feedback || ""}
-                  feedbackAt={a.screenshot_feedback_at || null}
+                  feedback={a.id === id ? a.screenshot_feedback || "" : ""}
+                  feedbackAt={a.id === id ? a.screenshot_feedback_at || null : null}
+                  feedbackReady={a.id === id}
+                  applicationNumber={a.id === id ? a.application_number : null}
+                  companyName={a.id === id ? job.company : ""}
                   onCountChange={setScreenshotCount}
                   onFeedbackSaved={(updated) => {
                     setDetail((current) =>

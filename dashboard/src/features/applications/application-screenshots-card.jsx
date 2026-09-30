@@ -15,11 +15,15 @@ import {
   Upload,
 } from "antd";
 import {
+  CheckOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  EditOutlined,
   EyeOutlined,
   FileImageOutlined,
   FilePdfOutlined,
+  LeftOutlined,
+  RightOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import { ErrorState, LoadingState } from "../../components/ui.jsx";
@@ -28,11 +32,13 @@ import {
   attachApplicationScreenshot,
   getApplicationScreenshotUrl,
   listApplicationScreenshots,
+  listApplications,
   openApplicationScreenshot,
   removeApplicationScreenshot,
   updateApplicationScreenshotFeedback,
   validateApplicationScreenshotFile,
 } from "./application-service.js";
+import { findReviewNeighbor } from "./screenshot-review.js";
 
 const { Text } = Typography;
 const ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,image/png,image/jpeg,image/webp,application/pdf";
@@ -56,6 +62,12 @@ export function ApplicationScreenshotsCard({
   manager = false,
   feedback = "",
   feedbackAt = null,
+  feedbackReady = true,
+  applicationNumber = null,
+  companyName = "",
+  reviewFilters = null,
+  autoReview = false,
+  onReviewNavigate,
   onCountChange,
   onFeedbackSaved,
 }) {
@@ -70,6 +82,11 @@ export function ApplicationScreenshotsCard({
   const [draftFeedback, setDraftFeedback] = useState(feedback || "");
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
+  const [mistakesOpen, setMistakesOpen] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewNote, setReviewNote] = useState("");
+  const autoOpened = React.useRef("");
+  const reviewLock = React.useRef(false);
 
   useEffect(() => {
     setDraftFeedback(feedback || "");
@@ -103,10 +120,12 @@ export function ApplicationScreenshotsCard({
     };
   }, [refresh]);
 
-  async function showPreview(screenshot) {
+  const showPreview = useCallback(async (screenshot) => {
     setPreview({ screenshot, url: "" });
     setPreviewLoading(true);
     setPreviewError("");
+    setReviewNote("");
+    setMistakesOpen(false);
     try {
       const data = await getApplicationScreenshotUrl(
         client,
@@ -120,13 +139,60 @@ export function ApplicationScreenshotsCard({
     } finally {
       setPreviewLoading(false);
     }
-  }
+  }, [apiBaseUrl, applicationId, client]);
 
   function closePreview() {
     setPreview(null);
     setPreviewError("");
     setPreviewLoading(false);
+    setMistakesOpen(false);
+    setReviewNote("");
   }
+
+  useEffect(() => {
+    if (!autoReview || loading || !screenshots.length || autoOpened.current === applicationId) return;
+    autoOpened.current = applicationId;
+    showPreview(screenshots[0]);
+  }, [autoReview, applicationId, loading, screenshots, showPreview]);
+
+  const moveReview = useCallback(async (direction) => {
+    if (!onReviewNavigate || reviewLock.current) return;
+    reviewLock.current = true;
+    setReviewBusy(true);
+    setReviewNote("");
+    try {
+      const neighbor = await findReviewNeighbor(
+        (pageFilters) => listApplications(client, apiBaseUrl, pageFilters),
+        reviewFilters || {},
+        applicationId,
+        direction,
+      );
+      if (!neighbor) {
+        setReviewNote(direction === "previous" ? "No earlier screenshot in this list." : "No further screenshots in this list.");
+        return;
+      }
+      onReviewNavigate(neighbor.id, neighbor.page);
+    } catch (value) {
+      setReviewNote(value.message || "The next screenshot could not be opened.");
+    } finally {
+      reviewLock.current = false;
+      setReviewBusy(false);
+    }
+  }, [apiBaseUrl, applicationId, client, onReviewNavigate, reviewFilters]);
+
+  useEffect(() => {
+    if (!preview) return undefined;
+    function onKey(event) {
+      const tag = event.target?.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT" || event.target?.isContentEditable) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      if (savingFeedback || reviewBusy) return;
+      moveReview(event.key === "ArrowLeft" ? "previous" : "next");
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [moveReview, preview, reviewBusy, savingFeedback]);
 
   async function uploadScreenshot(file) {
     const check = validateApplicationScreenshotFile(file);
@@ -161,27 +227,50 @@ export function ApplicationScreenshotsCard({
     }
   }
 
-  async function saveFeedback(nextValue) {
+  async function saveFeedback(nextValue, { advance = false, reviewStatus = "" } = {}) {
+    if (!feedbackReady || reviewLock.current) return false;
+    reviewLock.current = true;
     setSavingFeedback(true);
     setFeedbackError("");
+    setReviewNote("");
     try {
+      const neighbor = advance && onReviewNavigate
+        ? await findReviewNeighbor(
+          (pageFilters) => listApplications(client, apiBaseUrl, pageFilters),
+          reviewFilters || {},
+          applicationId,
+          "next",
+        )
+        : null;
       const updated = await updateApplicationScreenshotFeedback(
         client,
         apiBaseUrl,
         applicationId,
         nextValue,
+        reviewStatus,
       );
       setDraftFeedback(updated?.screenshot_feedback || "");
+      setMistakesOpen(false);
       onFeedbackSaved?.(updated);
+      if (advance && neighbor) onReviewNavigate(neighbor.id, neighbor.page);
+      else if (advance) setReviewNote("No further screenshots in this list.");
+      return true;
     } catch (value) {
       setFeedbackError(value.message || "Screenshot feedback could not be saved.");
+      return false;
     } finally {
+      reviewLock.current = false;
       setSavingFeedback(false);
     }
   }
 
   const trimmedFeedback = String(feedback || "").trim();
   const draftDirty = String(draftFeedback || "") !== String(feedback || "");
+  const applicationCaption = [
+    applicationNumber ? `Application #${applicationNumber}` : "",
+    companyName || "",
+  ].filter(Boolean).join(" · ");
+  const previewTitle = preview?.screenshot?.original_filename || "Screenshot";
 
   return (
     <>
@@ -310,7 +399,7 @@ export function ApplicationScreenshotsCard({
                   type="primary"
                   loading={savingFeedback}
                   disabled={!draftDirty}
-                  onClick={() => saveFeedback(draftFeedback)}
+                  onClick={() => saveFeedback(draftFeedback, { reviewStatus: "HAS_MISTAKES" })}
                 >
                   Save feedback
                 </Button>
@@ -350,31 +439,64 @@ export function ApplicationScreenshotsCard({
 
       <Modal
         open={Boolean(preview)}
-        title={preview?.screenshot?.original_filename || "Screenshot"}
+        className="application-screenshot-review"
+        title={previewTitle}
         footer={
-          preview?.url ? (
-            <Space>
-              <Button onClick={closePreview}>Close</Button>
-              <Button
-                type="primary"
-                icon={<DownloadOutlined />}
-                href={preview.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open in new tab
-              </Button>
+          <Flex justify="space-between" gap={12} wrap="wrap">
+            <Space wrap>
+              {onReviewNavigate ? (
+                <>
+                  <Button icon={<LeftOutlined />} disabled={reviewBusy || savingFeedback} onClick={() => moveReview("previous")}>
+                    Previous
+                  </Button>
+                  <Button icon={<RightOutlined />} disabled={reviewBusy || savingFeedback} onClick={() => moveReview("next")}>
+                    Next
+                  </Button>
+                </>
+              ) : null}
             </Space>
-          ) : (
-            <Button onClick={closePreview}>Close</Button>
-          )
+            {manager ? (
+              <Space wrap>
+                <Button
+                  icon={<CheckOutlined />}
+                  type="primary"
+                  loading={savingFeedback}
+                  disabled={!feedbackReady || reviewBusy}
+                  onClick={() => saveFeedback("", { advance: Boolean(onReviewNavigate), reviewStatus: "CORRECT" })}
+                >
+                  Correct
+                </Button>
+                <Button
+                  icon={<EditOutlined />}
+                  disabled={!feedbackReady || reviewBusy || savingFeedback}
+                  onClick={() => setMistakesOpen(true)}
+                >
+                  Has mistakes
+                </Button>
+              </Space>
+            ) : null}
+            <Space wrap>
+              <Button onClick={closePreview}>Close</Button>
+              {preview?.url ? (
+                <Button icon={<DownloadOutlined />} href={preview.url} target="_blank" rel="noopener noreferrer">
+                  Open in new tab
+                </Button>
+              ) : null}
+            </Space>
+          </Flex>
         }
         onCancel={closePreview}
-        width={isImageMime(preview?.screenshot?.mime_type) ? 920 : 720}
+        width="96vw"
+        style={{ top: 12, maxWidth: 1600 }}
         destroyOnHidden
       >
+        {applicationCaption ? (
+          <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+            {applicationCaption}
+          </Text>
+        ) : null}
         {previewLoading ? (
-          <Flex align="center" justify="center" style={{ minHeight: 240 }}>
+          <Flex align="center" justify="center" style={{ minHeight: 360 }}>
             <Spin tip="Loading preview…" />
           </Flex>
         ) : previewError ? (
@@ -391,6 +513,35 @@ export function ApplicationScreenshotsCard({
             src={preview.url}
             className="application-screenshot-preview application-screenshot-preview--pdf"
           />
+        ) : null}
+        {reviewNote ? (
+          <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+            {reviewNote}
+          </Text>
+        ) : null}
+        {manager && mistakesOpen ? (
+          <div style={{ marginTop: 12 }}>
+            <Text strong>Screenshot review feedback</Text>
+            <Input.TextArea
+              rows={4}
+              maxLength={2000}
+              showCount
+              style={{ marginTop: 8 }}
+              value={draftFeedback}
+              onChange={(event) => setDraftFeedback(event.target.value)}
+              placeholder="Describe what is wrong or missing in the confirmation screenshot…"
+              disabled={savingFeedback}
+            />
+            {feedbackError ? <ErrorState message={feedbackError} /> : null}
+            <Space style={{ marginTop: 8 }}>
+              <Button type="primary" loading={savingFeedback} disabled={!feedbackReady || !draftDirty} onClick={() => saveFeedback(draftFeedback, { advance: true, reviewStatus: "HAS_MISTAKES" })}>
+                Save feedback
+              </Button>
+              <Button disabled={savingFeedback} onClick={() => { setMistakesOpen(false); setDraftFeedback(feedback || ""); }}>
+                Cancel
+              </Button>
+            </Space>
+          </div>
         ) : null}
       </Modal>
     </>
