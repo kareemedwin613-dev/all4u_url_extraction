@@ -56,7 +56,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         status: nextStatus,
         resumeId: activeResumeId,
         screenshotFeedback: nextScreenshotFeedback,
-        sort: "captured_desc",
+        sort: "assigned_asc",
       });
       if (activeResumeId && !data.resumes.some((resume) => resume.id === activeResumeId)) {
         activeResumeId = "";
@@ -65,7 +65,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
           status: nextStatus,
           resumeId: "",
           screenshotFeedback: nextScreenshotFeedback,
-          sort: "captured_desc",
+          sort: "assigned_asc",
         });
       }
       setItems(data.items);

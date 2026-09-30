@@ -39,10 +39,10 @@ function normalizeMinePayload(data,limit=100){
     limit:Number(data?.limit)||limit,
   };
 }
-async function listMyApplicationsViaRpc(client,{status="",resumeId="",screenshotFeedback="",sort="captured_desc",limit=100}={}){
+async function listMyApplicationsViaRpc(client,{status="",resumeId="",screenshotFeedback="",sort="assigned_asc",limit=100}={}){
   const {data,error}=await client.rpc("list_my_applications_v20",{
     p_status:status||"",
-    p_sort:sort||"captured_desc",
+    p_sort:sort||"assigned_asc",
     p_limit:Math.min(Number(limit)||100,500),
     p_resume_id:resumeId||null,
     p_screenshot_feedback:screenshotFeedback||"",
@@ -59,7 +59,7 @@ async function listMyApplicationsViaRpc(client,{status="",resumeId="",screenshot
   }
   return normalizeMinePayload(data,limit);
 }
-export async function listMyApplications(client,baseUrl,{status="",resumeId="",screenshotFeedback="",sort="captured_desc",limit=100}={}){
+export async function listMyApplications(client,baseUrl,{status="",resumeId="",screenshotFeedback="",sort="assigned_asc",limit=100}={}){
   // This is the extension's hottest read. Go straight to Postgres with the
   // signed-in user's JWT; the security-definer RPC still enforces Applier scope.
   try{return await listMyApplicationsViaRpc(client,{status,resumeId,screenshotFeedback,sort,limit});}
