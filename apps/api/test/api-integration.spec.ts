@@ -414,6 +414,13 @@ test("Profile, Admin, overview, and tailoring routes enforce the final backend b
   roles=["APPLYING_MANAGER"];
 });
 
+test("tailoring batch creation accepts 1000 applications and rejects 1001",async()=>{
+  roles=["APPLYING_MANAGER"];
+  const applicationIds=Array.from({length:1001},(_,i)=>`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`);
+  for(const count of [500,501,1000])await request(app.getHttpServer()).post("/api/v1/tailoring-batches").set("Authorization","Bearer token").send({applicationIds:applicationIds.slice(0,count)}).expect(201);
+  await request(app.getHttpServer()).post("/api/v1/tailoring-batches").set("Authorization","Bearer token").send({applicationIds}).expect(400).expect(({body})=>assert.equal(body.code,"VALIDATION_ERROR"));
+});
+
 test("v1.5 runner endpoints accept only a bounded job capability and need no user token",async()=>{
   const ticket=`trt_${"a".repeat(43)}`,preview={summary:"A valid tailored summary.",professionalExperience:[{sourceExperienceId:"experience-1",tailoredDetails:"Supported source details."}],skills:["SQL"],changeSummary:[],unsupportedRequirements:[],warnings:[]};
   await request(app.getHttpServer()).post("/api/v1/tailoring-runner/claim").send({ticket}).expect(201);

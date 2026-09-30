@@ -879,7 +879,8 @@ export function ApplicationsPage({
             >
               Assign / Reassign Selected
             </Button>
-            <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>500} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
+            <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>1000} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
+            {selectionMode==="TAILOR"&&selectedIds.length>1000&&<Text type="warning">Select no more than 1,000 applications for tailoring.</Text>}
             <Button type="primary" href="#/applications/new">
               Create Application
             </Button>
