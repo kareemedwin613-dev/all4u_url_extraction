@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-import {assignRole,getUser,listUsers,normalizeAccessError,normalizeListOptions,removeRole,setStatus,updateUserProfile} from "../src/services/admin-user-service.js";
+import {assignRole,getUser,listUsers,normalizeAccessError,normalizeListOptions,removeRole,setStatus,updateAppliedSalaryRate,updateUserProfile} from "../src/services/admin-user-service.js";
 
 const id="f3a34ffd-d66a-49f7-815e-c7786857576b";
 test("admin list input is bounded and calculates server offset",()=>{
@@ -53,4 +53,19 @@ test("Admin user detail exposes Save name on the Identity tab",async()=>{
   assert.match(source,/Save name/);
   assert.match(source,/saveFullName/);
   assert.match(source,/maxLength=\{200\}/);
+  assert.match(source,/updateAppliedSalaryRate/);
+  assert.match(source,/Save rate/);
+  assert.match(source,/Salary per Applied application/);
+});
+
+test("applied salary rate uses the admin user endpoint",async()=>{
+  let call;const originalFetch=globalThis.fetch,client={auth:{getSession:async()=>({data:{session:{access_token:"token"}},error:null})},rpc:()=>{throw new Error("Direct RPC attempted");}};globalThis.fetch=async(url,options)=>{call={url:new URL(url),options};return new Response(JSON.stringify({data:{id,appliedSalaryRate:0.05}}),{status:200});};
+  try{assert.equal((await updateAppliedSalaryRate(client,"https://api.example.com",id,0.054)).appliedSalaryRate,0.05);}finally{globalThis.fetch=originalFetch;}
+  assert.equal(call.url.pathname,`/api/v1/admin/users/${id}/applied-salary-rate`);
+  assert.equal(call.options.method,"PATCH");
+  assert.deepEqual(JSON.parse(call.options.body),{appliedSalaryRate:0.05});
+  await assert.rejects(
+    () => updateAppliedSalaryRate(client, "https://api.example.com", id, 120),
+    (error) => error?.code === "VALIDATION_ERROR",
+  );
 });

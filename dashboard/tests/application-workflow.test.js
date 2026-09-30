@@ -113,6 +113,7 @@ test("Applier Application columns follow the operational priority order",async()
   assert.match(section,/source_url/);
   assert.match(section,/application_url/);
   assert.ok(section.indexOf("noColumn") < section.indexOf("numberColumn"));
+  assert.match(source,/const noColumn = \{[\s\S]*?fixed: "left"/);
   assert.ok(section.indexOf("numberColumn")<section.indexOf("companyColumn"));
   assert.ok(section.indexOf("companyColumn")<section.indexOf("jobTitleColumn"));
   assert.ok(section.indexOf("jobTitleColumn")<section.indexOf("profileNameColumn"));

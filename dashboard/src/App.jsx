@@ -765,22 +765,61 @@ function pickSharedColumnSearch(tableFilters, keys, currentSearch) {
 /** Keep Ant Design from client-filtering rows; list APIs already apply filters. */
 const serverSideColumnFilter = { onFilter: () => true };
 
-function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange }) {
+function useOverviewRequest(onActivity) {
+  const loaded = useRef(false);
+  const rangeKey = useRef("");
+  return useCallback((nextRange) => {
+    const replace = !loaded.current || rangeKey.current !== nextRange;
+    rangeKey.current = nextRange;
+    if (replace) loaded.current = false;
+    let settled = false;
+    onActivity?.(true);
+    return {
+      replace,
+      markLoaded() { loaded.current = true; },
+      stop() {
+        if (settled) return;
+        settled = true;
+        onActivity?.(false);
+      },
+    };
+  }, [onActivity]);
+}
+
+function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange, overviewRefresh = 0, onActivity }) {
   const showBusinessRecords = hasCapability(access, CAPABILITIES.USER_ADMIN),
+    { message } = AntApp.useApp(),
+    messageRef = useRef(message),
     [result, setResult] = useState(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    startOverviewRequest = useOverviewRequest(onActivity);
+  messageRef.current = message;
   useEffect(() => {
     if (!showBusinessRecords) return undefined;
     let live = true;
-    setResult(null);
-    setError("");
+    const request = startOverviewRequest(`${dateRange?.from}|${dateRange?.to}`);
+    if (request.replace) {
+      setResult(null);
+      setError("");
+    }
     getBusinessOverview(client, apiBaseUrl, dateRange)
-      .then((value) => live && setResult(value))
-      .catch((value) => live && setError(value.message));
+      .then((value) => {
+        if (!live) return;
+        request.markLoaded();
+        setResult(value);
+        setError("");
+      })
+      .catch((value) => {
+        if (!live) return;
+        if (request.replace) setError(value.message);
+        else messageRef.current.error(value.message || "The overview could not be refreshed.");
+      })
+      .finally(() => { if (live) request.stop(); });
     return () => {
       live = false;
+      request.stop();
     };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, showBusinessRecords]);
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, overviewRefresh, showBusinessRecords, startOverviewRequest]);
   if (!showBusinessRecords) return null;
   if (error) return <ErrorState message={error} />;
   if (!result) return <Loading text="Loading dashboard…" />;
@@ -791,12 +830,12 @@ function BusinessOverview({ client, apiBaseUrl, reload, access, dateRange }) {
   );
 }
 
-function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange }) {
+function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRange, overviewRefresh = 0, onActivity }) {
   const isAdmin = hasCapability(access, CAPABILITIES.USER_ADMIN);
   const showProfileWorkload = !isAdmin && !isApplicationManager(access);
   return (
     <>
-      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} />
+      <BusinessOverview client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} dateRange={dateRange} overviewRefresh={overviewRefresh} onActivity={onActivity} />
       {isAdmin ? (
         <ApplierProductivitySection
           client={client}
@@ -804,6 +843,8 @@ function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRan
           reload={reload}
           dateRange={dateRange}
           dateLabel={period.label}
+          overviewRefresh={overviewRefresh}
+          onActivity={onActivity}
         />
       ) : null}
       {showProfileWorkload ? (
@@ -813,6 +854,8 @@ function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRan
           reload={reload}
           dateRange={dateRange}
           dateLabel={period.label}
+          overviewRefresh={overviewRefresh}
+          onActivity={onActivity}
         />
       ) : null}
     </>
@@ -825,29 +868,46 @@ function ApplierProfileWorkloadSection({
   reload,
   dateRange,
   dateLabel,
+  overviewRefresh = 0,
+  onActivity,
 }) {
-  const [payload, setPayload] = useState(null),
-    [error, setError] = useState("");
+  const { message } = AntApp.useApp(),
+    messageRef = useRef(message),
+    [payload, setPayload] = useState(null),
+    [error, setError] = useState(""),
+    startOverviewRequest = useOverviewRequest(onActivity);
+  messageRef.current = message;
   useEffect(() => {
     let live = true;
-    setPayload(null);
-    setError("");
+    const request = startOverviewRequest(`${dateRange?.from}|${dateRange?.to}`);
+    if (request.replace) {
+      setPayload(null);
+      setError("");
+    }
     Promise.all([
       getApplierProfileWorkload(client, apiBaseUrl, dateRange),
       getApplicationCounts(client, apiBaseUrl, dateRange),
     ])
-      .then(([rows, counts]) =>
-        live &&
+      .then(([rows, counts]) => {
+        if (!live) return;
+        request.markLoaded();
         setPayload({
           rows: Array.isArray(rows) ? rows : [],
           applicationCounts: counts || {},
-        }),
-      )
-      .catch((value) => live && setError(value.message));
+        });
+        setError("");
+      })
+      .catch((value) => {
+        if (!live) return;
+        if (request.replace) setError(value.message);
+        else messageRef.current.error(value.message || "The overview could not be refreshed.");
+      })
+      .finally(() => { if (live) request.stop(); });
     return () => {
       live = false;
+      request.stop();
     };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, overviewRefresh, startOverviewRequest]);
   if (error) return <div className="page"><ErrorState message={error} /></div>;
   if (!payload) return <div className="page"><Loading text="Loading profile workload…" /></div>;
   return (
@@ -867,31 +927,48 @@ function ApplierProductivitySection({
   reload,
   dateRange,
   dateLabel,
+  overviewRefresh = 0,
+  onActivity,
 }) {
-  const [payload, setPayload] = useState(null),
-    [error, setError] = useState("");
+  const { message } = AntApp.useApp(),
+    messageRef = useRef(message),
+    [payload, setPayload] = useState(null),
+    [error, setError] = useState(""),
+    startOverviewRequest = useOverviewRequest(onActivity);
+  messageRef.current = message;
   useEffect(() => {
     let live = true;
-    setPayload(null);
-    setError("");
+    const request = startOverviewRequest(`${dateRange?.from}|${dateRange?.to}`);
+    if (request.replace) {
+      setPayload(null);
+      setError("");
+    }
     Promise.all([
       getBusinessOverview(client, apiBaseUrl, dateRange),
       getApplicationCounts(client, apiBaseUrl, dateRange),
       getApplierProfileWorkload(client, apiBaseUrl, dateRange),
     ])
-      .then(([overview, counts, profileRows]) =>
-        live &&
+      .then(([overview, counts, profileRows]) => {
+        if (!live) return;
+        request.markLoaded();
         setPayload({
           rows: overview?.applierPerformance || [],
           profileRows: Array.isArray(profileRows) ? profileRows : [],
           applicationCounts: counts || {},
-        }),
-      )
-      .catch((value) => live && setError(value.message));
+        });
+        setError("");
+      })
+      .catch((value) => {
+        if (!live) return;
+        if (request.replace) setError(value.message);
+        else messageRef.current.error(value.message || "The overview could not be refreshed.");
+      })
+      .finally(() => { if (live) request.stop(); });
     return () => {
       live = false;
+      request.stop();
     };
-  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to]);
+  }, [client, apiBaseUrl, reload, dateRange?.from, dateRange?.to, overviewRefresh, startOverviewRequest]);
   if (error) return <div className="page"><ErrorState message={error} /></div>;
   if (!payload) return <div className="page"><Loading text="Loading Applier productivity…" /></div>;
   return (
@@ -1219,6 +1296,7 @@ function Jobs({
               title: "No",
               key: "no",
               width: 64,
+              fixed: "left",
               sortable: false,
               render: (_value, _row, index) =>
                 ((filters.page || 1) - 1) * (filters.pageSize || 25) + index + 1,
@@ -3043,6 +3121,9 @@ export function App({ client, apiBaseUrl }) {
     [roles, setRoles] = useState([]),
     [selectedBulkJobIds, setSelectedBulkJobIds] = useState([]),
     [reload] = useState(0),
+    [overviewRefresh, setOverviewRefresh] = useState(0),
+    [overviewRefreshing, setOverviewRefreshing] = useState(false),
+    overviewActivity = useRef(0),
     sessionRef = useRef(undefined),
     jobsBack = useRef("#/jobs"),
     resumesBack = useRef("#/resumes");
@@ -3050,6 +3131,11 @@ export function App({ client, apiBaseUrl }) {
   const overviewPeriod = useMemo(() => periodFromFilterQuery(route.name === "overview" ? route.query : ""), [route.name, route.query]);
   const overviewDateRange = useMemo(() => overviewDateBounds(overviewPeriod), [overviewPeriod]);
   const setOverviewPeriod = value => go(filterHref("#/", serializeQuery({ window: value.window, from: value.from, to: value.to })));
+  const noteOverviewActivity = useCallback((active) => {
+    overviewActivity.current += active ? 1 : -1;
+    if (overviewActivity.current < 0) overviewActivity.current = 0;
+    setOverviewRefreshing(overviewActivity.current > 0);
+  }, []);
   const bulkDrafts = useBulkDrafts(session?.user?.id, apiBaseUrl);
   const startBulkCreation = useCallback(() => {
     const draft = bulkDrafts.store.create(selectedBulkJobIds);
@@ -3262,7 +3348,7 @@ export function App({ client, apiBaseUrl }) {
     );
   else if (route.name === "overview")
     page = hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) ? (
-      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} />
+      <BusinessDashboard client={client} apiBaseUrl={apiBaseUrl} reload={reload} access={access} period={overviewPeriod} dateRange={overviewDateRange} overviewRefresh={overviewRefresh} onActivity={noteOverviewActivity} />
     ) : (
       <TechnicalOverview access={access} />
     );
@@ -3458,7 +3544,7 @@ export function App({ client, apiBaseUrl }) {
       client={client}
       apiBaseUrl={apiBaseUrl}
       headerExtra={<>
-        {route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) && <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} />}
+        {route.name === "overview" && hasCapability(access, CAPABILITIES.BUSINESS_DATA_READ) && <OverviewDateFilter compact value={overviewPeriod} onChange={setOverviewPeriod} refreshing={overviewRefreshing} onRefresh={() => setOverviewRefresh((value) => value + 1)} />}
         {hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE) && bulkDrafts.drafts.length > 0 && (
           <Button href={bulkDrafts.drafts.length === 1 ? bulkDraftHref(bulkDrafts.drafts[0].id) : "#/application-batches"}>
             Resume batch creation{bulkDrafts.drafts.length > 1 ? ` (${bulkDrafts.drafts.length})` : ""}

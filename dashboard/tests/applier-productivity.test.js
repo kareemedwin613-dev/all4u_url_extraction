@@ -129,7 +129,7 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(table, /title: "Applications"/);
   assert.match(table, /tableRowNumberColumn/);
   assert.match(table, /children: PRODUCTIVITY_TABLE_METRIC_KEYS/);
-  assert.match(table, /title: "Avg \/ Day"/);
+  assert.doesNotMatch(table, /title: "Avg \/ Day"/);
   assert.doesNotMatch(table, /title: "Success Rate"/);
   assert.doesNotMatch(table, /title: "Score"/);
   assert.match(table, /sortProductivityRows/);
@@ -143,6 +143,8 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(table, /productivity-status-pill/);
   assert.doesNotMatch(table, /title: "Status"/);
   assert.doesNotMatch(table, /title: "Active Days"/);
+  assert.match(table, /title: "URLs"/);
+  assert.match(table, /title: "Mistakes"/);
   assert.match(table, /title: "Salary"/);
   assert.match(table, /formatApplierSalary/);
   assert.match(table, /computeApplierSalary|salaryTotal/);
@@ -158,12 +160,28 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(salaryMigration, /mistakes_count/);
   assert.match(salaryMigration, /screenshot_feedback/);
   assert.match(salaryMigration, /screenshot_feedback_at/);
+  const rateMigration = await read(
+    "../../supabase/migrations/202609301700_v3_138_applied_salary_rate.sql",
+  );
+  assert.match(rateMigration, /applied_salary_rate/);
+  assert.match(rateMigration, /searched_urls_count/);
+  assert.match(rateMigration, /job_descriptions/);
 });
 
-test("computeApplierSalary uses applied, interviews, and screenshot mistakes", () => {
+test("computeApplierSalary uses the user Applied rate, interviews, mistakes, and searched URLs", () => {
   assert.equal(
     computeApplierSalary({ applied: 100, interviews: 2, mistakes: 1 }),
     7.5,
+  );
+  assert.equal(
+    computeApplierSalary({
+      applied: 100,
+      interviews: 2,
+      mistakes: 1,
+      searchedUrls: 4,
+      appliedRate: 0.05,
+    }),
+    6.7,
   );
   assert.equal(formatApplierSalary(7.5), "$7.50");
   assert.equal(formatApplierSalary(-1.25), "-$1.25");
@@ -245,6 +263,19 @@ test("normalizeApplierProductivity maps productivity metrics from overview rows"
   assert.match(row.grade, /^[ABC]$/);
   assert.equal(row.productivityStatus, PRODUCTIVITY_STATUS.ACTIVE.key);
   assert.match(row.lastActivityLabel, /^Today /);
+  assert.equal(row.salary, 0.48);
+  const [rated] = normalizeApplierProductivity([
+    {
+      ...sampleRow,
+      applied_salary_rate: 0.05,
+      searched_urls_count: 3,
+      interviews_count: 1,
+      mistakes_count: 2,
+    },
+  ]);
+  assert.equal(rated.appliedRate, 0.05);
+  assert.equal(rated.searchedUrls, 3);
+  assert.equal(rated.salary, 0.55);
 });
 
 test("gradeFromScore maps numeric scores to letter grades", async () => {

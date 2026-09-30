@@ -9,6 +9,7 @@ import {
   Descriptions,
   Flex,
   Input,
+  InputNumber,
   Select,
   Space,
   Tag,
@@ -35,6 +36,7 @@ import {
   listUsers,
   removeRole,
   setStatus,
+  updateAppliedSalaryRate,
   updateUserProfile,
 } from "../services/admin-user-service.js";
 import { USER_PAGE_SIZES, USER_ROLE_PENDING } from "../shared/constants.js";
@@ -412,6 +414,7 @@ export function AdminUserDetailPage({
     [selected, setSelected] = useState(new Set()),
     [statusValue, setStatusValue] = useState("ACTIVE"),
     [fullNameValue, setFullNameValue] = useState(""),
+    [appliedRate, setAppliedRate] = useState(0.06),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -423,6 +426,7 @@ export function AdminUserDetailPage({
       setSelected(new Set(value.roles || []));
       setStatusValue(value.status);
       setFullNameValue(value.fullName || "");
+      setAppliedRate(Number(value.appliedSalaryRate ?? 0.06));
     } catch (value) {
       setError(value.message);
     }
@@ -523,6 +527,20 @@ export function AdminUserDetailPage({
       });
     else applyStatus();
   }
+  async function saveAppliedRate() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await updateAppliedSalaryRate(client, apiBaseUrl, id, appliedRate);
+      await load();
+      setMessage("Salary per Applied application updated successfully.");
+    } catch (value) {
+      setMessage(value.message);
+      setAppliedRate(Number(user.appliedSalaryRate ?? 0.06));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function saveFullName() {
     setBusy(true);
     setMessage("");
@@ -552,6 +570,10 @@ export function AdminUserDetailPage({
     user.status === "ACTIVE" && !(user.roles || []).length;
   const nameDirty =
     String(fullNameValue || "").trim() !== String(user.fullName || "").trim();
+  const savedAppliedRate = Number(user.appliedSalaryRate ?? 0.06);
+  const appliedRateDirty =
+    Number.isFinite(Number(appliedRate)) &&
+    Math.round(Number(appliedRate) * 100) !== Math.round(savedAppliedRate * 100);
   const tabs = [
     {
       key: "identity",
@@ -595,6 +617,39 @@ export function AdminUserDetailPage({
                     >
                       Save name
                     </Button>
+                  </Space>
+                ),
+              },
+              {
+                key: "applied-rate",
+                label: "Salary per Applied application",
+                children: (
+                  <Space direction="vertical" size={4}>
+                    <Space wrap>
+                      <InputNumber
+                        value={appliedRate}
+                        min={0}
+                        max={99.99}
+                        step={0.01}
+                        precision={2}
+                        prefix="$"
+                        disabled={busy}
+                        onChange={(value) => setAppliedRate(value ?? 0)}
+                        aria-label="Salary per Applied application"
+                        style={{ width: 140 }}
+                      />
+                      <Button
+                        type="primary"
+                        disabled={busy || !appliedRateDirty}
+                        loading={busy}
+                        onClick={saveAppliedRate}
+                      >
+                        Save rate
+                      </Button>
+                    </Space>
+                    <Text type="secondary">
+                      Overview salary uses this rate for each Applied application. Interviews add $1.00, screenshot mistakes subtract $0.50, and each Job Description this user captured adds $0.05.
+                    </Text>
                   </Space>
                 ),
               },

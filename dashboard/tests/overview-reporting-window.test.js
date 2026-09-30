@@ -45,6 +45,11 @@ test("the sticky top bar owns the shared Overview reporting period", async () =>
   const cards = await read("../src/features/overview/overview-count-cards.jsx");
   assert.match(app, /headerExtra=\{<>\s*\{route\.name === "overview"/);
   assert.match(app, /<OverviewDateFilter compact value=\{overviewPeriod\} onChange=\{setOverviewPeriod\}/);
+  assert.match(app, /onRefresh=\{\(\) => setOverviewRefresh/);
+  assert.match(app, /request\.replace/);
+  const filter = await read("../src/features/overview/overview-date-filter.jsx");
+  assert.match(filter, /aria-label="Refresh overview"/);
+  assert.match(filter, /Refresh/);
   assert.doesNotMatch(app, /<OverviewDateFilter value=\{period\}/);
   assert.match(app, /dateRange=\{dateRange\}/);
   assert.doesNotMatch(app, /ApplierPerformanceChart rows=\{result\.applierPerformance/);

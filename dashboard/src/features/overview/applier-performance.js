@@ -7,8 +7,8 @@ export const APPLIER_PERFORMANCE_METRICS = Object.freeze([
   { key: "completed", label: "Completed", color: "#52c41a" },
   { key: "applied", label: "Applied", color: "#722ed1" },
   { key: "interviews", label: "Interviews", color: "#9254de" },
-  { key: "interviewsTailored", label: "Int. Tailored", color: "#13c2c2" },
-  { key: "interviewsNonTailored", label: "Int. Non-tailored", color: "#595959" },
+  { key: "interviewsTailored", label: "Tailored", color: "#13c2c2" },
+  { key: "interviewsNonTailored", label: "Non-tailored", color: "#595959" },
   { key: "tailored", label: "Tailored", color: "#13c2c2" },
   { key: "nonTailored", label: "Non-tailored", color: "#595959" },
 ]);

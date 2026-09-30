@@ -34,6 +34,12 @@ test("saved widths override defaults and headers get the resize handle without l
   assert.equal(columns[1].width, undefined);
 });
 
+test("pinned table headers stay sticky when they have a resize handle", () => {
+  const css = readFileSync(new URL("../src/styles/antd-dashboard.css", import.meta.url), "utf8");
+  assert.match(css, /th:has\(>\.column-resize-handle\):not\(\.ant-table-cell-fix\)\{position:relative\}/);
+  assert.doesNotMatch(css, /:not\(\.ant-table-cell-fix-left\)/);
+});
+
 test("every dashboard table uses the resizable wrapper instead of antd's Table", () => {
   for (const file of ["App.jsx", "components/ui.jsx", "features/applications/application-pages.jsx", "features/jd-review/jd-review-pages.jsx", "features/tailoring/tailoring-pages.jsx", "pages/admin-pages.jsx"]) {
     const source = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");

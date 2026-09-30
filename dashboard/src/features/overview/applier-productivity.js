@@ -15,17 +15,28 @@ export const APPLIER_SALARY_RATES = Object.freeze({
   applied: 0.06,
   interviews: 1,
   mistakes: 0.5,
+  searchedUrls: 0.05,
 });
+
+export function appliedSalaryRate(value) {
+  const rate = Number(value);
+  return Number.isFinite(rate) && rate >= 0
+    ? rate
+    : APPLIER_SALARY_RATES.applied;
+}
 
 export function computeApplierSalary({
   applied = 0,
   interviews = 0,
   mistakes = 0,
+  searchedUrls = 0,
+  appliedRate = APPLIER_SALARY_RATES.applied,
 } = {}) {
   const value =
-    APPLIER_SALARY_RATES.applied * Math.max(0, Number(applied) || 0) +
+    appliedSalaryRate(appliedRate) * Math.max(0, Number(applied) || 0) +
     APPLIER_SALARY_RATES.interviews * Math.max(0, Number(interviews) || 0) -
-    APPLIER_SALARY_RATES.mistakes * Math.max(0, Number(mistakes) || 0);
+    APPLIER_SALARY_RATES.mistakes * Math.max(0, Number(mistakes) || 0) +
+    APPLIER_SALARY_RATES.searchedUrls * Math.max(0, Number(searchedUrls) || 0);
   return Math.round(value * 100) / 100;
 }
 
@@ -358,6 +369,12 @@ export function sortProductivityRows(rows = [], sorter = {}) {
       case "nonTailored":
         valueCompare = left.nonTailored - right.nonTailored;
         break;
+      case "searchedUrls":
+        valueCompare = left.searchedUrls - right.searchedUrls;
+        break;
+      case "mistakes":
+        valueCompare = left.mistakes - right.mistakes;
+        break;
       case "salary":
         valueCompare = left.salary - right.salary;
         break;
@@ -549,6 +566,10 @@ export function normalizeApplierProductivity(rows = [], options = {}) {
     const enriched = {
       ...row,
       mistakes: count(raw.mistakes_count ?? row.mistakes),
+      searchedUrls: count(raw.searched_urls_count ?? row.searchedUrls),
+      appliedRate: appliedSalaryRate(
+        raw.applied_salary_rate ?? row.appliedRate,
+      ),
       activeDays,
       avgPerDay,
       lastActivityAt,

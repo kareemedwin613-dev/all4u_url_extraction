@@ -73,3 +73,14 @@ export async function updateUserProfile(client, baseUrl, userId, fullName) {
     body: {fullName: name},
   });
 }
+
+export async function updateAppliedSalaryRate(client, baseUrl, userId, rate) {
+  const amount = Number(rate);
+  if (!Number.isFinite(amount) || amount < 0 || amount > 99.99) {
+    throw {code: "VALIDATION_ERROR", message: "Salary per Applied application must be from 0.00 to 99.99.", retryable: false};
+  }
+  return api(client, baseUrl, `/api/v1/admin/users/${requireUuid(userId)}/applied-salary-rate`, {
+    method: "PATCH",
+    body: {appliedSalaryRate: Math.round(amount * 100) / 100},
+  });
+}

@@ -6,6 +6,7 @@ export class UserListQueryDto{@IsOptional()@IsString()@MaxLength(100)search="";@
 export class RoleMutationDto{@IsIn(ROLE_CODES)roleCode!:string;}
 export class UserStatusDto{@IsIn(["ACTIVE","INACTIVE"])status!:string;}
 export class ProfileUpdateDto{@IsString()@MaxLength(200)fullName!:string;}
+export class AppliedSalaryRateDto{@Type(()=>Number)@IsNumber({maxDecimalPlaces:2})@Min(0)@Max(99.99)appliedSalaryRate!:number;}
 export class OverviewQueryDto{@IsISO8601()from!:string;@IsISO8601()to!:string;}
 export class ActivityLogQueryDto{@IsISO8601()from!:string;@IsISO8601()to!:string;@IsOptional()@IsUUID("4")applierId?:string;@IsOptional()@IsUUID("4")applicationId?:string;@IsOptional()@IsString()@MaxLength(80)action?:string;@IsOptional()@IsString()@MaxLength(100)search="";@IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;@IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100])pageSize=50;}
 export class TailoringMatchDto{@IsUUID("4")resumeId!:string;@IsNumber()@Min(0)@Max(100)matchScore!:number;@IsObject()matchDetails!:Record<string,unknown>;}
