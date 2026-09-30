@@ -63,6 +63,9 @@ test("Application detail page includes screenshot count, upload, and remove UI",
   assert.match(card, /attachApplicationScreenshot/);
   assert.match(card, /listApplicationScreenshots/);
   assert.match(card, /getApplicationScreenshotUrl/);
-  assert.match(card, /application-screenshot-preview/);
+  assert.match(card, /Previous/);
+  assert.match(card, /Has mistakes/);
+  assert.match(card, /ArrowLeft/);
+  assert.match(card, /findReviewNeighbor/);
   assert.match(styles, /application-screenshots-grid/);
 });

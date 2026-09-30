@@ -3304,6 +3304,7 @@ export function App({ client, apiBaseUrl }) {
         apiBaseUrl={apiBaseUrl}
         access={access}
         id={route.id}
+        query={route.query}
         reload={reload}
       />
     );

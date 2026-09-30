@@ -44,6 +44,10 @@ test("application filter panel counts active server-side filters",()=>{
   assert.equal(countActiveApplicationFilters({search:"Acme",status:"BLOCKED",profileName:"Jordan"}),3);
   assert.equal(countActiveApplicationFilters({resumeName:"Main Resume"}),1);
   assert.equal(countActiveApplicationFilters({screenshotFeedback:"HAS_FEEDBACK"}),1);
+  assert.equal(countActiveApplicationFilters({screenshotFilename:"Application 65646.png"}),1);
+  const filenameQuery=parseApplicationQuery("screenshotFilename=%20Application%2065646.png%20");
+  assert.equal(filenameQuery.screenshotFilename,"Application 65646.png");
+  assert.match(serializeApplicationQuery(filenameQuery),/screenshotFilename=Application\+65646\.png/);
 });
 
 test("application services use protected RPC contracts",async()=>{
@@ -147,9 +151,10 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.match(manager, /title:\s*"Applier"[\s\S]*?MetaTag/);
   assert.doesNotMatch(manager, /title:\s*"Priority"/);
   assert.doesNotMatch(source.slice(source.indexOf("const applierColumns =")), /title:\s*"Priority"/);
-  assert.match(source, /openFirstApplicationScreenshot/);
+  assert.match(source, /ScreenshotReviewModal/);
+  assert.match(source, /setReview\(\{ application: record/);
   assert.match(source, /categoryTagColor\(categories/);
-  assert.match(source, /applicationsScrollX = manager \? 2616 : 2100/);
+  assert.match(source, /applicationsScrollX = manager \? 2666 : 2150/);
   assert.match(source, /WarningOutlined/);
   assert.match(source, /screenshot_feedback/);
   assert.match(source, /Feedback/);
