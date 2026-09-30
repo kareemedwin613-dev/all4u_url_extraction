@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from "class-validator";
 
 const APPLICATION_STATUSES=["UNASSIGNED","ASSIGNED","IN_PROGRESS","BLOCKED","APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"];
 const APPLIER_MINE_STATUSES=["","ASSIGNED","APPLIED","BLOCKED"] as const;
@@ -81,6 +81,15 @@ export class UpdateApplicationAutofillRecoveryDto{
   @IsISO8601({strict:true})resumeUpdatedAt!:string;
   @IsOptional()@IsString()@MaxLength(80)@Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)adapterId?:string;
   @IsOptional()@IsString()@MaxLength(40)@Matches(/^[0-9A-Za-z][0-9A-Za-z._-]{0,39}$/)adapterVersion?:string;
+}
+// Privacy-safe Resume attachment outcome: no filename, URL, or file data.
+export class RecordResumeAttachmentDto{
+  @IsIn(["ATTACHED","MANUAL_REQUIRED","UNSUPPORTED","FAILED"])status!:string;
+  @IsString()@Matches(/^[A-Z][A-Z0-9_]{0,79}$/)code!:string;
+  @IsOptional()@IsString()@MaxLength(80)@Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)adapterId?:string;
+  @IsString()@MaxLength(253)@Matches(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/)targetDomain!:string;
+  @IsOptional()@IsString()@MaxLength(253)@Matches(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/)frameDomain?:string;
+  @IsOptional()@IsBoolean()embedded?:boolean;
 }
 export class ResumeAccessDto {}
 export class ApplicationAutofillContextQueryDto {

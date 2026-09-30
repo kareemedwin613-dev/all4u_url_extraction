@@ -1,6 +1,7 @@
 -- v3.133: each materialization attempt writes a new private object, preserving archived PDFs.
 -- Null paths support materializations already in flight during deployment.
-alter table public.tailoring_jobs add column materialization_storage_path text;
+-- if not exists: the column was already present on the linked project before this version was recorded.
+alter table public.tailoring_jobs add column if not exists materialization_storage_path text;
 comment on column public.tailoring_jobs.materialization_storage_path is 'Exact attempt-scoped upload path. Set by begin; retained for diagnostics. Historical completed artifacts are not moved.';
 create or replace function public.begin_tailoring_materialization_v19(p_tailoring_job_id uuid)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$

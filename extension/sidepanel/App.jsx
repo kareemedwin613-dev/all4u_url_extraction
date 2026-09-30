@@ -42,7 +42,7 @@ import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
 import { JobReviewView } from "./views/JobReviewView.jsx";
 import { MyJobDescriptionsView } from "./views/MyJobDescriptionsView.jsx";
-import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, loadApplicationResumeForSession, recordApplicationAutofillTelemetry, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
+import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, loadApplicationResumeForSession, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
 import { autofillValue, autofillValues, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
@@ -81,6 +81,34 @@ async function attachSessionResume(sessionId) {
   const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_LOADED_RESUME, payload: { sessionId } });
   if (!response?.ok) throw extensionError(response, "The Resume could not be attached.");
   return response.data;
+}
+
+const SAFE_CODE = /^[A-Z][A-Z0-9_]{0,79}$/;
+const SAFE_HOST = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
+function hostOf(url) { try { return new URL(url).hostname.toLowerCase(); } catch { return ""; } }
+
+// Privacy-safe outcome for the attachment report: status, reason code, adapter, and host names only.
+function resumeAttachmentOutcome(sessionData, attachment) {
+  const targetDomain = hostOf(sessionData?.targetUrl), frameDomain = String(attachment?.frameDomain || "").toLowerCase(), adapterId = String(attachment?.adapter?.id || "");
+  if (!SAFE_HOST.test(targetDomain) || !["ATTACHED", "MANUAL_REQUIRED", "UNSUPPORTED", "FAILED"].includes(attachment?.status)) return null;
+  return {
+    status: attachment.status,
+    code: SAFE_CODE.test(String(attachment.code || "")) ? attachment.code : "RESUME_ATTACHMENT_FAILED",
+    targetDomain,
+    ...(SAFE_HOST.test(frameDomain) ? { frameDomain } : {}),
+    ...(/^[a-z0-9][a-z0-9-]{0,79}$/.test(adapterId) ? { adapterId } : {}),
+    embedded: Boolean(attachment.embedded),
+  };
+}
+
+// Never blocks or fails the Applier's flow; a missing report row is acceptable.
+function recordResumeAttachment(client, baseUrl, sessionData, attachment) {
+  const outcome = resumeAttachmentOutcome(sessionData, attachment);
+  return outcome ? recordApplicationResumeAttachment(client, baseUrl, sessionData.id, outcome).catch(() => {}) : Promise.resolve();
+}
+
+function failedAttachment(error) {
+  return { status: "FAILED", code: SAFE_CODE.test(String(error?.code || "")) ? error.code : "RESUME_ATTACHMENT_FAILED", message: `The Resume was not attached: ${error?.message || "unknown error"}` };
 }
 
 function applicationSessionBanner({ session, context, loadedResume, attachment }) {
@@ -245,6 +273,7 @@ export function App() {
         if (!attachment) {
           attachment = await attachSessionResume(response.data.id);
           attachmentsRef.current.set(response.data.id, attachment);
+          recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
           if (attachment.status === "ATTACHED") {
             await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "COMPLETED");
             setStatus({ message: `${loadedResume.filename} attached and verified. Review the page before submitting.`, kind: "success" });
@@ -264,9 +293,11 @@ export function App() {
             if (!attachment && !resumed && !autofillContext?.preferences?.requireReviewEveryField) {
               attachment = await attachSessionResume(response.data.id);
               attachmentsRef.current.set(response.data.id, attachment);
+              recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
             }
           } catch (error) {
-            attachment = { status: "FAILED", code: typeof error?.code === "string" ? error.code : "RESUME_ATTACHMENT_FAILED", message: `The Resume was not attached: ${error?.message || "unknown error"}` };
+            attachment = failedAttachment(error);
+            recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
           }
         }
         const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext) } });
@@ -301,6 +332,8 @@ export function App() {
       setCurrentView("applications");
     } catch (error) {
       const safeCode=typeof error?.code==="string"&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:(response.data.action === "AUTOFILL" ? "AUTOFILL_FAILED" : "RESUME_LOAD_FAILED");
+      // Record before the session becomes FAILED, which closes it to further outcome writes.
+      if (response.data.action === "LOAD_RESUME" && !attachmentsRef.current.has(response.data.id)) await recordResumeAttachment(client, backendBaseUrl, response.data, { status: "FAILED", code: safeCode });
       await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "FAILED", safeCode).catch(() => {});
       setActiveApplicationSession(null);
       handleError(error);
@@ -327,12 +360,15 @@ export function App() {
     const active = activeApplicationSession;
     if (!active?.session || attachmentBusy) return;
     setAttachmentBusy(true);
+    let recorded = false;
     try {
       const latest=await getApplicationExtensionContext(client,backendBaseUrl,active.session.applicationId);
       if(!latest?.permissions?.canLoadResume||latest?.resume?.status!=="ACTIVE")throw Object.assign(new Error("The Resume is no longer eligible for attachment."),{code:"APPLICATION_RESUME_UNAVAILABLE"});
       const loadedResume = active.loadedResume?.ready ? active.loadedResume : await loadApplicationResumeForSession(client, backendBaseUrl, active.session);
       const attachment = await attachSessionResume(active.session.id);
       attachmentsRef.current.set(active.session.id, attachment);
+      recordResumeAttachment(client, backendBaseUrl, active.session, attachment);
+      recorded = true;
       setActiveApplicationSession((current) => current ? { ...current, loadedResume, attachment } : current);
       if (attachment.status === "ATTACHED") {
         if (active.session.action === "LOAD_RESUME") await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
@@ -341,6 +377,7 @@ export function App() {
         setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
       } else throw new Error(attachment.message || "The Resume attachment could not be verified.");
     } catch (error) {
+      if (!recorded) recordResumeAttachment(client, backendBaseUrl, active.session, failedAttachment(error));
       handleError(error);
     } finally {
       setAttachmentBusy(false);
