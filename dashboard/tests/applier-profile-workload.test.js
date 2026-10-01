@@ -64,7 +64,7 @@ test("Admin Overview Profile Status tab uses profile workload metrics", async ()
   assert.doesNotMatch(page, /Performance Scorecard/);
   assert.match(table, /PROFILE_TABLE_METRIC_KEYS/);
   assert.match(table, /pagination=\{false\}/);
-  assert.match(table, /sumProfileMetricTotals/);
+  assert.match(table, /sumProfileMetricTotals\(visible\)/);
   assert.match(table, /ProfileTableSummary/);
   assert.match(table, /productivity-table-summary-row/);
   assert.match(migration, /tailored_count/);
