@@ -16,11 +16,27 @@ test("review links keep the Applications list filters and open the viewer", () =
 
 test("screenshot review can maximize and minimize the preview", async () => {
   const source = await readFile(new URL("../src/features/applications/screenshot-review-modal.jsx", import.meta.url), "utf8");
+  const card = await readFile(new URL("../src/features/applications/application-screenshots-card.jsx", import.meta.url), "utf8");
+  assert.match(source, /autoFocus/);
+  assert.match(card, /autoFocus/);
+  assert.match(source, /maskClosable=\{false\}/);
+  assert.match(source, /keyboard=\{false\}/);
+  assert.match(card, /maskClosable=\{false\}/);
+  assert.match(card, /keyboard=\{false\}/);
   assert.match(source, /Maximize/);
   assert.match(source, /Minimize/);
   assert.match(source, /application-screenshot-review--max/);
   assert.match(source, /Screenshot size/);
   assert.match(source, /event\.ctrlKey/);
+});
+
+test("changing a screenshot reviewer asks for confirmation before saving", async () => {
+  const source = await readFile(new URL("../src/features/applications/screenshot-reviewers-page.jsx", import.meta.url), "utf8");
+  assert.match(source, /modal\.confirm\(/);
+  assert.match(source, /Change \$\{role\}\?/);
+  assert.match(source, /confirmReviewerChange\(row, "primary", next\)/);
+  assert.match(source, /confirmReviewerChange\(row, "secondary", next\)/);
+  assert.doesNotMatch(source, /onChange=\{\(next\) => save\(/);
 });
 
 test("screenshot review status distinguishes correct, mistakes, and unchecked", () => {

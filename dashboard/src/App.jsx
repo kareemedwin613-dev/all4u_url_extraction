@@ -163,6 +163,7 @@ const AdminUsersPage = lazyNamed(() => import("./pages/admin-pages.jsx"), "Admin
 const ApplierDetailPage = lazyNamed(() => import("./features/appliers/applier-detail-page.jsx"), "ApplierDetailPage");
 const ApplicationDetailPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "ApplicationDetailPage");
 const ApplicationsPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "ApplicationsPage");
+const ScreenshotReviewersPage = lazyNamed(() => import("./features/applications/screenshot-reviewers-page.jsx"), "ScreenshotReviewersPage");
 const CreateApplicationPage = lazyNamed(() => import("./features/applications/application-pages.jsx"), "CreateApplicationPage");
 const ApplicationBatchDetailPage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "ApplicationBatchDetailPage");
 const ApplicationBatchesPage = lazyNamed(() => import("./features/bulk-applications/bulk-pages.jsx"), "ApplicationBatchesPage");
@@ -3357,6 +3358,8 @@ export function App({ client, apiBaseUrl }) {
     );
   else if (route.name === "calendar")
     page = <CalendarPage client={client} apiBaseUrl={apiBaseUrl} access={access} query={route.query} />;
+  else if (route.name === "screenshot-reviewers")
+    page = <ScreenshotReviewersPage client={client} apiBaseUrl={apiBaseUrl} access={access} query={route.query} />;
   else if (route.name === "applications")
     page = (
       <ApplicationsPage

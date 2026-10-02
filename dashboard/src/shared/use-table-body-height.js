@@ -21,7 +21,9 @@ export function useTableBodyHeight(enabled = true, minHeight = 200) {
       const headerH = header
         ? Math.ceil(header.getBoundingClientRect().height)
         : 55;
-      const next = Math.floor(node.clientHeight - headerH - HORIZONTAL_SCROLLBAR);
+      const summary = node.querySelector(".ant-table-summary");
+      const summaryH = summary ? Math.ceil(summary.getBoundingClientRect().height) : 0;
+      const next = Math.floor(node.clientHeight - headerH - summaryH - HORIZONTAL_SCROLLBAR);
       if (next > 0) setHeight(Math.max(minHeight, next));
     };
     update();

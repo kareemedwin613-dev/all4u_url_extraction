@@ -59,6 +59,9 @@ html,body,#app{min-height:100%;margin:0}.ant-app{min-height:100vh}.dashboard-lay
    which covers the next column title. */
 .ant-table-thead>tr>th:has(>.column-resize-handle):not(.ant-table-cell-fix){position:relative}
 .page-list-table-host .ant-table-body{scrollbar-gutter:stable}
+.screenshot-reviewers-table .ant-table-summary > tr > td{background:#fafafa;font-weight:700;border-top:1px solid #dbe3ee}
+.screenshot-reviewers-table .ant-table-content,.screenshot-reviewers-table .ant-table-header,.screenshot-reviewers-table .ant-table-body{overflow-x:hidden!important}
+.screenshot-reviewers-table .ant-table,.screenshot-reviewers-table .ant-table table{width:100%!important}
 .column-resize-handle{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;z-index:3;user-select:none;touch-action:none}
 .column-resize-handle::after{content:"";position:absolute;top:25%;bottom:25%;right:3px;width:2px;border-radius:1px;background:transparent;transition:background .15s}
 .ant-table-thead>tr>th:hover .column-resize-handle::after,.column-resize-handle:hover::after{background:var(--ant-color-primary,#1677ff)}
