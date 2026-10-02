@@ -44,6 +44,12 @@ test("application filter panel counts active server-side filters",()=>{
   assert.equal(countActiveApplicationFilters({search:"Acme",status:"BLOCKED",profileName:"Jordan"}),3);
   assert.equal(countActiveApplicationFilters({resumeName:"Main Resume"}),1);
   assert.equal(countActiveApplicationFilters({screenshotFeedback:"HAS_FEEDBACK"}),1);
+  assert.equal(countActiveApplicationFilters({primaryReviewerId:id,secondaryReviewerId:id2}),2);
+  const reviewers=parseApplicationQuery(`primaryReviewerId=${id}&secondaryReviewerId=${id2}`);
+  assert.equal(reviewers.primaryReviewerId,id);
+  assert.equal(reviewers.secondaryReviewerId,id2);
+  assert.match(serializeApplicationQuery(reviewers),/primaryReviewerId=/);
+  assert.equal(parseApplicationQuery("primaryReviewerId=not-a-uuid").primaryReviewerId,"");
   assert.equal(countActiveApplicationFilters({screenshotFilename:"Application 65646.png"}),1);
   const filenameQuery=parseApplicationQuery("screenshotFilename=%20Application%2065646.png%20");
   assert.equal(filenameQuery.screenshotFilename,"Application 65646.png");
@@ -155,7 +161,7 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.match(source, /ScreenshotReviewModal/);
   assert.match(source, /setReview\(\{ application: record/);
   assert.match(source, /categoryTagColor\(categories/);
-  assert.match(source, /applicationsScrollX = manager \? 2666 : 2150/);
+  assert.match(source, /applicationsScrollX = manager \? 3026 : 2510/);
   assert.match(source, /WarningOutlined/);
   assert.match(source, /screenshot_feedback/);
   assert.match(source, /Feedback/);

@@ -87,6 +87,7 @@ import {
   listApplicationJobs,
   listApplicationResumes,
   listApplications,
+  listScreenshotReviewerCandidates,
   openApplicationResume,
   reassignApplication,
   updateApplication,
@@ -112,6 +113,7 @@ const { Text, Title } = Typography,
     value ? new Date(value).toISOString().slice(0, 16) : "",
   fromLocal = (value) => (value ? new Date(value).toISOString() : null),
   name = (user) => user?.display_name || user?.email || "Unassigned",
+  reviewerOptionLabel = (user) => String(user?.fullName || user?.full_name || user?.display_name || "").trim() || "Reviewer",
   PAGE_SIZES = [25, 50, 100, 500, 1000, 5000],
   UNASSIGNED_APPLIER_ID = "00000000-0000-4000-8000-000000000000",
   FINAL_TAILORING_STATUSES = new Set(["APPROVED", "MATERIALIZING", "COMPLETED"]),
@@ -126,11 +128,34 @@ const Notice = ({ message, error = false }) =>
     />
   ) : null;
 
+const reviewerName = (value) => value || "Unassigned";
+
+function reviewerTableColumn(title, nameKey, filterKey, filters, reviewers) {
+  return {
+    title,
+    dataIndex: nameKey,
+    width: 180,
+    sortable: false,
+    filters: [
+      { text: "Unassigned", value: UNASSIGNED_APPLIER_ID },
+      ...reviewers.map((item) => ({
+        text: reviewerOptionLabel(item),
+        value: item.id,
+      })),
+    ],
+    filterMultiple: false,
+    filteredValue: filters[filterKey] ? [filters[filterKey]] : null,
+    ...serverSideColumnFilter,
+    render: reviewerName,
+  };
+}
+
 function ApplicationListFilters({
   filters,
   manager,
   categories,
   appliers,
+  reviewers,
   onChange,
 }) {
   const field = { xs: 24, sm: 12, lg: 8, xl: 6 },
@@ -166,6 +191,8 @@ function ApplicationListFilters({
       assignedTo: "",
       screenshotFeedback: "",
       screenshotFilename: "",
+      primaryReviewerId: "",
+      secondaryReviewerId: "",
       page: 1,
     });
   }
@@ -330,6 +357,52 @@ function ApplicationListFilters({
             </label>
           </Col>
         ) : null}
+        <Col {...field}>
+          <label>
+            Primary Reviewer
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              value={filters.primaryReviewerId || undefined}
+              placeholder="All reviewers"
+              onChange={(primaryReviewerId) =>
+                onChange({ primaryReviewerId: primaryReviewerId || "", page: 1 })
+              }
+              options={[
+                { value: UNASSIGNED_APPLIER_ID, label: "Unassigned" },
+                ...reviewers.map((item) => ({
+                  value: item.id,
+                  label: reviewerOptionLabel(item),
+                })),
+              ]}
+              style={{ width: "100%" }}
+            />
+          </label>
+        </Col>
+        <Col {...field}>
+          <label>
+            Secondary Reviewer
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              value={filters.secondaryReviewerId || undefined}
+              placeholder="All reviewers"
+              onChange={(secondaryReviewerId) =>
+                onChange({ secondaryReviewerId: secondaryReviewerId || "", page: 1 })
+              }
+              options={[
+                { value: UNASSIGNED_APPLIER_ID, label: "Unassigned" },
+                ...reviewers.map((item) => ({
+                  value: item.id,
+                  label: reviewerOptionLabel(item),
+                })),
+              ]}
+              style={{ width: "100%" }}
+            />
+          </label>
+        </Col>
         <Col {...field} className="filter-actions">
           <Button disabled={!activeCount} onClick={clearFilters}>
             Clear filters
@@ -353,6 +426,7 @@ export function ApplicationsPage({
     filterKey = JSON.stringify(filters),
     [data, setData] = useState(),
     [appliers, setAppliers] = useState([]),
+    [reviewers, setReviewers] = useState([]),
     [batches, setBatches] = useState([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -378,12 +452,14 @@ export function ApplicationsPage({
     setError("");
     Promise.all([
       listApplications(client, apiBaseUrl, filters),
+      listScreenshotReviewerCandidates(client, apiBaseUrl).catch(() => []),
       manager ? listActiveAppliers(client, apiBaseUrl) : Promise.resolve([]),
       manager ? listApplicationBatchOptions(client, apiBaseUrl) : Promise.resolve([]),
     ])
-      .then(([items, users, batchItems]) => {
+      .then(([items, reviewerItems, users, batchItems]) => {
         if (id !== requestId.current) return;
         setData(items);
+        setReviewers(Array.isArray(reviewerItems) ? reviewerItems : []);
         setAppliers(users);
         setBatches(batchItems);
       })
@@ -585,6 +661,8 @@ export function ApplicationsPage({
           );
         },
       },
+      reviewerTableColumn("Primary Reviewer", "primary_reviewer_name", "primaryReviewerId", filters, reviewers),
+      reviewerTableColumn("Secondary Reviewer", "secondary_reviewer_name", "secondaryReviewerId", filters, reviewers),
       statusColumn,
       {
         title: "Tailoring Status",
@@ -657,12 +735,15 @@ export function ApplicationsPage({
       filters.pageSize,
       filters.search,
       filters.assignedTo,
+      filters.primaryReviewerId,
+      filters.secondaryReviewerId,
       filters.status,
       filters.priority,
       filters.categoryId,
       filters.creationBatchId,
       filters.creationMode,
       appliers,
+      reviewers,
       batches,
       categories,
     ],
@@ -675,6 +756,8 @@ export function ApplicationsPage({
       jobTitleColumn,
       profileNameColumn,
       resumeColumn,
+      reviewerTableColumn("Primary Reviewer", "primary_reviewer_name", "primaryReviewerId", filters, reviewers),
+      reviewerTableColumn("Secondary Reviewer", "secondary_reviewer_name", "secondaryReviewerId", filters, reviewers),
       {
         title: "Link",
         key: "links",
@@ -756,12 +839,15 @@ export function ApplicationsPage({
       filters.pageSize,
       filters.search,
       filters.status,
+      filters.primaryReviewerId,
+      filters.secondaryReviewerId,
       filters.categoryId,
       categories,
+      reviewers,
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 2666 : 2150,
+    applicationsScrollX = manager ? 3026 : 2510,
     tooMany = selectedIds.length > 2000;
   const savedTableSort = useSavedTableSort("application-table-sort", clientSortColumns(columns));
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
@@ -858,6 +944,8 @@ export function ApplicationsPage({
       creationBatchId: manager ? creationBatchId : "",
       screenshotFeedback: filters.screenshotFeedback,
       screenshotFilename: filters.screenshotFilename,
+      primaryReviewerId: firstFilterValue(tableFilters, "primary_reviewer_name", ""),
+      secondaryReviewerId: firstFilterValue(tableFilters, "secondary_reviewer_name", ""),
       page: 1,
     });
   }
@@ -952,6 +1040,7 @@ export function ApplicationsPage({
         manager={manager}
         categories={categories}
         appliers={appliers}
+        reviewers={reviewers}
         onChange={update}
       />
       {error && !data ? (

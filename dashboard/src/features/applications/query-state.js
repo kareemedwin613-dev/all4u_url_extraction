@@ -20,6 +20,8 @@ export function parseApplicationQuery(query=""){
     creationMode:allowed(p.get("creationMode")||"",["BULK","INDIVIDUAL"]),
     screenshotFeedback:allowed(p.get("screenshotFeedback")||"",SCREENSHOT_FEEDBACK_FILTERS),
     screenshotFilename:(p.get("screenshotFilename")||"").trim().slice(0,100),
+    primaryReviewerId:uuid(p.get("primaryReviewerId")),
+    secondaryReviewerId:uuid(p.get("secondaryReviewerId")),
     page,
     pageSize,
   };
@@ -35,11 +37,13 @@ export function countActiveApplicationFilters(filters={}){
   if(filters.assignedTo)count++;
   if(filters.screenshotFeedback)count++;
   if(filters.screenshotFilename)count++;
+  if(filters.primaryReviewerId)count++;
+  if(filters.secondaryReviewerId)count++;
   return count;
 }
 export function serializeApplicationQuery(value){
   const p=new URLSearchParams();
-  for(const key of ["search","assignedTo","status","priority","company","profileName","resumeName","categoryId","dueFilter","creationBatchId","creationMode","screenshotFeedback","screenshotFilename","page","pageSize"]){
+  for(const key of ["search","assignedTo","status","priority","company","profileName","resumeName","categoryId","dueFilter","creationBatchId","creationMode","screenshotFeedback","screenshotFilename","primaryReviewerId","secondaryReviewerId","page","pageSize"]){
     const v=value[key];
     if(v===""||v==null)continue;
     if(key==="pageSize"&&Number(v)===25)continue;
