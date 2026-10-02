@@ -38,6 +38,8 @@ function failure(error:any,fallback:string):never{
         p_creation_mode:q.creationMode||"",
         p_screenshot_feedback:q.screenshotFeedback||"",
         ...(q.screenshotFilename?{p_screenshot_filename:q.screenshotFilename}:{}),
+        p_primary_reviewer_id:q.primaryReviewerId||null,
+        p_secondary_reviewer_id:q.secondaryReviewerId||null,
         p_limit:size,
         p_offset:(page-1)*size,
       },"Applications could not be loaded."),

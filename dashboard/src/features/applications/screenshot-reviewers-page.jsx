@@ -275,6 +275,7 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
   const screenshotTotal = visible.reduce((sum, row) => sum + (Number(row.screenshot_count) || 0), 0);
   const reviewedTotal = visible.reduce((sum, row) => sum + (Number(row.reviewed_screenshot_count) || 0), 0);
   const unreviewedTotal = visible.reduce((sum, row) => sum + (Number(row.unreviewed_screenshot_count) || 0), 0);
+  const mistakeTotal = visible.reduce((sum, row) => sum + (Number(row.mistake_screenshot_count) || 0), 0);
   const applicationTotal = visible.reduce((sum, row) => sum + (Number(row.application_count) || 0), 0);
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -399,6 +400,7 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
     { title: "Screenshots", dataIndex: "screenshot_count", width: 120 },
     { title: "Reviewed", dataIndex: "reviewed_screenshot_count", width: 110 },
     { title: "Not-Reviewed", dataIndex: "unreviewed_screenshot_count", width: 130 },
+    { title: "Mistakes", dataIndex: "mistake_screenshot_count", width: 110 },
     { title: "Applications", dataIndex: "application_count", width: 130 },
     {
       title: "Primary Reviewer",
@@ -482,10 +484,11 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
                   <Table.Summary.Cell index={isAdmin ? 4 : 3}>{screenshotTotal.toLocaleString()}</Table.Summary.Cell>
                   <Table.Summary.Cell index={isAdmin ? 5 : 4}>{reviewedTotal.toLocaleString()}</Table.Summary.Cell>
                   <Table.Summary.Cell index={isAdmin ? 6 : 5}>{unreviewedTotal.toLocaleString()}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={isAdmin ? 7 : 6}>{applicationTotal.toLocaleString()}</Table.Summary.Cell>
-                  <Table.Summary.Cell index={isAdmin ? 8 : 7} />
+                  <Table.Summary.Cell index={isAdmin ? 7 : 6}>{mistakeTotal.toLocaleString()}</Table.Summary.Cell>
+                  <Table.Summary.Cell index={isAdmin ? 8 : 7}>{applicationTotal.toLocaleString()}</Table.Summary.Cell>
                   <Table.Summary.Cell index={isAdmin ? 9 : 8} />
                   <Table.Summary.Cell index={isAdmin ? 10 : 9} />
+                  <Table.Summary.Cell index={isAdmin ? 11 : 10} />
                 </Table.Summary.Row>
               </Table.Summary>
             )}

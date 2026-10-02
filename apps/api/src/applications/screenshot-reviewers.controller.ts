@@ -30,7 +30,7 @@ export class ScreenshotReviewersController {
   }
 
   @Get("candidates")
-  @RequireRoles(...MANAGERS)
+  @RequireRoles(...READERS)
   @ApiOperation({ summary: "List active users who can review screenshots" })
   async candidates(@Req() request: ApiRequest) {
     return this.response(request, await this.applications.listScreenshotReviewerCandidates(request.user!));

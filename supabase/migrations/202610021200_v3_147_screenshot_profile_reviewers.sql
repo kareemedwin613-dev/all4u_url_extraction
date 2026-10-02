@@ -120,6 +120,9 @@ begin
         coalesce(sum(screenshot_count) filter (
           where coalesce(screenshot_review_status, '') not in ('CORRECT', 'HAS_MISTAKES')
         ), 0)::integer as unreviewed_screenshot_count,
+        coalesce(sum(screenshot_count) filter (
+          where screenshot_review_status = 'HAS_MISTAKES'
+        ), 0)::integer as mistake_screenshot_count,
         count(*)::integer as application_count
       from ranged
       group by original_id
@@ -143,6 +146,7 @@ begin
         totals.screenshot_count,
         totals.reviewed_screenshot_count,
         totals.unreviewed_screenshot_count,
+        totals.mistake_screenshot_count,
         totals.application_count,
         original.screenshot_primary_reviewer_id as primary_reviewer_id,
         primary_reviewer.full_name as primary_reviewer_name,
