@@ -206,7 +206,7 @@ export function ApplierProfileWorkloadTable({
         : data,
     [data, needle],
   );
-  const metricTotals = useMemo(() => sumProfileMetricTotals(data), [data]);
+  const metricTotals = useMemo(() => sumProfileMetricTotals(visible), [visible]);
 
   return (
     <div className="productivity-table-shell">

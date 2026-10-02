@@ -343,18 +343,18 @@ export function ApplierProductivityTable({
       ),
     [client, apiBaseUrl, visible.length, sortedInfo],
   );
-  const metricTotals = useMemo(() => sumProductivityMetricTotals(data), [data]);
+  const metricTotals = useMemo(() => sumProductivityMetricTotals(visible), [visible]);
   const searchedUrlsTotal = useMemo(
-    () => data.reduce((sum, row) => sum + (Number(row.searchedUrls) || 0), 0),
-    [data],
+    () => visible.reduce((sum, row) => sum + (Number(row.searchedUrls) || 0), 0),
+    [visible],
   );
   const mistakesTotal = useMemo(
-    () => data.reduce((sum, row) => sum + (Number(row.mistakes) || 0), 0),
-    [data],
+    () => visible.reduce((sum, row) => sum + (Number(row.mistakes) || 0), 0),
+    [visible],
   );
   const salaryTotal = useMemo(
-    () => data.reduce((sum, row) => sum + (Number(row.salary) || 0), 0),
-    [data],
+    () => visible.reduce((sum, row) => sum + (Number(row.salary) || 0), 0),
+    [visible],
   );
 
   return (

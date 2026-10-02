@@ -149,7 +149,7 @@ test("Admin Overview includes the redesigned Applier Productivity page", async (
   assert.match(table, /formatApplierSalary/);
   assert.match(table, /computeApplierSalary|salaryTotal/);
   assert.match(table, /Table\.Summary/);
-  assert.match(table, /sumProductivityMetricTotals/);
+  assert.match(table, /sumProductivityMetricTotals\(visible\)/);
   assert.match(table, /aria-label="Search Applier Productivity by name or email"/);
   assert.doesNotMatch(table, /Number\(row\.applied\) > 0/);
   assert.doesNotMatch(table, /No Appliers have Applied applications in this period/);
