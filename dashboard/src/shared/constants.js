@@ -10,7 +10,7 @@ const directions=(key,column)=>({[`${key}_asc`]:{column,ascending:true},[`${key}
 export const JOB_SORTS=Object.freeze({...directions("company","company"),...directions("title","job_title"),...directions("category","category_id"),...directions("subcategory","subcategory_id"),...directions("seniority","seniority"),...directions("source","source_site"),...directions("capturer","user_id"),...directions("status","status"),...directions("review","review_status"),...directions("created","created_at")});
 export const RESUME_SORTS=Object.freeze({...directions("number","resume_number"),...directions("candidate","candidate_name"),...directions("name","resume_name"),...directions("category","primary_category_id"),...directions("subcategory","subcategory_id"),...directions("seniority","seniority"),...directions("status","status"),...directions("mime","mime_type"),...directions("updated","updated_at")});
 export const USER_SORTS=Object.freeze({...directions("name","full_name"),...directions("email","email"),...directions("status","status"),...directions("roles","role_codes"),...directions("created","created_at")});
-export const USER_ROLE_CODES=Object.freeze(["APPLIER","APPLYING_MANAGER","DEVELOPER","DEVELOPMENT_MANAGER","JD_FINDER","ADMIN"]);
+export const USER_ROLE_CODES=Object.freeze(["APPLIER","APPLYING_MANAGER","DEVELOPER","DEVELOPMENT_MANAGER","JD_FINDER","INTERVIEWEE","ADMIN"]);
 /** Filter value for Admin Users list: profiles with no role assignments (awaiting approval). */
 export const USER_ROLE_PENDING="NONE";
 export const USER_ROLE_FILTER_CODES=Object.freeze([...USER_ROLE_CODES,USER_ROLE_PENDING]);

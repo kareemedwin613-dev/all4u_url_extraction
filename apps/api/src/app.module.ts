@@ -20,6 +20,7 @@ import { ResumeAnswerModule } from "./resume-answers/resume-answer.module.js";
 import { TailoringPromptsModule } from "./tailoring-prompts/tailoring-prompts.module.js";
 import { ExtensionPairingModule } from "./extension-pairing/extension-pairing.module.js";
 import { BannedCompanyModule } from "./banned-companies/banned-company.module.js";
+import { InterviewModule } from "./interviews/interview.module.js";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { BannedCompanyModule } from "./banned-companies/banned-company.module.js
     TailoringPromptsModule,
     ExtensionPairingModule,
     BannedCompanyModule,
+    InterviewModule,
   ],
   providers: [
     JsonLogger,

@@ -9,6 +9,8 @@ test("parses dashboard routes",()=>{
   assert.equal(parseRoute("#/pending-access").name,"pending-access");
   assert.equal(parseRoute("#/account-inactive").name,"account-inactive");
   assert.equal(parseRoute("#/access-denied").name,"access-denied");
+  assert.equal(parseRoute("#/calendar").name,"calendar");
+  assert.equal(parseRoute("#/calendar?application="+id).query,"application="+id);
   assert.equal(parseRoute("#/applications").name,"applications");
   assert.equal(parseRoute("#/applications/new").name,"application-new");
   assert.equal(parseRoute("#/applications/bulk-create").name,"application-bulk-create");
