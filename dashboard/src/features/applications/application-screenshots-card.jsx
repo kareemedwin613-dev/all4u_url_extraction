@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -55,6 +55,11 @@ function isImageMime(mimeType = "") {
   return String(mimeType).startsWith("image/");
 }
 
+function focusReviewFeedback(field) {
+  const node = field?.resizableTextArea?.textArea || field;
+  node?.focus?.();
+}
+
 export function ApplicationScreenshotsCard({
   client,
   apiBaseUrl,
@@ -83,6 +88,7 @@ export function ApplicationScreenshotsCard({
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState("");
   const [mistakesOpen, setMistakesOpen] = useState(false);
+  const feedbackRef = useRef(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewNote, setReviewNote] = useState("");
   const autoOpened = React.useRef("");
@@ -469,7 +475,7 @@ export function ApplicationScreenshotsCard({
                 <Button
                   icon={<EditOutlined />}
                   disabled={!feedbackReady || reviewBusy || savingFeedback}
-                  onClick={() => setMistakesOpen(true)}
+                  onClick={() => { setMistakesOpen(true); window.setTimeout(() => focusReviewFeedback(feedbackRef.current), 0); }}
                 >
                   Has mistakes
                 </Button>
@@ -486,6 +492,8 @@ export function ApplicationScreenshotsCard({
           </Flex>
         }
         onCancel={closePreview}
+        maskClosable={false}
+        keyboard={false}
         width="96vw"
         style={{ top: 12, maxWidth: 1600 }}
         destroyOnHidden
@@ -523,6 +531,8 @@ export function ApplicationScreenshotsCard({
           <div style={{ marginTop: 12 }}>
             <Text strong>Screenshot review feedback</Text>
             <Input.TextArea
+              ref={feedbackRef}
+              autoFocus
               rows={4}
               maxLength={2000}
               showCount

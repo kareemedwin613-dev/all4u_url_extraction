@@ -17,6 +17,11 @@ function isImageMime(mimeType = "") {
   return String(mimeType).startsWith("image/");
 }
 
+function focusReviewFeedback(field) {
+  const node = field?.resizableTextArea?.textArea || field;
+  node?.focus?.();
+}
+
 function previewReady(entry) {
   return Boolean(entry && entry.expiresAt > Date.now());
 }
@@ -59,6 +64,7 @@ export function ScreenshotReviewModal({
   onClose,
   onMove,
   onFeedbackSaved,
+  loadPage,
 }) {
   const application = review?.application;
   const [preview, setPreview] = useState(null);
@@ -66,6 +72,7 @@ export function ScreenshotReviewModal({
   const [previewError, setPreviewError] = useState("");
   const [draftFeedback, setDraftFeedback] = useState("");
   const [mistakesOpen, setMistakesOpen] = useState(false);
+  const feedbackRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
@@ -83,6 +90,10 @@ export function ScreenshotReviewModal({
   const filtersRef = useRef(filters);
   itemsRef.current = review?.items || [];
   filtersRef.current = filters;
+
+  const fetchPage = useCallback((pageFilters) => (
+    loadPage ? loadPage(pageFilters) : listApplications(client, apiBaseUrl, pageFilters)
+  ), [apiBaseUrl, client, loadPage]);
 
   const ensurePreviews = useCallback(async (ids) => {
     const unique = [...new Set((ids || []).filter(Boolean))];
@@ -161,7 +172,7 @@ export function ScreenshotReviewModal({
       const remembered = nextPageRef.current.page === nextPage ? nextPageRef.current.ids : null;
       const loadNextPage = remembered
         ? Promise.resolve(remembered)
-        : listApplications(client, apiBaseUrl, { ...filtersRef.current, page: nextPage, pageSize: filtersRef.current?.pageSize || 25 })
+        : fetchPage({ ...filtersRef.current, page: nextPage, pageSize: filtersRef.current?.pageSize || 25 })
           .then((data) => {
             const nextIds = (data?.items || []).filter((item) => Number(item.screenshot_count) > 0).slice(0, 4).map((item) => item.id);
             nextPageRef.current = { page: nextPage, ids: nextIds };
@@ -175,7 +186,7 @@ export function ScreenshotReviewModal({
     return () => {
       cancelled = true;
     };
-  }, [apiBaseUrl, application?.id, client, ensurePreviews, reloadKey, review?.page]);
+  }, [application?.id, ensurePreviews, fetchPage, reloadKey, review?.page]);
 
   const moveTo = useCallback(async (direction) => {
     const local = loadedReviewNeighbor(review.items, application.id, direction);
@@ -184,7 +195,7 @@ export function ScreenshotReviewModal({
       return true;
     }
     const neighbor = await findReviewNeighbor(
-      (pageFilters) => listApplications(client, apiBaseUrl, pageFilters),
+      fetchPage,
       { ...filters, page: review.page },
       application.id,
       direction,
@@ -192,7 +203,7 @@ export function ScreenshotReviewModal({
     if (!neighbor?.item) return false;
     onMove({ application: neighbor.item, items: neighbor.items || review.items, page: neighbor.page });
     return true;
-  }, [apiBaseUrl, application, client, filters, onMove, review]);
+  }, [application, fetchPage, filters, onMove, review]);
 
   const move = useCallback(async (direction) => {
     if (!application || lock.current) return;
@@ -319,7 +330,7 @@ export function ScreenshotReviewModal({
           {manager ? (
             <Space wrap>
               <Button icon={<CheckOutlined />} type="primary" loading={saving} disabled={busy} onClick={() => saveFeedback("", { advance: true, reviewStatus: "CORRECT" })}>Correct</Button>
-              <Button icon={<EditOutlined />} disabled={busy || saving} onClick={() => setMistakesOpen(true)}>Has mistakes</Button>
+              <Button icon={<EditOutlined />} disabled={busy || saving} onClick={() => { setMistakesOpen(true); window.setTimeout(() => focusReviewFeedback(feedbackRef.current), 0); }}>Has mistakes</Button>
             </Space>
           ) : null}
           <Space wrap>
@@ -331,6 +342,8 @@ export function ScreenshotReviewModal({
         </Flex>
       }
       onCancel={onClose}
+      maskClosable={false}
+      keyboard={false}
       width={maximized ? "100vw" : "96vw"}
       style={maximized ? { top: 0, maxWidth: "100vw", margin: 0, paddingBottom: 0 } : { top: 12, maxWidth: 1600 }}
       destroyOnHidden
@@ -366,6 +379,8 @@ export function ScreenshotReviewModal({
         <div style={{ marginTop: 12 }}>
           <Text strong>Screenshot review feedback</Text>
           <Input.TextArea
+            ref={feedbackRef}
+            autoFocus
             rows={4}
             maxLength={2000}
             showCount
