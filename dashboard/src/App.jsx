@@ -33,6 +33,7 @@ import {
   AppstoreOutlined,
   BarsOutlined,
   FileSearchOutlined,
+  CalendarOutlined,
   HistoryOutlined,
   HomeOutlined,
   LinkOutlined,
@@ -182,6 +183,7 @@ const TailoringBatchDetailPage = lazyNamed(() => import("./features/tailoring/ta
 const TailoringBatchesPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchesPage");
 const JdReviewBatchesPage = lazyNamed(() => import("./features/jd-review/jd-review-pages.jsx"), "JdReviewBatchesPage");
 const JdReviewBatchDetailPage = lazyNamed(() => import("./features/jd-review/jd-review-pages.jsx"), "JdReviewBatchDetailPage");
+const CalendarPage = lazyNamed(() => import("./features/interviews/calendar-page.jsx"), "CalendarPage");
 
 const go = (hash, replace = false) =>
   replace ? location.replace(hash) : location.assign(hash);
@@ -223,6 +225,7 @@ const Pagination = DataPagination;
 
 const NAV_ICONS = Object.freeze({
     overview: <HomeOutlined />,
+    calendar: <CalendarOutlined />,
     applications: <AppstoreOutlined />,
     "application-batches": <HistoryOutlined />,
     "assignment-batches": <HistoryOutlined />,
@@ -3352,6 +3355,8 @@ export function App({ client, apiBaseUrl }) {
     ) : (
       <TechnicalOverview access={access} />
     );
+  else if (route.name === "calendar")
+    page = <CalendarPage client={client} apiBaseUrl={apiBaseUrl} access={access} query={route.query} />;
   else if (route.name === "applications")
     page = (
       <ApplicationsPage

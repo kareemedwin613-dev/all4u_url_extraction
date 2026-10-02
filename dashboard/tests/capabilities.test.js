@@ -8,6 +8,7 @@ test("each fixed role maps to the expected capabilities",()=>{
   assert.deepEqual([...capabilitiesForRoles(["DEVELOPER"])],[CAPABILITIES.PROFILE_VIEW_SELF]);
   assert.deepEqual([...capabilitiesForRoles(["DEVELOPMENT_MANAGER"])],[CAPABILITIES.PROFILE_VIEW_SELF]);
   assert.deepEqual([...capabilitiesForRoles(["JD_FINDER"])].sort(),[CAPABILITIES.GLOBAL_BANNED_COMPANY_READ,CAPABILITIES.JOB_DESCRIPTION_EDIT_OWN,CAPABILITIES.JOB_DESCRIPTION_READ,CAPABILITIES.PROFILE_VIEW_SELF].sort());
+  assert.deepEqual([...capabilitiesForRoles(["INTERVIEWEE"])].sort(),[CAPABILITIES.INTERVIEW_VIEW,CAPABILITIES.PROFILE_VIEW_SELF].sort());
   assert.deepEqual([...capabilitiesForRoles(["ADMIN"])].sort(),[...ALL_CAPABILITIES].sort());
 });
 

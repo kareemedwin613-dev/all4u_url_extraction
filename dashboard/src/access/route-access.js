@@ -12,6 +12,7 @@ export const ROUTE_CAPABILITIES = Object.freeze({
   "resume-detail": CAPABILITIES.BUSINESS_DATA_READ,
   "candidate-profile": CAPABILITIES.APPLICATION_MANAGE,
   "resume-upload": CAPABILITIES.USER_ADMIN,
+  calendar: CAPABILITIES.INTERVIEW_VIEW,
   applications: CAPABILITIES.APPLICATION_VIEW,
   "application-detail": CAPABILITIES.APPLICATION_VIEW,
   "application-new": CAPABILITIES.APPLICATION_MANAGE,
@@ -39,6 +40,7 @@ export const ROUTE_CAPABILITIES = Object.freeze({
 
 export const NAVIGATION = Object.freeze([
   {name: "overview", label: "Overview", href: "#/", capability: null},
+  {name: "calendar", label: "Calendar", href: "#/calendar", capability: CAPABILITIES.INTERVIEW_VIEW},
   {name: "applications", label: "Applications", href: "#/applications", capability: CAPABILITIES.APPLICATION_VIEW},
   {name: "application-batches", label: "Application Batches", href: "#/application-batches", capability: CAPABILITIES.APPLICATION_BULK_MANAGE},
   {name: "applier-directory", label: "Applier Directory", href: "#/applier-directory", capability: CAPABILITIES.APPLICATION_MANAGE},

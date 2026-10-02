@@ -54,6 +54,7 @@ import {
   APPLICATION_PRIORITIES,
   APPLICATION_STATUSES,
 } from "./constants.js";
+import { CAPABILITIES, hasCapability } from "../../access/capabilities.js";
 import { applicationActions, isApplicationManager } from "./validation.js";
 
 function renderApplicationTechStacks(record, categories) {
@@ -100,6 +101,7 @@ import { listApplicationBatchOptions } from "../bulk-applications/bulk-service.j
 import { storeAssignmentIds } from "../bulk-assignment/bulk-assignment-service.js";
 import { createTailoringBatch,requestApplicationTailoring } from "../tailoring/tailoring-service.js";
 import { ApplicationScoreComparison } from "../application-matching/application-score-comparison.jsx";
+import { ApplicationInterviewsCard } from "../interviews/application-interviews-card.jsx";
 
 const { Text, Title } = Typography,
   Table = (props) => (
@@ -1238,6 +1240,15 @@ function ProgressForm({ application, manager, onSave, busy }) {
           description="Other Applications for the same job remain unchanged. Add a note explaining the blocker."
         />
       ) : null}
+      {status === "INTERVIEW_SCHEDULED" && application.status !== "INTERVIEW_SCHEDULED" ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="The calendar opens after you save"
+          description="Record the date, stage, meeting link, and rounds there."
+        />
+      ) : null}
       <Form.Item
         label="Confirmation URL"
         name="applicationUrl"
@@ -1303,6 +1314,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = 
     [busy, setBusy] = useState(false),
     [activeTab, setActiveTab] = useState("overview"),
     manager = isApplicationManager(access),
+    canViewCalendar = hasCapability(access, CAPABILITIES.INTERVIEW_VIEW),
     listFilters = parseApplicationQuery(query),
     listHref = filterHref("#/applications", serializeApplicationQuery(listFilters));
   useEffect(() => {
@@ -1352,9 +1364,11 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = 
       setIsError(false);
       setMessage(typeof success === "function" ? success(result) : success);
       setDetail(await getApplication(client, apiBaseUrl, id));
+      return true;
     } catch (x) {
       setIsError(true);
       setMessage(x.message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -1573,6 +1587,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = 
                   />
                 </Card>
                 <Collapse items={[{ key: "archived-scores", label: "Archived AI evaluation history", children: <ApplicationScoreComparison client={client} apiBaseUrl={apiBaseUrl} applicationId={id} resumeId={resume.id} manager={false} /> }]} />
+                {canViewCalendar ? <ApplicationInterviewsCard client={client} apiBaseUrl={apiBaseUrl} applicationId={id} /> : null}
                 <ApplicationScreenshotsCard
                   key={id}
                   client={client}
@@ -1676,14 +1691,18 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = 
                   application={a}
                   manager={manager}
                   busy={busy}
-                  onSave={(value) =>
-                    run(
+                  onSave={async (value) => {
+                    const scheduleInterview = value.status === "INTERVIEW_SCHEDULED" && a.status !== "INTERVIEW_SCHEDULED";
+                    const saved = await run(
                       () => updateApplication(client, apiBaseUrl, id, value),
-                      () => value.status === "BLOCKED"
-                        ? "Application blocked. Other Applications remain unchanged."
-                        : "Application progress was saved.",
-                    )
-                  }
+                      () => scheduleInterview
+                        ? "Application progress was saved. Record the interview on the calendar."
+                        : value.status === "BLOCKED"
+                          ? "Application blocked. Other Applications remain unchanged."
+                          : "Application progress was saved.",
+                    );
+                    if (saved && scheduleInterview && canViewCalendar) go(`#/calendar?application=${id}`);
+                  }}
                 />
               </Card>
             ),

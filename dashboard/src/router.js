@@ -12,6 +12,7 @@ export function parseRoute(hash = "#/") {
   if (parts[0] === "pending-access" && parts.length === 1) return {name: "pending-access", path: "/pending-access", query};
   if (parts[0] === "account-inactive" && parts.length === 1) return {name: "account-inactive", path: "/account-inactive", query};
   if (parts[0] === "access-denied" && parts.length === 1) return {name: "access-denied", path: "/access-denied", query};
+  if (parts[0] === "calendar" && parts.length === 1) return {name: "calendar", path: "/calendar", query};
   if (parts[0] === "applications" && parts.length === 1) return {name: "applications", path: "/applications", query};
   if (parts[0] === "applications" && parts[1] === "bulk-create" && parts.length === 2) return {name: "application-bulk-create", path: "/applications/bulk-create", query};
   if (parts[0] === "applications" && parts[1] === "bulk-assign" && parts.length === 2) return {name: "application-bulk-assign", path: "/applications/bulk-assign", query};

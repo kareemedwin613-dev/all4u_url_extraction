@@ -4,6 +4,7 @@ export const ROLE_CODES = Object.freeze({
   DEVELOPER: "DEVELOPER",
   DEVELOPMENT_MANAGER: "DEVELOPMENT_MANAGER",
   JD_FINDER: "JD_FINDER",
+  INTERVIEWEE: "INTERVIEWEE",
   ADMIN: "ADMIN",
 });
 
@@ -15,6 +16,7 @@ export const ROLE_LABELS = Object.freeze({
   DEVELOPER: "Developer",
   DEVELOPMENT_MANAGER: "Development Manager",
   JD_FINDER: "JD Finder",
+  INTERVIEWEE: "Interviewee",
   ADMIN: "Admin",
 });
 
@@ -24,6 +26,7 @@ export const ROLE_COLORS = Object.freeze({
   DEVELOPER: "geekblue",
   DEVELOPMENT_MANAGER: "purple",
   JD_FINDER: "orange",
+  INTERVIEWEE: "green",
   ADMIN: "magenta",
 });
 

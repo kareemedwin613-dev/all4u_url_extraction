@@ -22,6 +22,12 @@ test("direct business and admin routes are capability protected",()=>{
   assert.equal(guardAccessRoute(parseRoute("#/resumes"),session,access(["JD_FINDER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/admin/users"),session,access(["APPLIER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/admin/users"),session,access(["ADMIN"])),null);
+  assert.equal(guardAccessRoute(parseRoute("#/calendar"),session,access(["APPLIER"])),"#/access-denied");
+  assert.equal(guardAccessRoute(parseRoute("#/calendar"),session,access(["APPLYING_MANAGER"])),"#/access-denied");
+  assert.equal(guardAccessRoute(parseRoute("#/calendar"),session,access(["JD_FINDER"])),"#/access-denied");
+  assert.equal(guardAccessRoute(parseRoute("#/calendar"),session,access(["INTERVIEWEE"])),null);
+  assert.equal(guardAccessRoute(parseRoute("#/calendar"),session,access(["ADMIN"])),null);
+  assert.equal(guardAccessRoute(parseRoute("#/applications"),session,access(["INTERVIEWEE"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/applications"),session,access(["APPLIER"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/applications/new"),session,access(["APPLIER"])),"#/access-denied");
   assert.equal(guardAccessRoute(parseRoute("#/applications/new"),session,access(["APPLYING_MANAGER"])),null);
@@ -39,11 +45,12 @@ test("direct business and admin routes are capability protected",()=>{
 
 test("navigation is exact for technical, business, admin, and multi-role users",()=>{
   assert.deepEqual(navigationForAccess(access(["DEVELOPER"])).map(x=>x.label),["Overview","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["INTERVIEWEE"])).map(x=>x.label),["Overview","Calendar","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["JD_FINDER"])).map(x=>x.label),["Overview","Job Descriptions","Banned Companies","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER","DEVELOPER"])).map(x=>x.label),["Overview","Applications","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Users","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Applications","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Upload Resume","Users","Roles","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Calendar","Applications","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Upload Resume","Users","Roles","My Profile"]);
 });
 
 test("applier directory route is available to managers and admins",()=>{
