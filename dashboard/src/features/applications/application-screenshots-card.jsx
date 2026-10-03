@@ -498,37 +498,39 @@ export function ApplicationScreenshotsCard({
         style={{ top: 12, maxWidth: 1600 }}
         destroyOnHidden
       >
-        {applicationCaption ? (
-          <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-            {applicationCaption}
-          </Text>
-        ) : null}
-        {previewLoading ? (
-          <Flex align="center" justify="center" style={{ minHeight: 360 }}>
-            <Spin tip="Loading preview…" />
-          </Flex>
-        ) : previewError ? (
-          <ErrorState message={previewError} retry={() => showPreview(preview.screenshot)} />
-        ) : preview?.url && isImageMime(preview.screenshot.mime_type) ? (
-          <img
-            src={preview.url}
-            alt={preview.screenshot.original_filename}
-            className="application-screenshot-preview"
-          />
-        ) : preview?.url ? (
-          <iframe
-            title={preview.screenshot.original_filename}
-            src={preview.url}
-            className="application-screenshot-preview application-screenshot-preview--pdf"
-          />
-        ) : null}
-        {reviewNote ? (
-          <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
-            {reviewNote}
-          </Text>
-        ) : null}
+        <div className="application-screenshot-scroll">
+          {applicationCaption ? (
+            <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+              {applicationCaption}
+            </Text>
+          ) : null}
+          {previewLoading ? (
+            <Flex align="center" justify="center" style={{ minHeight: 360 }}>
+              <Spin tip="Loading preview…" />
+            </Flex>
+          ) : previewError ? (
+            <ErrorState message={previewError} retry={() => showPreview(preview.screenshot)} />
+          ) : preview?.url && isImageMime(preview.screenshot.mime_type) ? (
+            <img
+              src={preview.url}
+              alt={preview.screenshot.original_filename}
+              className="application-screenshot-preview"
+            />
+          ) : preview?.url ? (
+            <iframe
+              title={preview.screenshot.original_filename}
+              src={preview.url}
+              className="application-screenshot-preview application-screenshot-preview--pdf"
+            />
+          ) : null}
+          {reviewNote ? (
+            <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+              {reviewNote}
+            </Text>
+          ) : null}
+        </div>
         {manager && mistakesOpen ? (
-          <div style={{ marginTop: 12 }}>
+          <div className="application-screenshot-feedback">
             <Text strong>Screenshot review feedback</Text>
             <Input.TextArea
               ref={feedbackRef}

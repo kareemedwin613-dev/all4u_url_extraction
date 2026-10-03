@@ -240,13 +240,15 @@ end;
 $$;
 
 drop function if exists public.list_profile_screenshot_applications_v3147(uuid, integer, integer);
+drop function if exists public.list_profile_screenshot_applications_v3147(uuid, integer, integer, timestamptz, timestamptz);
 
 create or replace function public.list_profile_screenshot_applications_v3147(
   p_resume_id uuid,
   p_page integer default 1,
   p_page_size integer default 25,
   p_from timestamptz default null,
-  p_to timestamptz default null
+  p_to timestamptz default null,
+  p_review text default ''
 )
 returns jsonb
 language plpgsql
@@ -260,7 +262,11 @@ declare
   v_size integer := least(greatest(coalesce(p_page_size, 25), 1), 100);
   v_total integer;
   v_allowed boolean;
+  v_review text := upper(btrim(coalesce(p_review, '')));
 begin
+  if v_review not in ('CORRECT', 'HAS_MISTAKES', 'NOT_REVIEWED') then
+    v_review := '';
+  end if;
   if v_actor is null or not public.is_active_user(v_actor) then
     raise exception 'APPLICATION_ACCESS_DENIED: Sign in with an active account.' using errcode = '42501';
   end if;
@@ -280,7 +286,13 @@ begin
   where coalesce(r.parent_resume_id, r.id) = p_resume_id
     and (p_from is null or a.applied_at >= p_from)
     and (p_to is null or a.applied_at < p_to)
-    and exists (select 1 from public.application_screenshots s where s.application_id = a.id);
+    and exists (select 1 from public.application_screenshots s where s.application_id = a.id)
+    and (
+      v_review = ''
+      or (v_review = 'CORRECT' and a.screenshot_review_status = 'CORRECT')
+      or (v_review = 'HAS_MISTAKES' and a.screenshot_review_status = 'HAS_MISTAKES')
+      or (v_review = 'NOT_REVIEWED' and coalesce(a.screenshot_review_status, '') not in ('CORRECT', 'HAS_MISTAKES'))
+    );
   return jsonb_build_object(
     'page', v_page,
     'pageSize', v_size,
@@ -310,6 +322,12 @@ begin
           and (p_from is null or a.applied_at >= p_from)
           and (p_to is null or a.applied_at < p_to)
           and exists (select 1 from public.application_screenshots s where s.application_id = a.id)
+          and (
+            v_review = ''
+            or (v_review = 'CORRECT' and a.screenshot_review_status = 'CORRECT')
+            or (v_review = 'HAS_MISTAKES' and a.screenshot_review_status = 'HAS_MISTAKES')
+            or (v_review = 'NOT_REVIEWED' and coalesce(a.screenshot_review_status, '') not in ('CORRECT', 'HAS_MISTAKES'))
+          )
         order by a.application_number desc
         offset (v_page - 1) * v_size
         limit v_size
@@ -407,7 +425,7 @@ revoke all on function public.actor_reviews_application_screenshots(uuid) from p
 revoke all on function public.list_screenshot_review_assignments_v3147(timestamptz, timestamptz) from public, anon;
 revoke all on function public.list_screenshot_reviewer_candidates_v3147() from public, anon;
 revoke all on function public.set_screenshot_profile_reviewers_v3147(uuid, uuid, uuid) from public, anon;
-revoke all on function public.list_profile_screenshot_applications_v3147(uuid, integer, integer, timestamptz, timestamptz) from public, anon;
+revoke all on function public.list_profile_screenshot_applications_v3147(uuid, integer, integer, timestamptz, timestamptz, text) from public, anon;
 revoke all on function public.set_application_screenshot_feedback_v3147(uuid, text, text) from public, anon;
 
 grant execute on function public.screenshot_reviewer_candidate(uuid) to authenticated;
@@ -415,5 +433,5 @@ grant execute on function public.actor_reviews_application_screenshots(uuid) to 
 grant execute on function public.list_screenshot_review_assignments_v3147(timestamptz, timestamptz) to authenticated;
 grant execute on function public.list_screenshot_reviewer_candidates_v3147() to authenticated;
 grant execute on function public.set_screenshot_profile_reviewers_v3147(uuid, uuid, uuid) to authenticated;
-grant execute on function public.list_profile_screenshot_applications_v3147(uuid, integer, integer, timestamptz, timestamptz) to authenticated;
+grant execute on function public.list_profile_screenshot_applications_v3147(uuid, integer, integer, timestamptz, timestamptz, text) to authenticated;
 grant execute on function public.set_application_screenshot_feedback_v3147(uuid, text, text) to authenticated;

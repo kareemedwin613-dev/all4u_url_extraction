@@ -13,6 +13,7 @@ import {
   UNASSIGNED_FILTER,
   countScreenshotReviewerFilters,
   parseScreenshotReviewerFilters,
+  screenshotMatchesReviewFilter,
   screenshotReviewerRowMatches,
 } from "./screenshot-reviewer-filters.js";
 import {
@@ -139,6 +140,23 @@ function ScreenshotReviewerFilters({ filters, isAdmin, primaryOptions, secondary
             />
           </label>
         </Col>
+        <Col {...field}>
+          <label>
+            Review
+            <Select
+              allowClear
+              value={filters.review || undefined}
+              placeholder="All"
+              onChange={(review) => onChange({ review: review || "" })}
+              options={[
+                { value: "CORRECT", label: "Correct" },
+                { value: "HAS_MISTAKES", label: "Has mistakes" },
+                { value: "NOT_REVIEWED", label: "Not-checked" },
+              ]}
+              style={{ width: "100%" }}
+            />
+          </label>
+        </Col>
         <Col {...field} className="filter-actions">
           <Button
             disabled={!activeCount}
@@ -148,6 +166,7 @@ function ScreenshotReviewerFilters({ filters, isAdmin, primaryOptions, secondary
               currentApplier: "",
               primaryReviewer: "",
               secondaryReviewer: "",
+              review: "",
             })}
           >
             Clear filters
@@ -177,7 +196,7 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
   const [review, setReview] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [tableHostRef, tableBodyHeight] = useTableBodyHeight(rows != null);
-  const reviewFilters = useMemo(() => ({ pageSize: 25 }), []);
+  const reviewFilters = useMemo(() => ({ pageSize: 25, review: filters.review || "" }), [filters.review]);
   const loadGeneration = useRef(0);
 
   const replaceQuery = (mutate) => {
@@ -353,16 +372,22 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
       pageFilters.page || 1,
       pageFilters.pageSize || 25,
       range,
+      pageFilters.review || filters.review,
     );
-  }, [apiBaseUrl, client, range, review?.profileId]);
+  }, [apiBaseUrl, client, filters.review, range, review?.profileId]);
 
   async function openReview(row) {
     setError("");
     try {
-      const page = await listProfileScreenshotApplications(client, apiBaseUrl, row.resume_id, 1, 25, range);
+      const page = await listProfileScreenshotApplications(client, apiBaseUrl, row.resume_id, 1, 25, range, filters.review);
       const items = page?.items || [];
       if (!items.length) {
-        message.info("This profile has no screenshot files.");
+        const empty = {
+          CORRECT: "This profile has no correct screenshots in this date range.",
+          HAS_MISTAKES: "This profile has no screenshots with mistakes in this date range.",
+          NOT_REVIEWED: "This profile has no unchecked screenshots in this date range.",
+        }[filters.review] || "This profile has no screenshots in this date range.";
+        message.info(empty);
         return;
       }
       setReview({ application: items[0], items, page: page.page || 1, profileId: row.resume_id });
@@ -440,9 +465,11 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
       title: "",
       key: "review",
       width: 110,
+      fixed: "right",
       render: (_, row) => <Button onClick={() => openReview(row)}>Review</Button>,
     },
   ];
+  const tableScrollX = columns.reduce((sum, column) => sum + (Number(column.width) || 0), 0);
 
   return (
     <div className="page page-list">
@@ -473,7 +500,7 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
             dataSource={pageRows}
             pagination={false}
             tableLayout="fixed"
-            scroll={{ y: tableBodyHeight }}
+            scroll={{ x: tableScrollX, y: tableBodyHeight }}
             summary={() => (
               <Table.Summary fixed>
                 <Table.Summary.Row>
@@ -514,10 +541,17 @@ export function ScreenshotReviewersPage({ client, apiBaseUrl, access, query = ""
         onClose={() => setReview(null)}
         onMove={(next) => setReview((current) => ({ ...next, profileId: current?.profileId }))}
         onFeedbackSaved={(applicationId, updated) => {
-          setReview((current) => current && ({
-            ...current,
-            items: (current.items || []).map((item) => item.id === applicationId ? { ...item, ...updated } : item),
-          }));
+          setReview((current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              items: (current.items || []).flatMap((item) => {
+                if (item.id !== applicationId) return [item];
+                const next = { ...item, ...updated };
+                return screenshotMatchesReviewFilter(next.screenshot_review_status, filters.review) ? [next] : [];
+              }),
+            };
+          });
           load();
         }}
       />

@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer";
-import { IsInt, IsISO8601, IsOptional, IsUUID, Max, Min } from "class-validator";
+import { IsIn, IsInt, IsISO8601, IsOptional, IsUUID, Max, Min } from "class-validator";
 
 const emptyToNull = ({ value }: { value: unknown }) => {
   const text = String(value ?? "").trim();
@@ -47,4 +47,9 @@ export class ProfileScreenshotApplicationsQueryDto {
   @IsOptional()
   @IsISO8601()
   to?: string;
+
+  @Transform(emptyToNull)
+  @IsOptional()
+  @IsIn(["CORRECT", "HAS_MISTAKES", "NOT_REVIEWED"])
+  review?: string | null;
 }

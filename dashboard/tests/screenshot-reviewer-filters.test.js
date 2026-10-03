@@ -5,6 +5,7 @@ import {
   UNASSIGNED_FILTER,
   countScreenshotReviewerFilters,
   parseScreenshotReviewerFilters,
+  screenshotMatchesReviewFilter,
   screenshotReviewerRowMatches,
 } from "../src/features/applications/screenshot-reviewer-filters.js";
 
@@ -50,6 +51,24 @@ test("reviewer filters stay on the loaded rows and do not reload assignments", a
   assert.match(source, /\[period\.window, period\.from, period\.to\]/);
   assert.match(source, /generation !== loadGeneration\.current/);
   assert.match(source, /screenshotReviewerRowMatches\(row, filters, \{ isAdmin \}\)/);
+});
+
+test("review filter keeps profiles that have the selected screenshot state", () => {
+  const checked = { ...row, reviewed_screenshot_count: 3, mistake_screenshot_count: 1, unreviewed_screenshot_count: 0 };
+  const mistakesOnly = { ...row, reviewed_screenshot_count: 2, mistake_screenshot_count: 2, unreviewed_screenshot_count: 0 };
+  const unchecked = { ...row, reviewed_screenshot_count: 0, mistake_screenshot_count: 0, unreviewed_screenshot_count: 2 };
+  const filters = parseScreenshotReviewerFilters("review=CORRECT");
+  assert.equal(filters.review, "CORRECT");
+  assert.equal(countScreenshotReviewerFilters(filters), 1);
+  assert.equal(screenshotReviewerRowMatches(checked, filters), true);
+  assert.equal(screenshotReviewerRowMatches(mistakesOnly, filters), false);
+  assert.equal(screenshotReviewerRowMatches(mistakesOnly, { review: "HAS_MISTAKES" }), true);
+  assert.equal(screenshotReviewerRowMatches(unchecked, { review: "NOT_REVIEWED" }), true);
+  assert.equal(parseScreenshotReviewerFilters("review=maybe").review, "");
+  assert.equal(screenshotMatchesReviewFilter("HAS_MISTAKES", "HAS_MISTAKES"), true);
+  assert.equal(screenshotMatchesReviewFilter("CORRECT", "HAS_MISTAKES"), false);
+  assert.equal(screenshotMatchesReviewFilter("", "NOT_REVIEWED"), true);
+  assert.equal(screenshotMatchesReviewFilter("CORRECT", ""), true);
 });
 
 test("current applier filter is ignored unless the viewer is an admin", () => {

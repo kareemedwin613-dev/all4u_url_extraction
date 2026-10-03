@@ -17,6 +17,32 @@ function personFilter(value) {
   return text;
 }
 
+const REVIEW_FILTERS = new Set(["CORRECT", "HAS_MISTAKES", "NOT_REVIEWED"]);
+
+function reviewFilter(value) {
+  const text = clip(value, 20).toUpperCase().replace(/-/g, "_");
+  return REVIEW_FILTERS.has(text) ? text : "";
+}
+
+export function screenshotMatchesReviewFilter(status, review) {
+  const selected = reviewFilter(review);
+  if (!selected) return true;
+  const value = String(status || "").toUpperCase();
+  if (selected === "CORRECT") return value === "CORRECT";
+  if (selected === "HAS_MISTAKES") return value === "HAS_MISTAKES";
+  return value !== "CORRECT" && value !== "HAS_MISTAKES";
+}
+
+function matchesReview(selected, row) {
+  if (!selected) return true;
+  const reviewed = Number(row?.reviewed_screenshot_count) || 0;
+  const mistakes = Number(row?.mistake_screenshot_count) || 0;
+  const unchecked = Number(row?.unreviewed_screenshot_count) || 0;
+  if (selected === "CORRECT") return reviewed - mistakes > 0;
+  if (selected === "HAS_MISTAKES") return mistakes > 0;
+  return unchecked > 0;
+}
+
 export function parseScreenshotReviewerFilters(query = "") {
   const params = new URLSearchParams(query);
   const status = clip(params.get("status"), 20).toUpperCase();
@@ -26,6 +52,7 @@ export function parseScreenshotReviewerFilters(query = "") {
     currentApplier: personFilter(params.get("currentApplier")),
     primaryReviewer: idFilter(params.get("primaryReviewer")),
     secondaryReviewer: idFilter(params.get("secondaryReviewer")),
+    review: reviewFilter(params.get("review")),
   };
 }
 
@@ -36,6 +63,7 @@ export function countScreenshotReviewerFilters(filters = {}, { isAdmin = false }
   if (isAdmin && filters.currentApplier) count += 1;
   if (filters.primaryReviewer) count += 1;
   if (filters.secondaryReviewer) count += 1;
+  if (filters.review) count += 1;
   return count;
 }
 
@@ -58,5 +86,6 @@ export function screenshotReviewerRowMatches(row, filters = {}, { isAdmin = fals
   if (isAdmin && !matchesAssigned(filters.currentApplier, row?.current_applier_name)) return false;
   if (!matchesAssigned(filters.primaryReviewer, row?.primary_reviewer_id)) return false;
   if (!matchesAssigned(filters.secondaryReviewer, row?.secondary_reviewer_id)) return false;
+  if (!matchesReview(filters.review, row)) return false;
   return true;
 }

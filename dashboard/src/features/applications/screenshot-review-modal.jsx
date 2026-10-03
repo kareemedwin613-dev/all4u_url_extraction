@@ -10,6 +10,7 @@ import {
   updateApplicationScreenshotFeedback,
 } from "./application-service.js";
 import { findReviewNeighbor, loadedReviewNeighbor, SCREENSHOT_ZOOM_STEPS, screenshotPrefetchIds, screenshotReviewStatus, stepScreenshotZoom, upcomingScreenshotIds } from "./screenshot-review.js";
+import { screenshotMatchesReviewFilter } from "./screenshot-reviewer-filters.js";
 
 const { Text } = Typography;
 
@@ -248,10 +249,33 @@ export function ScreenshotReviewModal({
         screenshot_feedback_at: updated?.screenshot_feedback_at || null,
         screenshot_review_status: updated?.screenshot_review_status || reviewStatus || "",
       };
-      const items = (review.items || []).map((item) => item.id === application.id ? { ...item, ...patch } : item);
+      const stillMatches = screenshotMatchesReviewFilter(patch.screenshot_review_status, filters?.review);
+      const items = stillMatches
+        ? (review.items || []).map((item) => item.id === application.id ? { ...item, ...patch } : item)
+        : (review.items || []).filter((item) => item.id !== application.id);
       setDraftFeedback(patch.screenshot_feedback);
       setMistakesOpen(false);
       onFeedbackSaved?.(application.id, { ...updated, ...patch });
+      if (!stillMatches) {
+        const nextItem = neighbor?.item ? items.find((item) => item.id === neighbor.item.id) : null;
+        if (nextItem) {
+          onMove({ application: nextItem, items, page: review.page });
+          return;
+        }
+        const pageSize = filters?.pageSize || 25;
+        let data = await fetchPage({ ...filters, page: review.page || 1, pageSize });
+        let nextItems = (data?.items || []).filter((item) => item.id !== application.id);
+        if (!nextItems.length && (review.page || 1) > 1) {
+          data = await fetchPage({ ...filters, page: 1, pageSize });
+          nextItems = data?.items || [];
+        }
+        if (nextItems.length) {
+          onMove({ application: nextItems[0], items: nextItems, page: data.page || 1 });
+          return;
+        }
+        onClose?.();
+        return;
+      }
       if (!advance) return;
       if (neighbor?.located && neighbor.item) {
         onMove({
@@ -348,35 +372,37 @@ export function ScreenshotReviewModal({
       style={maximized ? { top: 0, maxWidth: "100vw", margin: 0, paddingBottom: 0 } : { top: 12, maxWidth: 1600 }}
       destroyOnHidden
     >
-      {caption ? <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>{caption}</Text> : null}
-      {previewLoading ? (
-        <Flex align="center" justify="center" style={{ minHeight: 360 }}><Spin tip="Loading preview…" /></Flex>
-      ) : previewError ? (
-        <ErrorState message={previewError} retry={() => { cache.current.delete(application.id); setReloadKey((value) => value + 1); }} />
-      ) : preview?.url ? (
-        <div ref={stageRef} className="application-screenshot-stage">
-          {isImageMime(preview.screenshot.mime_type) ? (
-            <img
-              src={preview.url}
-              alt={preview.screenshot.original_filename}
-              className="application-screenshot-preview application-screenshot-preview--scaled"
-              decoding="async"
-              fetchPriority="high"
-              style={{ width: `${zoom}%` }}
-            />
-          ) : (
-            <iframe
-              title={preview.screenshot.original_filename}
-              src={preview.url}
-              className="application-screenshot-preview application-screenshot-preview--pdf application-screenshot-preview--scaled"
-              style={{ width: `${zoom}%`, height: `${Math.max(40, Math.round(70 * zoom / 100))}vh` }}
-            />
-          )}
-        </div>
-      ) : null}
-      {note ? <Text type="secondary" style={{ display: "block", marginTop: 8 }}>{note}</Text> : null}
+      <div className="application-screenshot-scroll">
+        {caption ? <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>{caption}</Text> : null}
+        {previewLoading ? (
+          <Flex align="center" justify="center" style={{ minHeight: 360 }}><Spin tip="Loading preview…" /></Flex>
+        ) : previewError ? (
+          <ErrorState message={previewError} retry={() => { cache.current.delete(application.id); setReloadKey((value) => value + 1); }} />
+        ) : preview?.url ? (
+          <div ref={stageRef} className="application-screenshot-stage">
+            {isImageMime(preview.screenshot.mime_type) ? (
+              <img
+                src={preview.url}
+                alt={preview.screenshot.original_filename}
+                className="application-screenshot-preview application-screenshot-preview--scaled"
+                decoding="async"
+                fetchPriority="high"
+                style={{ width: `${zoom}%` }}
+              />
+            ) : (
+              <iframe
+                title={preview.screenshot.original_filename}
+                src={preview.url}
+                className="application-screenshot-preview application-screenshot-preview--pdf application-screenshot-preview--scaled"
+                style={{ width: `${zoom}%`, height: `${Math.max(40, Math.round(70 * zoom / 100))}vh` }}
+              />
+            )}
+          </div>
+        ) : null}
+        {note ? <Text type="secondary" style={{ display: "block", marginTop: 8 }}>{note}</Text> : null}
+      </div>
       {manager && mistakesOpen ? (
-        <div style={{ marginTop: 12 }}>
+        <div className="application-screenshot-feedback">
           <Text strong>Screenshot review feedback</Text>
           <Input.TextArea
             ref={feedbackRef}
