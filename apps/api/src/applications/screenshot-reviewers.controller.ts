@@ -55,6 +55,6 @@ export class ScreenshotReviewersController {
     @Param("resumeId", new ParseUUIDPipe({ version: "4" })) resumeId: string,
     @Query(new DtoValidationPipe(ProfileScreenshotApplicationsQueryDto)) query: ProfileScreenshotApplicationsQueryDto,
   ) {
-    return this.response(request, await this.applications.listProfileScreenshotApplications(request.user!, resumeId, query.page, query.pageSize, query.from || null, query.to || null));
+    return this.response(request, await this.applications.listProfileScreenshotApplications(request.user!, resumeId, query.page, query.pageSize, query.from || null, query.to || null, query.review || null));
   }
 }
