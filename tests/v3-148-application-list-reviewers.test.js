@@ -8,6 +8,10 @@ const page = await readFile(new URL("../dashboard/src/features/applications/appl
 test("application list returns and filters profile reviewers", () => {
   assert.match(sql, /p_primary_reviewer_id uuid default null/);
   assert.match(sql, /p_secondary_reviewer_id uuid default null/);
+  assert.match(sql, /p_applied_from timestamptz default null/);
+  assert.match(sql, /p_applied_to timestamptz default null/);
+  assert.match(sql, /a\.applied_at >= p_applied_from/);
+  assert.match(sql, /a\.applied_at < p_applied_to/);
   assert.match(sql, /original_profile\.screenshot_primary_reviewer_id as primary_reviewer_id/);
   assert.match(sql, /nullif\(primary_reviewer\.full_name,''\) as primary_reviewer_name/);
   assert.match(sql, /original_profile\.screenshot_secondary_reviewer_id as secondary_reviewer_id/);

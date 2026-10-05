@@ -71,7 +71,9 @@ function renderApplicationTechStacks(record, categories) {
     </Space>
   );
 }
+import { OVERVIEW_WINDOWS } from "../overview/overview-date.js";
 import {
+  appliedListBounds,
   countActiveApplicationFilters,
   parseApplicationQuery,
   serializeApplicationQuery,
@@ -158,13 +160,16 @@ function ApplicationListFilters({
   reviewers,
   onChange,
 }) {
-  const field = { xs: 24, sm: 12, lg: 8, xl: 6 },
+  const field = { xs: 24, sm: 12, md: 8, lg: 6, xl: 4, xxl: 3 },
+    searchField = { xs: 24, sm: 24, md: 16, lg: 12, xl: 8, xxl: 6 },
     activeCount = countActiveApplicationFilters(filters),
     [searchDraft, setSearchDraft] = useState(filters.search),
     [companyDraft, setCompanyDraft] = useState(filters.company),
     [profileNameDraft, setProfileNameDraft] = useState(filters.profileName),
     [resumeNameDraft, setResumeNameDraft] = useState(filters.resumeName),
-    [screenshotFilenameDraft, setScreenshotFilenameDraft] = useState(filters.screenshotFilename);
+    [screenshotFilenameDraft, setScreenshotFilenameDraft] = useState(filters.screenshotFilename),
+    [appliedFromDraft, setAppliedFromDraft] = useState(filters.appliedFrom),
+    [appliedToDraft, setAppliedToDraft] = useState(filters.appliedTo);
   useEffect(() => {
     setSearchDraft(filters.search);
   }, [filters.search]);
@@ -180,6 +185,21 @@ function ApplicationListFilters({
   useEffect(() => {
     setScreenshotFilenameDraft(filters.screenshotFilename);
   }, [filters.screenshotFilename]);
+  useEffect(() => {
+    setAppliedFromDraft(filters.appliedFrom);
+    setAppliedToDraft(filters.appliedTo);
+  }, [filters.appliedFrom, filters.appliedTo]);
+  function commitAppliedRange(from, to) {
+    if (!from || !to) {
+      if (filters.appliedFrom || filters.appliedTo) onChange({ appliedFrom: "", appliedTo: "", page: 1 });
+      return;
+    }
+    if (from > to) return;
+    const span = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
+    if (!Number.isFinite(span) || span >= 370) return;
+    onChange({ appliedFrom: from, appliedTo: to, page: 1 });
+  }
+  const appliedRangeInvalid = Boolean(appliedFromDraft && appliedToDraft && (appliedFromDraft > appliedToDraft || (Date.parse(`${appliedToDraft}T00:00:00Z`) - Date.parse(`${appliedFromDraft}T00:00:00Z`)) / 86400000 >= 370));
   function clearFilters() {
     onChange({
       search: "",
@@ -193,13 +213,16 @@ function ApplicationListFilters({
       screenshotFilename: "",
       primaryReviewerId: "",
       secondaryReviewerId: "",
+      appliedWindow: "",
+      appliedFrom: "",
+      appliedTo: "",
       page: 1,
     });
   }
   return (
     <FilterPanel activeCount={activeCount} defaultOpen={activeCount > 0}>
       <Row gutter={[12, 12]}>
-        <Col {...field}>
+        <Col {...searchField}>
           <label>
             Search
             <Input.Search
@@ -403,6 +426,65 @@ function ApplicationListFilters({
             />
           </label>
         </Col>
+        <Col {...field}>
+          <label>
+            Applied Dt
+            <Select
+              aria-label="Applied date range"
+              allowClear
+              value={filters.appliedWindow || undefined}
+              placeholder="All dates"
+              options={OVERVIEW_WINDOWS}
+              onChange={(appliedWindow) => onChange({
+                appliedWindow: appliedWindow || "",
+                appliedFrom: appliedWindow === "CUSTOM" ? filters.appliedFrom : "",
+                appliedTo: appliedWindow === "CUSTOM" ? filters.appliedTo : "",
+                page: 1,
+              })}
+              style={{ width: "100%" }}
+            />
+          </label>
+        </Col>
+        {filters.appliedWindow === "CUSTOM" ? (
+          <>
+            <Col {...field}>
+              <label>
+                From
+                <Input
+                  aria-label="Applied date from"
+                  type="date"
+                  value={appliedFromDraft}
+                  onChange={(event) => setAppliedFromDraft(event.target.value)}
+                />
+              </label>
+            </Col>
+            <Col {...field}>
+              <label>
+                Through
+                <Input
+                  aria-label="Applied date through"
+                  type="date"
+                  value={appliedToDraft}
+                  onChange={(event) => setAppliedToDraft(event.target.value)}
+                />
+              </label>
+            </Col>
+            <Col {...field} className="filter-actions">
+              <Button
+                type="primary"
+                disabled={!appliedFromDraft || !appliedToDraft || appliedRangeInvalid}
+                onClick={() => commitAppliedRange(appliedFromDraft, appliedToDraft)}
+              >
+                Apply
+              </Button>
+            </Col>
+            {appliedRangeInvalid ? (
+              <Col xs={24}>
+                <Text type="secondary">Choose a start date through an end date, under 370 days.</Text>
+              </Col>
+            ) : null}
+          </>
+        ) : null}
         <Col {...field} className="filter-actions">
           <Button disabled={!activeCount} onClick={clearFilters}>
             Clear filters
@@ -451,7 +533,13 @@ export function ApplicationsPage({
     setData();
     setError("");
     Promise.all([
-      listApplications(client, apiBaseUrl, filters),
+      listApplications(client, apiBaseUrl, {
+        ...filters,
+        appliedWindow: undefined,
+        appliedFrom: undefined,
+        appliedTo: undefined,
+        ...appliedListBounds(filters),
+      }),
       listScreenshotReviewerCandidates(client, apiBaseUrl).catch(() => []),
       manager ? listActiveAppliers(client, apiBaseUrl) : Promise.resolve([]),
       manager ? listApplicationBatchOptions(client, apiBaseUrl) : Promise.resolve([]),
@@ -571,6 +659,13 @@ export function ApplicationsPage({
     filteredValue: filters.categoryId ? [filters.categoryId] : null,
     ...serverSideColumnFilter,
     render: (_value, record) => renderApplicationTechStacks(record, categories),
+  };
+  const appliedColumn = {
+    title: "Applied Dt",
+    dataIndex: "applied_at",
+    width: 190,
+    sortable: false,
+    render: (value) => (value ? formatDate(value) : "—"),
   };
   const screenshotColumn = {
     title: "Screenshots",
@@ -712,6 +807,7 @@ export function ApplicationsPage({
             "Individual"
           ),
       },
+      appliedColumn,
       {
         title: "Captured At",
         dataIndex: "captured_at",
@@ -803,6 +899,7 @@ export function ApplicationsPage({
         render: (value) => <StatusTag value={value} />,
       },
       screenshotColumn,
+      appliedColumn,
       {
         title: "Captured At",
         dataIndex: "captured_at",
@@ -847,7 +944,7 @@ export function ApplicationsPage({
     ],
   );
   const columns = manager ? managerColumns : applierColumns,
-    applicationsScrollX = manager ? 3026 : 2510,
+    applicationsScrollX = manager ? 3216 : 2700,
     tooMany = selectedIds.length > 2000;
   const savedTableSort = useSavedTableSort("application-table-sort", clientSortColumns(columns));
   async function tailorSelected(){setTailoringBusy(true);setError("");try{const batch=await createTailoringBatch(client,apiBaseUrl,selectedIds);setSelectedIds([]);go(`#/tailoring-batches/${batch.id}`);}catch(x){setError(x.message);}finally{setTailoringBusy(false);}}
