@@ -34,8 +34,6 @@ export class ApplicationGuideService {
       p_meaning: body.meaning,
       p_how_to_answer: body.howToAnswer,
       p_example: body.exampleAnswer || "",
-      p_answer_type: body.answerType,
-      p_category: body.category,
       p_status: body.status,
     });
     if (error) fail(error, "The guide entry could not be saved.");

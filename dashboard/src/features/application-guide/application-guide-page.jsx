@@ -3,13 +3,7 @@ import { Alert, App as AntApp, Button, Collapse, Empty, Input, Modal, Select, Sp
 import { ROLE_CODES } from "../../access/role-codes.js";
 import { PageHeading } from "../../components/ui.jsx";
 import { formatDate } from "../../shared/formatters.js";
-import {
-  GUIDE_ANSWER_TYPES,
-  GUIDE_CATEGORIES,
-  guideEntryIsUpdated,
-  guideEntryMatches,
-  guideLabel,
-} from "./application-guide.js";
+import { guideEntryIsUpdated, guideEntryMatches, sortGuideEntries } from "./application-guide.js";
 import { deleteApplicationGuide, listApplicationGuide, saveApplicationGuide } from "./application-guide-service.js";
 
 const { Paragraph, Text, Title } = Typography;
@@ -20,8 +14,6 @@ const EMPTY_ENTRY = {
   meaning: "",
   howToAnswer: "",
   exampleAnswer: "",
-  answerType: "GENERAL_GUIDANCE",
-  category: "PERSONAL_DETAILS",
 };
 
 function reviewLine(entry) {
@@ -32,7 +24,6 @@ function reviewLine(entry) {
 }
 
 function EntryBody({ entry }) {
-  const personal = entry.answerType === "CANDIDATE_INFORMATION" || entry.answerType === "CANDIDATE_DECISION";
   return (
     <div>
       <div className="application-guide-section">
@@ -45,17 +36,9 @@ function EntryBody({ entry }) {
       </div>
       {entry.exampleAnswer ? (
         <div className="application-guide-section">
-          <Title level={5}>Example only</Title>
+          <Title level={5}>Example</Title>
           <Paragraph style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}>{entry.exampleAnswer}</Paragraph>
         </div>
-      ) : null}
-      {personal ? (
-        <Alert
-          className="application-guide-personal"
-          type="info"
-          showIcon
-          message="Use the candidate's confirmed information. Do not reuse one Yes or No for every profile."
-        />
       ) : null}
       <Text type="secondary" className="application-guide-review">{reviewLine(entry)}</Text>
     </div>
@@ -69,7 +52,7 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
+  const [sort, setSort] = useState("asc");
   const [openId, setOpenId] = useState("");
   const [editor, setEditor] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -112,8 +95,8 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
   }, [client, load]);
 
   const visible = useMemo(
-    () => entries.filter((entry) => guideEntryMatches(entry, { search, category })),
-    [entries, search, category],
+    () => sortGuideEntries(entries.filter((entry) => guideEntryMatches(entry, { search })), sort),
+    [entries, search, sort],
   );
 
   useEffect(() => {
@@ -133,8 +116,6 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
       meaning: entry.meaning,
       howToAnswer: entry.howToAnswer,
       exampleAnswer: entry.exampleAnswer || "",
-      answerType: entry.answerType,
-      category: entry.category,
     });
   }
 
@@ -178,29 +159,28 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
         extra={isAdmin ? <Button type="primary" onClick={openNew}>Add question</Button> : null}
       />
       <Text type="secondary" className="application-guide-lead">Find the meaning, check the guidance, and answer with confidence.</Text>
-      <Input
-        className="application-guide-search"
-        allowClear
-        size="large"
-        aria-label="Search questions"
-        placeholder='Search a question, e.g. "address line 2" or "remote"'
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-      <div className="application-guide-categories" role="group" aria-label="Question categories">
-        <Button type={category === "" ? "primary" : "default"} onClick={() => setCategory("")}>All questions</Button>
-        {GUIDE_CATEGORIES.map((item) => (
-          <Button key={item.value} type={category === item.value ? "primary" : "default"} onClick={() => setCategory(item.value)}>
-            {item.label}
-          </Button>
-        ))}
+      <div className="application-guide-toolbar">
+        <Input
+          className="application-guide-search"
+          allowClear
+          size="large"
+          aria-label="Search questions"
+          placeholder='Search a question, e.g. "address line 2" or "remote"'
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <Select
+          className="application-guide-sort"
+          size="large"
+          aria-label="Sort questions"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: "asc", label: "A to Z" },
+            { value: "desc", label: "Z to A" },
+          ]}
+        />
       </div>
-      <Alert
-        className="application-guide-note"
-        type="info"
-        showIcon
-        message="Use the candidate's confirmed information. Questions marked Candidate decision need their own answer."
-      />
       {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
       {loading ? <Spin /> : null}
       {!loading && !visible.length ? (
@@ -212,21 +192,17 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
           className="application-guide-list"
           activeKey={openId || undefined}
           onChange={(key) => setOpenId(Array.isArray(key) ? key[0] || "" : key || "")}
-          items={visible.map((entry) => ({
+          items={visible.map((entry, index) => ({
             key: entry.id,
             className: "application-guide-entry",
             label: (
               <span>
                 <span className="application-guide-question">
+                  <span className="application-guide-number">{index + 1}</span>
                   <Text strong>{entry.question}</Text>
                   {entry.status === "DRAFT" ? <Tag>Draft</Tag> : null}
                   {guideEntryIsUpdated(entry) ? <Tag color="blue">Updated</Tag> : null}
                 </span>
-                <Text type="secondary">
-                  {guideLabel(GUIDE_CATEGORIES, entry.category)}
-                  {" · "}
-                  {guideLabel(GUIDE_ANSWER_TYPES, entry.answerType)}
-                </Text>
               </span>
             ),
             extra: isAdmin ? (
@@ -258,24 +234,6 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
               <Input value={editor.question} maxLength={300} onChange={(event) => setEditor({ ...editor, question: event.target.value })} />
             </label>
             <label>
-              Category
-              <Select
-                style={{ width: "100%" }}
-                value={editor.category}
-                options={GUIDE_CATEGORIES}
-                onChange={(value) => setEditor({ ...editor, category: value })}
-              />
-            </label>
-            <label>
-              Answer type
-              <Select
-                style={{ width: "100%" }}
-                value={editor.answerType}
-                options={GUIDE_ANSWER_TYPES}
-                onChange={(value) => setEditor({ ...editor, answerType: value })}
-              />
-            </label>
-            <label>
               What it means
               <Input.TextArea value={editor.meaning} maxLength={2000} autoSize={{ minRows: 3, maxRows: 8 }} onChange={(event) => setEditor({ ...editor, meaning: event.target.value })} />
             </label>
@@ -284,7 +242,7 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
               <Input.TextArea value={editor.howToAnswer} maxLength={4000} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setEditor({ ...editor, howToAnswer: event.target.value })} />
             </label>
             <label>
-              Example
+              Example (optional)
               <Input.TextArea value={editor.exampleAnswer} maxLength={1000} autoSize={{ minRows: 2, maxRows: 6 }} onChange={(event) => setEditor({ ...editor, exampleAnswer: event.target.value })} />
             </label>
           </div>
