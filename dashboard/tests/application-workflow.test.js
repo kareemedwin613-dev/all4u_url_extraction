@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {applicationActions,validateApplicationCreate,validateApplicationProgress} from "../src/features/applications/validation.js";
-import {countActiveApplicationFilters,parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
+import {appliedDateQuery,appliedListBounds,countActiveApplicationFilters,parseApplicationQuery,serializeApplicationQuery} from "../src/features/applications/query-state.js";
 import {createApplication,listApplications,normalizeApplicationError,openApplicationResume,reassignApplication,updateApplication} from "../src/features/applications/application-service.js";
 import {capabilitiesForRoles} from "../src/access/capabilities.js";
 import {readFile} from "node:fs/promises";
@@ -54,6 +54,20 @@ test("application filter panel counts active server-side filters",()=>{
   const filenameQuery=parseApplicationQuery("screenshotFilename=%20Application%2065646.png%20");
   assert.equal(filenameQuery.screenshotFilename,"Application 65646.png");
   assert.match(serializeApplicationQuery(filenameQuery),/screenshotFilename=Application\+65646\.png/);
+  const applied=parseApplicationQuery("appliedFrom=2026-09-01&appliedTo=2026-09-30");
+  assert.equal(applied.appliedFrom,"2026-09-01");
+  assert.equal(applied.appliedTo,"2026-09-30");
+  assert.equal(countActiveApplicationFilters(applied),1);
+  assert.match(serializeApplicationQuery(applied),/appliedFrom=2026-09-01/);
+  assert.equal(parseApplicationQuery("appliedFrom=09/01/2026").appliedFrom,"");
+  const bounds=appliedDateQuery("2026-09-01","2026-09-01");
+  assert.equal(Date.parse(bounds.appliedTo)-Date.parse(bounds.appliedFrom),86400000);
+  assert.deepEqual(appliedDateQuery("2026-09-30","2026-09-01"),{});
+  const today=parseApplicationQuery("appliedWindow=TODAY");
+  assert.equal(today.appliedWindow,"TODAY");
+  assert.equal(countActiveApplicationFilters(today),1);
+  assert.ok(appliedListBounds(today,new Date(2026,8,28,15)).appliedFrom);
+  assert.equal(parseApplicationQuery("appliedWindow=YEAR").appliedWindow,"");
 });
 
 test("application services use protected RPC contracts",async()=>{
@@ -161,7 +175,8 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.match(source, /ScreenshotReviewModal/);
   assert.match(source, /setReview\(\{ application: record/);
   assert.match(source, /categoryTagColor\(categories/);
-  assert.match(source, /applicationsScrollX = manager \? 3026 : 2510/);
+  assert.match(source, /applicationsScrollX = manager \? 3216 : 2700/);
+  assert.match(source, /title: "Applied Dt"/);
   assert.match(source, /WarningOutlined/);
   assert.match(source, /screenshot_feedback/);
   assert.match(source, /Feedback/);

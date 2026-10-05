@@ -40,6 +40,8 @@ function failure(error:any,fallback:string):never{
         ...(q.screenshotFilename?{p_screenshot_filename:q.screenshotFilename}:{}),
         p_primary_reviewer_id:q.primaryReviewerId||null,
         p_secondary_reviewer_id:q.secondaryReviewerId||null,
+        p_applied_from:q.appliedFrom||null,
+        p_applied_to:q.appliedTo||null,
         p_limit:size,
         p_offset:(page-1)*size,
       },"Applications could not be loaded."),

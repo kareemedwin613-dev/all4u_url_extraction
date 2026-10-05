@@ -3,6 +3,8 @@
 
 drop function if exists public.list_applications_v360(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, integer, integer);
 drop function if exists public.list_applications_v07(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, integer, integer);
+drop function if exists public.list_applications_v360(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, integer, integer);
+drop function if exists public.list_applications_v07(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, integer, integer);
 
 create or replace function public.list_applications_v07(
   p_search text default '', p_assigned_to uuid default null, p_work_status text default '',
@@ -14,6 +16,8 @@ create or replace function public.list_applications_v07(
   p_screenshot_filename text default '',
   p_primary_reviewer_id uuid default null,
   p_secondary_reviewer_id uuid default null,
+  p_applied_from timestamptz default null,
+  p_applied_to timestamptz default null,
   p_limit integer default 25, p_offset integer default 0
 )
 returns jsonb language plpgsql stable security definer set search_path=public,pg_temp
@@ -102,6 +106,8 @@ begin
         or (p_secondary_reviewer_id = v_unassigned and original_profile.screenshot_secondary_reviewer_id is null)
         or original_profile.screenshot_secondary_reviewer_id = p_secondary_reviewer_id
       )
+      and (p_applied_from is null or a.applied_at >= p_applied_from)
+      and (p_applied_to is null or a.applied_at < p_applied_to)
 ), ranked as(
     select filtered.*, row_number() over (order by
       case when v_sort='number_asc' then application_number end asc,case when v_sort='number_desc' then application_number end desc,
@@ -145,6 +151,8 @@ create or replace function public.list_applications_v360(
   p_screenshot_filename text default '',
   p_primary_reviewer_id uuid default null,
   p_secondary_reviewer_id uuid default null,
+  p_applied_from timestamptz default null,
+  p_applied_to timestamptz default null,
   p_limit integer default 25, p_offset integer default 0
 )
 returns jsonb
@@ -175,6 +183,8 @@ begin
     p_screenshot_filename => p_screenshot_filename,
     p_primary_reviewer_id => p_primary_reviewer_id,
     p_secondary_reviewer_id => p_secondary_reviewer_id,
+    p_applied_from => p_applied_from,
+    p_applied_to => p_applied_to,
     p_limit => p_limit,
     p_offset => p_offset
   );
@@ -226,9 +236,9 @@ begin
 end;
 $$;
 
-revoke all on function public.list_applications_v07(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, integer, integer) from public, anon;
-grant execute on function public.list_applications_v07(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, integer, integer) to authenticated;
-revoke all on function public.list_applications_v360(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, integer, integer) from public, anon;
-grant execute on function public.list_applications_v360(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, integer, integer) to authenticated;
+revoke all on function public.list_applications_v07(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, timestamptz, timestamptz, integer, integer) from public, anon;
+grant execute on function public.list_applications_v07(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, timestamptz, timestamptz, integer, integer) to authenticated;
+revoke all on function public.list_applications_v360(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, timestamptz, timestamptz, integer, integer) from public, anon;
+grant execute on function public.list_applications_v360(text, uuid, text, text, text, text, uuid, text, text, uuid, text, text, text, text, text, uuid, uuid, timestamptz, timestamptz, integer, integer) to authenticated;
 
 notify pgrst, 'reload schema';
