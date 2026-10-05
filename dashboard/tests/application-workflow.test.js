@@ -44,6 +44,12 @@ test("application filter panel counts active server-side filters",()=>{
   assert.equal(countActiveApplicationFilters({search:"Acme",status:"BLOCKED",profileName:"Jordan"}),3);
   assert.equal(countActiveApplicationFilters({resumeName:"Main Resume"}),1);
   assert.equal(countActiveApplicationFilters({screenshotFeedback:"HAS_FEEDBACK"}),1);
+  assert.equal(countActiveApplicationFilters({screenshotFeedback:"HAS_FEEDBACK",screenshotReviewFeedback:"wrong company"}),2);
+  assert.equal(countActiveApplicationFilters({screenshotFeedback:"NO_FEEDBACK",screenshotReviewFeedback:"wrong company"}),1);
+  const feedbackText=parseApplicationQuery("screenshotFeedback=HAS_FEEDBACK&screenshotReviewFeedback=%20wrong%20company%20");
+  assert.equal(feedbackText.screenshotReviewFeedback,"wrong company");
+  assert.equal(parseApplicationQuery("screenshotFeedback=NO_FEEDBACK&screenshotReviewFeedback=wrong").screenshotReviewFeedback,"");
+  assert.match(serializeApplicationQuery(feedbackText),/screenshotReviewFeedback=wrong\+company/);
   assert.equal(countActiveApplicationFilters({primaryReviewerId:id,secondaryReviewerId:id2}),2);
   const reviewers=parseApplicationQuery(`primaryReviewerId=${id}&secondaryReviewerId=${id2}`);
   assert.equal(reviewers.primaryReviewerId,id);

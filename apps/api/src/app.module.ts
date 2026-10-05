@@ -21,6 +21,7 @@ import { TailoringPromptsModule } from "./tailoring-prompts/tailoring-prompts.mo
 import { ExtensionPairingModule } from "./extension-pairing/extension-pairing.module.js";
 import { BannedCompanyModule } from "./banned-companies/banned-company.module.js";
 import { InterviewModule } from "./interviews/interview.module.js";
+import { ApplicationGuideModule } from "./application-guide/application-guide.module.js";
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { InterviewModule } from "./interviews/interview.module.js";
     ExtensionPairingModule,
     BannedCompanyModule,
     InterviewModule,
+    ApplicationGuideModule,
   ],
   providers: [
     JsonLogger,

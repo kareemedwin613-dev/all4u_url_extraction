@@ -18,6 +18,7 @@ export class ApplicationListQueryDto{
   @IsOptional()@IsUUID("4")creationBatchId?:string;
   @IsOptional()@IsIn(["","BULK","INDIVIDUAL"])creationMode="";
   @IsOptional()@IsIn(["","HAS_FEEDBACK","NO_FEEDBACK"])screenshotFeedback="";
+  @IsOptional()@IsString()@MaxLength(100)screenshotReviewFeedback="";
   @IsOptional()@IsString()@MaxLength(100)screenshotFilename="";
   @IsOptional()@IsUUID("4")primaryReviewerId?:string;
   @IsOptional()@IsUUID("4")secondaryReviewerId?:string;

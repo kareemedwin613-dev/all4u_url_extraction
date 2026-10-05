@@ -37,6 +37,7 @@ function failure(error:any,fallback:string):never{
         p_creation_batch_id:q.creationBatchId||null,
         p_creation_mode:q.creationMode||"",
         p_screenshot_feedback:q.screenshotFeedback||"",
+        p_screenshot_feedback_text:q.screenshotFeedback==="HAS_FEEDBACK"?(q.screenshotReviewFeedback||""):"",
         ...(q.screenshotFilename?{p_screenshot_filename:q.screenshotFilename}:{}),
         p_primary_reviewer_id:q.primaryReviewerId||null,
         p_secondary_reviewer_id:q.secondaryReviewerId||null,
