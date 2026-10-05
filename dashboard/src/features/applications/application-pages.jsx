@@ -168,6 +168,7 @@ function ApplicationListFilters({
     [profileNameDraft, setProfileNameDraft] = useState(filters.profileName),
     [resumeNameDraft, setResumeNameDraft] = useState(filters.resumeName),
     [screenshotFilenameDraft, setScreenshotFilenameDraft] = useState(filters.screenshotFilename),
+    [screenshotReviewFeedbackDraft, setScreenshotReviewFeedbackDraft] = useState(filters.screenshotReviewFeedback),
     [appliedFromDraft, setAppliedFromDraft] = useState(filters.appliedFrom),
     [appliedToDraft, setAppliedToDraft] = useState(filters.appliedTo);
   useEffect(() => {
@@ -185,6 +186,9 @@ function ApplicationListFilters({
   useEffect(() => {
     setScreenshotFilenameDraft(filters.screenshotFilename);
   }, [filters.screenshotFilename]);
+  useEffect(() => {
+    setScreenshotReviewFeedbackDraft(filters.screenshotReviewFeedback);
+  }, [filters.screenshotReviewFeedback]);
   useEffect(() => {
     setAppliedFromDraft(filters.appliedFrom);
     setAppliedToDraft(filters.appliedTo);
@@ -210,6 +214,7 @@ function ApplicationListFilters({
       categoryId: "",
       assignedTo: "",
       screenshotFeedback: "",
+      screenshotReviewFeedback: "",
       screenshotFilename: "",
       primaryReviewerId: "",
       secondaryReviewerId: "",
@@ -345,7 +350,11 @@ function ApplicationListFilters({
               value={filters.screenshotFeedback || undefined}
               placeholder="Any"
               onChange={(screenshotFeedback) =>
-                onChange({ screenshotFeedback: screenshotFeedback || "", page: 1 })
+                onChange({
+                  screenshotFeedback: screenshotFeedback || "",
+                  screenshotReviewFeedback: screenshotFeedback === "HAS_FEEDBACK" ? filters.screenshotReviewFeedback : "",
+                  page: 1,
+                })
               }
               options={[
                 { value: "HAS_FEEDBACK", label: "Has feedback (mistakes)" },
@@ -355,6 +364,25 @@ function ApplicationListFilters({
             />
           </label>
         </Col>
+        {filters.screenshotFeedback === "HAS_FEEDBACK" ? (
+          <Col {...field}>
+            <label>
+              Screenshot review feedback
+              <Input.Search
+                allowClear
+                value={screenshotReviewFeedbackDraft}
+                placeholder="Feedback text"
+                onChange={(event) => setScreenshotReviewFeedbackDraft(event.target.value)}
+                onSearch={(screenshotReviewFeedback) =>
+                  onChange({
+                    screenshotReviewFeedback: screenshotReviewFeedback.trim().slice(0, 100),
+                    page: 1,
+                  })
+                }
+              />
+            </label>
+          </Col>
+        ) : null}
         {manager ? (
           <Col {...field}>
             <label>
@@ -1040,6 +1068,7 @@ export function ApplicationsPage({
       creationMode: manager ? creationMode : "",
       creationBatchId: manager ? creationBatchId : "",
       screenshotFeedback: filters.screenshotFeedback,
+      screenshotReviewFeedback: filters.screenshotReviewFeedback,
       screenshotFilename: filters.screenshotFilename,
       primaryReviewerId: firstFilterValue(tableFilters, "primary_reviewer_name", ""),
       secondaryReviewerId: firstFilterValue(tableFilters, "secondary_reviewer_name", ""),

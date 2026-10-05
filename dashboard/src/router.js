@@ -15,6 +15,7 @@ export function parseRoute(hash = "#/") {
   if (parts[0] === "calendar" && parts.length === 1) return {name: "calendar", path: "/calendar", query};
   if (parts[0] === "applications" && parts.length === 1) return {name: "applications", path: "/applications", query};
   if (parts[0] === "screenshot-reviewers" && parts.length === 1) return {name: "screenshot-reviewers", path: "/screenshot-reviewers", query};
+  if (parts[0] === "application-guide" && parts.length === 1) return {name: "application-guide", path: "/application-guide", query};
   if (parts[0] === "applications" && parts[1] === "bulk-create" && parts.length === 2) return {name: "application-bulk-create", path: "/applications/bulk-create", query};
   if (parts[0] === "applications" && parts[1] === "bulk-assign" && parts.length === 2) return {name: "application-bulk-assign", path: "/applications/bulk-assign", query};
   if (parts[0] === "applications" && parts[1] === "new" && parts.length === 2) return {name: "application-new", path: "/applications/new", query};

@@ -12,6 +12,7 @@ import "./styles/overview-dashboard.css";
 import "./styles/applier-productivity.css";
 import "./styles/applier-detail.css";
 import "./styles/calendar.css";
+import "./styles/application-guide.css";
 import { App, ConfigurationError } from "./App.jsx";
 import { initializeSupabase } from "./services/supabase-client.js";
 import { dashboardTheme } from "./theme.js";
