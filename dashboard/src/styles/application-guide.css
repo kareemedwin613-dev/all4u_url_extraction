@@ -1,5 +1,8 @@
 .application-guide-lead{display:block;margin-top:4px}
-.application-guide-search{margin:16px 0}
+.application-guide-toolbar{display:flex;gap:12px;align-items:center;margin:16px 0}
+.application-guide-search{flex:1;min-width:0;margin:0}
+.application-guide-sort{width:120px;flex:0 0 auto}
+.application-guide-number{flex:0 0 auto;min-width:1.75rem;font-weight:600;color:#5b6573}
 .application-guide-categories{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .application-guide-note{margin-bottom:16px}
 .application-guide-list{display:grid;gap:12px}

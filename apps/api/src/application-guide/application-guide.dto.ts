@@ -30,14 +30,6 @@ export class SaveApplicationGuideDto {
   exampleAnswer?: string;
 
   @Transform(trim)
-  @IsIn(["GENERAL_GUIDANCE", "CANDIDATE_INFORMATION", "CANDIDATE_DECISION"])
-  answerType!: string;
-
-  @Transform(trim)
-  @IsIn(["PERSONAL_DETAILS", "WORK_EXPERIENCE", "CONSENT"])
-  category!: string;
-
-  @Transform(trim)
   @IsIn(["DRAFT", "PUBLISHED"])
   status!: string;
 }
