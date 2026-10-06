@@ -30,6 +30,8 @@ export function parseRoute(hash = "#/") {
   if (parts[0] === "tailoring-jobs" && parts.length === 2) return isUuid(parts[1]) ? {name: "tailoring-job-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "tailoring-batches" && parts.length === 1) return {name: "tailoring-batches", path: "/tailoring-batches", query};
   if (parts[0] === "jd-review-batches" && parts.length === 1) return {name: "jd-review-batches", path, query};
+  if (parts[0] === "screenshot-review-batches" && parts.length === 1) return {name: "screenshot-review-batches", path, query};
+  if (parts[0] === "screenshot-review-batches" && parts.length === 2) return isUuid(parts[1]) ? {name: "screenshot-review-batch-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "jd-review-batches" && parts.length === 2) return isUuid(parts[1]) ? {name: "jd-review-batch-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "tailoring-batches" && parts.length === 2) return isUuid(parts[1]) ? {name: "tailoring-batch-detail", path, id: parts[1], query} : {name: "invalid-id", path, query};
   if (parts[0] === "users" && parts.length === 1) return {name: "users-directory", path: "/users", query};

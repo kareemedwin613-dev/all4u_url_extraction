@@ -6,7 +6,7 @@ import { resolve, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RUN_ID = /^(matching|tailoring|jd-review)-[a-f0-9]{24}$/;
+export const RUN_ID = /^(matching|tailoring|jd-review|screenshot-review)-[a-f0-9]{24}$/;
 const finalStates = new Set(["COMPLETED", "COMPLETED_WITH_FAILURES", "STOPPED", "ACTION_REQUIRED"]);
 export const runIdentity = (kind, ticket, apiBaseUrl) => `${kind}-${createHash("sha256").update(`${apiBaseUrl}|${ticket}`).digest("hex").slice(0, 24)}`;
 export const isAlive = pid => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; } };
@@ -33,7 +33,7 @@ export function safeEvent(value = {}) {
   const result = {};
   for (const key of ["event", "stage", "code", "reason", "status", "signal"]) {
     if (typeof value[key] === "string" && /^[A-Za-z][A-Za-z0-9_.-]{0,100}$/.test(value[key])
-      && !/^(?:mrb|trb|trt|jrb|sk)[_-]/i.test(value[key])) result[key] = value[key];
+      && !/^(?:mrb|trb|trt|jrb|srb|sk)[_-]/i.test(value[key])) result[key] = value[key];
   }
   for (const key of ["durationMs", "attempt", "completedCount", "failedCount", "activeJobs", "retryAfterSeconds", "exitCode", "pid", "restarts"]) {
     if (Number.isSafeInteger(value[key])) result[key] = value[key];
