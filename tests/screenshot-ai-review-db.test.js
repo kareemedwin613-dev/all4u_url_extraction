@@ -12,11 +12,10 @@ test("screenshot AI review: scoped queue, original profile, decisions, storage, 
     create role anon;create role authenticated;create schema auth;create schema extensions;create schema storage;
     create extension pgcrypto with schema extensions;
     create table auth.users(id uuid primary key);
-    create table public.profiles(id uuid primary key,active boolean default true,manager boolean default true);
+    create table public.profiles(id uuid primary key,status text default 'ACTIVE');
+    create table public.roles(id uuid primary key,code text,active boolean default true);
+    create table public.user_roles(user_id uuid,role_id uuid);
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-    create function public.is_active_user(uuid) returns boolean language sql stable as $$select coalesce((select active from profiles where id=$1),false)$$;
-    create function public.has_role(text,uuid) returns boolean language sql stable as $$select coalesce((select manager from profiles where id=$2),false)$$;
-    create function public.application_actor_can_manage() returns boolean language sql stable as $$select public.has_role('ADMIN',auth.uid())$$;
     create table public.resumes(id uuid primary key,parent_resume_id uuid,updated_at timestamptz default now(),candidate_name text,candidate_first_name text,candidate_middle_name text,candidate_last_name text,
       candidate_email text,candidate_phone text,address_line_1 text,address_line_2 text,address_city text,address_state_region text,address_postal_code text,address_country text,linkedin_url text,github_url text,portfolio_url text,structured_content jsonb default '{}');
     create table public.job_descriptions(id uuid primary key,company text,job_title text,salary_min numeric,salary_max numeric,salary_currency text,salary_period text);
@@ -27,15 +26,30 @@ test("screenshot AI review: scoped queue, original profile, decisions, storage, 
     create table public.application_guide_entries(id uuid primary key,question text,meaning text,how_to_answer text,example_answer text,version integer,sort_order integer,status text);
     create table storage.objects(bucket_id text,name text);
     alter table storage.objects enable row level security;
+    grant usage on schema storage to anon;
+    grant select on storage.objects to anon;
     insert into profiles(id) values('${actor}');insert into auth.users values('${actor}');select set_config('request.jwt.claim.sub','${actor}',false);
+    insert into roles values('${actor}','ADMIN',true);
+    insert into user_roles values('${actor}','${actor}');
     insert into resumes(id,candidate_name,candidate_email) values('${profile}','Original Candidate','original@example.test');
     insert into resumes(id,parent_resume_id,candidate_name,candidate_email) values('${tailored}','${profile}','Wrong Generated Identity','wrong@example.test');
     insert into job_descriptions(id,company,job_title) values('${job}','Example','Engineer');
     insert into application_guide_entries values('${guideId}','Email','Contact address','Use candidate email','example@example.test',3,1,'PUBLISHED');
   `);
+  // Use production RBAC helpers: they require the subject to match the caller's JWT.
+  const rbac=await readFile(new URL("../supabase/migrations/202607220009_v0_5_users_basic_rbac.sql",import.meta.url),"utf8");
+  for(const name of ["is_active_user","has_role"]){
+    const definition=rbac.match(new RegExp(`create or replace function public\\.${name}\\([\\s\\S]*?\\$\\$;`))[0];
+    await db.exec(definition);
+  }
+  await db.exec(`create function public.application_actor_can_manage() returns boolean language sql stable as $$select public.has_role('ADMIN',auth.uid()) or public.has_role('APPLYING_MANAGER',auth.uid())$$;`);
   await db.exec(await readFile(new URL("../supabase/migrations/202610061200_v3_152_screenshot_ai_review.sql",import.meta.url),"utf8"));
   const manage=async(op,body={})=>(await db.query("select screenshot_review_manage($1,$2) value",[op,JSON.stringify(body)])).rows[0].value;
-  const run=async(ticket,op,body={})=>(await db.query("select screenshot_review_runner($1,$2,$3) value",[op,ticket,JSON.stringify(body)])).rows[0].value;
+  const anonymous=async work=>{
+    await db.exec("begin; set local role anon; select set_config('request.jwt.claim.sub','',true)");
+    try{const value=await work();await db.exec("commit");return value;}catch(error){await db.exec("rollback");throw error;}
+  };
+  const run=async(ticket,op,body={})=>anonymous(async()=>(await db.query("select screenshot_review_runner($1,$2,$3) value",[op,ticket,JSON.stringify(body)])).rows[0].value);
   async function fixture({reviewed=false,shots=true}={}) {
     const app=randomUUID(),shot=randomUUID();
     await db.query("insert into applications(id,resume_id,job_description_id,screenshot_review_status) values($1,$2,$3,$4)",[app,tailored,job,reviewed?"CORRECT":""]);
@@ -46,6 +60,17 @@ test("screenshot AI review: scoped queue, original profile, decisions, storage, 
   const result=(f,verdict="CORRECT")=>({complete:true,screenshots:[{id:f.shot,readable:true,complete:true}],fields:[{field:"Email",observed:"original@example.test",expected:"original@example.test",verdict,basis:"PROFILE",guideId:null,screenshotId:f.shot,location:"Tile 1, Email",reason:"Matches candidate.email"}]});
   const submit=(f,item,raw=result(f))=>run(f.ticket,"submit",{itemId:item.itemId,leaseToken:item.leaseToken,result:raw});
   const current=async f=>(await db.query("select * from applications where id=$1",[f.app])).rows[0];
+
+  await t.test("reproduces the valid-ticket failure without a JWT, then preserves tickets during correction",async()=>{
+    const f=await fixture();
+    await assert.rejects(run(f.ticket,"next"),/SCREENSHOT_REVIEW_FORBIDDEN/);
+    const migration=await readFile(new URL("../supabase/migrations/202610061500_v3_155_screenshot_review_ticket_authorization.sql",import.meta.url),"utf8");
+    await db.exec(migration);await db.exec(migration);
+    const item=await run(f.ticket,"next");
+    assert.ok(item.itemId);
+    assert.equal((await submit(f,item)).status,"CORRECT");
+    assert.equal((await manage("history",{id:f.app}))[0].initiated_by,actor);
+  });
 
   await t.test("original identity + published guide snapshot, correct result and idempotent history",async()=>{
     const f=await fixture(),item=await run(f.ticket,"next");
@@ -89,12 +114,34 @@ test("screenshot AI review: scoped queue, original profile, decisions, storage, 
   });
   await t.test("storage capability binds exact path, item, lease, issuer role, expiry and batch",async()=>{
     const f=await fixture(),i=await run(f.ticket,"next"),path=i.source.screenshots[0].path;
-    const check=async(headers,requested=path)=>(await db.query("select set_config('request.headers',$1,false),screenshot_review_storage_allowed('application-screenshots',$2) allowed",[JSON.stringify(headers),requested])).rows[0].allowed;
+    const check=async(headers,requested=path)=>anonymous(async()=>{
+      await db.query("select set_config('request.headers',$1,true)",[JSON.stringify(headers)]);
+      return(await db.query("select screenshot_review_storage_allowed('application-screenshots',$1) allowed",[requested])).rows[0].allowed;
+    });
     const headers={"x-screenshot-review-ticket":f.ticket,"x-screenshot-review-item":i.itemId,"x-screenshot-review-lease":i.leaseToken};
     assert.equal(await check(headers),true);assert.equal(await check({}),false);assert.equal(await check(headers,"other.png"),false);assert.equal(await check({...headers,"x-screenshot-review-item":randomUUID()}),false);
-    await db.query("update profiles set manager=false where id=$1",[actor]);assert.equal(await check(headers),false);await assert.rejects(run(f.ticket,"next"),/FORBIDDEN/);await assert.rejects(manage("list"),/FORBIDDEN/);
-    await db.query("update profiles set manager=true where id=$1",[actor]);await manage("ticket",{id:f.batch});assert.equal(await check(headers),false);await assert.rejects(submit(f,i),/TICKET_EXPIRED/);
+    assert.equal(await check({...headers,"x-screenshot-review-lease":randomUUID()}),false);
+    await db.query("update screenshot_review_items set lease_expires_at=now()-interval '1 second' where id=$1",[i.itemId]);assert.equal(await check(headers),false);
+    await db.query("update screenshot_review_items set lease_expires_at=now()+interval '5 minutes' where id=$1",[i.itemId]);
+    await db.query("update screenshot_review_tickets set expires_at=now()-interval '1 second' where batch_id=$1",[f.batch]);assert.equal(await check(headers),false);await assert.rejects(run(f.ticket,"next"),/TICKET_EXPIRED/);
+    await db.query("update screenshot_review_tickets set expires_at=now()+interval '1 hour' where batch_id=$1",[f.batch]);
+    await db.query("update screenshot_review_batches set cancelled=true where id=$1",[f.batch]);assert.equal(await check(headers),false);await assert.rejects(run(f.ticket,"next"),/CANCELLED/);
+    await db.query("update screenshot_review_batches set cancelled=false where id=$1",[f.batch]);
+    await db.query("insert into storage.objects values('application-screenshots',$1),('application-screenshots','unrelated.png')",[path]);
+    const visible=await anonymous(async()=>{
+      await db.query("select set_config('request.headers',$1,true)",[JSON.stringify(headers)]);
+      return(await db.query("select name from storage.objects")).rows;
+    });
+    assert.deepEqual(visible,[{name:path}],"real anonymous RLS reads only the leased screenshot");
+    await db.query("update roles set active=false where id=$1",[actor]);assert.equal(await check(headers),false);await assert.rejects(run(f.ticket,"next"),/FORBIDDEN/);await assert.rejects(manage("list"),/FORBIDDEN/);
+    await db.query("update roles set active=true,code='APPLYING_MANAGER' where id=$1",[actor]);assert.equal(await check(headers),true);
+    await db.query("update profiles set status='INACTIVE' where id=$1",[actor]);assert.equal(await check(headers),false);await assert.rejects(run(f.ticket,"next"),/FORBIDDEN/);
+    await db.query("update profiles set status='ACTIVE' where id=$1",[actor]);
+    await db.query("update roles set code='APPLIER' where id=$1",[actor]);assert.equal(await check(headers),false);await assert.rejects(run(f.ticket,"next"),/FORBIDDEN/);
+    await db.query("update roles set code='ADMIN' where id=$1",[actor]);
+    await manage("ticket",{id:f.batch});assert.equal(await check(headers),false);await assert.rejects(submit(f,i),/TICKET_EXPIRED/);
     const fresh=(await manage("ticket",{id:f.batch})).ticket;await manage("cancel",{id:f.batch});await assert.rejects(run(fresh,"next"),/TICKET_EXPIRED/);
     const grants=(await db.query("select has_table_privilege('anon','screenshot_review_tickets','SELECT') tickets,has_function_privilege('anon','screenshot_review_manage(text,jsonb)','EXECUTE') manage,has_function_privilege('anon','screenshot_review_source(uuid)','EXECUTE') source")).rows[0];assert.deepEqual(grants,{tickets:false,manage:false,source:false});
+    const helperGrants=(await db.query("select has_function_privilege('anon','screenshot_review_ticket_owner_allowed_v3155(uuid)','EXECUTE') anon,has_function_privilege('authenticated','screenshot_review_ticket_owner_allowed_v3155(uuid)','EXECUTE') authenticated")).rows[0];assert.deepEqual(helperGrants,{anon:false,authenticated:false});
   });
 });
