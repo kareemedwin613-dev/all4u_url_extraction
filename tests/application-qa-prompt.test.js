@@ -14,7 +14,17 @@ test("fixed Q&A prompt contains complete documents, instructions and the attache
     const prompt=buildApplicationQaPrompt(input);
     assert.ok(prompt.includes(input.resumeText));assert.ok(prompt.includes(input.jobDescription));
     assert.match(prompt,/Company: Acme\nRole: Engineer/);
-    assert.match(prompt,/wait for my first question/);assert.match(prompt,/Do not invent employers/);
+    assert.match(prompt,/wait for my first question/);
+    assert.match(prompt,/Prioritize earning an interview/);
+    assert.match(prompt,/you may create a plausible project/);
+    assert.doesNotMatch(prompt,/\[Draft example - verify before submitting\]|labeled hypothetical draft|required draft label/);
+    assert.match(prompt,/Keep the candidate's identity, employers, employment dates/);
+    assert.match(prompt,/Do not ask me any questions, request clarification, or offer follow-up questions at any point in this chat/);
+    assert.match(prompt,/answer directly without asking for clarification/);
+    assert.doesNotMatch(prompt,/do not guess or invent an answer/);
+    assert.match(prompt,/Return only the answer ready to paste/);
+    assert.match(prompt,/Do not add draft labels, verification notes, placeholders/);
+    assert.doesNotMatch(prompt,/ask me a short clarification question/);
     assert.ok(prompt.includes(`Resume used for this application: ${resumeType==="TAILORED"?"Tailored":"Original"}`));
   }
   for(const field of ["resumeText","jobDescription","resumeType"]){
