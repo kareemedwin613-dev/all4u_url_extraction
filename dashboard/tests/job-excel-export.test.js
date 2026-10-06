@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
+  ACTIVE_JOB_EXPORT_FILTERS,
   JOB_EXPORT_HEADERS,
   JOB_EXPORT_MAX_ROWS,
   JOB_EXPORT_PAGE_SIZE,
@@ -10,16 +11,19 @@ import {
   parseJobSubcategoryImportRows,
 } from "../src/services/job-export-service.js";
 
-test("job export workbook rows include Job ID and Subcategories", () => {
+test("job export workbook rows include company, title, url, categories, and captured date", () => {
   assert.deepEqual(JOB_EXPORT_HEADERS, [
-    "Job ID",
-    "Company Name",
+    "Company",
     "Job Title",
-    "Job Posting URL",
-    "Subcategories",
+    "JD URL",
+    "Primary Category",
+    "SubCategory",
+    "Captured Date",
   ]);
+  assert.deepEqual(ACTIVE_JOB_EXPORT_FILTERS, { status: "ACTIVE", sort: "created_desc" });
   const categories = {
     byId: new Map([
+      ["cat-1", { id: "cat-1", name: "Engineering" }],
       ["sub-1", { id: "sub-1", name: "Backend Engineering" }],
       ["sub-2", { id: "sub-2", name: "Python Engineering" }],
     ]),
@@ -27,20 +31,24 @@ test("job export workbook rows include Job ID and Subcategories", () => {
   const [row] = jobsToWorkbookRows(
     [
       {
-        id: "b7653950-0156-48dc-a230-6450e0ac2048",
         company: "Acme",
         job_title: "Engineer",
         source_url: "https://example.com/jobs/1",
+        category_id: "cat-1",
         subcategory_ids: ["sub-1", "sub-2"],
+        created_at: new Date(2026, 9, 5, 15, 30).toISOString(),
       },
     ],
     categories,
   );
-  assert.equal(row[0], "b7653950-0156-48dc-a230-6450e0ac2048");
-  assert.equal(row[1], "Acme");
-  assert.equal(row[2], "Engineer");
-  assert.equal(row[3], "https://example.com/jobs/1");
-  assert.equal(row[4], "Backend Engineering; Python Engineering");
+  assert.deepEqual(row, [
+    "Acme",
+    "Engineer",
+    "https://example.com/jobs/1",
+    "Engineering",
+    "Backend Engineering; Python Engineering",
+    "2026-10-05",
+  ]);
 });
 
 test("parseJobSubcategoryImportRows maps Job ID and Subcategories", () => {
@@ -108,9 +116,12 @@ test("fetchAllFilteredJobs rejects exports above the soft cap", async () => {
 
 test("Jobs page wires Download Excel and Upload Subcategories Excel", async () => {
   const source = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(source, /isAdmin \? \([\s\S]*Download Excel/);
+  assert.match(source, /ROLE_CODES\.ADMIN/);
   assert.match(source, /Download Excel/);
   assert.match(source, /Upload Subcategories Excel/);
-  assert.match(source, /exportFilteredJobsExcel/);
+  assert.match(source, /exportAllJobsExcel/);
+  assert.doesNotMatch(source, /exportFilteredJobsExcel/);
   assert.match(source, /readJobSubcategoryImportFile/);
   assert.match(source, /importJobSubcategories/);
 });
