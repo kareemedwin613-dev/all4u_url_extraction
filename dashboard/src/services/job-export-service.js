@@ -1,14 +1,19 @@
-import { formatJobSubcategories } from "./category-service.js";
+import { categoryName, formatJobSubcategories } from "./category-service.js";
 import { listJobs } from "./job-read-service.js";
 
-export const JOB_EXPORT_PAGE_SIZE = 50;
-export const JOB_EXPORT_MAX_ROWS = 5000;
+export const JOB_EXPORT_PAGE_SIZE = 1000;
+export const JOB_EXPORT_MAX_ROWS = 20000;
+export const ACTIVE_JOB_EXPORT_FILTERS = Object.freeze({
+  status: "ACTIVE",
+  sort: "created_desc",
+});
 export const JOB_EXPORT_HEADERS = Object.freeze([
-  "Job ID",
-  "Company Name",
+  "Company",
   "Job Title",
-  "Job Posting URL",
-  "Subcategories",
+  "JD URL",
+  "Primary Category",
+  "SubCategory",
+  "Captured Date",
 ]);
 
 const HEADER_ALIASES = Object.freeze({
@@ -33,13 +38,32 @@ export function formatSubcategoriesForExport(categories, job) {
   return text.split(", ").map((part) => part.trim()).filter(Boolean).join("; ");
 }
 
+export function formatCapturedDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function primaryCategoryForExport(categories, job) {
+  const named = String(job?.category_name || "").trim();
+  if (named) return named;
+  if (!job?.category_id) return "";
+  const name = categoryName(categories, job.category_id);
+  return name === "Unknown category" ? "" : name;
+}
+
 export function jobsToWorkbookRows(jobs = [], categories = null) {
   return (jobs || []).map((job) => [
-    job?.id || "",
     job?.company || "",
     job?.job_title || "",
     job?.source_url || "",
+    primaryCategoryForExport(categories, job),
     formatSubcategoriesForExport(categories, job),
+    formatCapturedDate(job?.created_at),
   ]);
 }
 
@@ -54,7 +78,7 @@ export async function fetchAllFilteredJobs(client, apiBaseUrl, filters = {}, { l
   if (total > JOB_EXPORT_MAX_ROWS) {
     throw Object.assign(
       new Error(
-        `Too many job descriptions to export (${total}). Narrow the filters to ${JOB_EXPORT_MAX_ROWS} or fewer.`,
+        `Too many job descriptions to export (${total}). The export limit is ${JOB_EXPORT_MAX_ROWS}.`,
       ),
       { code: "EXPORT_TOO_LARGE" },
     );
@@ -83,10 +107,10 @@ export async function downloadJobsExcel(rows, { filename, now = new Date() } = {
   return name;
 }
 
-export async function exportFilteredJobsExcel(client, apiBaseUrl, filters = {}, options = {}) {
-  const jobs = await fetchAllFilteredJobs(client, apiBaseUrl, filters, options);
+export async function exportAllJobsExcel(client, apiBaseUrl, options = {}) {
+  const jobs = await fetchAllFilteredJobs(client, apiBaseUrl, ACTIVE_JOB_EXPORT_FILTERS, options);
   if (!jobs.length) {
-    throw Object.assign(new Error("No job descriptions match the current filters."), {
+    throw Object.assign(new Error("No job descriptions to export."), {
       code: "EXPORT_EMPTY",
     });
   }

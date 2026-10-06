@@ -61,7 +61,7 @@ import { recordLogin } from "./services/session-events-service.js";
 import { authStateDecision } from "./services/auth-state.js";
 import { categoryName, formatJobSubcategories, formatResumeTechStacks, jobSubcategoryIds, loadCategories, resumeTechStackRows } from "./services/category-service.js";
 import { getJob, listJobCapturers, listJobCapturerCandidates, listJobs, bulkDeleteJobs, bulkReassignJobCapturer, bulkReviewJobs, importJobSubcategories, removeExpiredJobs, reviewJob, setJobStatus, unblockJobApplications, updateManagedJob, updateOwnJob } from "./services/job-read-service.js";
-import { exportFilteredJobsExcel, readJobSubcategoryImportFile } from "./services/job-export-service.js";
+import { exportAllJobsExcel, readJobSubcategoryImportFile } from "./services/job-export-service.js";
 import { getResume, listResumes, setResumeStatus } from "./services/resume-read-service.js";
 import { updateResumeMetadata } from "./services/resume-metadata-service.js";
 import {
@@ -88,6 +88,7 @@ import {
   listSystemRoles,
 } from "./services/access-service.js";
 import { CAPABILITIES, hasCapability } from "./access/capabilities.js";
+import { ROLE_CODES } from "./access/role-codes.js";
 import {
   guardAccessRoute,
   NAVIGATION,
@@ -1031,7 +1032,8 @@ function Jobs({
     [selectedJobById, setSelectedJobById] = useState({}),
     canBulk = hasCapability(access, CAPABILITIES.APPLICATION_BULK_MANAGE),
     canReview = hasCapability(access, CAPABILITIES.APPLICATION_MANAGE),
-    canSelect = canBulk || canReview;
+    canSelect = canBulk || canReview,
+    isAdmin = (access?.roles || []).includes(ROLE_CODES.ADMIN);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -1512,7 +1514,7 @@ function Jobs({
   async function downloadExcel() {
     setExportBusy(true);
     try {
-      await exportFilteredJobsExcel(client, apiBaseUrl, filters, { categories });
+      await exportAllJobsExcel(client, apiBaseUrl, { categories });
       toast("success", "Excel download started.");
     } catch (value) {
       toast("error", value.message || "Job Descriptions could not be exported.");
@@ -1550,13 +1552,15 @@ function Jobs({
     <div className="page page-list">
       <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
         <Space wrap>
-          <Button
-            loading={exportBusy}
-            disabled={!data?.total || loading || importBusy}
-            onClick={downloadExcel}
-          >
-            Download Excel
-          </Button>
+          {isAdmin ? (
+            <Button
+              loading={exportBusy}
+              disabled={exportBusy || importBusy}
+              onClick={downloadExcel}
+            >
+              Download Excel
+            </Button>
+          ) : null}
           {canReview && (
             <>
               <input
