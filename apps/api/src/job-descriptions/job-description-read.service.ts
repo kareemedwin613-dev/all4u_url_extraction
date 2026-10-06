@@ -132,6 +132,7 @@ export class JobDescriptionReadService {
         p_sort: SORTS[sort] ? sort : "created_desc",
         p_limit: pageSize,
         p_offset: (page - 1) * pageSize,
+        ...(filters.includeDescription ? { p_include_description: true } : {}),
       }),
       this.capturers(user).catch(() => []),
     ]);

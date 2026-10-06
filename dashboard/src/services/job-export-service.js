@@ -1,11 +1,13 @@
 import { categoryName, formatJobSubcategories } from "./category-service.js";
 import { listJobs } from "./job-read-service.js";
 
-export const JOB_EXPORT_PAGE_SIZE = 1000;
+export const JOB_EXPORT_PAGE_SIZE = 100;
 export const JOB_EXPORT_MAX_ROWS = 20000;
+export const EXCEL_TEXT_LIMIT = 32767;
 export const ACTIVE_JOB_EXPORT_FILTERS = Object.freeze({
   status: "ACTIVE",
   sort: "created_desc",
+  includeDescription: true,
 });
 export const JOB_EXPORT_HEADERS = Object.freeze([
   "Company",
@@ -14,6 +16,7 @@ export const JOB_EXPORT_HEADERS = Object.freeze([
   "Primary Category",
   "SubCategory",
   "Captured Date",
+  "Job Description",
 ]);
 
 const HEADER_ALIASES = Object.freeze({
@@ -48,6 +51,11 @@ export function formatCapturedDate(value) {
   return `${year}-${month}-${day}`;
 }
 
+export function jobDescriptionTextForExport(value) {
+  const text = String(value || "").replace(/\u0000/g, "").trim();
+  return text.length > EXCEL_TEXT_LIMIT ? text.slice(0, EXCEL_TEXT_LIMIT) : text;
+}
+
 function primaryCategoryForExport(categories, job) {
   const named = String(job?.category_name || "").trim();
   if (named) return named;
@@ -64,6 +72,7 @@ export function jobsToWorkbookRows(jobs = [], categories = null) {
     primaryCategoryForExport(categories, job),
     formatSubcategoriesForExport(categories, job),
     formatCapturedDate(job?.created_at),
+    jobDescriptionTextForExport(job?.description_text),
   ]);
 }
 

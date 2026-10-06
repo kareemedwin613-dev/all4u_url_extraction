@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer";
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
+import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
 
 const trim = ({ value }: { value: unknown }) => typeof value === "string" ? value.trim() : value;
 const JOB_SORTS = ["company_asc","company_desc","title_asc","title_desc","category_asc","category_desc","subcategory_asc","subcategory_desc","seniority_asc","seniority_desc","source_asc","source_desc","capturer_asc","capturer_desc","status_asc","status_desc","review_asc","review_desc","created_asc","created_desc"];
@@ -20,6 +20,7 @@ export class JobDescriptionQueryDto {
   @IsOptional() @IsIn(JOB_SORTS) sort?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @IsIn([10, 25, 50, 100, 500, 1000]) pageSize?: number;
+  @IsOptional() @Transform(({ value }) => value === true || value === "true" ? true : value === false || value === "false" ? false : undefined) @IsBoolean() includeDescription?: boolean;
 }
 
 export class JobCountQueryDto {
