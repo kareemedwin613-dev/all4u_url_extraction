@@ -15,3 +15,7 @@
 .application-guide-personal{margin-top:12px}
 .application-guide-form label{display:block;margin-top:12px}
 .application-guide-form label:first-child{margin-top:0}
+.application-guide-autofill{margin-top:16px;padding:12px;border:1px solid #e7ebf2;border-radius:8px}
+.application-guide-autofill legend{padding:0 4px;font-weight:600}
+.application-guide-autofill .ant-select{display:block;width:100%;margin-top:4px}
+.application-guide-autofill .ant-checkbox-wrapper{margin-top:12px}

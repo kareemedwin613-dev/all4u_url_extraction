@@ -1,14 +1,19 @@
+import { findBestOption, monthAliases, valueAliases } from "./option-matching.js";
+import { formSection, sentenceLike } from "./form-context.js";
+
 const FIELD_ATTRIBUTE = "data-resume-jd-autofill-id";
 const SUPPORTED_TYPES = new Set(["", "text", "email", "tel", "url", "search", "month", "date", "number", "checkbox"]);
+const LEGAL_OR_CONSENT = /\b(certif(?:y|ication)|attest|declare|hereby|under penalty|terms|agree|consent|acknowledge|authori[sz]e)\b/i;
 
 const FIELD_RULES = [
   { key: "candidate.firstName", autocomplete: ["given-name"], pattern: /\b(?:first\s*name|given\s*name|forename|fname)\b/i },
   { key: "candidate.middleName", autocomplete: ["additional-name"], pattern: /\b(middle|additional)\s*name\b/i },
   { key: "candidate.lastName", autocomplete: ["family-name"], pattern: /\b(?:last\s*name|family\s*name|surname|lname)\b/i },
-  { key: "candidate.fullName", autocomplete: ["name"], pattern: /\b(full|legal|preferred)\s*name\b|^\s*name\s*$/i },
+  // A bare "Name" label is matched part by part: the joined descriptor ("Name name name") never equals "name".
+  { key: "candidate.fullName", autocomplete: ["name"], pattern: /\b(full|legal|preferred)\s*name\b/i, exact: /^\s*(?:your\s+)?name\s*\*?$/i },
   { key: "candidate.email", autocomplete: ["email"], pattern: /\be-?mail(?:\s+address)?\b/i, type: "email" },
   { key: "candidate.phone", autocomplete: ["tel", "tel-national"], pattern: /\b(phone|telephone|mobile|cell)(?:\s+number)?\b/i, type: "tel" },
-  { key: "candidate.addressLine1", autocomplete: ["address-line1", "street-address"], pattern: /\b(address|street)(?:\s+line)?\s*(?:1|one)\b|\bstreet\s+address\b/i },
+  { key: "candidate.addressLine1", autocomplete: ["address-line1", "street-address"], pattern: /\b(address|street)(?:\s+line)?\s*(?:1|one)\b|\bstreet\s+address\b|\bhome\s+address\b/i },
   { key: "candidate.addressLine2", autocomplete: ["address-line2"], pattern: /\b(address|street)(?:\s+line)?\s*(?:2|two)\b|\b(apt|apartment|suite|unit)\b/i },
   { key: "candidate.city", autocomplete: ["address-level2"], pattern: /\b(city|town|municipality)\b/i },
   { key: "candidate.state", autocomplete: ["address-level1"], pattern: /\b(state|province|region)\b/i },
@@ -22,19 +27,27 @@ const FIELD_RULES = [
   { key: "candidate.currentCompany", autocomplete: ["organization"], pattern: /\b(current|present|most\s+recent)\s+(company|employer)|current\s+employed\s+company\b/i },
 ];
 
-const STRUCTURED_PATTERNS={
-  company:/\b(company|employer|organization)\b/i,jobTitle:/\b(job|position)\s*(title)?\b|\btitle\b/i,location:/\b(location|city)\b/i,
-  institution:/\b(school|institution|university|college)\b/i,degree:/\bdegree\b/i,fieldOfStudy:/\b(field|discipline|major)(\s+of\s+study)?\b/i,gpa:/\b(gpa|grade\s+point)\b/i,
-  startDate:/\bstart\s*date\b/i,startMonth:/\bstart\s*(date\s*)?month\b/i,startYear:/\bstart\s*(date\s*)?year\b/i,
-  endDate:/\bend\s*date\b/i,endMonth:/\bend\s*(date\s*)?month\b/i,endYear:/\bend\s*(date\s*)?year\b/i,isCurrent:/\b(current|present|currently)\b/i,
+// Leaves of repeated employment/education entries. "shared" leaves exist in both sections and need
+// the surrounding section to decide which one they belong to.
+const STRUCTURED_RULES = {
+  company: { section: "employment", pattern: /\b(company|employer|organization)\b/i },
+  jobTitle: { section: "employment", pattern: /\b(job\s*title|position\s*title|title|role\s*title)\b/i, exact: /^\s*(position|role)\s*\*?$/i },
+  description: { section: "employment", pattern: /\b(description|responsibilit\w*|duties|achievements|accomplishments)\b/i, textareaOnly: true, score: 95 },
+  isCurrent: { section: "employment", pattern: /\b(i\s+(?:still\s+)?(?:currently\s+)?work\s+here|currently\s+work(?:ing)?\s+here|current(?:ly)?\s+(?:employed|role|position|job|employer)|present\s+(?:role|position|job))\b|^\s*(?:current|present)\s*$/i, checkboxOnly: true },
+  institution: { section: "education", pattern: /\b(school|institution|university|college)\b/i },
+  degree: { section: "education", pattern: /\bdegree\b/i },
+  fieldOfStudy: { section: "education", pattern: /\b(field|discipline|major)(\s+of\s+study)?\b/i },
+  gpa: { section: "education", pattern: /\b(gpa|grade\s+point)\b/i },
+  location: { section: "shared", pattern: /\b(location|city)\b/i },
+  startMonth: { section: "shared", pattern: /\b(start|from)\s*(date\s*)?month\b/i, score: 92 },
+  startYear: { section: "shared", pattern: /\b(start|from)\s*(date\s*)?year\b/i, score: 92 },
+  endMonth: { section: "shared", pattern: /\b(end|to)\s*(date\s*)?month\b/i, score: 92 },
+  endYear: { section: "shared", pattern: /\b(end|to|graduation)\s*(date\s*)?year\b/i, score: 92 },
+  startDate: { section: "shared", pattern: /\b(start\s*date|date\s+started)\b/i, exact: /^\s*from\s*\*?$/i },
+  endDate: { section: "shared", pattern: /\b(end\s*date|date\s+ended|graduation\s+date|completion\s+date)\b/i, exact: /^\s*to\s*\*?$/i },
 };
-function rulesFor(availableKeys){
-  const structured=availableKeys.filter(key=>/^(employment|education)\.\d+\./.test(key)).map(key=>{
-    const leaf=key.split(".").at(-1),pattern=STRUCTURED_PATTERNS[leaf];
-    return pattern?{key,autocomplete:[],pattern}:null;
-  }).filter(Boolean);
-  return [...FIELD_RULES,...structured];
-}
+const DATE_LEAVES = new Set(["startDate", "endDate"]);
+const MONTH_LEAVES = new Set(["startMonth", "endMonth"]);
 
 const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 const normalized = (value) => clean(value).normalize("NFKC").toLowerCase();
@@ -54,14 +67,16 @@ function labelText(element) {
   return [...labels, wrapping, legend, previous, parentLabel, parentPrompt, ...labelledText].filter(Boolean).join(" ");
 }
 
-function descriptor(element) {
+function descriptorParts(element) {
   const values = [
     labelText(element), element.getAttribute?.("aria-label"), element.getAttribute?.("placeholder"),
     element.getAttribute?.("title"), element.getAttribute?.("data-automation-id"), element.getAttribute?.("data-testid"),
     element.name, element.id,
   ].map(clean).filter(Boolean);
-  return [...values, ...values.map(humanized)].join(" ");
+  return [...values, ...values.map(humanized)];
 }
+
+function descriptor(element) { return descriptorParts(element).join(" "); }
 
 function allowed(element) {
   if (!element || element.disabled || element.readOnly) return false;
@@ -70,57 +85,157 @@ function allowed(element) {
   return tag === "input" && SUPPORTED_TYPES.has(String(element.type || "").toLowerCase());
 }
 
+const inputType = (element) => String(element.type || "").toLowerCase();
+const tagOf = (element) => String(element.tagName || "input").toLowerCase();
+
 export function scorePersonalField(element, rule) {
   if (!allowed(element)) return -1;
   const autocomplete = normalized(element.getAttribute?.("autocomplete")).split(" ").pop();
+  if (rule.autocomplete.includes(autocomplete)) return Math.min(100 + (element.required ? 1 : 0), 100);
   const text = descriptor(element);
-  let score = rule.autocomplete.includes(autocomplete) ? 100 : rule.pattern.test(text) ? 90 : 0;
-  if (rule.type && String(element.type || "").toLowerCase() === rule.type) score = Math.max(score, text ? 92 : 82);
-  if (rule.key.endsWith("Url") && String(element.type || "").toLowerCase() === "url" && rule.pattern.test(text)) score += 3;
+  // Long sentence-style questions belong to the guide and screening matchers.
+  const matched = !sentenceLike(labelText(element)) && (rule.pattern.test(text) || (rule.exact && descriptorParts(element).some((part) => rule.exact.test(part))));
+  let score = matched ? 90 : 0;
+  if (rule.type && inputType(element) === rule.type) score = Math.max(score, text ? 92 : 82);
+  if (rule.key.endsWith("Url") && inputType(element) === "url" && rule.pattern.test(text)) score += 3;
   if (element.required) score += 1;
   return Math.min(score, 100);
 }
 
-export function detectPersonalFields(root = document, availableKeys = FIELD_RULES.map((rule) => rule.key)) {
-  const allowedKeys = new Set(availableKeys), candidates = [],rules=rulesFor(availableKeys);
+function scoreStructuredLeaf(element, leaf) {
+  const rule = STRUCTURED_RULES[leaf];
+  if (!allowed(element) || sentenceLike(labelText(element))) return 0;
+  if (rule.textareaOnly && tagOf(element) !== "textarea") return 0;
+  if (Boolean(rule.checkboxOnly) !== (inputType(element) === "checkbox")) return 0;
+  if (!rule.pattern.test(descriptor(element)) && !(rule.exact && descriptorParts(element).some((part) => rule.exact.test(part)))) return 0;
+  if (leaf === "isCurrent" && LEGAL_OR_CONSENT.test(labelText(element))) return 0;
+  return rule.score || 90;
+}
+
+function bestStructuredLeaf(element) {
+  let best = null;
+  for (const leaf of Object.keys(STRUCTURED_RULES)) {
+    const score = scoreStructuredLeaf(element, leaf);
+    if (score >= 70 && (!best || score > best.score)) best = { leaf, score };
+  }
+  return best;
+}
+
+// Assigns entry numbers: the page's own index when present (ranked, so 0- and 1-based pages agree),
+// otherwise the order in which the same leaf repeats within the section.
+function indexStructured(entries) {
+  const explicit = new Map(), seen = new Map();
+  for (const entry of entries) if (Number.isInteger(entry.section.index)) {
+    const values = explicit.get(entry.kind) || new Set(); values.add(entry.section.index); explicit.set(entry.kind, values);
+  }
+  const ranks = new Map([...explicit].map(([kind, values]) => [kind, new Map([...values].sort((a, b) => a - b).map((value, rank) => [value, rank]))]));
+  for (const entry of entries) {
+    if (Number.isInteger(entry.section.index)) { entry.index = ranks.get(entry.kind).get(entry.section.index); continue; }
+    const counter = `${entry.kind}:${entry.leaf}`, next = seen.get(counter) || 0;
+    entry.index = next; seen.set(counter, next + 1);
+  }
+}
+
+// Every plausible (element, key) pair before arbitration; one best key per element.
+export function personalFieldCandidates(root = document, availableKeys = FIELD_RULES.map((rule) => rule.key)) {
+  const allowedKeys = new Set(availableKeys), candidates = [], structured = [];
   for (const element of root.querySelectorAll("input,select,textarea")) {
+    if (!allowed(element)) continue;
+    const section = formSection(element);
     let best = null;
-    for (const rule of rules) {
+    for (const rule of FIELD_RULES) {
       if (!allowedKeys.has(rule.key)) continue;
-      const confidence = scorePersonalField(element, rule);
-      if (confidence >= 70 && (!best || confidence > best.confidence)) best = { rule, confidence };
+      // Inside an employment or education entry only the autocomplete attribute can claim a contact field.
+      const confidence = section.kind && !rule.autocomplete.includes(normalized(element.getAttribute?.("autocomplete")).split(" ").pop()) ? 0 : scorePersonalField(element, rule);
+      if (confidence >= 70 && (!best || confidence > best.confidence)) best = { key: rule.key, confidence };
+    }
+    const leaf = bestStructuredLeaf(element);
+    if (leaf && (!best || leaf.score >= best.confidence)) {
+      const rule = STRUCTURED_RULES[leaf.leaf];
+      const kind = rule.section === "shared" ? section.kind : section.kind && section.kind !== rule.section ? null : rule.section;
+      if (kind) { structured.push({ element, leaf: leaf.leaf, kind, section, confidence: leaf.score }); continue; }
+      // A plain "Location" outside any entry is the candidate's own location.
+      if (leaf.leaf === "location" && allowedKeys.has("candidate.currentLocation") && !best) best = { key: "candidate.currentLocation", confidence: 88 };
     }
     if (best) candidates.push({ element, ...best });
   }
+  indexStructured(structured);
+  for (const entry of structured) {
+    const key = `${entry.kind}.${entry.index}.${entry.leaf}`;
+    if (allowedKeys.has(key)) candidates.push({ element: entry.element, key, confidence: entry.confidence });
+  }
+  return candidates.map((candidate) => ({
+    ...candidate,
+    label: labelText(candidate.element) || clean(candidate.element.name || candidate.element.id) || candidate.key,
+    controlType: tagOf(candidate.element), inputType: inputType(candidate.element),
+  }));
+}
+
+export function tagPersonalField(element, fieldId) { element.setAttribute(FIELD_ATTRIBUTE, fieldId); }
+
+export function personalFieldResult(candidate, fieldId) {
+  return {
+    fieldId, key: candidate.key, label: candidate.label, confidence: candidate.confidence,
+    readiness: candidate.confidence >= 90 ? "READY" : "REVIEW_REQUIRED",
+    controlType: candidate.controlType, inputType: candidate.inputType,
+  };
+}
+
+export function detectPersonalFields(root = document, availableKeys = FIELD_RULES.map((rule) => rule.key)) {
   const selected = new Map(), usedElements = new Set();
-  for (const candidate of candidates.sort((a, b) => b.confidence - a.confidence)) {
-    if (!selected.has(candidate.rule.key) && !usedElements.has(candidate.element)) {
-      selected.set(candidate.rule.key, candidate);
+  for (const candidate of personalFieldCandidates(root, availableKeys).sort((a, b) => b.confidence - a.confidence)) {
+    if (!selected.has(candidate.key) && !usedElements.has(candidate.element)) {
+      selected.set(candidate.key, candidate);
       usedElements.add(candidate.element);
     }
   }
   let sequence = 0;
-  return [...selected.values()].map(({ element, rule, confidence }) => {
+  return [...selected.values()].map((candidate) => {
     const fieldId = `personal_${Date.now().toString(36)}_${sequence++}`;
-    element.setAttribute(FIELD_ATTRIBUTE, fieldId);
-    return {
-      fieldId, key: rule.key, label: labelText(element) || clean(element.name || element.id) || rule.key,
-      confidence, readiness: confidence >= 90 ? "READY" : "REVIEW_REQUIRED",
-      controlType: String(element.tagName || "input").toLowerCase(),
-    };
+    tagPersonalField(candidate.element, fieldId);
+    return personalFieldResult(candidate, fieldId);
   });
 }
 
-function setNativeValue(element, value) {
-  const tag = String(element.tagName || "").toLowerCase();
-  if(tag==="input"&&String(element.type||"").toLowerCase()==="checkbox"){
+// Dates travel as "YYYY-MM" (or "YYYY"); each control receives the shape it accepts.
+export function formatDateForControl(value, element) {
+  const match = String(value ?? "").match(/^(\d{4})(?:-(\d{1,2}))?/);
+  if (!match) return String(value ?? "");
+  const year = match[1], month = match[2] ? match[2].padStart(2, "0") : "";
+  const type = inputType(element);
+  if (type === "month") return `${year}-${month || "01"}`;
+  if (type === "date") return `${year}-${month || "01"}-01`;
+  const hint = normalized(`${element.getAttribute?.("placeholder") || ""} ${element.getAttribute?.("aria-label") || ""}`);
+  if (!month || /^\s*yyyy\s*$/.test(hint)) return year;
+  if (/yyyy\s*-\s*mm/.test(hint)) return `${year}-${month}`;
+  if (/mm\s*\/\s*dd\s*\/\s*yyyy/.test(hint)) return `${month}/01/${year}`;
+  return `${month}/${year}`;
+}
+
+function leafOf(key) { return String(key || "").split(".").at(-1); }
+
+function selectOption(element, value, key) {
+  const leaf = leafOf(key), texts = (item) => [item.value, item.textContent, item.label];
+  if (MONTH_LEAVES.has(leaf)) {
+    const aliases = monthAliases(value).map(normalized);
+    return [...element.options].find((item) => texts(item).some((text) => aliases.includes(normalized(text)))) || null;
+  }
+  if (DATE_LEAVES.has(leaf)) {
+    const match = String(value).match(/^(\d{4})/);
+    return match ? [...element.options].find((item) => texts(item).some((text) => normalized(text) === match[1])) || null : null;
+  }
+  return findBestOption([...element.options], value, texts);
+}
+
+function setNativeValue(element, value, key) {
+  const tag = tagOf(element);
+  if(tag==="input"&&inputType(element)==="checkbox"){
     const wanted=value===true||["true","yes","1","present","current"].includes(normalized(value));
     if(element.checked!==wanted){const setter=globalThis.HTMLInputElement&&Object.getOwnPropertyDescriptor(globalThis.HTMLInputElement.prototype,"checked")?.set;if(setter)setter.call(element,wanted);else element.checked=wanted;for(const type of["input","change"])element.dispatchEvent(new Event(type,{bubbles:true,composed:true}));}
     return element.checked===wanted;
   }
   if (tag === "select") {
-    const wanted = normalized(value);
-    const option = [...element.options].find((item) => normalized(item.value) === wanted || normalized(item.textContent) === wanted);
+    const option = selectOption(element, value, key);
     if (!option) return false;
     element.value = option.value;
   } else {
@@ -132,11 +247,15 @@ function setNativeValue(element, value) {
   return true;
 }
 
-function verified(element, value) {
-  if(String(element.type||"").toLowerCase()==="checkbox")return element.checked===(value===true||["true","yes","1","present","current"].includes(normalized(value)));
+function verified(element, value, key) {
+  if(inputType(element)==="checkbox")return element.checked===(value===true||["true","yes","1","present","current"].includes(normalized(value)));
+  if (tagOf(element) === "select") {
+    const selected = [...(element.options || [])].find((item) => item.value === element.value);
+    return Boolean(selected) && selected === selectOption(element, value, key);
+  }
   const actual = normalized(element.value), expected = normalized(value);
   if (actual === expected) return true;
-  if (String(element.type || "").toLowerCase() === "tel") {
+  if (inputType(element) === "tel") {
     const actualDigits = actual.replace(/\D/g, ""), expectedDigits = expected.replace(/\D/g, "");
     if (actualDigits === expectedDigits) return true;
     // ATS forms commonly keep the 1–3 digit country calling code in an
@@ -150,11 +269,13 @@ export function fillPersonalFields(requests, root = document) {
   return requests.map(({ fieldId, key, value }) => {
     const element = [...root.querySelectorAll(`[${FIELD_ATTRIBUTE}]`)].find((item) => item.getAttribute(FIELD_ATTRIBUTE) === fieldId);
     if (!element || !allowed(element)) return { fieldId, key, status: "FAILED", code: "FIELD_NO_LONGER_AVAILABLE" };
-    const safeValue = typeof value==="boolean"?value:clean(value);
-    if (safeValue==="") return { fieldId, key, status: "SKIPPED", code: "VALUE_UNAVAILABLE" };
+    const leaf = leafOf(key);
+    let safeValue = typeof value === "boolean" ? value : leaf === "description" ? String(value ?? "").trim() : clean(value);
+    if (safeValue === "") return { fieldId, key, status: "SKIPPED", code: "VALUE_UNAVAILABLE" };
+    if (DATE_LEAVES.has(leaf) && tagOf(element) !== "select") safeValue = formatDateForControl(safeValue, element);
     try {
-      if (!setNativeValue(element, safeValue)) return { fieldId, key, status: "FAILED", code: "SELECT_OPTION_NOT_FOUND" };
-      const ok = verified(element, safeValue);
+      if (!setNativeValue(element, safeValue, key)) return { fieldId, key, status: "FAILED", code: "SELECT_OPTION_NOT_FOUND" };
+      const ok = verified(element, safeValue, key);
       if (ok) element.setAttribute("data-resume-jd-autofill-verified", "true");
       return { fieldId, key, status: ok ? "VERIFIED" : "FAILED", code: ok ? "FIELD_VERIFIED" : "FIELD_VERIFICATION_FAILED" };
     } catch {
@@ -163,4 +284,6 @@ export function fillPersonalFields(requests, root = document) {
   });
 }
 
+export const PERSONAL_FIELD_ATTRIBUTE = FIELD_ATTRIBUTE;
 export const PERSONAL_AUTOFILL_KEYS = Object.freeze(FIELD_RULES.map((rule) => rule.key));
+export { valueAliases };

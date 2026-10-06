@@ -77,6 +77,10 @@ export class UpdateResumeStructuredContentDto {
   @IsArray() @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => StructuredCertificationDto) certifications!: StructuredCertificationDto[];
 }
 
+export class ResumeGenderDto {
+  @IsOptional() @IsIn(["MALE", "FEMALE", "NON_BINARY", null]) gender?: string | null;
+}
+
 export class ResumeAutofillPreferencesDto {
   @IsBoolean() allowAttachment!: boolean;
   @IsBoolean() allowProfileFields!: boolean;

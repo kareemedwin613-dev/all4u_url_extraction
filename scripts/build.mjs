@@ -15,6 +15,6 @@ if(watch){const contexts=await Promise.all(builds.map(options=>context(options))
 for(const [source,target] of [["manifest.json","manifest.json"],["sidepanel/index.html","sidepanel/index.html"]])await cp(resolve(root,source),resolve(dist,target));
 for(const size of [16,48,128])await cp(resolve(root,`assets/icon${size}.png`),resolve(dist,`assets/icon${size}.png`));
 await cp(resolve("node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs"),resolve(dist,"assets/pdf.worker.min.mjs"));
-const manifest=JSON.parse(await readFile(resolve(dist,"manifest.json"),"utf8"));if(manifest.version!=="1.8.0")throw new Error("Built manifest must be version 1.8.0");
+const manifest=JSON.parse(await readFile(resolve(dist,"manifest.json"),"utf8"));if(manifest.version!=="1.9.0")throw new Error("Built manifest must be version 1.9.0");
 const html=await readFile(resolve(dist,"sidepanel/index.html"),"utf8");if(/<script[^>]+src=["']https?:/i.test(html))throw new Error("Remote executable code detected");
 console.log("Built extension/dist");

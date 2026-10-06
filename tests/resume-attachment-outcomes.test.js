@@ -46,7 +46,7 @@ test("extension records every attachment attempt without blocking the Applier", 
   assert.doesNotMatch(outcome, /filename|signedUrl|message:/, "no filename, URL, or free-text message leaves the extension");
 });
 
-test("extension build is versioned 1.8.0", () => {
-  assert.equal(JSON.parse(read("../extension/manifest.json")).version, "1.8.0");
-  assert.match(read("../scripts/build.mjs"), /manifest\.version!=="1\.8\.0"/);
+test("extension build is versioned 1.9.0", () => {
+  assert.equal(JSON.parse(read("../extension/manifest.json")).version, "1.9.0");
+  assert.match(read("../scripts/build.mjs"), /manifest\.version!=="1\.9\.0"/);
 });

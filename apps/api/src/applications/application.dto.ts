@@ -67,7 +67,7 @@ export class UpdateApplicationExtensionSessionDto{
 }
 export class ApplicationCountQueryDto{@IsISO8601()from!:string;@IsISO8601()to!:string;}
 export class ApplicationAutofillFieldTelemetryDto{
-  @IsString()@MaxLength(100)@Matches(/^(candidate|screening|employment|education)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,96}$/)fieldKey!:string;
+  @IsString()@MaxLength(100)@Matches(/^(candidate|screening|employment|education|guide)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,96}$/)fieldKey!:string;
   @Type(()=>Number)@IsInt()@Min(0)@Max(99)fieldIndex!:number;
   @Type(()=>Number)@IsInt()@Min(0)@Max(100)confidence!:number;
   @IsIn(["DETECTED","VERIFIED","FAILED","SKIPPED"])outcome!:string;
@@ -91,6 +91,17 @@ export class UpdateApplicationAutofillRecoveryDto{
   @IsISO8601({strict:true})resumeUpdatedAt!:string;
   @IsOptional()@IsString()@MaxLength(80)@Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)adapterId?:string;
   @IsOptional()@IsString()@MaxLength(40)@Matches(/^[0-9A-Za-z][0-9A-Za-z._-]{0,39}$/)adapterVersion?:string;
+}
+// Employer question wording Autofill could not answer; never answers or candidate values.
+export class AutofillUnresolvedQuestionDto{
+  @IsString()@MaxLength(300)@Matches(/\S/)question!:string;
+  @IsIn(["input","select","textarea","radio","checkbox","combobox"])controlType!:string;
+  @IsIn(["NO_MATCHING_ANSWER","REVIEW_REQUIRED"])reason!:string;
+}
+export class RecordAutofillUnresolvedQuestionsDto{
+  @IsOptional()@IsString()@MaxLength(253)@Matches(/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/)targetDomain?:string;
+  @IsOptional()@IsString()@MaxLength(80)@Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)adapterId?:string;
+  @IsArray()@ArrayMaxSize(50)@ValidateNested({each:true})@Type(()=>AutofillUnresolvedQuestionDto)questions!:AutofillUnresolvedQuestionDto[];
 }
 // Privacy-safe Resume attachment outcome: no filename, URL, or file data.
 export class RecordResumeAttachmentDto{

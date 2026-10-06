@@ -6,7 +6,8 @@ function adapterSummary(selected) { return { id: selected.id, version: selected.
 function detectAutofillFields(payload) {
   const selected=selectJobSiteAdapter(location.href);
   const applicationAnswers=Object.freeze((payload?.applicationAnswers||[]).map(answer=>Object.freeze({...answer,questionPatterns:Object.freeze([...(answer.questionPatterns||[])])})));
-  const context=Object.freeze({root:document,availableKeys:Object.freeze([...(payload?.availableKeys||[])]),applicationAnswers});
+  const guideEntries=Object.freeze((payload?.guideEntries||[]).map(entry=>Object.freeze({...entry,patterns:Object.freeze([...(entry.patterns||[])])})));
+  const context=Object.freeze({root:document,availableKeys:Object.freeze([...(payload?.availableKeys||[])]),applicationAnswers,guideEntries});
   const result=selected.adapter.detectFields(context);
   return {status:"DETECTED",...result,origin:location.origin,adapter:adapterSummary(selected)};
 }

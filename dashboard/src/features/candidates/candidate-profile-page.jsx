@@ -18,6 +18,7 @@ import {
   importCandidateEmployment,
   updateCandidateProfile,
   updateResumeAutofillPreferences,
+  updateResumeGender,
 } from "./candidate-profile-service.js";
 import { getResume, renameResume } from "../../services/resume-read-service.js";
 import { StructuredResumeEditor } from "./structured-resume-editor.jsx";
@@ -30,6 +31,7 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
   const { notification } = AntApp.useApp(),
     [profile, setProfile] = useState(),
     [preferences, setPreferences] = useState(),
+    [genderInfo, setGenderInfo] = useState({ gender: null, resumeType: "ORIGINAL" }),
     [loadError, setLoadError] = useState(""),
     [busy, setBusy] = useState(false),
     [form] = Form.useForm();
@@ -49,6 +51,7 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
           resumeName: nextProfile.resumeName || resumeRow?.resume_name || "",
         });
         setPreferences(nextPreferences.preferences);
+        setGenderInfo({ gender: nextPreferences.gender ?? null, resumeType: nextPreferences.resumeType || "ORIGINAL" });
       })
       .catch((x) => setLoadError(x.message));
   };
@@ -133,6 +136,18 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
       notify("success", "Autofill Permissions saved.");
     } catch (x) {
       notify("error", "Autofill Permissions could not be saved", x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveGender(gender) {
+    setBusy(true);
+    try {
+      const next = await updateResumeGender(client, apiBaseUrl, id, gender);
+      setGenderInfo({ gender: next.gender ?? null, resumeType: next.resumeType || "ORIGINAL" });
+      notify("success", "Gender saved.");
+    } catch (x) {
+      notify("error", "Gender could not be saved", x.message);
     } finally {
       setBusy(false);
     }
@@ -296,6 +311,9 @@ export function CandidateProfilePage({ client, apiBaseUrl, id }) {
         value={preferences}
         busy={busy}
         onSave={savePreferences}
+        gender={genderInfo.gender}
+        resumeType={genderInfo.resumeType}
+        onSaveGender={saveGender}
       />
       <StructuredResumeEditor
         client={client}

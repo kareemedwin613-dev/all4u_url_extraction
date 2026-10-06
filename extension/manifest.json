@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Resume JD Capture",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Capture job descriptions and deterministically autofill assigned applications without AI.",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "clipboardWrite", "downloads", "scripting", "storage", "sidePanel"],
