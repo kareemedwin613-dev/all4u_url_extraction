@@ -26,6 +26,7 @@
     "tailoring:run": "node scripts/worker-runner.mjs tailoring",
     "matching:run": "node scripts/worker-runner.mjs matching",
     "jd-review:run": "node scripts/worker-runner.mjs jd-review",
+    "screenshot-review:run": "node scripts/worker-runner.mjs screenshot-review",
     "test:jd-review": "node --test apps/jd-review-worker/test/*.test.mjs tests/jd-review*.test.js",
     "workers:status": "node scripts/worker-runner.mjs status",
     "workers:logs": "node scripts/worker-runner.mjs logs",
@@ -45,6 +46,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "recharts": "^3.10.1",
+    "sharp": "^0.35.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

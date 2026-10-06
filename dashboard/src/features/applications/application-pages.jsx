@@ -79,6 +79,7 @@ import {
   serializeApplicationQuery,
 } from "./query-state.js";
 import { applicationReviewHref, screenshotReviewStatus } from "./screenshot-review.js";
+import {CreateScreenshotReview, ScreenshotReviewHistory} from "../screenshot-review/screenshot-review-pages.jsx";
 import {
   createApplication,
   bulkCancelApplications,
@@ -542,6 +543,7 @@ export function ApplicationsPage({
     [notice, setNotice] = useState(""),
     [selectedIds, setSelectedIds] = useState([]),
     [selectionMode,setSelectionMode]=useState("TAILOR"),
+    [screenshotBatchOpen,setScreenshotBatchOpen]=useState(false),
     [tailoringBusy,setTailoringBusy]=useState(false),
     [cancelBusy,setCancelBusy]=useState(false),
     [deleteBusy,setDeleteBusy]=useState(false),
@@ -1098,7 +1100,7 @@ export function ApplicationsPage({
       {manager ? (
         <Flex className="page-toolbar" justify="flex-end" align="center" wrap>
           <Space wrap>
-            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"},{value:"CANCEL",label:"Select For Cancellation"},{value:"DELETE",label:"Select For Deletion"}]} style={{minWidth:220}}/>
+            <Select value={selectionMode} onChange={value=>{setSelectionMode(value);setSelectedIds([]);}} options={[{value:"TAILOR",label:"Select For Tailoring"},{value:"SCREENSHOT_REVIEW",label:"Select For AI Screenshot Review"},{value:"ASSIGN",label:"Select For Assignment / Reassignment"},{value:"CANCEL",label:"Select For Cancellation"},{value:"DELETE",label:"Select For Deletion"}]} style={{minWidth:220}}/>
             <Text>{selectedIds.length} selected</Text>
             <Button
               disabled={!selectedIds.length}
@@ -1134,6 +1136,8 @@ export function ApplicationsPage({
               Assign / Reassign Selected
             </Button>
             <Button disabled={selectionMode!=="TAILOR"||!selectedIds.length||selectedIds.length>1000} loading={tailoringBusy} onClick={tailorSelected}>Tailor Selected</Button>
+            {selectionMode==="SCREENSHOT_REVIEW"&&<Button disabled={!selectedIds.length||selectedIds.length>1000} onClick={()=>setScreenshotBatchOpen(true)}>AI Review Screenshots</Button>}
+            {screenshotBatchOpen&&<CreateScreenshotReview client={client} apiBaseUrl={apiBaseUrl} applicationIds={selectedIds} onCancel={()=>setScreenshotBatchOpen(false)} onCreated={batch=>{setScreenshotBatchOpen(false);setSelectedIds([]);go(`#/screenshot-review-batches/${batch.id}`);}}/>}
             {selectionMode==="TAILOR"&&selectedIds.length>1000&&<Text type="warning">Select no more than 1,000 applications for tailoring.</Text>}
             <Button type="primary" href="#/applications/new">
               Create Application
@@ -1221,6 +1225,7 @@ export function ApplicationsPage({
                       getCheckboxProps: (record) => ({
                         disabled:
                           (selectionMode==="TAILOR"&&tailoringIsFinal(record)) ||
+                          (selectionMode==="SCREENSHOT_REVIEW"&&["CORRECT","HAS_MISTAKES"].includes(screenshotReviewStatus(record))) ||
                           (selectionMode === "ASSIGN" &&
                             ["CANCELLED", "CLOSED", "COMPLETED"].includes(record.status)) ||
                           (selectionMode === "CANCEL" && record.status === "CANCELLED") ||
@@ -2024,6 +2029,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = 
                     />
                   )}
                 </Card>
+                {manager&&<ScreenshotReviewHistory client={client} apiBaseUrl={apiBaseUrl} applicationId={id}/>}
                 <Card title="Status History">
                   {detail.status_history.length ? (
                     <Table

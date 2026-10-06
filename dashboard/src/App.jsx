@@ -184,6 +184,8 @@ const TailoringReviewPage = lazyNamed(() => import("./features/tailoring/tailori
 const TailoringBatchDetailPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchDetailPage");
 const TailoringBatchesPage = lazyNamed(() => import("./features/tailoring/tailoring-batch-pages.jsx"), "TailoringBatchesPage");
 const JdReviewBatchesPage = lazyNamed(() => import("./features/jd-review/jd-review-pages.jsx"), "JdReviewBatchesPage");
+const ScreenshotReviewBatchesPage = lazyNamed(() => import("./features/screenshot-review/screenshot-review-pages.jsx"), "ScreenshotReviewBatchesPage");
+const ScreenshotReviewBatchDetailPage = lazyNamed(() => import("./features/screenshot-review/screenshot-review-pages.jsx"), "ScreenshotReviewBatchDetailPage");
 const JdReviewBatchDetailPage = lazyNamed(() => import("./features/jd-review/jd-review-pages.jsx"), "JdReviewBatchDetailPage");
 const CalendarPage = lazyNamed(() => import("./features/interviews/calendar-page.jsx"), "CalendarPage");
 
@@ -3425,6 +3427,10 @@ export function App({ client, apiBaseUrl }) {
     page = <TailoringReviewPage client={client} apiBaseUrl={apiBaseUrl} id={route.id} reload={reload} />;
   else if (route.name === "jd-review-batches")
     page = <JdReviewBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "screenshot-review-batches")
+    page = <ScreenshotReviewBatchesPage client={client} apiBaseUrl={apiBaseUrl} />;
+  else if (route.name === "screenshot-review-batch-detail")
+    page = <ScreenshotReviewBatchDetailPage key={route.id} client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "jd-review-batch-detail")
     page = <JdReviewBatchDetailPage key={route.id} client={client} apiBaseUrl={apiBaseUrl} id={route.id} />;
   else if (route.name === "tailoring-batches")

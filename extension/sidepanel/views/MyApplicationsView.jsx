@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Select, Space, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { createApplicationExtensionSession, downloadApplicationCoverLetter, downloadApplicationResume, formatMineResumeOptionLabel, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { copyApplicationCoverLetter, copyApplicationQaPrompt, createApplicationExtensionSession, downloadApplicationCoverLetter, downloadApplicationResume, formatMineResumeOptionLabel, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { APPLIER_STATUS_FILTER_OPTIONS } from "../../shared/applier-application-statuses.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
@@ -117,6 +117,26 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     finally { setExtensionBusy(""); }
   }
 
+  async function copyCoverLetter(application) {
+    setExtensionBusy(`${application.id}:COPY_COVER_LETTER`);
+    onStatus({ message: "Preparing cover letter text...", kind: "info" });
+    try {
+      await copyApplicationCoverLetter(client, backendBaseUrl, application.id);
+      onStatus({ message: "Cover letter copied as plain text. Ready to paste.", kind: "success" });
+    } catch (error) { onError(error); }
+    finally { setExtensionBusy(""); }
+  }
+
+  async function copyQaPrompt(application) {
+    setExtensionBusy(`${application.id}:COPY_QA_PROMPT`);
+    onStatus({ message: "Preparing Resume and JD prompt...", kind: "info" });
+    try {
+      const result = await copyApplicationQaPrompt(client, backendBaseUrl, application.id);
+      onStatus({ message: `Q&A prompt copied with the ${result.resumeType === "TAILORED" ? "tailored" : "original"} Resume and JD. Paste into ChatGPT, then ask your questions.`, kind: "success" });
+    } catch (error) { onError(error); }
+    finally { setExtensionBusy(""); }
+  }
+
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,7 +218,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         </Card>
       ) : (
         items.map((application) => (
-          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} onDownloadCoverLetter={downloadCoverLetter} extensionBusy={extensionBusy} />
+          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} onDownloadCoverLetter={downloadCoverLetter} onCopyCoverLetter={copyCoverLetter} onCopyQaPrompt={copyQaPrompt} extensionBusy={extensionBusy} />
         ))
       )}
       {editingApplication && (

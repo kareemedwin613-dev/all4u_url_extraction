@@ -49,8 +49,8 @@ test("navigation is exact for technical, business, admin, and multi-role users",
   assert.deepEqual(navigationForAccess(access(["JD_FINDER"])).map(x=>x.label),["Overview","Job Descriptions","Banned Companies","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER"])).map(x=>x.label),["Overview","Applications","Screenshot Reviewers","Application Guide","Job Descriptions","Resumes","My Profile"]);
   assert.deepEqual(navigationForAccess(access(["APPLIER","DEVELOPER"])).map(x=>x.label),["Overview","Applications","Screenshot Reviewers","Application Guide","Job Descriptions","Resumes","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Screenshot Reviewers","Application Guide","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Users","My Profile"]);
-  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Calendar","Applications","Screenshot Reviewers","Application Guide","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Upload Resume","Users","Roles","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["APPLYING_MANAGER"])).map(x=>x.label),["Overview","Applications","Screenshot Reviewers","AI Screenshot Reviews","Application Guide","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Users","My Profile"]);
+  assert.deepEqual(navigationForAccess(access(["ADMIN"])).map(x=>x.label),["Overview","Calendar","Applications","Screenshot Reviewers","AI Screenshot Reviews","Application Guide","Application Batches","Applier Directory","Tailored Resumes","Tailoring Prompts","Tailoring Batches","Job Descriptions","Banned Companies","JD Review Batches","Resumes","Upload Resume","Users","Roles","My Profile"]);
   assert.equal(guardAccessRoute(parseRoute("#/application-guide"),session,access(["APPLIER"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/application-guide"),session,access(["APPLYING_MANAGER"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/application-guide"),session,access(["ADMIN"])),null);
@@ -59,6 +59,10 @@ test("navigation is exact for technical, business, admin, and multi-role users",
   assert.equal(guardAccessRoute(parseRoute("#/screenshot-reviewers"),session,access(["APPLIER"])),null);
   assert.equal(guardAccessRoute(parseRoute("#/screenshot-reviewers"),session,access(["JD_FINDER"])),"#/access-denied");
   assert.equal(parseRoute("#/screenshot-reviewers").name,"screenshot-reviewers");
+  assert.equal(parseRoute("#/screenshot-review-batches").name,"screenshot-review-batches");
+  assert.equal(parseRoute("#/screenshot-review-batches/"+id).name,"screenshot-review-batch-detail");
+  for (const role of ["APPLIER","JD_FINDER","DEVELOPER"]) assert.equal(guardAccessRoute(parseRoute("#/screenshot-review-batches/"+id),session,access([role])),"#/access-denied");
+  for (const role of ["ADMIN","APPLYING_MANAGER"]) assert.equal(guardAccessRoute(parseRoute("#/screenshot-review-batches/"+id),session,access([role])),null);
 });
 
 test("applier directory route is available to managers and admins",()=>{

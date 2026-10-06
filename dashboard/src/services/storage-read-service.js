@@ -32,15 +32,26 @@ export async function downloadCoverLetterPdf(client,{id,apiBaseUrl}){
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/cover-letter/pdf`,timeoutMs:30000});
   return saveBase64Pdf(payload.data);
 }
-// The tailored letter when the Application's Resume has one, otherwise the original Resume's base letter.
+// Original uploads are downloaded unchanged; tailored PDFs retain their existing rendering path.
 export async function downloadApplicationCoverLetterPdf(client,{id,apiBaseUrl}){
   if(!id)throw{code:"VALIDATION_ERROR",message:"The Application reference is invalid."};
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/applications/${encodeURIComponent(id)}/cover-letter`,timeoutMs:30000});
-  return {filename:saveBase64Pdf(payload.data),kind:payload.data.kind};
+  const data=payload.data;
+  if(data.source==="ORIGINAL_UPLOAD"){
+    const url=new URL(data.signedUrl);
+    if(!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/"))throw new Error("The original cover letter download URL is invalid.");
+    const response=await fetch(url,{credentials:"omit",signal:AbortSignal.timeout(30000)});
+    if(!response.ok)throw new Error("The original cover letter could not be downloaded. Please try again.");
+    return{filename:saveBlob(await response.blob(),data.filename),kind:data.kind};
+  }
+  return {filename:saveBase64Pdf(data),kind:data.kind};
 }
 function saveBase64Pdf({filename,mimeType,contentBase64}){
   const bytes=Uint8Array.from(atob(contentBase64),character=>character.charCodeAt(0));
-  const url=URL.createObjectURL(new Blob([bytes],{type:mimeType||"application/pdf"})),link=document.createElement("a");
+  return saveBlob(new Blob([bytes],{type:mimeType||"application/pdf"}),filename);
+}
+function saveBlob(blob,filename){
+  const url=URL.createObjectURL(blob),link=document.createElement("a");
   link.href=url;link.download=filename||"Cover_Letter.pdf";document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(url),10000);
   return filename;

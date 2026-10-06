@@ -16,7 +16,7 @@ async function main() {
     for await (const chunk of process.stdin) { input += chunk; if (input.length > 65536) throw Error("Runner configuration is too large."); }
     clearTimeout(timeout);
     const config = JSON.parse(input);
-    if (config.root !== root || !["matching", "tailoring", "jd-review"].includes(config.kind) || !Array.isArray(config.args)
+    if (config.root !== root || !["matching", "tailoring", "jd-review", "screenshot-review"].includes(config.kind) || !Array.isArray(config.args)
       || config.runId !== runIdentity(config.kind, config.ticket, config.apiBaseUrl)) throw Error("Invalid runner configuration.");
     await supervise(config); return;
   }
@@ -47,7 +47,7 @@ async function main() {
     }
     writeFileSync(paths.stop, "stop", { mode: 0o600 }); console.log("Stop requested. Completed results are preserved."); return;
   }
-  if (!["matching", "tailoring", "jd-review"].includes(operation)) throw Error("Use tailoring, jd-review, status, logs or stop.");
+  if (!["matching", "tailoring", "jd-review", "screenshot-review"].includes(operation)) throw Error("Use tailoring, jd-review, screenshot-review, status, logs or stop.");
   if (operation === "matching") {
     console.log("AI evaluation is archived. Use category/subcategory matching in the dashboard. Historical logs remain available through workers:logs.");
     return;
@@ -60,7 +60,7 @@ async function main() {
     child.on("error", () => { console.error("Worker launch failed."); process.exitCode = 1; });
     child.on("exit", code => { process.exitCode = code ?? 1; }); return;
   }
-  if (!(operation === "jd-review" ? /^jrb_[A-Za-z0-9_-]{43}$/ : /^trb_[A-Za-z0-9_-]{43}$/).test(ticket || "")) throw Error("Invalid batch ticket. Copy the command from the dashboard.");
+  if (!(operation === "screenshot-review" ? /^srb_[A-Za-z0-9_-]{43}$/ : operation === "jd-review" ? /^jrb_[A-Za-z0-9_-]{43}$/ : /^trb_[A-Za-z0-9_-]{43}$/).test(ticket || "")) throw Error("Invalid batch ticket. Copy the command from the dashboard.");
   const urlIndex = args.indexOf("--api-base-url"), apiBaseUrl = args[urlIndex + 1];
   if (urlIndex < 0 || !apiBaseUrl) throw Error("A batch command requires --api-base-url.");
   const url = new URL(apiBaseUrl);
