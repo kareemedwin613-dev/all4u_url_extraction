@@ -183,13 +183,20 @@ export async function loadApplicationResumeForSession(client,baseUrl,session,sen
   }
   return null;
 }
-// The server renders the letter (tailored if the attached Resume has one, else the base letter) and
-// checks Application access, so no Storage read of the original Resume's upload is needed here.
+// Original uploads use a private signed URL; tailored letters retain the generated PDF download.
 export async function downloadApplicationCoverLetter(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter`,{timeoutMs:30000});
-  if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(String(data?.contentBase64||""))||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter download metadata is invalid.");
+  let downloadUrl;
+  if(data?.source==="ORIGINAL_UPLOAD"){
+    let url;try{url=new URL(data.signedUrl);}catch{/* Rejected by metadata validation below. */}
+    if(data.kind!=="BASE"||!url||!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/")||!data.filename||!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(data.mimeType))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter download metadata is invalid.");
+    downloadUrl=url.toString();
+  }else{
+    if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(String(data?.contentBase64||""))||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter download metadata is invalid.");
+    downloadUrl=`data:application/pdf;base64,${data.contentBase64}`;
+  }
   const downloadName=safeDownloadName(data.filename||"Cover Letter.pdf");
-  const downloadId=await downloadImpl({url:`data:application/pdf;base64,${data.contentBase64}`,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
+  const downloadId=await downloadImpl({url:downloadUrl,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_COVER_LETTER_DOWNLOAD_FAILED","Chrome could not start the cover letter download.");
   return{kind:data.kind,downloadId,downloadName};
 }

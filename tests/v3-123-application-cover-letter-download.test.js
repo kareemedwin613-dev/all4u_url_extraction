@@ -31,6 +31,26 @@ test("the Application cover letter prefers the tailored letter, falls back to th
   await assert.rejects(() => letter(24), /APPLICATION_COVER_LETTER_NOT_FOUND/);
   await db.exec("select set_config('test.viewer','someone-else',false)");
   await assert.rejects(() => letter(21), /APPLICATION_RESUME_UNAVAILABLE/);
+
+  await db.exec(`alter table resumes add column cover_letter_storage_bucket text, add column cover_letter_storage_path text,
+    add column cover_letter_original_filename text, add column cover_letter_mime_type text, add column cover_letter_file_size_bytes integer;
+    update resumes set cover_letter_storage_bucket='cover-letters',cover_letter_storage_path='owner/original.pdf',
+      cover_letter_original_filename='Original.pdf',cover_letter_mime_type='application/pdf',cover_letter_file_size_bytes=123 where id='${id(1)}';`);
+  await db.exec(read("../supabase/migrations/202610061300_v3_153_original_application_cover_letter.sql"));
+  const download = async n => (await db.query("select get_application_cover_letter_v3153($1) result", [id(n)])).rows[0].result;
+  await assert.rejects(() => download(23), /APPLICATION_RESUME_UNAVAILABLE/);
+  await db.exec(`select set_config('test.viewer','${id(9)}',false)`);
+  assert.deepEqual(await download(21), await letter(21), "tailored response unchanged");
+  assert.deepEqual(await download(22), await letter(22), "tailored base-text fallback unchanged");
+  assert.equal((await download(23)).source,"ORIGINAL_UPLOAD");
+  assert.equal((await download(23)).filename,"Original.pdf");
+  assert.equal((await download(23)).text,undefined,"do not render saved text for original uploads");
+  await db.exec(`update resumes set cover_letter_text=null where id='${id(1)}'`);
+  assert.equal((await download(23)).source,"ORIGINAL_UPLOAD","upload does not depend on extracted text");
+  await db.exec(`update resumes set cover_letter_text='Saved text only' where id='${id(4)}'`);
+  await assert.rejects(() => download(24), /APPLICATION_COVER_LETTER_NOT_FOUND/);
+  await db.exec(`update resumes set status='ARCHIVED' where id='${id(1)}'`);
+  await assert.rejects(() => download(23), /APPLICATION_RESUME_UNAVAILABLE/);
 });
 
 test("the extension downloads the rendered cover letter PDF under the generated filename", async t => {
@@ -56,4 +76,17 @@ test("each Application card offers Download Cover Letter beside Download Resume"
   const card = read("../extension/sidepanel/components/ApplicationCard.jsx"), view = read("../extension/sidepanel/views/MyApplicationsView.jsx");
   assert.match(card, /Download Resume<\/Button>\s*\{onDownloadCoverLetter && <Button[\s\S]*?DOWNLOAD_COVER_LETTER[\s\S]*?>Download Cover Letter<\/Button>\}/);
   assert.match(view, /onDownloadCoverLetter=\{downloadCoverLetter\}/);
+});
+
+test("extension downloads original PDF, DOCX and TXT uploads without reconstruction",async t=>{
+  const originalFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=originalFetch;});
+  const client={auth:{getSession:async()=>({data:{session:{access_token:"jwt"}}})}};
+  for(const [extension,mimeType] of [["pdf","application/pdf"],["docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document"],["txt","text/plain"]]){
+    const data={source:"ORIGINAL_UPLOAD",kind:"BASE",filename:`Original.${extension}`,mimeType,signedUrl:`https://project.supabase.co/storage/v1/object/sign/cover-letters/owner/original.${extension}?token=example`};
+    globalThis.fetch=async()=>new Response(JSON.stringify({data}),{status:200});
+    let options;await downloadApplicationCoverLetter(client,"https://api.example.com",id(23),async value=>{options=value;return 1;});
+    assert.equal(options.url,data.signedUrl);assert.equal(options.filename,data.filename);
+    data.signedUrl="javascript:alert(1)";
+    await assert.rejects(()=>downloadApplicationCoverLetter(client,"https://api.example.com",id(23),async()=>assert.fail("must not download")),/metadata is invalid/);
+  }
 });
