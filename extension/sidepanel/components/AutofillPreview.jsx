@@ -38,14 +38,16 @@ export function AutofillPreview({ active, busy, onValueChange, onFill, onRescan 
   const unresolved=active.unresolvedAutofillQuestions||[];
   const screeningFields=fields.filter(field=>String(field.key||"").startsWith("screening."));
   const approvedAnswers=active.autofillContext?.applicationAnswers || [];
+  const guideEntries=active.autofillContext?.guideEntries || [];
+  const guideHelp=(id)=>guideEntries.find(entry=>entry.id===id)?.howToAnswer||"";
   const resultById = new Map(results.map((result) => [result.fieldId, result]));
   const retryAvailable=fields.some(field=>resultById.get(field.fieldId)?.status!=="VERIFIED");
   return (
     <Card size="small" title="Autofill Results" style={{ marginBottom: 12 }}>
       {active.autofillAdapter&&<Text type="secondary" style={{display:"block",marginBottom:8}}>Adapter: {active.autofillAdapter.label} v{active.autofillAdapter.version} · {active.autofillAdapter.tier.replaceAll("_"," ").toLowerCase()}</Text>}
       <Alert type="info" showIcon message="Detected fields were filled automatically" description="The extension fills every supported field it can verify and never submits the application. Complete unsupported fields manually." style={{ marginBottom: 10 }} />
-      {!approvedAnswers.length&&<Alert type="warning" showIcon message="No verified standard answers are available" description="Configure and verify the Answer Library for this Resume in the dashboard, then start Autofill again." style={{marginBottom:10}}/>}
-      {approvedAnswers.length>0&&!screeningFields.length&&<Alert type="warning" showIcon message="No approved standard question matched this page" description="Personal fields can still be filled. Review the remaining questions manually." style={{marginBottom:10}}/>}
+      {!approvedAnswers.length&&!guideEntries.length&&<Alert type="warning" showIcon message="No standard answers are available" description="Publish Application Guide answers or verify this Resume's Answer Library in the dashboard, then start Autofill again." style={{marginBottom:10}}/>}
+      {approvedAnswers.length>0&&!guideEntries.length&&!screeningFields.length&&<Alert type="warning" showIcon message="No approved standard question matched this page" description="Personal fields can still be filled. Review the remaining questions manually." style={{marginBottom:10}}/>}
       {!fields.length ? <Text type="secondary">No supported personal, contact, or approved screening fields were found on this page.</Text> : (
         <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           {fields.map((field) => {
@@ -63,7 +65,7 @@ export function AutofillPreview({ active, busy, onValueChange, onFill, onRescan 
         </Space>
       )}
       {unresolved.length>0&&(
-        <Collapse size="small" style={{marginTop:10}} items={[{key:"unresolved",label:`Unresolved questions (${unresolved.length})`,children:<Space orientation="vertical" size={8} style={{width:"100%"}}><Alert type="warning" showIcon message="Complete these fields manually" description="For an ordinary reusable question, copy its wording and add it to the matching Answer Library entry in the dashboard. Legal attestations and sensitive questions always require review."/>{unresolved.map((item,index)=><Card size="small" key={`${item.normalizedQuestion}-${index}`}><Flex justify="space-between" align="start" gap={8}><div style={{minWidth:0}}><Text>{item.question}</Text><Text type="secondary" style={{display:"block",fontSize:11}}>{item.reason==="REVIEW_REQUIRED"?"Manual review required":"No verified Answer Library pattern matched"}{item.suggestions?.length?` · Possible match: ${item.suggestions.map(x=>x.answerKey.replaceAll("_"," ")).join(", ")}`:""}</Text></div><Button size="small" onClick={()=>navigator.clipboard?.writeText(item.question)}>Copy</Button></Flex></Card>)}</Space>}]}/>
+        <Collapse size="small" style={{marginTop:10}} items={[{key:"unresolved",label:`Unresolved questions (${unresolved.length})`,children:<Space orientation="vertical" size={8} style={{width:"100%"}}><Alert type="warning" showIcon message="Complete these fields manually" description="These questions are reported to Admins so common ones can be added to the Application Guide. Declarations and questions the guide marks for a person always need your answer."/>{unresolved.map((item,index)=><Card size="small" key={`${item.normalizedQuestion}-${index}`}><Flex justify="space-between" align="start" gap={8}><div style={{minWidth:0}}><Text>{item.question}</Text><Text type="secondary" style={{display:"block",fontSize:11}}>{item.guideEntryId?"Application Guide: answer this one yourself":item.reason==="REVIEW_REQUIRED"?"Manual review required":"No Application Guide or Answer Library match"}{item.suggestions?.length?` · Possible match: ${item.suggestions.map(x=>x.answerKey.replaceAll("_"," ")).join(", ")}`:""}</Text>{item.guideEntryId&&guideHelp(item.guideEntryId)?<Text style={{display:"block",fontSize:12,whiteSpace:"pre-wrap"}}>{guideHelp(item.guideEntryId)}</Text>:null}</div><Button size="small" onClick={()=>navigator.clipboard?.writeText(item.question)}>Copy</Button></Flex></Card>)}</Space>}]}/>
       )}
     </Card>
   );

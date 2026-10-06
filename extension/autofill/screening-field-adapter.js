@@ -110,9 +110,16 @@ function answerQuestionBlocked(text,answer){
   return !allowed.test(text);
 }
 
+// "Years of experience with Python" asks about one skill, not total experience.
+const GENERIC_EXPERIENCE = "(?:the|this|a|an|your|our|total|professional|relevant|industry|related|similar|overall|work|full|paid|post|software\\s+development|the\\s+industry)";
+const SKILL_AFTER = new RegExp(`\\bexperience\\s+(?:do\\s+you\\s+have\\s+)?(?:with|in|using|on|working\\s+with)\\s+(?!${GENERIC_EXPERIENCE}\\b)[\\p{L}\\p{N}+#.]`, "iu");
+const SKILL_BEFORE = new RegExp(`\\byears?\\s+of\\s+(?!${GENERIC_EXPERIENCE}\\b|experience\\b)[\\p{L}\\p{N}+#./-]+(?:\\s+[\\p{L}\\p{N}+#./-]+)?\\s+experience\\b`, "iu");
+export function skillSpecificExperience(text) { const value = clean(text); return SKILL_AFTER.test(value) || SKILL_BEFORE.test(value); }
+
 function matchAnswer(text, answer) {
   const normalizedText = normalize(text);
   if (!normalizedText || answerQuestionBlocked(text,answer)) return 0;
+  if (answer.answerKey === "years_of_experience" && skillSpecificExperience(text)) return 0;
   const custom = answer.questionPatterns.map(normalize).filter(Boolean);
   if (custom.some((pattern) => normalizedText === pattern)) return 99;
   if (custom.some((pattern) => normalizedText.includes(pattern))) return 96;
@@ -138,47 +145,73 @@ function controls(root) {
   return [...root.querySelectorAll("input,select")].filter(allowedControl);
 }
 
-export function detectScreeningFields(root = document, rawAnswers = []) {
-  const answers = sanitizeScreeningAnswers(rawAnswers), candidates = [];
-  for (const element of controls(root)) {
+// Every (control group, answer) pair scoring 90+, before arbitration. Radio groups share one candidate.
+export function screeningFieldCandidates(root = document, rawAnswers = []) {
+  const answers = sanitizeScreeningAnswers(rawAnswers), candidates = [], all = controls(root);
+  for (const element of all) {
     const text = descriptor(element);
     for (const answer of answers) {
       if (!compatible(element, answer)) continue;
       const confidence = matchAnswer(text, answer);
-      if (confidence >= 90) candidates.push({ element, answer, confidence, label: labelText(element) || clean(element.name || element.id) });
+      if (confidence < 90) continue;
+      const type = String(element.type || "").toLowerCase();
+      const elements = type === "radio" && element.name ? all.filter((item) => String(item.type || "").toLowerCase() === "radio" && item.name === element.name) : [element];
+      candidates.push({
+        element, elements, answer, confidence, key: screeningKey(answer.answerKey),
+        label: labelText(element) || clean(element.name || element.id),
+        controlType: type === "radio" ? "radio" : isCombobox(element) ? "combobox" : String(element.tagName || "input").toLowerCase(),
+        inputType: type,
+      });
     }
   }
+  return candidates;
+}
+
+export function tagScreeningField(elements, fieldId) { for (const item of elements) item.setAttribute(FIELD_ATTRIBUTE, fieldId); }
+
+export function screeningFieldResult({ answer, confidence, label, controlType, inputType }, fieldId) {
+  const requiresReview = false;
+  return {
+    fieldId, key: screeningKey(answer.answerKey), answerKey: answer.answerKey, answerType: answer.answerType,
+    label: label || answer.answerKey.replaceAll("_", " "), confidence,
+    readiness: !requiresReview && confidence >= 90 ? "READY" : "REVIEW_REQUIRED",
+    controlType, inputType, requiresReview,
+  };
+}
+
+export function detectScreeningFields(root = document, rawAnswers = []) {
   const selected = new Map();
-  for (const candidate of candidates.sort((a, b) => b.confidence - a.confidence)) {
+  for (const candidate of screeningFieldCandidates(root, rawAnswers).sort((a, b) => b.confidence - a.confidence)) {
     if (!selected.has(candidate.answer.answerKey)) selected.set(candidate.answer.answerKey, candidate);
   }
   let sequence = 0;
-  return [...selected.values()].map(({ element, answer, confidence, label }) => {
+  return [...selected.values()].map((candidate) => {
     const fieldId = `screening_${Date.now().toString(36)}_${sequence++}`;
-    const type = String(element.type || "").toLowerCase();
-    const group = type === "radio" && element.name ? controls(root).filter((item) => String(item.type || "").toLowerCase() === "radio" && item.name === element.name) : [element];
-    for (const item of group) item.setAttribute(FIELD_ATTRIBUTE, fieldId);
-    const requiresReview = false;
-    return {
-      fieldId, key: screeningKey(answer.answerKey), answerKey: answer.answerKey, answerType: answer.answerType,
-      label: label || answer.answerKey.replaceAll("_", " "), confidence,
-      readiness: !requiresReview && confidence >= 90 ? "READY" : "REVIEW_REQUIRED",
-      controlType: type === "radio" ? "radio" : isCombobox(element) ? "combobox" : String(element.tagName || "input").toLowerCase(),
-      requiresReview,
-    };
+    tagScreeningField(candidate.elements, fieldId);
+    return screeningFieldResult(candidate, fieldId);
+  });
+}
+
+const CLAIMED_ATTRIBUTES = [FIELD_ATTRIBUTE, "data-resume-jd-autofill-id", "data-resume-jd-guide-autofill-id"];
+// Unclaimed questions include text areas and checkboxes so Admins see long-form and consent prompts too.
+function unresolvedControls(root) {
+  return [...root.querySelectorAll("input,select,textarea")].filter((element) => {
+    if (!element || element.disabled || element.readOnly) return false;
+    const tag = String(element.tagName || "").toLowerCase(), type = String(element.type || "text").toLowerCase();
+    return tag === "select" || tag === "textarea" || (tag === "input" && (CONTROL_TYPES.has(type) || type === "checkbox"));
   });
 }
 
 export function detectUnresolvedQuestions(root=document,rawAnswers=[]){
   const answers=sanitizeScreeningAnswers(rawAnswers),seen=new Set(),result=[];
-  for(const element of controls(root)){
-    if(element.hasAttribute?.(FIELD_ATTRIBUTE)||element.hasAttribute?.("data-resume-jd-autofill-id"))continue;
-    const type=String(element.type||"text").toLowerCase(),groupKey=type==="radio"&&element.name?`radio:${element.name}`:null;
+  for(const element of unresolvedControls(root)){
+    if(CLAIMED_ATTRIBUTES.some(name=>element.hasAttribute?.(name)))continue;
+    const type=String(element.type||"text").toLowerCase(),groupKey=(type==="radio"||type==="checkbox")&&element.name?`${type}:${element.name}`:null;
     if(groupKey&&seen.has(groupKey))continue;if(groupKey)seen.add(groupKey);
     const question=labelText(element)||clean(element.getAttribute?.("aria-label")||element.getAttribute?.("placeholder")||element.name||element.id);
     if(!question||question.length<2)continue;
     const blocked=questionBlocked(question),suggestions=blocked?[]:answers.map(answer=>({answerKey:answer.answerKey,score:matchAnswer(question,answer)})).filter(item=>item.score>=45).sort((a,b)=>b.score-a.score).slice(0,3);
-    result.push({question:question.slice(0,300),normalizedQuestion:normalize(question).slice(0,300),controlType:type==="radio"?"radio":isCombobox(element)?"combobox":String(element.tagName||"input").toLowerCase(),reason:blocked?"REVIEW_REQUIRED":"NO_MATCHING_ANSWER",suggestions});
+    result.push({question:question.slice(0,300),normalizedQuestion:normalize(question).slice(0,300),controlType:type==="radio"||type==="checkbox"?type:isCombobox(element)?"combobox":String(element.tagName||"input").toLowerCase(),reason:blocked?"REVIEW_REQUIRED":"NO_MATCHING_ANSWER",suggestions});
   }
   return result.slice(0,50);
 }

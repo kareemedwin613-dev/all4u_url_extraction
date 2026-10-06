@@ -7,7 +7,7 @@ import { RolesGuard } from "../auth/roles.guard.js";
 import type { ApiRequest } from "../common/types/request.js";
 import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
 import { ApplicationService } from "./application.service.js";
-import { RecordApplicationAutofillTelemetryDto, RecordResumeAttachmentDto, UpdateApplicationAutofillRecoveryDto } from "./application.dto.js";
+import { RecordApplicationAutofillTelemetryDto, RecordAutofillUnresolvedQuestionsDto, RecordResumeAttachmentDto, UpdateApplicationAutofillRecoveryDto } from "./application.dto.js";
 
 @ApiTags("Extension sessions")
 @ApiBearerAuth()
@@ -37,6 +37,17 @@ export class AutofillTelemetryController {
     @Body(new DtoValidationPipe(RecordResumeAttachmentDto)) body: RecordResumeAttachmentDto,
   ) {
     return { data: await this.service.recordResumeAttachment(request.user!, id, body), requestId: request.requestId };
+  }
+
+  @Patch(":id/autofill-unresolved")
+  @ApiOperation({ summary: "Record question wording Autofill could not answer, for Application Guide review" })
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async recordUnresolved(
+    @Req() request: ApiRequest,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) id: string,
+    @Body(new DtoValidationPipe(RecordAutofillUnresolvedQuestionsDto)) body: RecordAutofillUnresolvedQuestionsDto,
+  ) {
+    return { data: await this.service.recordUnresolvedQuestions(request.user!, id, body), requestId: request.requestId };
   }
 
   @Get(":id/autofill-recovery")

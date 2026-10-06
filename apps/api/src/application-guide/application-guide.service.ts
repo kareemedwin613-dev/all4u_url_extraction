@@ -37,6 +37,30 @@ export class ApplicationGuideService {
       p_status: body.status,
     });
     if (error) fail(error, "The guide entry could not be saved.");
+    if (!body.autofill) return data;
+    // Autofill settings are saved separately so they do not create a new published version for appliers.
+    const rule = body.autofill;
+    const saved = await this.supabase.forUser(user.token).rpc("save_application_guide_autofill_v3157", {
+      p_id: (data as { id: string }).id,
+      p_mode: rule.mode,
+      p_value: rule.value || "",
+      p_source: rule.mode === "DERIVED" ? rule.source || null : null,
+      p_patterns: rule.patterns || [],
+      p_sensitive: Boolean(rule.sensitive),
+    });
+    if (saved.error) fail(saved.error, "The guide entry was saved, but its Autofill setting could not be saved.");
+    return saved.data;
+  }
+
+  async unresolvedQuestions(user: AuthenticatedUser, days: number) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("list_autofill_unresolved_questions_v3157", { p_days: days, p_limit: 100 });
+    if (error) fail(error, "Unanswered Autofill questions could not be loaded.");
+    return data || [];
+  }
+
+  async dismissUnresolvedQuestion(user: AuthenticatedUser, id: string) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("dismiss_autofill_unresolved_question_v3157", { p_id: id });
+    if (error) fail(error, "The question could not be dismissed.");
     return data;
   }
 

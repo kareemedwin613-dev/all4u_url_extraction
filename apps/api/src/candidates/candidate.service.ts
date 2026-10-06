@@ -27,6 +27,7 @@ export class CandidateService {
     } finally { if (timer) clearTimeout(timer); }
   }
   get(user: AuthenticatedUser, id: string) { return this.rpc(user, "get_candidate_autofill_profile_v088", { p_resume_id: id }, "The Resume profile could not be loaded."); }
+  updateGender(user: AuthenticatedUser, id: string, gender: string | null) { return this.rpc(user, "update_resume_gender_v3157", { p_resume_id: id, p_gender: gender }, "The Resume gender could not be updated."); }
   preferences(user: AuthenticatedUser, id: string) { return this.rpc(user, "get_resume_autofill_preferences_v095", { p_resume_id: id }, "Autofill preferences could not be loaded."); }
   updatePreferences(user: AuthenticatedUser, id: string, value: ResumeAutofillPreferencesDto) { return this.rpc(user, "update_resume_autofill_preferences_v095", { p_resume_id: id, p_preferences: value }, "Autofill preferences could not be updated."); }
   async importEmployment(user: AuthenticatedUser, id: string) {

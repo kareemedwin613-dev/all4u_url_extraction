@@ -6,7 +6,7 @@ import { RequireRoles } from "../auth/require-roles.decorator.js";
 import { RolesGuard } from "../auth/roles.guard.js";
 import type { ApiRequest } from "../common/types/request.js";
 import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
-import { CandidateEducationDto, CandidateEmploymentDto, ResumeAutofillPreferencesDto, UpdateCandidateProfileDto, UpdateResumeStructuredContentDto } from "./candidate.dto.js";
+import { CandidateEducationDto, CandidateEmploymentDto, ResumeAutofillPreferencesDto, ResumeGenderDto, UpdateCandidateProfileDto, UpdateResumeStructuredContentDto } from "./candidate.dto.js";
 import { CandidateService } from "./candidate.service.js";
 
 const READERS = ["APPLIER", "APPLYING_MANAGER", "ADMIN"] as const, MANAGERS = ["APPLYING_MANAGER", "ADMIN"] as const;
@@ -41,6 +41,8 @@ export class ResumeAutofillController {
   async preferences(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) { return this.response(request, await this.service.preferences(request.user!, id)); }
   @Patch(":id/autofill-preferences") @RequireRoles(...MANAGERS)
   async updatePreferences(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(ResumeAutofillPreferencesDto)) body: ResumeAutofillPreferencesDto) { return this.response(request, await this.service.updatePreferences(request.user!, id, body)); }
+  @Patch(":id/gender") @RequireRoles(...MANAGERS) @ApiOperation({ summary: "Set the original Resume's gender used for gender and pronoun questions" })
+  async updateGender(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(ResumeGenderDto)) body: ResumeGenderDto) { return this.response(request, await this.service.updateGender(request.user!, id, body.gender ?? null)); }
   @Patch(":id/autofill-profile") @RequireRoles(...MANAGERS)
   async update(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string, @Body(new DtoValidationPipe(UpdateCandidateProfileDto)) body: UpdateCandidateProfileDto) { return this.response(request, await this.service.update(request.user!, id, body)); }
   @Patch(":id/structured-content") @RequireRoles(...MANAGERS) @ApiOperation({ summary: "Atomically replace the editable structured Resume sections" })

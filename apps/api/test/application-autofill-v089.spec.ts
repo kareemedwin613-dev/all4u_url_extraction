@@ -8,7 +8,7 @@ test("v0.8.9 API forwards the Application, session, and optional Resume snapshot
   const calls:any[]=[];
   const service=new ApplicationService({forUser:(token:string)=>{assert.equal(token,"jwt");return{rpc:async(name:string,args:any)=>{calls.push({name,args});return{data:{applicationId,resumeUpdatedAt:"2026-07-29T00:00:00Z",values:{"candidate.email":"person@example.com"}},error:null};}};}}as any);
   await service.autofillContext(user as any,applicationId,{sessionId,resumeUpdatedAt:"2026-07-29T00:00:00Z"});
-  assert.deepEqual(calls,[{name:"get_application_autofill_context_v089",args:{p_application_id:applicationId,p_session_id:sessionId,p_expected_resume_updated_at:"2026-07-29T00:00:00Z"}}]);
+  assert.deepEqual(calls,[{name:"get_application_autofill_context_v3157",args:{p_application_id:applicationId,p_session_id:sessionId,p_expected_resume_updated_at:"2026-07-29T00:00:00Z"}}]);
 });
 
 test("v0.8.9 maps review and stale snapshot failures to conflict responses",async()=>{

@@ -42,10 +42,10 @@ import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
 import { JobReviewView } from "./views/JobReviewView.jsx";
 import { MyJobDescriptionsView } from "./views/MyJobDescriptionsView.jsx";
-import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, loadApplicationResumeForSession, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
+import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, loadApplicationResumeForSession, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, recordAutofillUnresolvedQuestions, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
-import { autofillValue, autofillValues, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
+import { autofillValue, autofillValues, guideDefinitions, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
 import { buildAutofillTelemetry, mapAutofillRecovery, mergeAutofillResults } from "../autofill/session-telemetry.js";
 import { clearSidepanelView, loadSidepanelView, saveSidepanelView } from "./ui-state.js";
 
@@ -300,7 +300,7 @@ export function App() {
             recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
           }
         }
-        const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext) } });
+        const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext), guideEntries: guideDefinitions(autofillContext) } });
         if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
         autofillFields = prepared.data.fields || [];
         unresolvedAutofillQuestions=prepared.data.unresolved||[];
@@ -308,6 +308,7 @@ export function App() {
         autofillTargetDomain=prepared.data.targetDomain||"";
         autofillTargetOrigin=prepared.data.targetOrigin||response.data.targetOrigin||"";
         selectedAutofillFieldIds = autofillFields.map((field) => field.fieldId);
+        recordAutofillUnresolvedQuestions(client,backendBaseUrl,response.data.id,{targetDomain:autofillTargetDomain,adapterId:autofillAdapter?.id,unresolved:unresolvedAutofillQuestions}).catch(()=>{});
         const recoveryPayload={targetOrigin:prepared.data.targetOrigin,resumeUpdatedAt:autofillContext.resumeUpdatedAt,adapterId:autofillAdapter?.id,adapterVersion:autofillAdapter?.version};
         await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:"DETECTED"});
         const recovered=priorRecovery&&priorRecovery.stepIdentifier!=="NEW";

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthGuard } from "../auth/auth.guard.js";
 import { RequireRoles } from "../auth/require-roles.decorator.js";
@@ -22,6 +22,20 @@ export class ApplicationGuideController {
   @ApiOperation({ summary: "List published Application Guide entries" })
   async list(@Req() request: ApiRequest) {
     return { data: await this.guide.list(request.user!), requestId: request.requestId };
+  }
+
+  @Get("unresolved-questions")
+  @RequireRoles("ADMIN")
+  @ApiOperation({ summary: "List question wording Autofill met but could not answer" })
+  async unresolved(@Req() request: ApiRequest, @Query("days") days?: string) {
+    return { data: await this.guide.unresolvedQuestions(request.user!, Math.max(1, Math.min(Number(days) || 30, 365))), requestId: request.requestId };
+  }
+
+  @Post("unresolved-questions/:id/dismiss")
+  @RequireRoles("ADMIN")
+  @ApiOperation({ summary: "Hide an unanswered Autofill question from review" })
+  async dismissUnresolved(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) {
+    return { data: await this.guide.dismissUnresolvedQuestion(request.user!, id), requestId: request.requestId };
   }
 
   @Post()

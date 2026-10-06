@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, App as AntApp, Button, Collapse, Empty, Input, Modal, Select, Spin, Tag, Typography } from "antd";
+import { Alert, App as AntApp, Button, Card, Checkbox, Collapse, Empty, Input, List, Modal, Select, Spin, Tag, Typography } from "antd";
 import { ROLE_CODES } from "../../access/role-codes.js";
 import { PageHeading } from "../../components/ui.jsx";
 import { formatDate } from "../../shared/formatters.js";
-import { guideEntryIsUpdated, guideEntryMatches, sortGuideEntries } from "./application-guide.js";
-import { deleteApplicationGuide, listApplicationGuide, saveApplicationGuide } from "./application-guide-service.js";
+import { GUIDE_AUTOFILL_MODES, GUIDE_AUTOFILL_SOURCES, guideAutofillLabel, guideEntryIsUpdated, guideEntryMatches, sortGuideEntries } from "./application-guide.js";
+import { deleteApplicationGuide, dismissUnresolvedAutofillQuestion, listApplicationGuide, listUnresolvedAutofillQuestions, saveApplicationGuide } from "./application-guide-service.js";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -14,7 +14,43 @@ const EMPTY_ENTRY = {
   meaning: "",
   howToAnswer: "",
   exampleAnswer: "",
+  autofillMode: "NONE",
+  autofillValue: "",
+  autofillSource: undefined,
+  autofillPatterns: [],
+  autofillSensitive: false,
 };
+
+function autofillBody(editor) {
+  return {
+    mode: editor.autofillMode || "NONE",
+    value: editor.autofillValue || "",
+    source: editor.autofillMode === "DERIVED" ? editor.autofillSource : undefined,
+    patterns: (editor.autofillPatterns || []).map((item) => String(item).trim()).filter(Boolean).slice(0, 20),
+    sensitive: Boolean(editor.autofillSensitive),
+  };
+}
+
+function UnresolvedQuestions({ items, onAdd, onDismiss }) {
+  if (!items.length) return null;
+  return (
+    <Card size="small" className="application-guide-unresolved" title={`Questions Autofill could not answer (${items.length})`} style={{ marginBottom: 16 }}>
+      <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>Employer wording seen on job pages in the last 30 days, most frequent first. Add common ones to the guide.</Text>
+      <List
+        size="small"
+        dataSource={items}
+        renderItem={(item) => (
+          <List.Item actions={[
+            <Button key="add" type="link" onClick={() => onAdd(item)}>Add to guide</Button>,
+            <Button key="dismiss" type="link" onClick={() => onDismiss(item)}>Dismiss</Button>,
+          ]}>
+            <List.Item.Meta title={item.question} description={`Seen ${item.occurrences} time${item.occurrences === 1 ? "" : "s"} · ${item.controlType}${item.lastTargetDomain ? ` · ${item.lastTargetDomain}` : ""}`} />
+          </List.Item>
+        )}
+      />
+    </Card>
+  );
+}
 
 function reviewLine(entry) {
   const who = entry.status === "DRAFT"
@@ -56,6 +92,16 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
   const [openId, setOpenId] = useState("");
   const [editor, setEditor] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [unresolved, setUnresolved] = useState([]);
+
+  const loadUnresolved = useCallback(() => {
+    if (!isAdmin) return Promise.resolve();
+    return listUnresolvedAutofillQuestions(client, apiBaseUrl)
+      .then((rows) => setUnresolved(Array.isArray(rows) ? rows : []))
+      .catch(() => setUnresolved([]));
+  }, [client, apiBaseUrl, isAdmin]);
+
+  useEffect(() => { void loadUnresolved(); }, [loadUnresolved]);
 
   const load = useCallback(() => {
     return listApplicationGuide(client, apiBaseUrl)
@@ -103,8 +149,17 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
     if (!visible.some((entry) => entry.id === openId)) setOpenId(visible[0]?.id || "");
   }, [visible, openId]);
 
-  function openNew() {
-    setEditor({ ...EMPTY_ENTRY });
+  function openNew(question = "") {
+    setEditor({ ...EMPTY_ENTRY, question: typeof question === "string" ? question : "" });
+  }
+
+  async function dismissUnresolved(item) {
+    try {
+      await dismissUnresolvedAutofillQuestion(client, apiBaseUrl, item.id);
+      setUnresolved((current) => current.filter((row) => row.id !== item.id));
+    } catch (reason) {
+      message.error(reason?.message || "The question could not be dismissed.");
+    }
   }
 
   function openEdit(entry, event) {
@@ -116,6 +171,11 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
       meaning: entry.meaning,
       howToAnswer: entry.howToAnswer,
       exampleAnswer: entry.exampleAnswer || "",
+      autofillMode: entry.autofillMode || "NONE",
+      autofillValue: entry.autofillValue || "",
+      autofillSource: entry.autofillSource || undefined,
+      autofillPatterns: entry.autofillPatterns || [],
+      autofillSensitive: Boolean(entry.autofillSensitive),
     });
   }
 
@@ -123,7 +183,8 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
     if (!editor) return;
     setSaving(true);
     try {
-      const body = { ...editor, status, exampleAnswer: editor.exampleAnswer || "" };
+      const { autofillMode, autofillValue, autofillSource, autofillPatterns, autofillSensitive, ...content } = editor;
+      const body = { ...content, status, exampleAnswer: editor.exampleAnswer || "", autofill: autofillBody(editor) };
       if (!body.id) delete body.id;
       await saveApplicationGuide(client, apiBaseUrl, body);
       setEditor(null);
@@ -182,6 +243,7 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
         />
       </div>
       {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
+      {isAdmin ? <UnresolvedQuestions items={unresolved} onAdd={(item) => openNew(item.question)} onDismiss={dismissUnresolved} /> : null}
       {loading ? <Spin /> : null}
       {!loading && !visible.length ? (
         <Empty description={entries.length ? "No questions match this search." : "No published questions yet."} />
@@ -202,6 +264,7 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
                   <Text strong>{entry.question}</Text>
                   {entry.status === "DRAFT" ? <Tag>Draft</Tag> : null}
                   {guideEntryIsUpdated(entry) ? <Tag color="blue">Updated</Tag> : null}
+                  {guideAutofillLabel(entry) ? <Tag color={entry.autofillMode === "NEVER" ? "orange" : "green"}>{guideAutofillLabel(entry)}</Tag> : null}
                 </span>
               </span>
             ),
@@ -245,6 +308,36 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
               Example (optional)
               <Input.TextArea value={editor.exampleAnswer} maxLength={1000} autoSize={{ minRows: 2, maxRows: 6 }} onChange={(event) => setEditor({ ...editor, exampleAnswer: event.target.value })} />
             </label>
+            <fieldset className="application-guide-autofill">
+              <legend>Autofill</legend>
+              <label>
+                How Autofill treats this question
+                <Select value={editor.autofillMode} options={GUIDE_AUTOFILL_MODES} onChange={(value) => setEditor({ ...editor, autofillMode: value })} />
+              </label>
+              {editor.autofillMode === "DERIVED" ? (
+                <label>
+                  Take the answer from
+                  <Select value={editor.autofillSource} options={GUIDE_AUTOFILL_SOURCES} placeholder="Choose a source" onChange={(value) => setEditor({ ...editor, autofillSource: value })} />
+                </label>
+              ) : null}
+              {editor.autofillMode === "FIXED" || editor.autofillMode === "DERIVED" ? (
+                <label>
+                  {editor.autofillMode === "FIXED" ? "Answer to fill" : "Fallback or default answer (optional)"}
+                  <Input value={editor.autofillValue} maxLength={500} placeholder={editor.autofillMode === "FIXED" ? "e.g. No" : "e.g. 150000"} onChange={(event) => setEditor({ ...editor, autofillValue: event.target.value })} />
+                </label>
+              ) : null}
+              {editor.autofillMode !== "NONE" ? (
+                <>
+                  <label>
+                    Other wordings of this question (optional)
+                    <Select mode="tags" value={editor.autofillPatterns} maxCount={20} placeholder="e.g. visa sponsorship. Use [Company] for the employer name." onChange={(value) => setEditor({ ...editor, autofillPatterns: value })} />
+                  </label>
+                  <Checkbox checked={editor.autofillSensitive} onChange={(event) => setEditor({ ...editor, autofillSensitive: event.target.checked })}>
+                    Voluntary self-identification (skipped when a Resume prohibits sensitive questions)
+                  </Checkbox>
+                </>
+              ) : null}
+            </fieldset>
           </div>
         ) : null}
       </Modal>
