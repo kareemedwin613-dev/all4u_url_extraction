@@ -19,8 +19,9 @@ test("job export workbook rows include company, title, url, categories, and capt
     "Primary Category",
     "SubCategory",
     "Captured Date",
+    "Job Description",
   ]);
-  assert.deepEqual(ACTIVE_JOB_EXPORT_FILTERS, { status: "ACTIVE", sort: "created_desc" });
+  assert.deepEqual(ACTIVE_JOB_EXPORT_FILTERS, { status: "ACTIVE", sort: "created_desc", includeDescription: true });
   const categories = {
     byId: new Map([
       ["cat-1", { id: "cat-1", name: "Engineering" }],
@@ -37,6 +38,7 @@ test("job export workbook rows include company, title, url, categories, and capt
         category_id: "cat-1",
         subcategory_ids: ["sub-1", "sub-2"],
         created_at: new Date(2026, 9, 5, 15, 30).toISOString(),
+        description_text: "  Build services.\nOwn the API.  ",
       },
     ],
     categories,
@@ -48,6 +50,7 @@ test("job export workbook rows include company, title, url, categories, and capt
     "Engineering",
     "Backend Engineering; Python Engineering",
     "2026-10-05",
+    "Build services.\nOwn the API.",
   ]);
 });
 
