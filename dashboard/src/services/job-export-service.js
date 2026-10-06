@@ -1,5 +1,6 @@
 import { categoryName, formatJobSubcategories } from "./category-service.js";
 import { listJobs } from "./job-read-service.js";
+import { countActiveJobFilters } from "../shared/query-state.js";
 
 export const JOB_EXPORT_PAGE_SIZE = 100;
 export const JOB_EXPORT_MAX_ROWS = 20000;
@@ -116,12 +117,29 @@ export async function downloadJobsExcel(rows, { filename, now = new Date() } = {
   return name;
 }
 
+export function jobExportFilters(filters = {}) {
+  const { page, pageSize, ...rest } = filters || {};
+  return {
+    ...ACTIVE_JOB_EXPORT_FILTERS,
+    ...rest,
+    status: rest.status || ACTIVE_JOB_EXPORT_FILTERS.status,
+    sort: rest.sort || ACTIVE_JOB_EXPORT_FILTERS.sort,
+    includeDescription: true,
+  };
+}
+
 export async function exportAllJobsExcel(client, apiBaseUrl, options = {}) {
-  const jobs = await fetchAllFilteredJobs(client, apiBaseUrl, ACTIVE_JOB_EXPORT_FILTERS, options);
+  const filters = jobExportFilters(options.filters);
+  const jobs = await fetchAllFilteredJobs(client, apiBaseUrl, filters, options);
   if (!jobs.length) {
-    throw Object.assign(new Error("No job descriptions to export."), {
-      code: "EXPORT_EMPTY",
-    });
+    throw Object.assign(
+      new Error(
+        countActiveJobFilters(filters)
+          ? "No job descriptions match the current filters."
+          : "No job descriptions to export.",
+      ),
+      { code: "EXPORT_EMPTY" },
+    );
   }
   return downloadJobsExcel(jobsToWorkbookRows(jobs, options.categories));
 }

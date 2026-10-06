@@ -7,6 +7,7 @@ import {
   JOB_EXPORT_MAX_ROWS,
   JOB_EXPORT_PAGE_SIZE,
   fetchAllFilteredJobs,
+  jobExportFilters,
   jobsToWorkbookRows,
   parseJobSubcategoryImportRows,
 } from "../src/services/job-export-service.js";
@@ -52,6 +53,26 @@ test("job export workbook rows include company, title, url, categories, and capt
     "2026-10-05",
     "Build services.\nOwn the API.",
   ]);
+});
+
+test("job export uses the current filters and falls back to every active job", () => {
+  assert.deepEqual(
+    jobExportFilters({
+      company: "Acme",
+      status: "ACTIVE",
+      sort: "company_asc",
+      page: 3,
+      pageSize: 25,
+    }),
+    {
+      status: "ACTIVE",
+      sort: "company_asc",
+      includeDescription: true,
+      company: "Acme",
+    },
+  );
+  assert.deepEqual(jobExportFilters(), ACTIVE_JOB_EXPORT_FILTERS);
+  assert.equal(jobExportFilters({ status: "ARCHIVED" }).status, "ARCHIVED");
 });
 
 test("parseJobSubcategoryImportRows maps Job ID and Subcategories", () => {
@@ -123,7 +144,7 @@ test("Jobs page wires Download Excel and Upload Subcategories Excel", async () =
   assert.match(source, /ROLE_CODES\.ADMIN/);
   assert.match(source, /Download Excel/);
   assert.match(source, /Upload Subcategories Excel/);
-  assert.match(source, /exportAllJobsExcel/);
+  assert.match(source, /exportAllJobsExcel\(client, apiBaseUrl, \{ categories, filters \}\)/);
   assert.doesNotMatch(source, /exportFilteredJobsExcel/);
   assert.match(source, /readJobSubcategoryImportFile/);
   assert.match(source, /importJobSubcategories/);
