@@ -1,4 +1,4 @@
--- v3.156 Guide-driven Autofill.
+-- v3.157 Guide-driven Autofill.
 -- The published Application Guide becomes the answer standard for Autofill:
 --   * guide entries gain an Admin-managed autofill rule (fixed answer, derived value, or never fill);
 --   * the parent Resume gains a gender used for gender and pronoun questions;
@@ -13,7 +13,7 @@ alter table public.resumes drop constraint if exists resumes_gender_check;
 alter table public.resumes add constraint resumes_gender_check check (gender is null or gender in ('MALE','FEMALE','NON_BINARY'));
 comment on column public.resumes.gender is 'Candidate gender for gender and pronoun questions. Set on ORIGINAL Resumes; TAILORED Resumes read it from the parent.';
 
-create or replace function public.update_resume_gender_v3156(p_resume_id uuid,p_gender text)
+create or replace function public.update_resume_gender_v3157(p_resume_id uuid,p_gender text)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
 declare v_gender text:=nullif(upper(btrim(coalesce(p_gender,''))),'');v_type text;
 begin
@@ -81,7 +81,7 @@ begin
 end;
 $$;
 
-create or replace function public.save_application_guide_autofill_v3156(p_id uuid,p_mode text,p_value text,p_source text,p_patterns text[],p_sensitive boolean)
+create or replace function public.save_application_guide_autofill_v3157(p_id uuid,p_mode text,p_value text,p_source text,p_patterns text[],p_sensitive boolean)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
 declare
   v_mode text:=upper(btrim(coalesce(p_mode,'NONE')));
@@ -113,9 +113,9 @@ $$;
 
 -- 3. Seed autofill rules for the published guide (matched by question prefix) ---------------
 
-drop table if exists pg_temp.v3156_guide_rules;
-create temporary table v3156_guide_rules(prefix text primary key,mode text,value text,source text,sensitive boolean,patterns text[]);
-insert into v3156_guide_rules values
+drop table if exists pg_temp.v3157_guide_rules;
+create temporary table v3157_guide_rules(prefix text primary key,mode text,value text,source text,sensitive boolean,patterns text[]);
+insert into v3157_guide_rules values
   ('Are you a current or previously serving member in the military','FIXED','No',null,true,array['military service','served in the military','serving member in the military']),
   ('Are you a protected Veteran','FIXED','No',null,true,array['protected veteran','veteran status','protected veteran status']),
   ('Are you a spouse or partner of someone serving','FIXED','No',null,true,array['military spouse','spouse or partner of someone serving']),
@@ -156,9 +156,9 @@ insert into v3156_guide_rules values
 
 update public.application_guide_entries e
 set autofill_mode=r.mode,autofill_value=coalesce(r.value,''),autofill_source=r.source,autofill_sensitive=r.sensitive,autofill_patterns=r.patterns
-from v3156_guide_rules r
+from v3157_guide_rules r
 where e.question ilike r.prefix||'%' and e.autofill_mode='NONE';
-drop table v3156_guide_rules;
+drop table v3157_guide_rules;
 
 -- Personal Details "Location" uses a curly-quoted question, so match on its distinctive tail.
 update public.application_guide_entries
@@ -191,14 +191,14 @@ declare v_def text;v_new text;
 begin
   v_def:=pg_get_functiondef('public.record_application_autofill_telemetry_v094(uuid,timestamptz,text,text,text,integer,integer,integer,integer,integer,jsonb)'::regprocedure);
   v_new:=replace(v_def,'^(candidate|screening|employment|education)\.','^(candidate|screening|employment|education|guide)\.');
-  if v_new=v_def then raise exception 'v3.156: Autofill telemetry field-key pattern was not found.'; end if;
+  if v_new=v_def then raise exception 'v3.157: Autofill telemetry field-key pattern was not found.'; end if;
   execute v_new;
 end
 $$;
 
 -- 5. Autofill context ------------------------------------------------------------------------
 
-create or replace function public.get_application_autofill_context_v3156(p_application_id uuid,p_session_id uuid,p_expected_resume_updated_at timestamptz default null)
+create or replace function public.get_application_autofill_context_v3157(p_application_id uuid,p_session_id uuid,p_expected_resume_updated_at timestamptz default null)
 returns jsonb language plpgsql stable security definer set search_path=public,pg_temp as $$
 declare v_result jsonb;v_resume_updated_at timestamptz;v_review_status text;v_preferences jsonb;
 begin
@@ -277,7 +277,7 @@ revoke all on table public.autofill_unresolved_questions from public,anon,authen
 revoke all on table public.autofill_unresolved_question_sightings from public,anon,authenticated;
 comment on table public.autofill_unresolved_questions is 'Employer question wording Autofill could not answer. Never stores answers or candidate values; emails, URLs, and long digit runs are removed.';
 
-create or replace function public.autofill_question_scrub_v3156(p_text text)
+create or replace function public.autofill_question_scrub_v3157(p_text text)
 returns text language sql immutable security invoker set search_path='' as $$
   select left(btrim(regexp_replace(regexp_replace(regexp_replace(regexp_replace(coalesce(p_text,''),
     '[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}','[email]','g'),
@@ -286,7 +286,7 @@ returns text language sql immutable security invoker set search_path='' as $$
     '[[:space:]]+',' ','g')),300);
 $$;
 
-create or replace function public.record_autofill_unresolved_questions_v3156(p_session_id uuid,p_target_domain text,p_adapter_id text,p_questions jsonb)
+create or replace function public.record_autofill_unresolved_questions_v3157(p_session_id uuid,p_target_domain text,p_adapter_id text,p_questions jsonb)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
 declare v_item jsonb;v_question text;v_normalized text;v_control text;v_reason text;v_id uuid;v_new integer;v_recorded integer:=0;
   v_domain text:=nullif(lower(btrim(coalesce(p_target_domain,''))),'');v_adapter text:=nullif(lower(btrim(coalesce(p_adapter_id,''))),'');
@@ -299,7 +299,7 @@ begin
   if v_domain is not null and v_domain !~ '^[a-z0-9.-]{1,253}$' then v_domain:=null; end if;
   if v_adapter is not null and v_adapter !~ '^[a-z0-9][a-z0-9-]{0,79}$' then v_adapter:=null; end if;
   for v_item in select value from jsonb_array_elements(p_questions) loop
-    v_question:=public.autofill_question_scrub_v3156(v_item->>'question');
+    v_question:=public.autofill_question_scrub_v3157(v_item->>'question');
     v_normalized:=left(btrim(regexp_replace(lower(v_question),'[^[:alnum:]]+',' ','g')),300);
     v_control:=lower(coalesce(v_item->>'controlType',''));
     v_reason:=upper(coalesce(v_item->>'reason',''));
@@ -321,7 +321,7 @@ begin
 end;
 $$;
 
-create or replace function public.list_autofill_unresolved_questions_v3156(p_days integer default 30,p_limit integer default 100)
+create or replace function public.list_autofill_unresolved_questions_v3157(p_days integer default 30,p_limit integer default 100)
 returns jsonb language plpgsql stable security definer set search_path=public,pg_temp as $$
 begin
   if not public.application_guide_admin() then raise exception 'FORBIDDEN: Only an Admin can review unanswered Autofill questions.' using errcode='42501'; end if;
@@ -332,7 +332,7 @@ begin
 end;
 $$;
 
-create or replace function public.dismiss_autofill_unresolved_question_v3156(p_id uuid)
+create or replace function public.dismiss_autofill_unresolved_question_v3157(p_id uuid)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
 begin
   if not public.application_guide_admin() then raise exception 'FORBIDDEN: Only an Admin can review unanswered Autofill questions.' using errcode='42501'; end if;
@@ -344,18 +344,18 @@ $$;
 
 -- 7. Grants ----------------------------------------------------------------------------------
 
-revoke all on function public.update_resume_gender_v3156(uuid,text) from public,anon;
-revoke all on function public.save_application_guide_autofill_v3156(uuid,text,text,text,text[],boolean) from public,anon;
-revoke all on function public.get_application_autofill_context_v3156(uuid,uuid,timestamptz) from public,anon;
-revoke all on function public.autofill_question_scrub_v3156(text) from public,anon,authenticated;
-revoke all on function public.record_autofill_unresolved_questions_v3156(uuid,text,text,jsonb) from public,anon;
-revoke all on function public.list_autofill_unresolved_questions_v3156(integer,integer) from public,anon;
-revoke all on function public.dismiss_autofill_unresolved_question_v3156(uuid) from public,anon;
-grant execute on function public.update_resume_gender_v3156(uuid,text) to authenticated;
-grant execute on function public.save_application_guide_autofill_v3156(uuid,text,text,text,text[],boolean) to authenticated;
-grant execute on function public.get_application_autofill_context_v3156(uuid,uuid,timestamptz) to authenticated;
-grant execute on function public.record_autofill_unresolved_questions_v3156(uuid,text,text,jsonb) to authenticated;
-grant execute on function public.list_autofill_unresolved_questions_v3156(integer,integer) to authenticated;
-grant execute on function public.dismiss_autofill_unresolved_question_v3156(uuid) to authenticated;
+revoke all on function public.update_resume_gender_v3157(uuid,text) from public,anon;
+revoke all on function public.save_application_guide_autofill_v3157(uuid,text,text,text,text[],boolean) from public,anon;
+revoke all on function public.get_application_autofill_context_v3157(uuid,uuid,timestamptz) from public,anon;
+revoke all on function public.autofill_question_scrub_v3157(text) from public,anon,authenticated;
+revoke all on function public.record_autofill_unresolved_questions_v3157(uuid,text,text,jsonb) from public,anon;
+revoke all on function public.list_autofill_unresolved_questions_v3157(integer,integer) from public,anon;
+revoke all on function public.dismiss_autofill_unresolved_question_v3157(uuid) from public,anon;
+grant execute on function public.update_resume_gender_v3157(uuid,text) to authenticated;
+grant execute on function public.save_application_guide_autofill_v3157(uuid,text,text,text,text[],boolean) to authenticated;
+grant execute on function public.get_application_autofill_context_v3157(uuid,uuid,timestamptz) to authenticated;
+grant execute on function public.record_autofill_unresolved_questions_v3157(uuid,text,text,jsonb) to authenticated;
+grant execute on function public.list_autofill_unresolved_questions_v3157(integer,integer) to authenticated;
+grant execute on function public.dismiss_autofill_unresolved_question_v3157(uuid) to authenticated;
 
 notify pgrst,'reload schema';

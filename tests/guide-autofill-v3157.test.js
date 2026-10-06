@@ -66,7 +66,7 @@ async function autofill(document, context = CONTEXT) {
   return { fields, unresolved, results, byId: (id) => document.getElementById(id) };
 }
 
-test("v3.156 fixes the reviewed mis-fills: declaration, travel, essential functions, and military questions", async () => {
+test("v3.157 fixes the reviewed mis-fills: declaration, travel, essential functions, and military questions", async () => {
   const document = page(`
     <div><label><input type="checkbox" id="attest" name="attest"> I hereby state that the information given by me in this application is true in all respects.</label></div>
     <div><label><input type="checkbox" id="certify" name="certify"> I certify that the information I have provided is current, true and complete.</label></div>
@@ -86,7 +86,7 @@ test("v3.156 fixes the reviewed mis-fills: declaration, travel, essential functi
   assert.equal(declaration?.reason, "REVIEW_REQUIRED");
 });
 
-test("v3.156 detects a plain Name field and fills every employment entry with its description", async () => {
+test("v3.157 detects a plain Name field and fills every employment entry with its description", async () => {
   const document = page(`
     <div><label for="name">Name</label><input id="name" name="name"></div>
     <fieldset id="employment-0"><legend>Work Experience 1</legend>
@@ -109,7 +109,7 @@ test("v3.156 detects a plain Name field and fills every employment entry with it
   assert.ok(results.every((result) => result.status === "VERIFIED"), JSON.stringify(results));
 });
 
-test("v3.156 gives each control one owner and keeps Personal Details location separate from job location", async () => {
+test("v3.157 gives each control one owner and keeps Personal Details location separate from job location", async () => {
   const document = page(`
     <div><label for="loc">Location</label><input id="loc" name="location"></div>
     <div><label for="avail">Available start date</label><input id="avail" name="avail_start"></div>
@@ -125,7 +125,7 @@ test("v3.156 gives each control one owner and keeps Personal Details location se
   assert.equal(byId("years").value, String(totalYearsOfExperience(CONTEXT.employment)));
 });
 
-test("v3.156 fills guide answers into radios, selects, and checkboxes using the page's own option wording", async () => {
+test("v3.157 fills guide answers into radios, selects, and checkboxes using the page's own option wording", async () => {
   const document = page(`
     <fieldset><legend>Will you now or in the future require sponsorship?</legend>
       <label><input type="radio" name="sponsor" id="sy" value="1"> Yes</label><label><input type="radio" name="sponsor" id="sn" value="0"> No</label></fieldset>
@@ -144,7 +144,7 @@ test("v3.156 fills guide answers into radios, selects, and checkboxes using the 
   assert.equal(byId("applied").value, "No", "[Company] matches the employer's name");
 });
 
-test("v3.156 leaves sensitive answers to a person when the Resume prohibits them (server sends NEVER)", async () => {
+test("v3.157 leaves sensitive answers to a person when the Resume prohibits them (server sends NEVER)", async () => {
   const document = page(`<div><label for="gender">Gender</label><select id="gender" name="gender"><option value="">Select</option><option>Male</option><option>Female</option></select></div>`);
   const context = { ...CONTEXT, guideEntries: GUIDE.map((item) => item.sensitive ? { ...item, mode: "NEVER" } : item) };
   const { byId, unresolved } = await autofill(document, context);
@@ -152,7 +152,7 @@ test("v3.156 leaves sensitive answers to a person when the Resume prohibits them
   assert.equal(unresolved[0].guideEntryId, ids.gender);
 });
 
-test("v3.156 a page wrapper named after the job does not hide contact fields", async () => {
+test("v3.157 a page wrapper named after the job does not hide contact fields", async () => {
   const document = page(`<div class="job-position-application" id="experience-page">
     <div><label for="first">First name</label><input id="first" name="first_name"></div>
     <div><label for="city">City</label><input id="city" name="city"></div></div>`);
@@ -161,7 +161,7 @@ test("v3.156 a page wrapper named after the job does not hide contact fields", a
   assert.equal(byId("city").value, "Miami");
 });
 
-test("v3.156 one-word guide wordings match only the whole question", () => {
+test("v3.157 one-word guide wordings match only the whole question", () => {
   assert.equal(scoreGuidePattern("Languages", "Languages"), 99);
   assert.equal(scoreGuidePattern("Languages (optional)", "Languages"), 97);
   assert.equal(scoreGuidePattern("Programming languages", "Languages"), 0);
@@ -172,7 +172,7 @@ test("v3.156 one-word guide wordings match only the whole question", () => {
   assert.equal(sanitizeGuideEntries([{ id: "not-a-uuid", question: "Q", mode: "FIXED" }, { id: ids.gpa, question: "GPA", mode: "DERIVED", source: "unknown" }]).length, 0);
 });
 
-test("v3.156 derives salary, years, location, pronouns, start date, and GPA as the guide specifies", () => {
+test("v3.157 derives salary, years, location, pronouns, start date, and GPA as the guide specifies", () => {
   const now = new Date("2026-10-06T00:00:00Z");
   assert.equal(salaryExpectation({ salaryMin: 120000, salaryMax: 130000, salaryCurrency: "USD", salaryPeriod: "YEAR" }, "150000"), "$125,000 per year");
   assert.equal(salaryExpectation({ salaryMin: null, salaryMax: null }, "150000"), "$150,000 per year");
@@ -192,7 +192,7 @@ test("v3.156 derives salary, years, location, pronouns, start date, and GPA as t
   assert.equal(guideValue(CONTEXT, field(ids.attest), now), "");
 });
 
-test("v3.156 option matching handles country, state, polarity, and numeric ranges", () => {
+test("v3.157 option matching handles country, state, polarity, and numeric ranges", () => {
   const options = (...texts) => texts.map((text) => ({ text }));
   const pick = (list, wanted) => findBestOption(list, wanted, (item) => [item.text])?.text || null;
   assert.equal(pick(options("Canada", "United States of America"), "United States"), "United States of America");
@@ -209,7 +209,7 @@ test("v3.156 option matching handles country, state, polarity, and numeric range
   assert.equal(skillSpecificExperience("Years of relevant experience"), false);
 });
 
-test("v3.156 arbitration prefers the guide on ties and never assigns a control twice", () => {
+test("v3.157 arbitration prefers the guide on ties and never assigns a control twice", () => {
   const element = {}, other = {};
   const winners = arbitrateAutofillCandidates({
     personal: [{ element, key: "employment.0.startDate", confidence: 90 }],
@@ -219,7 +219,7 @@ test("v3.156 arbitration prefers the guide on ties and never assigns a control t
   assert.deepEqual(winners.map((winner) => [winner.kind, winner.elements[0] === element ? "first" : "second"]), [["guide", "second"], ["guide", "first"]]);
 });
 
-test("v3.156 extension sends guide definitions without answers and records only question wording", async () => {
+test("v3.157 extension sends guide definitions without answers and records only question wording", async () => {
   const [app, service, worker] = await Promise.all(["../extension/sidepanel/App.jsx", "../extension/services/application-service.js", "../extension/background/service-worker.js"].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
   assert.match(app, /guideEntries: guideDefinitions\(autofillContext\)/);
   assert.doesNotMatch(JSON.stringify(guideDefinitions(CONTEXT)), /English|150000|How to answer/);
