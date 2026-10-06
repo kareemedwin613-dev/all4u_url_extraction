@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Select, Space, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { copyApplicationCoverLetter, copyApplicationQaPrompt, createApplicationExtensionSession, downloadApplicationCoverLetter, downloadApplicationResume, formatMineResumeOptionLabel, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { copyApplicationCoverLetter, prepareApplicationQaPrompt, createApplicationExtensionSession, downloadApplicationCoverLetter, downloadApplicationResume, formatMineResumeOptionLabel, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { createPreparedCopy } from "../../services/prepared-copy.js";
 import { MESSAGE_TYPES } from "../../shared/messages.js";
 import { APPLIER_STATUS_FILTER_OPTIONS } from "../../shared/applier-application-statuses.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
@@ -24,6 +25,11 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
   const [total, setTotal] = useState(0);
   const [editingApplication, setEditingApplication] = useState(null);
   const [extensionBusy, setExtensionBusy] = useState("");
+  const [readyPromptId, setReadyPromptId] = useState("");
+  const copyPreparedPrompt = useMemo(() => createPreparedCopy(
+    id => prepareApplicationQaPrompt(client, backendBaseUrl, id),
+  ), [client, backendBaseUrl]);
+  useEffect(() => { setReadyPromptId(""); }, [copyPreparedPrompt]);
 
   async function startExtensionAction(application, action) {
     const key=`${application.id}:${action}`;
@@ -129,9 +135,15 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
 
   async function copyQaPrompt(application) {
     setExtensionBusy(`${application.id}:COPY_QA_PROMPT`);
-    onStatus({ message: "Preparing Resume and JD prompt...", kind: "info" });
+    onStatus({ message: readyPromptId === application.id ? "Copying prepared prompt..." : "Preparing Resume and JD prompt...", kind: "info" });
+    setReadyPromptId("");
     try {
-      const result = await copyApplicationQaPrompt(client, backendBaseUrl, application.id);
+      const result = await copyPreparedPrompt(application.id);
+      if (!result.copied) {
+        setReadyPromptId(application.id);
+        onStatus({ message: "Prompt ready. Click Copy prepared prompt to copy it without loading again.", kind: "info" });
+        return;
+      }
       onStatus({ message: `Q&A prompt copied with the ${result.resumeType === "TAILORED" ? "tailored" : "original"} Resume and JD. Paste into ChatGPT, then ask your questions.`, kind: "success" });
     } catch (error) { onError(error); }
     finally { setExtensionBusy(""); }
@@ -218,7 +230,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
         </Card>
       ) : (
         items.map((application) => (
-          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} onDownloadCoverLetter={downloadCoverLetter} onCopyCoverLetter={copyCoverLetter} onCopyQaPrompt={copyQaPrompt} extensionBusy={extensionBusy} />
+          <ApplicationCard key={application.id} application={application} onUpdateStatus={setEditingApplication} onExtensionAction={startExtensionAction} onDownloadResume={downloadResume} onDownloadCoverLetter={downloadCoverLetter} onCopyCoverLetter={copyCoverLetter} onCopyQaPrompt={copyQaPrompt} readyPromptId={readyPromptId} extensionBusy={extensionBusy} />
         ))
       )}
       {editingApplication && (

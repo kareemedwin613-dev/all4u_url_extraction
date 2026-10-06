@@ -53,3 +53,13 @@ test("v3.157 widens field keys for guide answers and seeds the confirmed decisio
   assert.match(sql, /where not exists\(select 1 from public\.application_guide_entries e where e\.question=v\.question\)/, "re-running does not duplicate entries");
   assert.match(sql, /and e\.autofill_mode='NONE';/, "seeding never overwrites an Admin's rule");
 });
+
+test("v3.157 can re-run on a database where its earlier v3.156 run completed", () => {
+  assert.match(sql, /if position\('\|education\|guide\)\\\.' in v_def\)>0 then return; end if;/, "the key-pattern step is skipped when already applied");
+  for (const name of ["update_resume_gender", "save_application_guide_autofill", "get_application_autofill_context", "record_autofill_unresolved_questions", "list_autofill_unresolved_questions", "dismiss_autofill_unresolved_question", "autofill_question_scrub"]) {
+    assert.match(sql, new RegExp(`drop function if exists public\\.${name}_v3156\\(`), `${name}_v3156 is removed`);
+    assert.match(sql, new RegExp(`function public\\.${name}_v3157\\(`), `${name}_v3157 exists`);
+  }
+  assert.match(sql, /add column if not exists gender/);
+  assert.match(sql, /create table if not exists public\.autofill_unresolved_questions/);
+});
