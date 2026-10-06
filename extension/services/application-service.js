@@ -222,11 +222,14 @@ export async function copyApplicationCoverLetter(client,baseUrl,applicationId,wr
   try{await writeText(plainText);}catch{throw new AppError("COVER_LETTER_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Cover Letter again.");}
   return{kind:data.kind};
 }
-export async function copyApplicationQaPrompt(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text)){
+export async function prepareApplicationQaPrompt(client,baseUrl,applicationId){
   const context=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/qa-context`,{timeoutMs:30000});
-  const prompt=buildApplicationQaPrompt(context);
+  return {text:buildApplicationQaPrompt(context),resumeType:context.resumeType};
+}
+export async function copyApplicationQaPrompt(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text)){
+  const {text:prompt,resumeType}=await prepareApplicationQaPrompt(client,baseUrl,applicationId);
   try{await writeText(prompt);}catch{throw new AppError("APPLICATION_PROMPT_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Q&A Prompt again.");}
-  return{resumeType:context.resumeType};
+  return{resumeType};
 }
 export async function listApplicationScreenshots(client,_baseUrl,applicationId){
   const{data,error}=await client.from("application_screenshots")

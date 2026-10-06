@@ -190,6 +190,8 @@ do $$
 declare v_def text;v_new text;
 begin
   v_def:=pg_get_functiondef('public.record_application_autofill_telemetry_v094(uuid,timestamptz,text,text,text,integer,integer,integer,integer,integer,jsonb)'::regprocedure);
+  -- Re-running is safe: an earlier run (under the v3.156 name) may already have widened the pattern.
+  if position('|education|guide)\.' in v_def)>0 then return; end if;
   v_new:=replace(v_def,'^(candidate|screening|employment|education)\.','^(candidate|screening|employment|education|guide)\.');
   if v_new=v_def then raise exception 'v3.157: Autofill telemetry field-key pattern was not found.'; end if;
   execute v_new;
@@ -357,5 +359,15 @@ grant execute on function public.get_application_autofill_context_v3157(uuid,uui
 grant execute on function public.record_autofill_unresolved_questions_v3157(uuid,text,text,jsonb) to authenticated;
 grant execute on function public.list_autofill_unresolved_questions_v3157(integer,integer) to authenticated;
 grant execute on function public.dismiss_autofill_unresolved_question_v3157(uuid) to authenticated;
+
+-- This migration was first run in production as v3.156 (renumbered when main took that version).
+-- Remove those copies so only the v3.157 functions the API calls remain.
+drop function if exists public.update_resume_gender_v3156(uuid,text);
+drop function if exists public.save_application_guide_autofill_v3156(uuid,text,text,text,text[],boolean);
+drop function if exists public.get_application_autofill_context_v3156(uuid,uuid,timestamptz);
+drop function if exists public.record_autofill_unresolved_questions_v3156(uuid,text,text,jsonb);
+drop function if exists public.list_autofill_unresolved_questions_v3156(integer,integer);
+drop function if exists public.dismiss_autofill_unresolved_question_v3156(uuid);
+drop function if exists public.autofill_question_scrub_v3156(text);
 
 notify pgrst,'reload schema';
