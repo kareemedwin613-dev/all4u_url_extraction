@@ -138,17 +138,25 @@ function failure(error:any,fallback:string):never{
   async coverLetter(u:AuthenticatedUser,id:string){
     const letter:any=await this.rpc(u,"get_application_cover_letter_v3153",{p_application_id:id},"The cover letter is not available for this Application.");
     const number=Number(letter?.applicationNumber),name=String(letter?.candidateName||"Candidate").trim()||"Candidate";
-    if(letter?.source==="ORIGINAL_UPLOAD"){
-      const size=Number(letter.fileSizeBytes);
+    if(letter?.source==="ORIGINAL_UPLOAD")return this.originalCoverLetterAccess(u,letter);
+    if(!String(letter?.text||"").trim()||!["TAILORED","BASE"].includes(String(letter?.kind)))throw new ApiException("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter metadata is invalid.",HttpStatus.BAD_GATEWAY);
+    const bytes=await renderCoverLetterPdf({candidate_name:name,candidate_email:letter.candidateEmail,candidate_phone:letter.candidatePhone,address_city:letter.city,address_state_region:letter.stateRegion,linkedin_url:letter.linkedinUrl,cover_letter_text:letter.text});
+    return{kind:letter.kind,filename:safeName(`${name} Cover Letter${Number.isSafeInteger(number)&&number>0?` - App ${number}`:""}.pdf`).replace(/_/g," "),mimeType:"application/pdf",contentBase64:bytes.toString("base64"),resumeNumber:Number(letter.resumeNumber)||null,applicationNumber:Number.isSafeInteger(number)?number:null};
+  }
+  qaContext=(u:AuthenticatedUser,id:string)=>this.rpc(u,"get_application_qa_context_v3154",{p_application_id:id},"The application Q&A context could not be loaded.");
+  async coverLetterText(u:AuthenticatedUser,id:string){
+    const letter:any=await this.rpc(u,"get_application_cover_letter_v3153",{p_application_id:id},"The cover letter is not available for this Application.");
+    if(letter?.source==="ORIGINAL_UPLOAD")return this.originalCoverLetterAccess(u,letter);
+    if(typeof letter?.text!=="string"||!letter.text.trim()||!["TAILORED","BASE"].includes(letter?.kind))throw new ApiException("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter text is not available.",HttpStatus.BAD_GATEWAY);
+    return{kind:letter.kind,text:letter.text};
+  }
+  private async originalCoverLetterAccess(u:AuthenticatedUser,letter:any){
+      const size=Number(letter.fileSizeBytes),number=Number(letter.applicationNumber);
       if(letter.kind!=="BASE"||letter.bucket!=="cover-letters"||!letter.path||!letter.filename||!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(letter.mimeType)||!Number.isSafeInteger(size)||size<1||size>5242880)
         throw new ApiException("APPLICATION_COVER_LETTER_METADATA_INVALID","The original cover letter file metadata is invalid.",HttpStatus.BAD_GATEWAY);
       const{data,error}=await this.supabase.forUser(u.token).storage.from(letter.bucket).createSignedUrl(letter.path,90);
       if(error||!data?.signedUrl)failure(error,"The original cover letter file could not be opened. Upload it again to the original Resume.");
       return{kind:letter.kind,source:letter.source,signedUrl:data.signedUrl,expiresInSeconds:90,filename:letter.filename,mimeType:letter.mimeType,fileSizeBytes:size,resumeNumber:Number(letter.resumeNumber)||null,applicationNumber:Number.isSafeInteger(number)?number:null};
-    }
-    if(!String(letter?.text||"").trim()||!["TAILORED","BASE"].includes(String(letter?.kind)))throw new ApiException("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter metadata is invalid.",HttpStatus.BAD_GATEWAY);
-    const bytes=await renderCoverLetterPdf({candidate_name:name,candidate_email:letter.candidateEmail,candidate_phone:letter.candidatePhone,address_city:letter.city,address_state_region:letter.stateRegion,linkedin_url:letter.linkedinUrl,cover_letter_text:letter.text});
-    return{kind:letter.kind,filename:safeName(`${name} Cover Letter${Number.isSafeInteger(number)&&number>0?` - App ${number}`:""}.pdf`).replace(/_/g," "),mimeType:"application/pdf",contentBase64:bytes.toString("base64"),resumeNumber:Number(letter.resumeNumber)||null,applicationNumber:Number.isSafeInteger(number)?number:null};
   }
   async screenshotPreviews(u:AuthenticatedUser,ids:string[]){
     const unique=[...new Set((ids||[]).map((id)=>String(id||"").trim()).filter(Boolean))].slice(0,8);

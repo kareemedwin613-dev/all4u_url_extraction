@@ -4,7 +4,7 @@
   "version": "1.8.0",
   "description": "Capture job descriptions and deterministically autofill assigned applications without AI.",
   "minimum_chrome_version": "114",
-  "permissions": ["activeTab", "downloads", "scripting", "storage", "sidePanel"],
+  "permissions": ["activeTab", "clipboardWrite", "downloads", "scripting", "storage", "sidePanel"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background/service-worker.js", "type": "module" },
   "content_scripts": [

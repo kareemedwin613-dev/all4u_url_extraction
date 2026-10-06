@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge, Button, Card, Flex, Space, Tag, Tooltip, Typography } from "antd";
-import { DownloadOutlined, PaperClipOutlined, ThunderboltOutlined, WarningOutlined } from "@ant-design/icons";
+import { CopyOutlined, DownloadOutlined, PaperClipOutlined, ThunderboltOutlined, WarningOutlined } from "@ant-design/icons";
 import { normalizeUrl } from "../../shared/normalization.js";
 
 const { Text } = Typography;
@@ -27,7 +27,7 @@ function techStackLabels(application = {}) {
   return application.category_name ? [application.category_name] : [];
 }
 
-export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, onDownloadCoverLetter, extensionBusy, actionsEnabled = true }) {
+export function ApplicationCard({ application, onUpdateStatus, onExtensionAction, onDownloadResume, onDownloadCoverLetter, onCopyCoverLetter, onCopyQaPrompt, extensionBusy, actionsEnabled = true }) {
   const jobUrl = normalizeUrl(application.source_url);
   const applicationUrl = normalizeUrl(application.application_url);
   const isTailored = application.resume_type === "TAILORED";
@@ -114,6 +114,8 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
           <Button size="small" title={actionTitle} icon={<PaperClipOutlined />} disabled={!actionsEnabled || !extensionEligible} loading={extensionBusy === `${application.id}:LOAD_RESUME`} onClick={() => onExtensionAction(application,"LOAD_RESUME")}>Attach Resume</Button>
           <Button size="small" title={actionTitle} icon={<DownloadOutlined />} disabled={!actionsEnabled || !application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_RESUME`} onClick={() => onDownloadResume(application)}>Download Resume</Button>
           {onDownloadCoverLetter && <Button size="small" title={actionTitle} icon={<DownloadOutlined />} disabled={!actionsEnabled || !application.resume_id} loading={extensionBusy === `${application.id}:DOWNLOAD_COVER_LETTER`} onClick={() => onDownloadCoverLetter(application)}>Download Cover Letter</Button>}
+          {onCopyCoverLetter && <Button size="small" title={actionTitle} icon={<CopyOutlined />} disabled={!actionsEnabled || !application.resume_id || Boolean(extensionBusy)} loading={extensionBusy === `${application.id}:COPY_COVER_LETTER`} onClick={() => onCopyCoverLetter(application)}>Copy Cover Letter</Button>}
+          {onCopyQaPrompt && <Button size="small" title={actionTitle||"Copies the attached Resume and JD with instructions for application questions. Contains candidate information; review before sharing."} icon={<CopyOutlined />} disabled={!actionsEnabled || !application.resume_id || Boolean(extensionBusy)} loading={extensionBusy === `${application.id}:COPY_QA_PROMPT`} onClick={() => onCopyQaPrompt(application)}>Copy Q&amp;A Prompt</Button>}
           <Button size="small" title={actionTitle} type="primary" disabled={!actionsEnabled || !extensionEligible} loading={extensionBusy === `${application.id}:AUTOFILL`} onClick={() => onExtensionAction(application,"AUTOFILL")}>Autofill</Button>
         </Space>
       </div>

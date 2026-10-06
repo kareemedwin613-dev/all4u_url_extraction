@@ -23,6 +23,9 @@ test("original cover letter signs the exact uploaded file without using stale sa
     assert.equal(result.filename,letter.filename);assert.equal(result.mimeType,mimeType);
     assert.equal(result.contentBase64,undefined);assert.equal(result.source,"ORIGINAL_UPLOAD");
     assert.deepEqual(signed,[{bucket:"cover-letters",path:letter.path,seconds:90}]);
+    const copy:any=await service.coverLetterText(user,"application");
+    assert.equal(copy.source,"ORIGINAL_UPLOAD");assert.equal(copy.text,undefined);
+    assert.equal(copy.signedUrl,result.signedUrl);
     const unavailable=setup(letter,{message:"Object not found"});
     await assert.rejects(()=>unavailable.service.coverLetter(user,"application"),/original cover letter file could not be opened/);
   }
@@ -35,5 +38,14 @@ test("tailored letter and its existing base-text fallback still render a PDF",as
     assert.equal(result.filename,"Jordan Lee Cover Letter - App 7.pdf");
     assert.equal(Buffer.from(result.contentBase64,"base64").subarray(0,4).toString(),"%PDF");
     assert.equal(result.signedUrl,undefined);assert.equal(signed.length,0);
+    assert.deepEqual(await service.coverLetterText(user,"application"),{kind,text:"Existing letter body."});
+    assert.equal(signed.length,0,"copy uses saved tailored/fallback text, not an original file");
   }
+});
+
+test("copy does not return empty letter metadata or bypass Application access",async()=>{
+  const{service}=setup({kind:"TAILORED",text:"   "});
+  await assert.rejects(()=>service.coverLetterText(user,"application"),/text is not available/);
+  const denied=new ApplicationService({forUser:()=>({rpc:async()=>({data:null,error:{code:"42501",message:"APPLICATION_RESUME_UNAVAILABLE: Access denied."}})})}as any);
+  await assert.rejects(()=>denied.coverLetterText(user,"application"),/Access denied/);
 });

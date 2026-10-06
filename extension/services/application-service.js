@@ -1,4 +1,5 @@
 import {AppError} from "../shared/errors.js";import {MESSAGE_TYPES} from "../shared/messages.js";import {apiRequest} from "./api-client.js";
+import {buildApplicationQaPrompt} from "../shared/application-qa-prompt.js";
 async function token(client){const{data,error}=await client.auth.getSession();if(error||!data.session?.access_token)throw new AppError("SESSION_EXPIRED","Your session has expired. Sign in again.");return data.session.access_token;}
 async function call(client,baseUrl,path,options={}){return(await apiRequest({baseUrl,path,token:await token(client),...options})).data;}
 function storageErrorDetail(error){return String(error?.message||error?.details||error?.hint||error?.error||"");}
@@ -199,6 +200,31 @@ export async function downloadApplicationCoverLetter(client,baseUrl,applicationI
   const downloadId=await downloadImpl({url:downloadUrl,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_COVER_LETTER_DOWNLOAD_FAILED","Chrome could not start the cover letter download.");
   return{kind:data.kind,downloadId,downloadName};
+}
+export async function copyApplicationCoverLetter(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text),extractText=async(buffer,mimeType)=>(await import("./cover-letter-parser.js")).extractCoverLetterText(buffer,mimeType)){
+  const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter/text`,{timeoutMs:30000});
+  if(!["BASE","TAILORED"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter text metadata is invalid.");
+  let text=data.text;
+  if(data.source==="ORIGINAL_UPLOAD"){
+    let url;try{url=new URL(data.signedUrl);}catch{/* Validate before fetching the private file. */}
+    if(data.kind!=="BASE"||!url||!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/")||!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(data.mimeType)||!Number.isSafeInteger(data.fileSizeBytes)||data.fileSizeBytes<1||data.fileSizeBytes>5242880)throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
+    const response=await fetch(url.toString(),{credentials:"omit",signal:AbortSignal.timeout(30000)});
+    if(!response.ok)throw new AppError("COVER_LETTER_READ_FAILED","The original cover letter could not be read. Click Copy Cover Letter to try again.");
+    const buffer=await response.arrayBuffer();
+    if(buffer.byteLength>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
+    text=await extractText(buffer,data.mimeType);
+  }
+  if(typeof text!=="string"||!text.trim())throw new AppError("COVER_LETTER_NO_READABLE_TEXT","This cover letter has no readable text to copy.");
+  const plainText=text.replace(/\r\n?/g,"\n").replace(/\0/g,"").trim();
+  if(!plainText)throw new AppError("COVER_LETTER_NO_READABLE_TEXT","This cover letter has no readable text to copy.");
+  try{await writeText(plainText);}catch{throw new AppError("COVER_LETTER_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Cover Letter again.");}
+  return{kind:data.kind};
+}
+export async function copyApplicationQaPrompt(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text)){
+  const context=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/qa-context`,{timeoutMs:30000});
+  const prompt=buildApplicationQaPrompt(context);
+  try{await writeText(prompt);}catch{throw new AppError("APPLICATION_PROMPT_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Q&A Prompt again.");}
+  return{resumeType:context.resumeType};
 }
 export async function listApplicationScreenshots(client,_baseUrl,applicationId){
   const{data,error}=await client.from("application_screenshots")
