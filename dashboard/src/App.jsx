@@ -1514,7 +1514,7 @@ function Jobs({
   async function downloadExcel() {
     setExportBusy(true);
     try {
-      await exportAllJobsExcel(client, apiBaseUrl, { categories });
+      await exportAllJobsExcel(client, apiBaseUrl, { categories, filters });
       toast("success", "Excel download started.");
     } catch (value) {
       toast("error", value.message || "Job Descriptions could not be exported.");
