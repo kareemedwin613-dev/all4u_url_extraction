@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { parseHTML } from "linkedom";
 import { DEFAULT_OVERVIEW_WINDOW, formatOverviewDate, formatOverviewRangeLabel, overviewDateBounds } from "../src/features/overview/overview-date.js";
 import { isActivityScopedReportingWindow } from "../src/features/overview/applier-productivity.js";
 
@@ -48,7 +54,7 @@ test("the sticky top bar owns the shared Overview reporting period", async () =>
   assert.match(app, /onRefresh=\{\(\) => setOverviewRefresh/);
   assert.match(app, /request\.replace/);
   const filter = await read("../src/features/overview/overview-date-filter.jsx");
-  assert.match(filter, /aria-label="Refresh overview"/);
+  assert.match(filter, /aria-label=\{refreshLabel\}/);
   assert.match(filter, /Refresh/);
   assert.doesNotMatch(app, /<OverviewDateFilter value=\{period\}/);
   assert.match(app, /dateRange=\{dateRange\}/);
@@ -60,6 +66,24 @@ test("the sticky top bar owns the shared Overview reporting period", async () =>
   assert.match(cards, /Business Records/);
   assert.doesNotMatch(app, /ApplicationCountCards/);
   assert.doesNotMatch(cards, /Application Workflow/);
+});
+
+test("Overview refresh button renders its default or caller-provided accessible label",async()=>{
+  const compiled=await build({
+    entryPoints:[fileURLToPath(new URL("../src/features/overview/overview-date-filter.jsx",import.meta.url))],
+    bundle:true,write:false,platform:"node",format:"cjs",packages:"external",
+  });
+  const module={exports:{}};
+  new Function("require","module","exports",compiled.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
+  const render=props=>parseHTML(renderToStaticMarkup(React.createElement(module.exports.OverviewDateFilter,{
+    value:DEFAULT_OVERVIEW_WINDOW,onChange:()=>{},compact:true,...props,
+  }))).document;
+  for(const [props,label] of [[{},"Refresh overview"],[{refreshLabel:"Refresh applications"},"Refresh applications"]]){
+    const document=render({onRefresh:()=>{},...props});
+    const button=document.querySelector(`button[aria-label="${label}"]`);
+    assert.ok(button);assert.equal(button.textContent.trim(),"Refresh");
+  }
+  assert.equal(render({}).querySelector('button[aria-label="Refresh overview"]'),null);
 });
 
 test("date-windowed Overview RPCs are role checked, bounded, and use canonical Application status", async () => {
