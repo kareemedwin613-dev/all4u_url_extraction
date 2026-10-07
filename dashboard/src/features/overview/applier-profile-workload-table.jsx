@@ -1,36 +1,23 @@
 import React, { useMemo } from "react";
 import { useSavedSearch } from "../../shared/use-filter-preferences.js";
 import { useSavedTableSort } from "../../shared/use-saved-table-sort.js";
-import { Button, Dropdown, Empty, Input} from "antd";
+import { Button, Dropdown, Empty, Input } from "antd";
+import { StatusTag } from "../../components/ui.jsx";
 import { ResizableTable as Table } from "../../shared/resizable-table.jsx";
 import { MoreOutlined, SearchOutlined } from "@ant-design/icons";
 import { tableRowNumberColumn } from "../../shared/table-sorting.js";
 import {
   APPLIER_PROFILE_WORKLOAD_METRICS,
+  formatApplicationStartDate,
   normalizeApplierProfileWorkload,
   PROFILE_TABLE_METRIC_KEYS,
-  PROFILE_WORKLOAD_STATUS,
+  sortProfileWorkloadRows,
   sumProfileMetricTotals,
 } from "./applier-profile-workload.js";
 
 const profileMetricsByKey = new Map(
   APPLIER_PROFILE_WORKLOAD_METRICS.map((metric) => [metric.key, metric]),
 );
-
-export function ProfileWorkloadStatusTag({ status }) {
-  const meta = PROFILE_WORKLOAD_STATUS[status] || PROFILE_WORKLOAD_STATUS.NO_ACTIVITY;
-  return (
-    <span
-      className={`productivity-status-pill productivity-status-pill--${status.toLowerCase()}`}
-    >
-      <span
-        className="productivity-status-pill__dot"
-        style={{ background: meta.color }}
-      />
-      {meta.label}
-    </span>
-  );
-}
 
 function profileCountColumn(metric) {
   const wide =
@@ -45,7 +32,7 @@ function profileCountColumn(metric) {
     width: wide ? 84 : 70,
     align: "center",
     className: `productivity-metric-col productivity-metric-col--${metric.key}`,
-    sorter: (left, right) => left[metric.key] - right[metric.key],
+    sorter: true,
     render: (value) => (
       <span
         className={`productivity-metric-value productivity-metric-value--${metric.key}${
@@ -71,7 +58,7 @@ function ProfileMetricTotal({ metricKey, value }) {
 }
 
 function ProfileTableSummary({ totals, showApplier }) {
-  const leadingCount = showApplier ? 4 : 3;
+  const leadingCount = showApplier ? 5 : 4;
   const metricCount = PROFILE_TABLE_METRIC_KEYS.length;
   return (
     <Table.Summary fixed>
@@ -88,6 +75,18 @@ function ProfileTableSummary({ totals, showApplier }) {
   );
 }
 
+function profileTableSort(columns) {
+  const pending = [...columns];
+  while (pending.length) {
+    const column = pending.shift();
+    if (column.children) pending.push(...column.children);
+    if (column.sortOrder === "ascend" || column.sortOrder === "descend") {
+      return { field: column.dataIndex || column.key || "", order: column.sortOrder };
+    }
+  }
+  return { field: "", order: "" };
+}
+
 function buildColumns({ showApplier }) {
   return [
     tableRowNumberColumn({ page: 1, pageSize: 10000 }),
@@ -96,7 +95,7 @@ function buildColumns({ showApplier }) {
       dataIndex: "name",
       width: 160,
       className: "productivity-applier-col",
-      sorter: (left, right) => left.name.localeCompare(right.name),
+      sorter: true,
       render: (value, row) => (
         <div className="productivity-applier-meta">
           <a
@@ -115,7 +114,7 @@ function buildColumns({ showApplier }) {
             title: "Applier",
             dataIndex: "applierName",
             width: 128,
-            sorter: (left, right) => left.applierName.localeCompare(right.applierName),
+            sorter: true,
             render: (value, row) =>
               row.applierUserId ? (
                 <a href={`#/appliers/${row.applierUserId}`}>{value || "—"}</a>
@@ -126,13 +125,18 @@ function buildColumns({ showApplier }) {
         ]
       : []),
     {
+      title: "Application Start Date",
+      dataIndex: "applicationStartAt",
+      width: 168,
+      sorter: true,
+      render: (value) => formatApplicationStartDate(value),
+    },
+    {
       title: "Status",
-      dataIndex: "status",
-      width: 118,
-      align: "left",
-      className: "productivity-status-col",
-      sorter: (left, right) => left.status.localeCompare(right.status),
-      render: (value) => <ProfileWorkloadStatusTag status={value} />,
+      dataIndex: "resumeStatus",
+      width: 110,
+      sorter: true,
+      render: (value) => (value ? <StatusTag value={value} /> : "—"),
     },
     {
       title: "Applications",
@@ -206,7 +210,11 @@ export function ApplierProfileWorkloadTable({
         : data,
     [data, needle],
   );
-  const metricTotals = useMemo(() => sumProfileMetricTotals(visible), [visible]);
+  const ordered = useMemo(
+    () => sortProfileWorkloadRows(visible, profileTableSort(savedTableSort.columns)),
+    [visible, savedTableSort.columns],
+  );
+  const metricTotals = useMemo(() => sumProfileMetricTotals(ordered), [ordered]);
 
   return (
     <div className="productivity-table-shell">
@@ -252,7 +260,7 @@ export function ApplierProfileWorkloadTable({
             size="middle"
             tableLayout="fixed"
             pagination={false}
-            dataSource={visible}
+            dataSource={ordered}
             columns={savedTableSort.columns}
             onChange={(_pagination, _filters, sorter, extra) => {
               if (extra?.action === "sort") savedTableSort.onSort(sorter);

@@ -68,6 +68,47 @@ export const PROFILE_WORKLOAD_STATUS = Object.freeze({
 
 const count = (value) => Math.max(0, Number(value) || 0);
 
+const applicationStartDateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+export function resumeArchiveStatus(value) {
+  const status = String(value || "").toUpperCase();
+  return status === "ACTIVE" || status === "ARCHIVED" ? status : "";
+}
+
+function compareProfileWorkloadField(left, right, field) {
+  if (field === "applicationStartAt") {
+    const leftTime = left.applicationStartAt ? Date.parse(left.applicationStartAt) : 0;
+    const rightTime = right.applicationStartAt ? Date.parse(right.applicationStartAt) : 0;
+    return leftTime - rightTime;
+  }
+  if (field === "name" || field === "applierName" || field === "resumeStatus") {
+    return String(left[field] || "").localeCompare(String(right[field] || ""), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+  return (Number(left[field]) || 0) - (Number(right[field]) || 0);
+}
+
+export function sortProfileWorkloadRows(rows = [], sort = {}) {
+  const field = String(sort?.field || "");
+  const order = sort?.order === "descend" || sort?.order === "ascend" ? sort.order : "";
+  const direction = order === "descend" ? -1 : 1;
+  return [...(Array.isArray(rows) ? rows : [])].sort((left, right) => {
+    const archiveDelta =
+      (left?.resumeStatus === "ARCHIVED" ? 1 : 0) - (right?.resumeStatus === "ARCHIVED" ? 1 : 0);
+    if (archiveDelta || !order) return archiveDelta;
+    return compareProfileWorkloadField(left, right, field) * direction;
+  });
+}
+
+export function formatApplicationStartDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "—";
+  return applicationStartDateFormatter.format(date);
+}
+
 export function deriveProfileWorkloadStatus(row) {
   if (row.blocked > 0) {
     return PROFILE_WORKLOAD_STATUS.NEEDS_ATTENTION.key;
@@ -132,6 +173,8 @@ export function normalizeApplierProfileWorkload(rows = []) {
       ),
       tailored,
       nonTailored,
+      applicationStartAt: row.application_start_at || row.applicationStartAt || null,
+      resumeStatus: resumeArchiveStatus(row.resume_status || row.resumeStatus),
     };
     return {
       ...normalized,
