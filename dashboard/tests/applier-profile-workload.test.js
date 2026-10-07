@@ -5,6 +5,7 @@ import {
   deriveProfileWorkloadStatus,
   normalizeApplierProfileWorkload,
   PROFILE_WORKLOAD_STATUS,
+  sortProfileWorkloadRows,
   sumProfileMetricTotals,
   summarizeProfileWorkloadKpis,
 } from "../src/features/overview/applier-profile-workload.js";
@@ -62,9 +63,13 @@ test("Admin Overview Profile Status tab uses profile workload metrics", async ()
   assert.doesNotMatch(page, /showApplier/);
   assert.doesNotMatch(page, /Activity Summary/);
   assert.doesNotMatch(page, /Performance Scorecard/);
+  assert.match(table, /Application Start Date/);
+  assert.match(table, /title: "Status"/);
+  assert.match(table, /resumeStatus/);
+  assert.match(table, /sortProfileWorkloadRows/);
   assert.match(table, /PROFILE_TABLE_METRIC_KEYS/);
   assert.match(table, /pagination=\{false\}/);
-  assert.match(table, /sumProfileMetricTotals\(visible\)/);
+  assert.match(table, /sumProfileMetricTotals\(ordered\)/);
   assert.match(table, /ProfileTableSummary/);
   assert.match(table, /productivity-table-summary-row/);
   assert.match(migration, /tailored_count/);
@@ -88,6 +93,8 @@ test("normalizeApplierProfileWorkload maps overview rows for the profile chart",
       pending_count: 18,
       blocked_count: 4,
       interview_count: 3,
+      application_start_at: "2026-03-02T15:00:00.000Z",
+      resume_status: "ARCHIVED",
     },
   ]);
   assert.deepEqual(row, {
@@ -106,8 +113,31 @@ test("normalizeApplierProfileWorkload maps overview rows for the profile chart",
     interviewsNonTailored: 0,
     tailored: 0,
     nonTailored: 0,
+    applicationStartAt: "2026-03-02T15:00:00.000Z",
+    resumeStatus: "ARCHIVED",
     status: PROFILE_WORKLOAD_STATUS.NEEDS_ATTENTION.key,
   });
+});
+
+test("sortProfileWorkloadRows keeps archived profiles after active profiles", () => {
+  const rows = [
+    { id: "a", name: "Zed", resumeStatus: "ACTIVE", applied: 1, applicationStartAt: null, applierName: "" },
+    { id: "b", name: "Amy", resumeStatus: "ARCHIVED", applied: 9, applicationStartAt: null, applierName: "" },
+    { id: "c", name: "Bea", resumeStatus: "ACTIVE", applied: 3, applicationStartAt: null, applierName: "" },
+  ];
+  assert.deepEqual(sortProfileWorkloadRows(rows).map((row) => row.id), ["a", "c", "b"]);
+  assert.deepEqual(
+    sortProfileWorkloadRows(rows, { field: "name", order: "ascend" }).map((row) => row.name),
+    ["Bea", "Zed", "Amy"],
+  );
+  assert.deepEqual(
+    sortProfileWorkloadRows(rows, { field: "name", order: "descend" }).map((row) => row.name),
+    ["Zed", "Bea", "Amy"],
+  );
+  assert.deepEqual(
+    sortProfileWorkloadRows(rows, { field: "applied", order: "descend" }).map((row) => row.id),
+    ["c", "a", "b"],
+  );
 });
 
 test("deriveProfileWorkloadStatus prioritizes blocked and pending application counts", () => {
