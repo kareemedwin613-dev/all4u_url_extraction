@@ -37,7 +37,8 @@ test("session load hands the worker the candidate filename and retries once with
     messages.push(message);
     return messages.length === 1 ? { ok: false, error: { code: "RESUME_ACCESS_EXPIRED", message: "expired" } } : { ok: true, data: { ready: true, filename: message.payload.access.filename } };
   });
-  assert.equal(loaded.filename, "Andrew Thomas Resume - App 42.pdf");
+  // Employers see the attached file, so it carries no internal Application number.
+  assert.equal(loaded.filename, "Andrew Thomas Resume.pdf");
   assert.equal(messages.length, 2);
   assert.equal(calls.filter((call) => call.type === "signedUrl").length, 2, "each attempt uses a newly signed URL");
   assert.deepEqual(Object.keys(messages[0].payload).sort(), ["access", "applicationId", "sessionId"]);
@@ -63,10 +64,10 @@ test("side panel attaches the Resume in one click and before Autofill field dete
   assert.match(card, /Download Resume/);
   assert.match(app, /loadApplicationResumeForSession/);
   assert.doesNotMatch(app, /accessToken: session\.access_token|signedUrl/);
-  const autofill = app.slice(app.indexOf('if (response.data.action === "AUTOFILL")'));
+  const autofill = app.slice(app.indexOf("// Everything the page needs is requested at once"));
   assert.ok(autofill.indexOf("attachSessionResume(") > -1 && autofill.indexOf("attachSessionResume(") < autofill.indexOf("PREPARE_PERSONAL_AUTOFILL"), "Resume is attached before fields are detected");
   // Review-required Resumes and recovered sessions are loaded but not re-uploaded automatically.
-  assert.match(app, /!attachment && !resumed && !autofillContext\?\.preferences\?\.requireReviewEveryField\)\s*\{\s*attachment = await attachSessionResume/);
-  assert.match(app, /attachmentsRef\.current\.get\(response\.data\.id\)/);
+  assert.match(app, /if \(!attachment && !recovered && !reviewRequired\) \{\s*tabProgress\(id, 2, steps, "Attaching resume"\);\s*try \{\s*attachment = await attachSessionResume/);
+  assert.match(app, /attachmentsRef\.current\.get\(id\)/);
   assert.doesNotMatch(app, /\.submit\(|requestSubmit\(/);
 });

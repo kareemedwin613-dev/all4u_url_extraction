@@ -47,9 +47,37 @@ export function formSection(element) {
   return { kind: null, index: null };
 }
 
+// Controls a person can see and answer. Skips helpers such as react-select's hidden "required" input,
+// a phone widget's hidden country search, and reCAPTCHA's response box.
+export function isUserFacing(element) {
+  if (!element) return false;
+  // Styled radios and checkboxes hide the real input (Workable marks it aria-hidden and draws its own
+  // buttons), so only text-like controls are judged by visibility.
+  if (["file", "radio", "checkbox"].includes(String(element.type || "").toLowerCase())) return true;
+  if (element.getAttribute?.("aria-hidden") === "true" || element.closest?.("[aria-hidden='true']")) return false;
+  if (typeof element.getClientRects === "function") {
+    try { if (element.getClientRects().length === 0) return false; } catch {}
+  }
+  return true;
+}
+
+// The question of a radio group that names it with aria-labelledby (Workable, many React forms).
+function groupLabelledBy(element) {
+  const group = element?.closest?.("[role='radiogroup'],[role='group'],fieldset");
+  return clean(group?.getAttribute?.("aria-labelledby")).split(" ").filter(Boolean)
+    .map((id) => clean(element.ownerDocument?.getElementById?.(id)?.textContent)).filter(Boolean).join(" ");
+}
+
+// <label for="id"> elements for a control; falls back to a lookup where element.labels is unavailable.
+export function linkedLabels(element) {
+  const labels = [...(element?.labels || [])];
+  if (labels.length || !element?.id) return labels;
+  return [...(element.ownerDocument?.querySelectorAll?.("label") || [])].filter((label) => label.getAttribute?.("for") === element.id);
+}
+
 // Visible question for a control, including React Select wrappers and fieldset legends.
 export function questionText(element) {
-  const labels = [...(element?.labels || [])].map((label) => clean(label.textContent));
+  const labels = linkedLabels(element).map((label) => clean(label.textContent));
   const wrapping = clean(element?.closest?.("label")?.textContent);
   const legend = clean(element?.closest?.("fieldset")?.querySelector?.("legend")?.textContent);
   const previous = clean(element?.previousElementSibling?.textContent);
@@ -61,6 +89,27 @@ export function questionText(element) {
     .map((id) => clean(element?.ownerDocument?.getElementById?.(id)?.textContent));
   const aria = clean(element?.getAttribute?.("aria-label"));
   return [...new Set([legend, ...labels, wrapping, previous, parentLabel, prompt, wrapperPrompt, ...labelledBy, aria].filter(Boolean))].join(" ").slice(0, 600);
+}
+
+// The question for a control whose label is not linked to it (Ashby: <label for="x"> beside an input
+// without that id; a fieldset whose first <label> is the question and the rest label the options).
+// Walks up while the container holds only this control or radio group and returns its first free label.
+export function containerQuestion(element, group = [element]) {
+  const labelledGroup = groupLabelledBy(element);
+  if (labelledGroup) return labelledGroup.slice(0, 600);
+  const own = new Set(group);
+  const optionLabels = new Set(group.flatMap((control) => linkedLabels(control)));
+  const controlIds = new Set(group.map((control) => control.id).filter(Boolean));
+  const isOptionLabel = (label) => optionLabels.has(label) || controlIds.has(label.getAttribute?.("for") || "");
+  let node = element?.parentElement;
+  for (let depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
+    const controls = [...(node.querySelectorAll?.("input,select,textarea") || [])].filter((control) => String(control.type || "").toLowerCase() !== "hidden");
+    if (controls.some((control) => !own.has(control))) return "";
+    const label = [...(node.querySelectorAll?.("label,legend,[role='heading']") || [])]
+      .find((candidate) => !isOptionLabel(candidate) && !candidate.querySelector?.("input,select,textarea") && clean(candidate.textContent));
+    if (label) return clean(label.textContent).slice(0, 600);
+  }
+  return "";
 }
 
 export function wordCount(value) { return clean(value).split(" ").filter(Boolean).length; }

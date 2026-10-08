@@ -1,4 +1,5 @@
 import { isUnitedStates, usStateCode } from "./option-matching.js";
+import { evidenceAnswer } from "./resume-evidence.js";
 
 const screeningKey = (answerKey) => `screening.${answerKey}`;
 
@@ -38,6 +39,25 @@ export function autofillValues(context){
   const values={...(context?.values||{}),...structuredAutofillValues(context)};
   if(values["candidate.city"]||values["candidate.currentLocation"])values["candidate.currentLocation"]=formatCandidateLocation(values);
   return values;
+}
+
+// Resume entries to add on forms that collect jobs and schools behind an "Add" button. Only for
+// sections the page reported as empty and addable, so existing entries are never duplicated.
+export function repeatableSectionRows(context,detected=[]){
+  const wanted=new Set((detected||[]).filter(item=>item?.addable&&!item.existing).map(item=>item.kind)),rows={};
+  if(wanted.has("employment"))rows.employment=(context?.employment||context?.employmentHistory||[]).slice(0,10).map(row=>({company:row.company,jobTitle:row.jobTitle,location:row.location,description:row.experienceDetails,startDate:dateText(row.startDate),endDate:row.isCurrent?"":dateText(row.endDate),isCurrent:Boolean(row.isCurrent)}));
+  if(wanted.has("education"))rows.education=(context?.education||[]).slice(0,10).map(row=>({institution:row.institution,degree:row.degree,fieldOfStudy:row.fieldOfStudy,startDate:dateText(row.startDate),endDate:dateText(row.endDate)}));
+  return rows;
+}
+
+const SECTION_LABELS={employment:"Experience",education:"Education"};
+// Result rows the side panel shows for each entry the page added.
+export function sectionResultFields(results=[],rows={}){
+  return(results||[]).filter(result=>/^(employment|education)\.\d+\.entry$/.test(String(result?.key||""))).map(result=>{
+    const [kind,index]=result.key.split("."),row=rows[kind]?.[Number(index)]||{};
+    const name=kind==="employment"?[row.jobTitle,row.company].filter(Boolean).join(" at "):[row.degree,row.institution].filter(Boolean).join(", ");
+    return{fieldId:result.fieldId,key:result.key,label:`${SECTION_LABELS[kind]} ${Number(index)+1}${name?`: ${name}`:""}`,confidence:100,readiness:"READY",controlType:"section",inputType:""};
+  });
 }
 
 // Total years from the job history, counting overlapping roles once.
@@ -104,6 +124,7 @@ export function screeningDefinitions(context) {
 
 export function autofillValue(context, field) {
   if (String(field?.key||"").startsWith("guide.")) return guideValue(context, field);
+  if (String(field?.key||"").startsWith("evidence.")) return evidenceAnswer(context, field?.label || "");
   if (/^(candidate|employment|education)\./.test(String(field?.key||""))) return autofillValues(context)[field.key]??"";
   if(field?.answerKey==="desired_salary"){
     const midpoint=salaryMidpoint(context?.job);
@@ -115,6 +136,7 @@ export function autofillValue(context, field) {
 
 export function autofillValueSource(context,field){
   if(String(field?.key||"").startsWith("guide."))return"Application Guide";
+  if(String(field?.key||"").startsWith("evidence."))return"Resume skills and experience";
   if(field?.answerKey==="desired_salary"&&salaryMidpoint(context?.job))return"JD salary midpoint";
   return String(field?.key||"").startsWith("screening.")?"Verified Answer Library":String(field?.key||"").startsWith("candidate.")?"Verified Resume metadata":"Structured Resume";
 }

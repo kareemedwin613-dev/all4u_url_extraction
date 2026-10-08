@@ -24,7 +24,7 @@ if (!globalThis.__resumeJdPersonalAutofillInstalled) {
     }
     if (message?.type === MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL_FIELDS) {
       const fields = message.payload?.fields || [];
-      Promise.resolve().then(async()=>{const selected=selectJobSiteAdapter(location.href);if(message.payload?.adapterId&&message.payload.adapterId!==selected.id)return{status:"ADAPTER_CHANGED",results:[]};const results=await selected.adapter.fillFields(Object.freeze({root:document,fields:Object.freeze(fields.map(field=>Object.freeze({...field})))}));return{status:"FILLED",results,adapter:adapterSummary(selected)};}).then(sendResponse);
+      Promise.resolve().then(async()=>{const selected=selectJobSiteAdapter(location.href);if(message.payload?.adapterId&&message.payload.adapterId!==selected.id)return{status:"ADAPTER_CHANGED",results:[]};const results=await selected.adapter.fillFields(Object.freeze({root:document,fields:Object.freeze(fields.map(field=>Object.freeze({...field}))),sections:Object.freeze(message.payload?.sections||{})}));return{status:"FILLED",results,adapter:adapterSummary(selected)};}).then(sendResponse);
       return true;
     }
     return false;

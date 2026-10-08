@@ -9,7 +9,7 @@ const LABELS = {
   "candidate.addressLine1": "Address line 1", "candidate.addressLine2": "Address line 2", "candidate.city": "City",
   "candidate.state": "State / region", "candidate.postalCode": "Postal code", "candidate.country": "Country",
   "candidate.linkedInUrl": "LinkedIn", "candidate.githubUrl": "GitHub", "candidate.portfolioUrl": "Portfolio",
-  "candidate.summary": "Summary",
+  "candidate.summary": "Summary", "candidate.coverLetter": "Cover letter",
   "candidate.currentLocation": "Current location", "candidate.currentCompany": "Current company",
   "screening.authorized_to_work": "Authorized to work",
   "screening.requires_sponsorship": "Requires sponsorship",
@@ -28,6 +28,11 @@ const RESULT_MESSAGES = {
   VALUE_UNAVAILABLE: "No verified Resume value is available.",
   SELECT_OPTION_NOT_FOUND: "The page does not offer a matching option.",
   FIELD_FILL_FAILED: "The page prevented this field from being filled.",
+  SECTION_ALREADY_HAS_ENTRIES: "The page already had entries here, so none were added. Check them against the Resume.",
+  SECTION_SAVE_REJECTED: "The site did not accept this entry. Correct it on the page and click its Save button.",
+  SECTION_SAVE_UNAVAILABLE: "The entry's Save button was not available. Add this entry manually.",
+  SECTION_ADD_UNAVAILABLE: "The Add button was not available. Add this entry manually.",
+  SECTION_EDITOR_NOT_OPENED: "The Add button did not open an entry form. Add this entry manually.",
 };
 
 const REMOTE_OPTIONS=["REMOTE","HYBRID","ONSITE","FLEXIBLE","NO_PREFERENCE"].map(value=>({value,label:value.replaceAll("_"," ")}));
@@ -65,7 +70,7 @@ export function AutofillPreview({ active, busy, onValueChange, onFill, onRescan 
         </Space>
       )}
       {unresolved.length>0&&(
-        <Collapse size="small" style={{marginTop:10}} items={[{key:"unresolved",label:`Unresolved questions (${unresolved.length})`,children:<Space orientation="vertical" size={8} style={{width:"100%"}}><Alert type="warning" showIcon message="Complete these fields manually" description="These questions are reported to Admins so common ones can be added to the Application Guide. Declarations and questions the guide marks for a person always need your answer."/>{unresolved.map((item,index)=><Card size="small" key={`${item.normalizedQuestion}-${index}`}><Flex justify="space-between" align="start" gap={8}><div style={{minWidth:0}}><Text>{item.question}</Text><Text type="secondary" style={{display:"block",fontSize:11}}>{item.guideEntryId?"Application Guide: answer this one yourself":item.reason==="REVIEW_REQUIRED"?"Manual review required":"No Application Guide or Answer Library match"}{item.suggestions?.length?` · Possible match: ${item.suggestions.map(x=>x.answerKey.replaceAll("_"," ")).join(", ")}`:""}</Text>{item.guideEntryId&&guideHelp(item.guideEntryId)?<Text style={{display:"block",fontSize:12,whiteSpace:"pre-wrap"}}>{guideHelp(item.guideEntryId)}</Text>:null}</div><Button size="small" onClick={()=>navigator.clipboard?.writeText(item.question)}>Copy</Button></Flex></Card>)}</Space>}]}/>
+        <Collapse size="small" style={{marginTop:10}} items={[{key:"unresolved",label:`Unresolved questions (${unresolved.length})`,children:<Space orientation="vertical" size={8} style={{width:"100%"}}><Alert type="warning" showIcon message="Complete these fields manually" description="These questions are reported to Admins so common ones can be added to the Application Guide. Declarations and questions the guide marks for a person always need your answer."/>{unresolved.map((item,index)=><Card size="small" key={`${item.normalizedQuestion}-${index}`}><Flex justify="space-between" align="start" gap={8}><div style={{minWidth:0}}><Text>{item.question}</Text><Text type="secondary" style={{display:"block",fontSize:11}}>{item.reason==="RESUME_VALUE_MISSING"?`Not on this Resume: ${LABELS[item.missingKey]||"value"}. Add it on the Resume page in the dashboard.`:item.guideEntryId?"Application Guide: answer this one yourself":item.reason==="REVIEW_REQUIRED"?"Manual review required":"No Application Guide or Answer Library match"}{item.suggestions?.length?` · Possible match: ${item.suggestions.map(x=>x.answerKey.replaceAll("_"," ")).join(", ")}`:""}</Text>{item.guideEntryId&&guideHelp(item.guideEntryId)?<Text style={{display:"block",fontSize:12,whiteSpace:"pre-wrap"}}>{guideHelp(item.guideEntryId)}</Text>:null}</div><Button size="small" onClick={()=>navigator.clipboard?.writeText(item.question)}>Copy</Button></Flex></Card>)}</Space>}]}/>
       )}
     </Card>
   );

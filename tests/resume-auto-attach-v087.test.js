@@ -75,5 +75,8 @@ test("v0.8.7 injects only into the tracked tab and never submits the application
   assert.match(adapter, /dispatchEvent\(new Event\("change"/);
   assert.match(app, /Attach Resume to Page/);
   assert.match(build, /content\/resume-upload/);
-  assert.doesNotMatch(worker + content + adapter + app, /\.submit\(|requestSubmit\(|click\(\).*submit/is);
+  assert.doesNotMatch(worker + content + adapter + app, /\.submit\(|requestSubmit\(|click\(\)[^;\n]*submit/i);
+  // The only click in the attach path reveals a hidden upload (JazzHR "Attach resume"): in-page links and plain buttons only.
+  assert.match(adapter, /\.find\(\(item\) => REVEAL_TEXT\.test\(text\(item\.textContent\)\) && !COVER_LETTER_TERMS\.test\(text\(item\.textContent\)\) && safeRevealControl\(item\)\)/);
+  assert.match(adapter, /if \(tag === "button"\) return String\(element\.getAttribute\?\.\("type"\) \|\| ""\)\.toLowerCase\(\) === "button";/);
 });

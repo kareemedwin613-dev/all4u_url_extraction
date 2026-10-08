@@ -1,9 +1,9 @@
 // Fills questions the published Application Guide answers. Rules only: the guide question and its extra
 // wordings are matched against each control's visible question, and the answer comes from the guide or
 // from the verified Resume. NEVER entries are claimed so no other matcher fills them.
-import { formSection, questionText } from "./form-context.js";
-import { findBestOption, optionPolarity } from "./option-matching.js";
-import { skillSpecificExperience } from "./screening-field-adapter.js";
+import { containerQuestion, formSection, isUserFacing, linkedLabels, questionText } from "./form-context.js";
+import { US_STATE_NAMES, findBestOption, normalizeOptionText, optionPolarity, usStateCode } from "./option-matching.js";
+import { questionBlocked, skillSpecificExperience } from "./screening-field-adapter.js";
 
 const FIELD_ATTRIBUTE = "data-resume-jd-guide-autofill-id";
 const MODES = new Set(["FIXED", "DERIVED", "NEVER"]);
@@ -61,20 +61,23 @@ const isCombobox = (element) => String(element?.getAttribute?.("role") || "").to
 const isChoice = (element) => ["radio", "checkbox"].includes(typeOf(element));
 
 function usable(element) {
-  if (!element || element.disabled || element.readOnly) return false;
+  if (!element || element.disabled || element.readOnly || !isUserFacing(element)) return false;
   const tag = tagOf(element);
   return tag === "select" || tag === "textarea" || (tag === "input" && (TEXT_TYPES.has(typeOf(element)) || isChoice(element)));
 }
 
 function ownLabel(element) {
-  return [...(element.labels || [])].map((label) => clean(label.textContent)).concat(clean(element.closest?.("label")?.textContent)).filter(Boolean);
+  return linkedLabels(element).map((label) => clean(label.textContent)).concat(clean(element.closest?.("label")?.textContent)).filter(Boolean);
 }
 
 // The question a control answers. For radio and checkbox groups the option's own label ("Yes") is removed.
-function controlQuestion(element, grouped) {
+function controlQuestion(element, grouped, group = [element]) {
+  // Radio and checkbox groups: the group's own question, never one option's label.
+  const container = containerQuestion(element, group);
+  if (grouped && container) return container;
   let text = questionText(element);
   if (grouped) for (const label of ownLabel(element)) text = clean(text.replace(label, " "));
-  return text || clean(element.getAttribute?.("placeholder") || "");
+  return text || container || clean(element.getAttribute?.("placeholder") || "");
 }
 
 function groupOf(element, all) {
@@ -92,7 +95,7 @@ export function guideFieldCandidates(root = document, rawEntries = []) {
     if (seen.has(elements[0])) continue;
     seen.add(elements[0]);
     const grouped = elements.length > 1 || typeOf(element) === "radio";
-    const question = controlQuestion(element, grouped);
+    const question = controlQuestion(element, grouped, elements);
     if (question.length < 2) continue;
     const section = formSection(element).kind;
     let best = null;
@@ -111,6 +114,36 @@ export function guideFieldCandidates(root = document, rawEntries = []) {
     });
   }
   return candidates;
+}
+
+// Yes/No questions about the candidate's own experience, answered from the Resume by resume-evidence.js.
+const EXPERIENCE_QUESTION = /^(?:do|does|have|has|are|can|would)\s+you\b[^?]*\b(experience|years?|familiar|proficien\w*|knowledge|expertise|worked with|hands[- ]on)\b/i;
+
+function offersYesAndNo(element, elements) {
+  const texts = tagOf(element) === "select"
+    ? [...(element.options || [])].map((option) => option.textContent)
+    : typeOf(element) === "radio" ? elements.flatMap((item) => optionLabel(item)) : null;
+  if (!texts) return true; // A search dropdown's options appear only once it is opened.
+  const polarities = new Set(texts.map(optionPolarity));
+  return polarities.has("yes") && polarities.has("no");
+}
+
+export function evidenceFieldCandidates(root = document) {
+  const all = [...root.querySelectorAll("input,select,textarea")].filter(usable), seen = new Set(), candidates = [];
+  for (const element of all) {
+    const choice = tagOf(element) === "select" || typeOf(element) === "radio" || isCombobox(element);
+    if (!choice) continue;
+    const elements = groupOf(element, all);
+    if (seen.has(elements[0])) continue;
+    seen.add(elements[0]);
+    const question = controlQuestion(element, typeOf(element) === "radio", elements);
+    if (!EXPERIENCE_QUESTION.test(question.replace(/^[*\s]+/, "")) || questionBlocked(question) || !offersYesAndNo(element, elements)) continue;
+    candidates.push({
+      element, elements, confidence: 85, key: `evidence.${candidates.length}`, label: question.slice(0, 300),
+      controlType: typeOf(element) === "radio" ? "radio" : isCombobox(element) ? "combobox" : tagOf(element), inputType: typeOf(element),
+    });
+  }
+  return candidates.slice(0, 40);
 }
 
 export function tagGuideField(elements, fieldId) { for (const element of elements) element.setAttribute(FIELD_ATTRIBUTE, fieldId); }
@@ -149,22 +182,96 @@ function setChecked(element, wanted) {
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-async function chooseCombobox(element, value, root) {
-  element.focus?.(); element.click?.();
-  await pause(30);
-  const find = () => findBestOption([...(root.querySelectorAll?.("[role='option']") || [])], value, (option) => [clean(option.textContent), option.getAttribute?.("data-value")]);
-  let option = find();
-  if (!option) { setText(element, String(value)); await pause(80); option = find(); }
+// "Miami, FL, USA" → search "Miami", then pick the suggestion naming that city and state.
+function locationParts(value) {
+  const parts = String(value || "").split(",").map(clean).filter(Boolean);
+  if (parts.length < 2 || parts.length > 3) return null;
+  const state = usStateCode(parts[1]) || (parts[1].length > 2 ? "" : parts[1].toUpperCase());
+  return { city: parts[0], state, stateName: state ? normalizeOptionText(US_STATE_NAMES[state] || "") : normalizeOptionText(parts[1]) };
+}
+
+function locationOption(options, parts) {
+  const city = normalizeOptionText(parts.city);
+  return options.find((option) => {
+    const text = normalizeOptionText(option.textContent);
+    return (text === city || text.startsWith(`${city} `)) && (!parts.state || new RegExp(`(^| )(${parts.state.toLowerCase()}|${parts.stateName})( |$)`).test(text));
+  }) || null;
+}
+
+async function waitFor(check, timeout) {
+  for (const started = Date.now(); ; await pause(60)) {
+    const value = check();
+    if (value || Date.now() - started > timeout) return value || null;
+  }
+}
+
+// react-select opens from the event sequence a real click produces, not from click() alone.
+function openCombobox(element) {
+  const control = element.closest?.("[class*='control']") || element.parentElement || element;
+  const view = element.ownerDocument?.defaultView || globalThis;
+  const fire = (type, Ctor) => {
+    const Event = (Ctor && view[Ctor]) || view.MouseEvent || globalThis.Event;
+    control.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, button: 0, buttons: 1, view }));
+  };
+  fire("pointerdown", "PointerEvent"); fire("mousedown");
+  element.focus?.();
+  fire("pointerup", "PointerEvent"); fire("mouseup"); fire("click");
+  if (control !== element) element.click?.();
+}
+
+// Only this field's own list: the page may hold other, hidden option lists (a phone widget's countries).
+function comboboxOptions(element, root) {
+  const document = element.ownerDocument || root;
+  const ids = [element.getAttribute?.("aria-controls"), element.getAttribute?.("aria-owns"), element.id ? `react-select-${element.id}-listbox` : ""]
+    .join(" ").split(/\s+/).filter(Boolean);
+  for (const id of ids) {
+    const list = document.getElementById?.(id);
+    const options = list ? [...list.querySelectorAll("[role='option']")] : [];
+    if (options.length) return options;
+  }
+  return [...(root.querySelectorAll?.("[role='option']") || [])].filter((option) => isUserFacing(option));
+}
+
+export async function chooseCombobox(element, value, root = element.ownerDocument) {
+  openCombobox(element);
+  const options = () => comboboxOptions(element, root);
+  const find = () => findBestOption(options(), value, (option) => [clean(option.textContent), option.getAttribute?.("data-value")]);
+  const place = locationParts(value);
+  // Options may be a fixed list shown on focus, or search results fetched while typing.
+  let option = await waitFor(find, 400);
+  if (!option) {
+    setText(element, place ? place.city : String(value));
+    option = await waitFor(() => (place ? locationOption(options(), place) : null) || find(), 3000);
+  }
   if (!option) return null;
   option.click?.(); dispatch(option);
-  await pause(30);
+  await pause(60);
   return option;
 }
 
-function comboboxShows(element, value) {
-  const container = element.closest?.(".select,.field-wrapper,[class*='select']");
-  const selected = container?.querySelector?.(".select__single-value,[class*='single-value'],[class*='singleValue']");
-  return Boolean(findBestOption([selected || element], value, (item) => [clean(item.textContent), item.value]));
+// react-select shows the choice in a sibling "single value" element; other widgets keep it in the input.
+function comboboxDisplay(element) {
+  for (let node = element.parentElement, depth = 0; node && depth < 5; node = node.parentElement, depth += 1) {
+    const selected = node.querySelector?.("[class*='single-value'],[class*='singleValue']");
+    if (selected) return selected;
+  }
+  return null;
+}
+
+export function comboboxShows(element, value) {
+  return Boolean(findBestOption([comboboxDisplay(element) || element], value, (item) => [clean(item.textContent), item.value]));
+}
+
+// Selects a value in a dropdown that types-to-search; returns a result code.
+export async function selectComboboxValue(element, value, root = element.ownerDocument) {
+  const chosen = clean((await chooseCombobox(element, value, root))?.textContent ?? "");
+  if (!chosen) return "SELECT_OPTION_NOT_FOUND";
+  // A location reads back in the site's wording ("Miami, Florida, United States"), and a phone-country
+  // picker shows only part of the chosen option ("+1" for "United States +1").
+  const place = locationParts(value), shown = clean(comboboxDisplay(element)?.textContent);
+  const verified = comboboxShows(element, value) || (place && locationOption([{ textContent: element.value }], place))
+    || (shown.length > 0 && chosen.toLowerCase().includes(shown.toLowerCase()));
+  return verified ? "FIELD_VERIFIED" : "FIELD_VERIFICATION_FAILED";
 }
 
 function sameText(element, value) {
@@ -198,9 +305,9 @@ export async function fillGuideFields(requests = [], root = document) {
         target.value = option.value;
         dispatch(target);
         ok = [...target.options].find((item) => item.value === target.value) === option;      } else if (isCombobox(target)) {
-        const option = await chooseCombobox(target, wanted, root);
-        if (!option) { results.push({ fieldId, key, status: "FAILED", code: "SELECT_OPTION_NOT_FOUND" }); continue; }
-        ok = comboboxShows(target, wanted);
+        const code = await selectComboboxValue(target, wanted, root);
+        if (code === "SELECT_OPTION_NOT_FOUND") { results.push({ fieldId, key, status: "FAILED", code }); continue; }
+        ok = code === "FIELD_VERIFIED";
       } else {
         setText(target, String(wanted));
         ok = sameText(target, wanted);

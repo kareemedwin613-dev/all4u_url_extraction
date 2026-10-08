@@ -1,5 +1,5 @@
 import { findBestOption, monthAliases, valueAliases } from "./option-matching.js";
-import { formSection, sentenceLike } from "./form-context.js";
+import { containerQuestion, formSection, isUserFacing, linkedLabels, sentenceLike } from "./form-context.js";
 
 const FIELD_ATTRIBUTE = "data-resume-jd-autofill-id";
 const SUPPORTED_TYPES = new Set(["", "text", "email", "tel", "url", "search", "month", "date", "number", "checkbox"]);
@@ -10,10 +10,11 @@ const FIELD_RULES = [
   { key: "candidate.middleName", autocomplete: ["additional-name"], pattern: /\b(middle|additional)\s*name\b/i },
   { key: "candidate.lastName", autocomplete: ["family-name"], pattern: /\b(?:last\s*name|family\s*name|surname|lname)\b/i },
   // A bare "Name" label is matched part by part: the joined descriptor ("Name name name") never equals "name".
-  { key: "candidate.fullName", autocomplete: ["name"], pattern: /\b(full|legal|preferred)\s*name\b/i, exact: /^\s*(?:your\s+)?name\s*\*?$/i },
+  // "First & Last Name" asks for the whole name, so it outranks the Last name rule it also matches.
+  { key: "candidate.fullName", autocomplete: ["name"], pattern: /\b(full|legal|preferred)\s*name\b/i, exact: /^\s*(?:your\s+)?name\s*\*?$/i, strong: /\bfirst\s*(?:&|and|\/|\+)\s*last\s*name\b/i },
   { key: "candidate.email", autocomplete: ["email"], pattern: /\be-?mail(?:\s+address)?\b/i, type: "email" },
   { key: "candidate.phone", autocomplete: ["tel", "tel-national"], pattern: /\b(phone|telephone|mobile|cell)(?:\s+number)?\b/i, type: "tel" },
-  { key: "candidate.addressLine1", autocomplete: ["address-line1", "street-address"], pattern: /\b(address|street)(?:\s+line)?\s*(?:1|one)\b|\bstreet\s+address\b|\bhome\s+address\b/i },
+  { key: "candidate.addressLine1", autocomplete: ["address-line1", "street-address"], pattern: /\b(address|street)(?:\s+line)?\s*(?:1|one)\b|\bstreet\s+address\b|\bhome\s+address\b/i, exact: /^\s*(?:mailing\s+)?address\s*\*?$/i },
   { key: "candidate.addressLine2", autocomplete: ["address-line2"], pattern: /\b(address|street)(?:\s+line)?\s*(?:2|two)\b|\b(apt|apartment|suite|unit)\b/i },
   { key: "candidate.city", autocomplete: ["address-level2"], pattern: /\b(city|town|municipality)\b/i },
   { key: "candidate.state", autocomplete: ["address-level1"], pattern: /\b(state|province|region)\b/i },
@@ -23,6 +24,8 @@ const FIELD_RULES = [
   { key: "candidate.githubUrl", autocomplete: [], pattern: /\bgithub(?:\s+(?:url|profile))?\b/i },
   { key: "candidate.portfolioUrl", autocomplete: ["url"], pattern: /\b(portfolio|personal\s+(?:site|website)|website)(?:\s+url)?\b/i },
   { key: "candidate.summary", autocomplete: [], pattern: /\b(summary|professional\s+profile|career\s+profile|about\s+me)\b/i },
+  // The Application's cover letter goes into a text box; an upload field is not a text box.
+  { key: "candidate.coverLetter", autocomplete: [], pattern: /\b(cover\s*letter|motivation(?:al)?\s+letter|letter\s+of\s+(?:interest|intent))\b/i, textareaOnly: true },
   { key: "candidate.currentLocation", autocomplete: [], pattern: /\b(current\s+location|candidate\s+location|location\s*\(\s*city\s*\))\b/i },
   { key: "candidate.currentCompany", autocomplete: ["organization"], pattern: /\b(current|present|most\s+recent)\s+(company|employer)|current\s+employed\s+company\b/i },
 ];
@@ -56,7 +59,7 @@ const humanized = (value) => clean(String(value ?? "")
   .replace(/[^\p{L}\p{N}]+/gu, " "));
 
 function labelText(element) {
-  const labels = [...(element.labels || [])].map((label) => clean(label.textContent));
+  const labels = linkedLabels(element).map((label) => clean(label.textContent));
   const wrapping = clean(element.closest?.("label")?.textContent);
   const legend = clean(element.closest?.("fieldset")?.querySelector?.("legend")?.textContent);
   const previous = clean(element.previousElementSibling?.textContent);
@@ -64,7 +67,10 @@ function labelText(element) {
   const parentPrompt = clean(element.parentElement?.querySelector?.("[data-ui='label'],[class*='label'],[class*='Label']")?.textContent);
   const labelledBy = clean(element.getAttribute?.("aria-labelledby"));
   const labelledText = labelledBy.split(" ").filter(Boolean).map((id) => clean(element.ownerDocument?.getElementById?.(id)?.textContent)).filter(Boolean);
-  return [...labels, wrapping, legend, previous, parentLabel, parentPrompt, ...labelledText].filter(Boolean).join(" ");
+  // The same label is often reached several ways; repeating it would make a short label look like a sentence.
+  const found = [...new Set([...labels, wrapping, legend, previous, parentLabel, parentPrompt, ...labelledText].filter(Boolean))].join(" ");
+  // An unlinked label in the field's own container (Ashby).
+  return found || containerQuestion(element);
 }
 
 function descriptorParts(element) {
@@ -79,7 +85,7 @@ function descriptorParts(element) {
 function descriptor(element) { return descriptorParts(element).join(" "); }
 
 function allowed(element) {
-  if (!element || element.disabled || element.readOnly) return false;
+  if (!element || element.disabled || element.readOnly || !isUserFacing(element)) return false;
   const tag = String(element.tagName || "").toLowerCase();
   if (tag === "select" || tag === "textarea") return true;
   return tag === "input" && SUPPORTED_TYPES.has(String(element.type || "").toLowerCase());
@@ -90,12 +96,14 @@ const tagOf = (element) => String(element.tagName || "input").toLowerCase();
 
 export function scorePersonalField(element, rule) {
   if (!allowed(element)) return -1;
+  if (rule.textareaOnly && tagOf(element) !== "textarea") return 0;
   const autocomplete = normalized(element.getAttribute?.("autocomplete")).split(" ").pop();
   if (rule.autocomplete.includes(autocomplete)) return Math.min(100 + (element.required ? 1 : 0), 100);
   const text = descriptor(element);
   // Long sentence-style questions belong to the guide and screening matchers.
   const matched = !sentenceLike(labelText(element)) && (rule.pattern.test(text) || (rule.exact && descriptorParts(element).some((part) => rule.exact.test(part))));
   let score = matched ? 90 : 0;
+  if (rule.strong && !sentenceLike(labelText(element)) && rule.strong.test(text)) score = 95;
   if (rule.type && inputType(element) === rule.type) score = Math.max(score, text ? 92 : 82);
   if (rule.key.endsWith("Url") && inputType(element) === "url" && rule.pattern.test(text)) score += 3;
   if (element.required) score += 1;
@@ -142,22 +150,26 @@ export function personalFieldCandidates(root = document, availableKeys = FIELD_R
   for (const element of root.querySelectorAll("input,select,textarea")) {
     if (!allowed(element)) continue;
     const section = formSection(element);
-    let best = null;
+    // Every plausible key, strongest first: a "Country" label that also mentions the neighbouring
+    // "Phone" must still be offered as Country once the real phone field takes Phone.
+    const matches = [];
     for (const rule of FIELD_RULES) {
       if (!allowedKeys.has(rule.key)) continue;
       // Inside an employment or education entry only the autocomplete attribute can claim a contact field.
       const confidence = section.kind && !rule.autocomplete.includes(normalized(element.getAttribute?.("autocomplete")).split(" ").pop()) ? 0 : scorePersonalField(element, rule);
-      if (confidence >= 70 && (!best || confidence > best.confidence)) best = { key: rule.key, confidence };
+      if (confidence >= 70) matches.push({ key: rule.key, confidence });
     }
+    matches.sort((a, b) => b.confidence - a.confidence);
+    const best = matches[0] || null;
     const leaf = bestStructuredLeaf(element);
     if (leaf && (!best || leaf.score >= best.confidence)) {
       const rule = STRUCTURED_RULES[leaf.leaf];
       const kind = rule.section === "shared" ? section.kind : section.kind && section.kind !== rule.section ? null : rule.section;
       if (kind) { structured.push({ element, leaf: leaf.leaf, kind, section, confidence: leaf.score }); continue; }
       // A plain "Location" outside any entry is the candidate's own location.
-      if (leaf.leaf === "location" && allowedKeys.has("candidate.currentLocation") && !best) best = { key: "candidate.currentLocation", confidence: 88 };
+      if (leaf.leaf === "location" && allowedKeys.has("candidate.currentLocation") && !best) matches.push({ key: "candidate.currentLocation", confidence: 88 });
     }
-    if (best) candidates.push({ element, ...best });
+    for (const match of matches) candidates.push({ element, ...match });
   }
   indexStructured(structured);
   for (const entry of structured) {
@@ -270,7 +282,7 @@ export function fillPersonalFields(requests, root = document) {
     const element = [...root.querySelectorAll(`[${FIELD_ATTRIBUTE}]`)].find((item) => item.getAttribute(FIELD_ATTRIBUTE) === fieldId);
     if (!element || !allowed(element)) return { fieldId, key, status: "FAILED", code: "FIELD_NO_LONGER_AVAILABLE" };
     const leaf = leafOf(key);
-    let safeValue = typeof value === "boolean" ? value : leaf === "description" ? String(value ?? "").trim() : clean(value);
+    let safeValue = typeof value === "boolean" ? value : leaf === "description" || tagOf(element) === "textarea" ? String(value ?? "").trim() : clean(value);
     if (safeValue === "") return { fieldId, key, status: "SKIPPED", code: "VALUE_UNAVAILABLE" };
     if (DATE_LEAVES.has(leaf) && tagOf(element) !== "select") safeValue = formatDateForControl(safeValue, element);
     try {
@@ -282,6 +294,17 @@ export function fillPersonalFields(requests, root = document) {
       return { fieldId, key, status: "FAILED", code: "FIELD_FILL_FAILED" };
     }
   });
+}
+
+// Fills and verifies one control for a Resume key (dates are formatted for the control). Used for
+// controls an ATS creates on demand, such as a Workable "Add experience" editor.
+export function fillControl(element, key, value) {
+  if (!allowed(element)) return false;
+  const leaf = leafOf(key);
+  let safeValue = typeof value === "boolean" ? value : leaf === "description" || tagOf(element) === "textarea" ? String(value ?? "").trim() : clean(value);
+  if (safeValue === "") return false;
+  if (DATE_LEAVES.has(leaf) && tagOf(element) !== "select") safeValue = formatDateForControl(safeValue, element);
+  return setNativeValue(element, safeValue, key) && verified(element, safeValue, key);
 }
 
 export const PERSONAL_FIELD_ATTRIBUTE = FIELD_ATTRIBUTE;

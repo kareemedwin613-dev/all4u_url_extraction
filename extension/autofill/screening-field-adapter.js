@@ -1,3 +1,4 @@
+import { containerQuestion, isUserFacing, linkedLabels } from "./form-context.js";
 const FIELD_ATTRIBUTE = "data-resume-jd-screening-autofill-id";
 const SAFE_KEYS = new Set([
   "authorized_to_work", "requires_sponsorship", "willing_to_relocate", "available_start_date",
@@ -40,7 +41,7 @@ export function normalizeApplicationQuestion(value){return normalize(value);}
 export function scoreQuestionPattern(question,pattern){const left=new Set(tokens(question)),right=new Set(tokens(pattern));if(!left.size||!right.size)return 0;const shared=[...right].filter(token=>left.has(token)).length,coverage=shared/right.size,jaccard=shared/new Set([...left,...right]).size;if(coverage===1&&right.size>=2)return 90;return Math.round((coverage*.7+jaccard*.3)*100);}
 
 function labelText(element) {
-  const labels = [...(element.labels || [])].map((label) => clean(label.textContent));
+  const labels = linkedLabels(element).map((label) => clean(label.textContent));
   const legend = clean(element.closest?.("fieldset")?.querySelector?.("legend")?.textContent);
   const previous = clean(element.previousElementSibling?.textContent);
   const parentLabel = clean(element.parentElement?.querySelector?.("label")?.textContent);
@@ -67,7 +68,7 @@ function descriptor(element) {
 }
 
 function allowedControl(element) {
-  if (!element || element.disabled || element.readOnly) return false;
+  if (!element || element.disabled || element.readOnly || !isUserFacing(element)) return false;
   const tag = String(element.tagName || "").toLowerCase();
   if (tag === "select") return true;
   return tag === "input" && CONTROL_TYPES.has(String(element.type || "text").toLowerCase());
@@ -99,7 +100,7 @@ export function sanitizeScreeningAnswers(answers = [], { includeValues = false }
   return result;
 }
 
-function questionBlocked(text) {
+export function questionBlocked(text) {
   return PROHIBITED_QUESTION.test(text) || LEGAL_OR_ATTESTATION.test(text) || LONG_FORM.test(text);
 }
 
@@ -192,11 +193,11 @@ export function detectScreeningFields(root = document, rawAnswers = []) {
   });
 }
 
-const CLAIMED_ATTRIBUTES = [FIELD_ATTRIBUTE, "data-resume-jd-autofill-id", "data-resume-jd-guide-autofill-id"];
+const CLAIMED_ATTRIBUTES = [FIELD_ATTRIBUTE, "data-resume-jd-autofill-id", "data-resume-jd-guide-autofill-id", "data-resume-jd-missing-value"];
 // Unclaimed questions include text areas and checkboxes so Admins see long-form and consent prompts too.
 function unresolvedControls(root) {
   return [...root.querySelectorAll("input,select,textarea")].filter((element) => {
-    if (!element || element.disabled || element.readOnly) return false;
+    if (!element || element.disabled || element.readOnly || !isUserFacing(element)) return false;
     const tag = String(element.tagName || "").toLowerCase(), type = String(element.type || "text").toLowerCase();
     return tag === "select" || tag === "textarea" || (tag === "input" && (CONTROL_TYPES.has(type) || type === "checkbox"));
   });
@@ -208,7 +209,9 @@ export function detectUnresolvedQuestions(root=document,rawAnswers=[]){
     if(CLAIMED_ATTRIBUTES.some(name=>element.hasAttribute?.(name)))continue;
     const type=String(element.type||"text").toLowerCase(),groupKey=(type==="radio"||type==="checkbox")&&element.name?`${type}:${element.name}`:null;
     if(groupKey&&seen.has(groupKey))continue;if(groupKey)seen.add(groupKey);
-    const question=labelText(element)||clean(element.getAttribute?.("aria-label")||element.getAttribute?.("placeholder")||element.name||element.id);
+    // A group's question, not its first option; unlinked labels are read from the field's container.
+    const group=groupKey?unresolvedControls(root).filter(item=>String(item.type||"").toLowerCase()===type&&item.name===element.name):[element];
+    const question=(groupKey?containerQuestion(element,group):"")||labelText(element)||containerQuestion(element,group)||clean(element.getAttribute?.("aria-label")||element.getAttribute?.("placeholder")||element.name||element.id);
     if(!question||question.length<2)continue;
     const blocked=questionBlocked(question),suggestions=blocked?[]:answers.map(answer=>({answerKey:answer.answerKey,score:matchAnswer(question,answer)})).filter(item=>item.score>=45).sort((a,b)=>b.score-a.score).slice(0,3);
     result.push({question:question.slice(0,300),normalizedQuestion:normalize(question).slice(0,300),controlType:type==="radio"||type==="checkbox"?type:isCombobox(element)?"combobox":String(element.tagName||"input").toLowerCase(),reason:blocked?"REVIEW_REQUIRED":"NO_MATCHING_ANSWER",suggestions});

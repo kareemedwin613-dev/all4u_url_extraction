@@ -32,7 +32,8 @@ import {
 import { listCategories } from "../services/category-service.js";
 import { listIndustryDomains } from "../services/industry-domain-service.js";
 import { clearLookupCaches } from "../services/lookup-cache.js";
-import { safeError } from "../shared/errors.js";
+import { AppError, safeError } from "../shared/errors.js";
+import { PANEL_APPLICATIONS_KEY, panelApplicationItems } from "../shared/page-applications.js";
 import { SettingsView } from "./views/SettingsView.jsx";
 import { AuthView } from "./views/AuthView.jsx";
 import { AccessView } from "./views/AccessView.jsx";
@@ -42,10 +43,11 @@ import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
 import { JobReviewView } from "./views/JobReviewView.jsx";
 import { MyJobDescriptionsView } from "./views/MyJobDescriptionsView.jsx";
-import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationExtensionContext, loadApplicationResumeForSession, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, recordAutofillUnresolvedQuestions, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
+import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationCoverLetterText,getApplicationExtensionContext, listMyApplications, loadApplicationResumeForSession, recentApplicationExtensionContext, startApplicationExtensionAction, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, recordAutofillUnresolvedQuestions, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
-import { autofillValue, autofillValues, guideDefinitions, screeningDefinitions, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
+import { AutofillJobsList } from "./components/AutofillJobsList.jsx";
+import { autofillValue, autofillValues, guideDefinitions, repeatableSectionRows, screeningDefinitions, sectionResultFields, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
 import { buildAutofillTelemetry, mapAutofillRecovery, mergeAutofillResults } from "../autofill/session-telemetry.js";
 import { clearSidepanelView, loadSidepanelView, saveSidepanelView } from "./ui-state.js";
 
@@ -107,6 +109,12 @@ function recordResumeAttachment(client, baseUrl, sessionData, attachment) {
   return outcome ? recordApplicationResumeAttachment(client, baseUrl, sessionData.id, outcome).catch(() => {}) : Promise.resolve();
 }
 
+// Adds the Application's cover letter text to the Autofill values (kept in memory only).
+function withCoverLetter(context, text) {
+  if (!context || typeof text !== "string" || !text.trim()) return context;
+  return { ...context, values: { ...(context.values || {}), "candidate.coverLetter": text } };
+}
+
 function failedAttachment(error) {
   return { status: "FAILED", code: SAFE_CODE.test(String(error?.code || "")) ? error.code : "RESUME_ATTACHMENT_FAILED", message: `The Resume was not attached: ${error?.message || "unknown error"}` };
 }
@@ -157,11 +165,15 @@ export function App() {
   const [industryDomains, setIndustryDomains] = useState([]);
   const [status, setStatus] = useState(null);
   const [clearBusy, setClearBusy] = useState(false);
-  const [activeApplicationSession, setActiveApplicationSession] = useState(null);
-  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  // One job per tab: several Applications can be autofilling at once. jobsRef holds the latest state for
+  // the running async work; `jobs` mirrors it for rendering.
+  const [jobs, setJobs] = useState(() => new Map());
+  const jobsRef = useRef(new Map());
+  const startedJobsRef = useRef(new Set());
+  const writeQueuesRef = useRef(new Map());
+  const [currentTabId, setCurrentTabId] = useState(null);
   // Attachment results by session id, so a re-scan does not re-upload (ATS parsers would overwrite edited fields).
   const attachmentsRef = useRef(new Map());
-  const [autofillBusy, setAutofillBusy] = useState(false);
   const navRef = useRef(null);
   const mountedViewsRef = useRef(new Set());
 
@@ -257,122 +269,277 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadApplicationSession = useCallback(async () => {
-    if (!client || !session || !backendBaseUrl) return;
-    const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.GET_ACTIVE_APPLICATION_SESSION });
-    if (!response?.ok || !response.data) {
-      setActiveApplicationSession(null);
-      return;
-    }
+  const updateJob = useCallback((id, patch) => {
+    const previous = jobsRef.current.get(id);
+    if (!previous && typeof patch === "function") return;
+    const next = { ...(previous || {}), ...(typeof patch === "function" ? patch(previous) : patch) };
+    jobsRef.current.set(id, next);
+    setJobs(new Map(jobsRef.current));
+  }, []);
+
+  // Status, recovery, and telemetry writes for one session run in order in the background, so the page is
+  // filled without waiting on them. Failures are ignored: they never block the Applier.
+  const backgroundWrite = useCallback((id, task) => {
+    const tail = (writeQueuesRef.current.get(id) || Promise.resolve()).then(task).catch(() => {});
+    writeQueuesRef.current.set(id, tail);
+    return tail;
+  }, []);
+
+  // Sent in order per tab, so a late step never paints over the finished status.
+  const statusQueuesRef = useRef(new Map());
+  const tabStatus = useCallback((id, state, heading = "", detail = "", progress = null) => {
+    const payload = { sessionId: id, state, heading, detail, ...(progress ? { step: progress.step, steps: progress.steps } : {}) };
+    const tail = (statusQueuesRef.current.get(id) || Promise.resolve()).then(() => chrome.runtime.sendMessage({ type: MESSAGE_TYPES.SET_APPLICATION_TAB_STATUS, payload })).catch(() => {});
+    statusQueuesRef.current.set(id, tail);
+  }, []);
+
+  // The centered "Autofilling…" card in the job tab: Loading application → Attaching resume → Reading the form → Filling fields.
+  const tabProgress = useCallback((id, step, steps, label) => tabStatus(id, "WORKING", label, "", { step, steps }), [tabStatus]);
+
+  // "12 filled · 2 failed · 3 for you to answer · 1 waiting for this tab"
+  const finishSummary = useCallback((id, { results = [], unresolved = [], deferred = [], company = "" }) => {
+    const verified = results.filter((result) => result.status === "VERIFIED").length;
+    const failed = results.filter((result) => result.status === "FAILED" && !deferred.includes(result.fieldId)).length;
+    const parts = [`${verified} filled`, failed ? `${failed} failed` : "", unresolved.length ? `${unresolved.length} for you to answer` : "", deferred.length ? `${deferred.length} waiting for this tab` : ""].filter(Boolean);
+    const attention = failed > 0 || deferred.length > 0;
+    tabStatus(id, attention ? "ATTENTION" : "DONE", attention ? "Autofill needs your attention" : "Autofill finished", `${parts.join(" · ")}. Review the page before submitting.`);
+    return { summary: parts.join(" · "), attention, verified };
+  }, [tabStatus]);
+
+  // Search dropdowns (react-select) only open in the tab the Applier is looking at. Fields that did not
+  // fill in a background tab are left "waiting" and retried once as soon as the tab comes to the front.
+  async function waitingForTab(sessionData, fields, results) {
+    const tab = await chrome.tabs.get(sessionData.targetTabId).catch(() => null);
+    if (!tab || tab.active) return [];
+    const retryable = new Set(fields.filter((field) => field.controlType !== "section").map((field) => field.fieldId));
+    return results.filter((result) => result.status !== "VERIFIED" && retryable.has(result.fieldId)).map((result) => result.fieldId);
+  }
+
+  const runJob = useCallback(async (sessionData) => {
+    if (!client || !backendBaseUrl) return;
+    const id = sessionData.id, write = (task) => backgroundWrite(id, task);
+    jobsRef.current.set(id, { session: sessionData, phase: "starting", busy: true, startedAt: Date.now(), autofillOverrides: {} });
+    setJobs(new Map(jobsRef.current));
+    const steps = sessionData.action === "LOAD_RESUME" ? 2 : 4;
+    tabProgress(id, 1, steps, "Loading application");
+    write(() => updateApplicationExtensionSession(client, backendBaseUrl, id, "TARGET_READY"));
     try {
-      const context = await getApplicationExtensionContext(client, backendBaseUrl, response.data.applicationId);
-      await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "TARGET_READY");
-      let loadedResume = null, attachment = attachmentsRef.current.get(response.data.id) || null;
-      if (response.data.action === "LOAD_RESUME") {
-        loadedResume = await loadApplicationResumeForSession(client, backendBaseUrl, response.data);
+      const context = recentApplicationExtensionContext(sessionData.applicationId) || await getApplicationExtensionContext(client, backendBaseUrl, sessionData.applicationId);
+      updateJob(id, { context });
+      const company = context?.job?.company || "";
+      let loadedResume = null, attachment = attachmentsRef.current.get(id) || null;
+      if (sessionData.action === "LOAD_RESUME") {
+        loadedResume = await loadApplicationResumeForSession(client, backendBaseUrl, sessionData);
         if (!attachment) {
-          attachment = await attachSessionResume(response.data.id);
-          attachmentsRef.current.set(response.data.id, attachment);
-          recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
+          tabProgress(id, 2, steps, "Attaching resume");
+          attachment = await attachSessionResume(id);
+          attachmentsRef.current.set(id, attachment);
+          recordResumeAttachment(client, backendBaseUrl, sessionData, attachment);
           if (attachment.status === "ATTACHED") {
-            await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "COMPLETED");
-            setStatus({ message: `${loadedResume.filename} attached and verified. Review the page before submitting.`, kind: "success" });
-          } else setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
-        }
-      }
-      let autofillContext = null, autofillFields = [], unresolvedAutofillQuestions=[], autofillAdapter=null, autofillTargetDomain="", autofillTargetOrigin="", selectedAutofillFieldIds = [], autofillResults = [];
-      if (response.data.action === "AUTOFILL") {
-        autofillContext = await getApplicationAutofillContext(client, backendBaseUrl, response.data.applicationId, response.data.id);
-        const priorRecovery=await getApplicationAutofillRecovery(client,backendBaseUrl,response.data.id).catch(()=>null);
-        // Attach the Resume before detecting fields: ATS resume parsers (Lever, Workday, …) repopulate fields on upload.
-        // A Resume problem never blocks field Autofill; it is reported in the banner with a retry.
-        if (context?.permissions?.canLoadResume) {
-          try {
-            loadedResume = await loadApplicationResumeForSession(client, backendBaseUrl, response.data);
-            const resumed = priorRecovery && priorRecovery.stepIdentifier !== "NEW";
-            if (!attachment && !resumed && !autofillContext?.preferences?.requireReviewEveryField) {
-              attachment = await attachSessionResume(response.data.id);
-              attachmentsRef.current.set(response.data.id, attachment);
-              recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
-            }
-          } catch (error) {
-            attachment = failedAttachment(error);
-            recordResumeAttachment(client, backendBaseUrl, response.data, attachment);
+            write(() => updateApplicationExtensionSession(client, backendBaseUrl, id, "COMPLETED"));
+            tabStatus(id, "DONE", "Resume attached", `${loadedResume.filename} is attached. Review the page before submitting.`);
+            setStatus({ message: `${company ? `${company}: ` : ""}${loadedResume.filename} attached and verified. Review the page before submitting.`, kind: "success" });
+          } else {
+            tabStatus(id, "ATTENTION", "Attach the Resume yourself", attachment.message || "Use the job site's file chooser.");
+            setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
           }
-        }
-        const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: response.data.id, applicationId: response.data.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext), guideEntries: guideDefinitions(autofillContext) } });
-        if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
-        autofillFields = prepared.data.fields || [];
-        unresolvedAutofillQuestions=prepared.data.unresolved||[];
-        autofillAdapter=prepared.data.adapter||null;
-        autofillTargetDomain=prepared.data.targetDomain||"";
-        autofillTargetOrigin=prepared.data.targetOrigin||response.data.targetOrigin||"";
-        selectedAutofillFieldIds = autofillFields.map((field) => field.fieldId);
-        recordAutofillUnresolvedQuestions(client,backendBaseUrl,response.data.id,{targetDomain:autofillTargetDomain,adapterId:autofillAdapter?.id,unresolved:unresolvedAutofillQuestions}).catch(()=>{});
-        const recoveryPayload={targetOrigin:prepared.data.targetOrigin,resumeUpdatedAt:autofillContext.resumeUpdatedAt,adapterId:autofillAdapter?.id,adapterVersion:autofillAdapter?.version};
-        await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:"DETECTED"});
-        const recovered=priorRecovery&&priorRecovery.stepIdentifier!=="NEW";
-        autofillResults=recovered?mapAutofillRecovery(autofillFields,priorRecovery.fields):[];
-        const reviewRequired=Boolean(autofillContext?.preferences?.requireReviewEveryField);
-        if (autofillFields.length&&!recovered&&!reviewRequired) {
-          await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:"FILLING"});
-          const fields=autofillFields.map(field=>({fieldId:field.fieldId,key:field.key,answerKey:field.answerKey,answerType:field.answerType,value:autofillValue(autofillContext,field)}));
-          const filled=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL,payload:{sessionId:response.data.id,applicationId:response.data.applicationId,adapterId:autofillAdapter?.id||"",fields}});
-          if(!filled?.ok)throw Object.assign(new Error(filled?.error?.message||"The detected fields could not be filled."),{code:filled?.error?.code});
-          autofillResults=filled.data.results||[];
-          const verified=autofillResults.filter(result=>result.status==="VERIFIED").length;
-          await updateApplicationAutofillRecovery(client,backendBaseUrl,response.data.id,{...recoveryPayload,stepIdentifier:verified===autofillResults.length?"FILLED":"PARTIAL"});
-          if(verified===autofillResults.length){await updateApplicationExtensionSession(client,backendBaseUrl,response.data.id,"COMPLETED");setStatus({message:`${verified} field${verified===1?"":"s"} filled and verified. Review the page before submitting.`,kind:"success"});}
-          else setStatus({message:`${verified} of ${autofillResults.length} detected fields were verified. Complete failed or unsupported fields manually.`,kind:"warning"});
-        }else if(recovered)setStatus({message:"Autofill session recovered. The page was re-scanned; retry only the fields that still need work.",kind:"warning"});
-        else if(reviewRequired)setStatus({message:"Review is required by this Resume's Autofill preferences. Inspect the detected fields, then choose Fill selected fields.",kind:"warning"});
-        const telemetry=buildAutofillTelemetry({resumeUpdatedAt:autofillContext.resumeUpdatedAt,adapter:autofillAdapter,targetDomain:autofillTargetDomain,fields:autofillFields,selectedFieldIds:selectedAutofillFieldIds,results:autofillResults,unresolved:unresolvedAutofillQuestions});
-        await recordApplicationAutofillTelemetry(client,backendBaseUrl,response.data.id,telemetry).catch(()=>{});
+        } else if (attachment.status === "ATTACHED") tabStatus(id, "DONE", "Resume attached", "Review the page before submitting.");
+        else tabStatus(id, "ATTENTION", "Attach the Resume yourself", attachment.message || "Use the job site's file chooser.");
+        updateJob(id, { phase: "done", busy: false, loadedResume, attachment });
+        return;
       }
-      setActiveApplicationSession({ session: response.data, context, loadedResume, attachment, autofillContext, autofillFields, unresolvedAutofillQuestions, autofillAdapter, autofillTargetDomain, autofillTargetOrigin, selectedAutofillFieldIds, autofillResults, autofillOverrides: {} });
-      setCurrentView("applications");
+      // Everything the page needs is requested at once instead of one call after another.
+      const [contextResult, priorRecovery, coverLetter, resumeResult] = await Promise.all([
+        getApplicationAutofillContext(client, backendBaseUrl, sessionData.applicationId, id),
+        getApplicationAutofillRecovery(client, backendBaseUrl, id).catch(() => null),
+        // The Application's cover letter fills a "Cover letter" text box.
+        getApplicationCoverLetterText(client, backendBaseUrl, sessionData.applicationId).catch(() => null),
+        context?.permissions?.canLoadResume
+          ? loadApplicationResumeForSession(client, backendBaseUrl, sessionData).then((value) => ({ value }), (error) => ({ error }))
+          : Promise.resolve(null),
+      ]);
+      let autofillContext = contextResult;
+      if (coverLetter?.text && autofillContext?.preferences?.allowProfileFields !== false) autofillContext = withCoverLetter(autofillContext, coverLetter.text);
+      const recovered = Boolean(priorRecovery && priorRecovery.stepIdentifier !== "NEW");
+      const reviewRequired = Boolean(autofillContext?.preferences?.requireReviewEveryField);
+      // Attach the Resume before detecting fields: ATS resume parsers (Lever, Workday, …) repopulate fields on upload.
+      // A Resume problem never blocks field Autofill; it is reported in the banner with a retry.
+      if (resumeResult?.error) {
+        attachment = failedAttachment(resumeResult.error);
+        recordResumeAttachment(client, backendBaseUrl, sessionData, attachment);
+      } else if (resumeResult?.value) {
+        loadedResume = resumeResult.value;
+        if (!attachment && !recovered && !reviewRequired) {
+          tabProgress(id, 2, steps, "Attaching resume");
+          try {
+            attachment = await attachSessionResume(id);
+            attachmentsRef.current.set(id, attachment);
+          } catch (error) { attachment = failedAttachment(error); }
+          recordResumeAttachment(client, backendBaseUrl, sessionData, attachment);
+        }
+      }
+      updateJob(id, { phase: "scanning", loadedResume, attachment, autofillContext });
+      tabProgress(id, 3, steps, "Reading the form");
+      const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext), guideEntries: guideDefinitions(autofillContext) } });
+      if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
+      let autofillFields = prepared.data.fields || [];
+      const unresolvedAutofillQuestions = prepared.data.unresolved || [];
+      const autofillAdapter = prepared.data.adapter || null, autofillTargetDomain = prepared.data.targetDomain || "", autofillTargetOrigin = prepared.data.targetOrigin || sessionData.targetOrigin || "";
+      let selectedAutofillFieldIds = autofillFields.map((field) => field.fieldId);
+      recordAutofillUnresolvedQuestions(client, backendBaseUrl, id, { targetDomain: autofillTargetDomain, adapterId: autofillAdapter?.id, unresolved: unresolvedAutofillQuestions }).catch(() => {});
+      const recoveryPayload = { targetOrigin: prepared.data.targetOrigin, resumeUpdatedAt: autofillContext.resumeUpdatedAt, adapterId: autofillAdapter?.id, adapterVersion: autofillAdapter?.version };
+      write(() => updateApplicationAutofillRecovery(client, backendBaseUrl, id, { ...recoveryPayload, stepIdentifier: "DETECTED" }));
+      let autofillResults = recovered ? mapAutofillRecovery(autofillFields, priorRecovery.fields) : [];
+      let deferredFieldIds = [], outcome = null;
+      // Jobs and schools for forms that add them one at a time behind an "Add" button (Workable).
+      const sectionRows = repeatableSectionRows(autofillContext, prepared.data.sections), hasSections = Object.values(sectionRows).some((rows) => rows.length);
+      if ((autofillFields.length || hasSections) && !recovered && !reviewRequired) {
+        updateJob(id, { phase: "filling" });
+        tabProgress(id, 4, steps, "Filling fields");
+        write(() => updateApplicationAutofillRecovery(client, backendBaseUrl, id, { ...recoveryPayload, stepIdentifier: "FILLING" }));
+        const fields = autofillFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: autofillValue(autofillContext, field) }));
+        const filled = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, adapterId: autofillAdapter?.id || "", fields, sections: sectionRows } });
+        if (!filled?.ok) throw Object.assign(new Error(filled?.error?.message || "The detected fields could not be filled."), { code: filled?.error?.code });
+        autofillResults = filled.data.results || [];
+        const sectionFields = sectionResultFields(autofillResults, sectionRows);
+        autofillFields = [...autofillFields, ...sectionFields];
+        selectedAutofillFieldIds = [...selectedAutofillFieldIds, ...sectionFields.map((field) => field.fieldId)];
+        deferredFieldIds = await waitingForTab(sessionData, autofillFields, autofillResults);
+        const verified = autofillResults.filter((result) => result.status === "VERIFIED").length, complete = verified === autofillResults.length;
+        write(() => updateApplicationAutofillRecovery(client, backendBaseUrl, id, { ...recoveryPayload, stepIdentifier: complete ? "FILLED" : "PARTIAL" }));
+        if (complete) write(() => updateApplicationExtensionSession(client, backendBaseUrl, id, "COMPLETED"));
+        outcome = finishSummary(id, { results: autofillResults, unresolved: unresolvedAutofillQuestions, deferred: deferredFieldIds, company });
+        setStatus({ message: `${company ? `${company}: ` : ""}${outcome.summary}. Review the page before submitting.`, kind: outcome.attention ? "warning" : "success" });
+      } else if (recovered) {
+        tabStatus(id, "ATTENTION", "Autofill session recovered", "Retry only the fields that still need work.");
+        setStatus({ message: "Autofill session recovered. The page was re-scanned; retry only the fields that still need work.", kind: "warning" });
+      } else if (reviewRequired) {
+        tabStatus(id, "ATTENTION", "Review before filling", "This Resume requires a preview click before Autofill fills fields.");
+        setStatus({ message: "Review is required by this Resume's Autofill preferences. Inspect the detected fields, then choose Fill selected fields.", kind: "warning" });
+      } else {
+        finishSummary(id, { results: [], unresolved: unresolvedAutofillQuestions, company });
+      }
+      const telemetry = buildAutofillTelemetry({ resumeUpdatedAt: autofillContext.resumeUpdatedAt, adapter: autofillAdapter, targetDomain: autofillTargetDomain, fields: autofillFields, selectedFieldIds: selectedAutofillFieldIds, results: autofillResults, unresolved: unresolvedAutofillQuestions });
+      write(() => recordApplicationAutofillTelemetry(client, backendBaseUrl, id, telemetry));
+      updateJob(id, { phase: "done", busy: false, autofillContext, autofillFields, unresolvedAutofillQuestions, autofillAdapter, autofillTargetDomain, autofillTargetOrigin, selectedAutofillFieldIds, autofillResults, deferredFieldIds, summary: outcome?.summary || "", attention: Boolean(outcome?.attention) });
     } catch (error) {
-      const safeCode=typeof error?.code==="string"&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:(response.data.action === "AUTOFILL" ? "AUTOFILL_FAILED" : "RESUME_LOAD_FAILED");
+      const safeCode = typeof error?.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code) ? error.code : (sessionData.action === "AUTOFILL" ? "AUTOFILL_FAILED" : "RESUME_LOAD_FAILED");
       // Record before the session becomes FAILED, which closes it to further outcome writes.
-      if (response.data.action === "LOAD_RESUME" && !attachmentsRef.current.has(response.data.id)) await recordResumeAttachment(client, backendBaseUrl, response.data, { status: "FAILED", code: safeCode });
-      await updateApplicationExtensionSession(client, backendBaseUrl, response.data.id, "FAILED", safeCode).catch(() => {});
-      setActiveApplicationSession(null);
+      if (sessionData.action === "LOAD_RESUME" && !attachmentsRef.current.has(id)) write(() => recordResumeAttachment(client, backendBaseUrl, sessionData, { status: "FAILED", code: safeCode }));
+      write(() => updateApplicationExtensionSession(client, backendBaseUrl, id, "FAILED", safeCode));
+      const safe = safeError(error);
+      tabStatus(id, "FAILED", "Autofill stopped", safe.message);
+      updateJob(id, { phase: "failed", busy: false, error: safe.message });
       handleError(error);
     }
-  }, [client, session, backendBaseUrl, handleError]);
+  }, [client, backendBaseUrl, handleError, updateJob, backgroundWrite, tabStatus, tabProgress, finishSummary]);
+
+  // Starts a job for every Application session that is running in a tab and not yet handled here.
+  const syncJobs = useCallback(async () => {
+    if (!client || !session || !backendBaseUrl) return;
+    const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.LIST_APPLICATION_SESSIONS }).catch(() => null);
+    const sessions = response?.ok && Array.isArray(response.data) ? response.data : [];
+    const live = new Set(sessions.map((item) => item.id));
+    let removed = false;
+    for (const id of [...jobsRef.current.keys()]) if (!live.has(id)) { jobsRef.current.delete(id); startedJobsRef.current.delete(id); removed = true; }
+    if (removed) setJobs(new Map(jobsRef.current));
+    for (const item of sessions) {
+      if (startedJobsRef.current.has(item.id)) continue;
+      startedJobsRef.current.add(item.id);
+      setCurrentView("applications");
+      runJob(item);
+    }
+  }, [client, session, backendBaseUrl, runJob]);
 
   useEffect(() => {
     if (!client || !session) return;
-    loadApplicationSession();
-    const changed = (changes, area) => { if (area === "session" && changes.activeApplicationSession) loadApplicationSession(); };
+    syncJobs();
+    const changed = (changes, area) => { if (area === "session" && changes.applicationSessions) syncJobs(); };
     chrome.storage.onChanged.addListener(changed);
     return () => chrome.storage.onChanged.removeListener(changed);
-  }, [client, session, loadApplicationSession]);
+  }, [client, session, syncJobs]);
 
-  async function resetApplicationSession() {
-    const id = activeApplicationSession?.session?.id;
-    if (id) attachmentsRef.current.delete(id);
-    if (id) await updateApplicationExtensionSession(client, backendBaseUrl, id, "CANCELLED").catch(() => {});
-    await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION });
-    setActiveApplicationSession(null);
+  // The panel shows the job for the tab the Applier is looking at.
+  useEffect(() => {
+    const refresh = () => chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => setCurrentTabId(tab?.id ?? null)).catch(() => {});
+    const activated = ({ tabId }) => setCurrentTabId(tabId);
+    refresh();
+    chrome.tabs.onActivated.addListener(activated);
+    chrome.windows?.onFocusChanged?.addListener(refresh);
+    return () => { chrome.tabs.onActivated.removeListener(activated); chrome.windows?.onFocusChanged?.removeListener(refresh); };
+  }, []);
+
+  // The job page's Autofill button asks the panel, through the worker, to start an Application by its id
+  // (picked from the list) or its number (typed). The panel starts it exactly as a card click would.
+  const startFromPage = useCallback(async ({ applicationId, applicationNumber, tabId }) => {
+    const { [PANEL_APPLICATIONS_KEY]: stored } = await chrome.storage.session.get(PANEL_APPLICATIONS_KEY);
+    const listed = Array.isArray(stored?.items) ? stored.items : [];
+    let item = applicationId ? listed.find((entry) => entry.id === applicationId) : listed.find((entry) => entry.number === applicationNumber);
+    if (!item && applicationNumber) {
+      const data = await listMyApplications(client, backendBaseUrl, { status: "", limit: 500 });
+      item = panelApplicationItems((data.items || []).filter((row) => Number(row.application_number) === applicationNumber))[0];
+    }
+    if (!item) throw new AppError("APPLICATION_NOT_FOUND", applicationNumber ? `Application #${applicationNumber} is not assigned to you.` : "That Application is not assigned to you.");
+    await startApplicationExtensionAction(client, backendBaseUrl, item.id, "AUTOFILL", { targetTabId: tabId });
+    setStatus({ message: `Autofill started for Application #${item.number ?? "?"}${item.company ? ` (${item.company})` : ""} from the job page.`, kind: "info" });
+    return { number: item.number };
+  }, [client, backendBaseUrl]);
+
+  useEffect(() => {
+    if (!client || !session || !backendBaseUrl) return;
+    let port = null, stopped = false;
+    const connect = () => {
+      port = chrome.runtime.connect({ name: "sidepanel" });
+      chrome.windows.getCurrent().then((win) => port?.postMessage({ type: "PANEL_HELLO", windowId: win.id })).catch(() => {});
+      port.onMessage.addListener(async (message) => {
+        if (message?.type !== "PAGE_AUTOFILL_REQUEST") return;
+        const payload = message.payload || {};
+        const request = { applicationId: typeof payload.applicationId === "string" ? payload.applicationId : "", applicationNumber: Number(payload.applicationNumber) || null, tabId: Number.isInteger(payload.tabId) ? payload.tabId : null };
+        let result;
+        try { result = { ok: true, data: await startFromPage(request) }; }
+        catch (error) { const safe = safeError(error); result = { ok: false, error: { code: safe.code, message: safe.message } }; handleError(error); }
+        try { port?.postMessage({ type: "PAGE_AUTOFILL_RESULT", requestId: message.requestId, result }); } catch { /* worker restarted */ }
+      });
+      // The worker can restart at any time; reconnect so the page button keeps working.
+      port.onDisconnect.addListener(() => { port = null; if (!stopped) setTimeout(() => { if (!stopped) connect(); }, 500); });
+    };
+    connect();
+    return () => { stopped = true; try { port?.disconnect(); } catch { /* already closed */ } };
+  }, [client, session, backendBaseUrl, startFromPage, handleError]);
+
+  async function resetApplicationSession(id) {
+    const job = jobsRef.current.get(id);
+    if (!job) return;
+    attachmentsRef.current.delete(id);
+    if (job.phase !== "failed") backgroundWrite(id, () => updateApplicationExtensionSession(client, backendBaseUrl, id, "CANCELLED"));
+    jobsRef.current.delete(id);
+    startedJobsRef.current.delete(id);
+    setJobs(new Map(jobsRef.current));
+    await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION, payload: { sessionId: id } }).catch(() => {});
   }
 
-  async function attachActiveResume() {
-    const active = activeApplicationSession;
-    if (!active?.session || attachmentBusy) return;
-    setAttachmentBusy(true);
+  function rescanJob(id) {
+    const job = jobsRef.current.get(id);
+    if (!job?.session || job.busy) return;
+    runJob(job.session);
+  }
+
+  async function attachActiveResume(id) {
+    const active = jobsRef.current.get(id);
+    if (!active?.session || active.attachmentBusy) return;
+    updateJob(id, { attachmentBusy: true });
     let recorded = false;
     try {
       const latest=await getApplicationExtensionContext(client,backendBaseUrl,active.session.applicationId);
       if(!latest?.permissions?.canLoadResume||latest?.resume?.status!=="ACTIVE")throw Object.assign(new Error("The Resume is no longer eligible for attachment."),{code:"APPLICATION_RESUME_UNAVAILABLE"});
       const loadedResume = active.loadedResume?.ready ? active.loadedResume : await loadApplicationResumeForSession(client, backendBaseUrl, active.session);
-      const attachment = await attachSessionResume(active.session.id);
-      attachmentsRef.current.set(active.session.id, attachment);
+      const attachment = await attachSessionResume(id);
+      attachmentsRef.current.set(id, attachment);
       recordResumeAttachment(client, backendBaseUrl, active.session, attachment);
       recorded = true;
-      setActiveApplicationSession((current) => current ? { ...current, loadedResume, attachment } : current);
+      updateJob(id, { loadedResume, attachment });
       if (attachment.status === "ATTACHED") {
-        if (active.session.action === "LOAD_RESUME") await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
+        if (active.session.action === "LOAD_RESUME") backgroundWrite(id, () => updateApplicationExtensionSession(client, backendBaseUrl, id, "COMPLETED"));
         setStatus({ message: "Resume attached and verified on the tracked job page.", kind: "success" });
       } else if (attachment.status === "MANUAL_REQUIRED" || attachment.status === "UNSUPPORTED") {
         setStatus({ message: attachment.message || "Use the job site's file chooser to attach the Resume manually.", kind: "warning" });
@@ -381,50 +548,64 @@ export function App() {
       if (!recorded) recordResumeAttachment(client, backendBaseUrl, active.session, failedAttachment(error));
       handleError(error);
     } finally {
-      setAttachmentBusy(false);
+      updateJob(id, { attachmentBusy: false });
     }
   }
 
-  function changeAutofillSelection(fieldId, checked) {
-    setActiveApplicationSession((current) => {
-      if (!current) return current;
+  function changeAutofillSelection(id, fieldId, checked) {
+    updateJob(id, (current) => {
       const selected = new Set(current.selectedAutofillFieldIds || []);
       if (checked) selected.add(fieldId); else selected.delete(fieldId);
-      return { ...current, selectedAutofillFieldIds: [...selected] };
+      return { selectedAutofillFieldIds: [...selected] };
     });
   }
 
-  function changeAutofillValue(fieldId,value){setActiveApplicationSession(current=>current?{...current,autofillOverrides:{...(current.autofillOverrides||{}),[fieldId]:value}}:current);}
+  function changeAutofillValue(id,fieldId,value){updateJob(id,(current)=>({autofillOverrides:{...(current.autofillOverrides||{}),[fieldId]:value}}));}
 
-  async function fillActiveAutofill() {
-    const active = activeApplicationSession;
-    if (!active?.autofillContext || autofillBusy) return;
-    const selected = new Set(active.selectedAutofillFieldIds || []);
+  // Fills the selected fields that are not yet verified; `onlyFieldIds` limits it to fields that were
+  // waiting for their tab to come to the front.
+  const fillActiveAutofill = useCallback(async (id, onlyFieldIds = null) => {
+    const active = jobsRef.current.get(id);
+    if (!active?.autofillContext || active.busy) return;
+    const selected = new Set(onlyFieldIds || active.selectedAutofillFieldIds || []);
     if (!selected.size) return;
-    setAutofillBusy(true);
+    // Cleared up front so a failing retry is never repeated on every tab switch.
+    updateJob(id, { busy: true, phase: "filling", deferredFieldIds: [] });
+    tabProgress(id, 1, 1, "Filling fields");
     try {
-      const current = await getApplicationAutofillContext(client, backendBaseUrl, active.session.applicationId, active.session.id, active.autofillContext.resumeUpdatedAt);
+      const fresh = await getApplicationAutofillContext(client, backendBaseUrl, active.session.applicationId, id, active.autofillContext.resumeUpdatedAt);
+      const current = withCoverLetter(fresh, active.autofillContext?.values?.["candidate.coverLetter"]);
       const completed=new Set((active.autofillResults||[]).filter(result=>result.status==="VERIFIED").map(result=>result.fieldId));
-      const selectedFields = active.autofillFields.filter((field) => selected.has(field.fieldId)&&!completed.has(field.fieldId));
-      if(!selectedFields.length)return;
+      // Added job/school entries are never re-added on retry; a person fixes those on the page.
+      const selectedFields = active.autofillFields.filter((field) => selected.has(field.fieldId)&&!completed.has(field.fieldId)&&field.controlType!=="section");
+      if(!selectedFields.length){finishSummary(id,{results:active.autofillResults||[],unresolved:active.unresolvedAutofillQuestions||[]});updateJob(id,{busy:false,phase:"done"});return;}
       if (!selectedScreeningAnswersUnchanged(active.autofillContext, current, selectedFields)) throw Object.assign(new Error("An approved screening answer changed after this preview. Start Autofill again."), { code: "AUTOFILL_CONTEXT_STALE" });
       const fields = selectedFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: Object.hasOwn(active.autofillOverrides||{},field.fieldId)?active.autofillOverrides[field.fieldId]:autofillValue(current, field) }));
       const recoveryPayload={targetOrigin:active.autofillTargetOrigin||new URL(active.session.targetUrl).origin,resumeUpdatedAt:current.resumeUpdatedAt,adapterId:active.autofillAdapter?.id,adapterVersion:active.autofillAdapter?.version};
-      await updateApplicationAutofillRecovery(client,backendBaseUrl,active.session.id,{...recoveryPayload,stepIdentifier:"FILLING"});
-      const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL, payload: { sessionId: active.session.id, applicationId: active.session.applicationId, adapterId:active.autofillAdapter?.id||"", fields } });
+      backgroundWrite(id, () => updateApplicationAutofillRecovery(client,backendBaseUrl,id,{...recoveryPayload,stepIdentifier:"FILLING"}));
+      const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: active.session.applicationId, adapterId:active.autofillAdapter?.id||"", fields } });
       if (!response?.ok) throw Object.assign(new Error(response?.error?.message || "The selected fields could not be filled."), { code: response?.error?.code });
       const results = mergeAutofillResults(active.autofillResults || [], response.data.results || []), verified = results.filter((result) => result.status === "VERIFIED").length;
-      setActiveApplicationSession((previous) => previous ? { ...previous, autofillResults: results } : previous);
+      const deferredFieldIds = await waitingForTab(active.session, active.autofillFields, results);
       const telemetry=buildAutofillTelemetry({resumeUpdatedAt:current.resumeUpdatedAt,adapter:response.data.adapter||active.autofillAdapter,targetDomain:active.autofillTargetDomain,fields:active.autofillFields,selectedFieldIds:active.selectedAutofillFieldIds,results,unresolved:active.unresolvedAutofillQuestions});
-      await recordApplicationAutofillTelemetry(client,backendBaseUrl,active.session.id,telemetry).catch(()=>{});
-      await updateApplicationAutofillRecovery(client,backendBaseUrl,active.session.id,{...recoveryPayload,stepIdentifier:results.length&&verified===results.length?"FILLED":"PARTIAL"}).catch(()=>{});
-      if (results.length && verified === results.length) {
-        await updateApplicationExtensionSession(client, backendBaseUrl, active.session.id, "COMPLETED");
-        setStatus({ message: `${verified} field${verified === 1 ? "" : "s"} filled and verified. Review the page before submitting.`, kind: "success" });
-      } else setStatus({ message: `${verified} of ${results.length} selected fields were verified. Review failed fields before continuing.`, kind: "warning" });
-    } catch (error) { handleError(error); }
-    finally { setAutofillBusy(false); }
-  }
+      const complete = results.length && verified === results.length;
+      backgroundWrite(id, () => recordApplicationAutofillTelemetry(client,backendBaseUrl,id,telemetry));
+      backgroundWrite(id, () => updateApplicationAutofillRecovery(client,backendBaseUrl,id,{...recoveryPayload,stepIdentifier:complete?"FILLED":"PARTIAL"}));
+      if (complete) backgroundWrite(id, () => updateApplicationExtensionSession(client, backendBaseUrl, id, "COMPLETED"));
+      const outcome = finishSummary(id, { results, unresolved: active.unresolvedAutofillQuestions || [], deferred: deferredFieldIds, company: active.context?.job?.company });
+      updateJob(id, { autofillResults: results, deferredFieldIds, summary: outcome.summary, attention: outcome.attention });
+      setStatus({ message: `${active.context?.job?.company ? `${active.context.job.company}: ` : ""}${outcome.summary}. Review the page before submitting.`, kind: outcome.attention ? "warning" : "success" });
+    } catch (error) { tabStatus(id, "FAILED", "Autofill stopped", safeError(error).message); handleError(error); }
+    finally { updateJob(id, { busy: false, phase: "done" }); }
+  }, [client, backendBaseUrl, handleError, updateJob, backgroundWrite, tabStatus, tabProgress, finishSummary]);
+
+  // Finish dropdowns that were waiting for their tab as soon as the Applier switches to it.
+  useEffect(() => {
+    if (currentTabId === null) return;
+    for (const [id, job] of jobs) {
+      if (job.session?.targetTabId === currentTabId && job.deferredFieldIds?.length && !job.busy) fillActiveAutofill(id, job.deferredFieldIds);
+    }
+  }, [currentTabId, jobs, fillActiveAutofill]);
 
   async function handleSaveSettings(normalizedConfig, normalizedBackendBaseUrl, score) {
     try {
@@ -492,6 +673,8 @@ export function App() {
   async function handleSignOut() {
     try {
       await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.RESET_ACTIVE_APPLICATION_SESSION }).catch(() => {});
+      // Job pages stop offering this Applier's Applications.
+      await chrome.storage.session.remove(PANEL_APPLICATIONS_KEY).catch(() => {});
       await clearSidepanelView(session?.user?.id).catch(() => {});
       await signOut(client);
     } finally {
@@ -616,12 +799,21 @@ export function App() {
         </div>
       )}
       <Content className="sidepanel-content">
-        {activeApplicationSession && (() => {
-          const banner = applicationSessionBanner(activeApplicationSession);
-          const canAttach = (activeApplicationSession.loadedResume?.ready || activeApplicationSession.attachment) && activeApplicationSession.attachment?.status !== "ATTACHED";
-          return <Alert type={banner.type} showIcon closable onClose={resetApplicationSession} message={banner.message} description={banner.description} action={canAttach ? <Button size="small" loading={attachmentBusy} onClick={attachActiveResume}>{activeApplicationSession.attachment ? "Retry Attachment" : "Attach Resume to Page"}</Button> : null} style={{ marginBottom: 12 }} />;
+        {(() => {
+          // The panel follows the tab the Applier is looking at; jobs in other tabs keep running and are listed below it.
+          const all = [...jobs.values()].sort((a, b) => a.startedAt - b.startedAt);
+          const activeApplicationSession = all.filter((job) => job.session?.targetTabId === currentTabId).at(-1) || null;
+          const others = all.filter((job) => job !== activeApplicationSession);
+          const id = activeApplicationSession?.session?.id;
+          const canAttach = activeApplicationSession && (activeApplicationSession.loadedResume?.ready || activeApplicationSession.attachment) && activeApplicationSession.attachment?.status !== "ATTACHED";
+          const banner = activeApplicationSession?.context ? applicationSessionBanner(activeApplicationSession) : null;
+          return <>
+            {activeApplicationSession && !banner && <Alert type={activeApplicationSession.phase === "failed" ? "error" : "info"} showIcon closable onClose={() => resetApplicationSession(id)} message={activeApplicationSession.phase === "failed" ? "Autofill stopped" : "Autofill is starting on this tab…"} description={activeApplicationSession.error} style={{ marginBottom: 12 }} />}
+            {banner && <Alert type={activeApplicationSession.phase === "failed" ? "error" : banner.type} showIcon closable onClose={() => resetApplicationSession(id)} message={banner.message} description={activeApplicationSession.busy ? `${activeApplicationSession.phase === "filling" ? "Filling" : "Scanning"} the page…` : activeApplicationSession.error || [activeApplicationSession.summary, banner.description].filter(Boolean).join(" · ")} action={canAttach ? <Button size="small" loading={Boolean(activeApplicationSession.attachmentBusy)} onClick={() => attachActiveResume(id)}>{activeApplicationSession.attachment ? "Retry Attachment" : "Attach Resume to Page"}</Button> : null} style={{ marginBottom: 12 }} />}
+            {activeApplicationSession?.session?.action === "AUTOFILL" && activeApplicationSession.autofillFields && <AutofillPreview active={activeApplicationSession} busy={Boolean(activeApplicationSession.busy)} onSelectionChange={(fieldId, checked) => changeAutofillSelection(id, fieldId, checked)} onValueChange={(fieldId, value) => changeAutofillValue(id, fieldId, value)} onFill={() => fillActiveAutofill(id)} onRescan={() => rescanJob(id)} />}
+            <AutofillJobsList jobs={others} onOpen={(job) => { chrome.tabs.update(job.session.targetTabId, { active: true }).catch(() => {}); }} onDismiss={(job) => resetApplicationSession(job.session.id)} />
+          </>;
         })()}
-        {activeApplicationSession?.session?.action === "AUTOFILL" && activeApplicationSession.autofillContext && <AutofillPreview active={activeApplicationSession} busy={autofillBusy} onSelectionChange={changeAutofillSelection} onValueChange={changeAutofillValue} onFill={fillActiveAutofill} onRescan={loadApplicationSession} />}
         {renderedViewKeys.map((key) => (
           <div key={key} hidden={key !== currentView}>
             {views[key]}

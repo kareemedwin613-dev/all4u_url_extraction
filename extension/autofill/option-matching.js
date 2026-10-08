@@ -10,6 +10,7 @@ const US_STATES = Object.freeze({
   RI: "rhode island", SC: "south carolina", SD: "south dakota", TN: "tennessee", TX: "texas", UT: "utah",
   VT: "vermont", VA: "virginia", WA: "washington", WV: "west virginia", WI: "wisconsin", WY: "wyoming",
 });
+export const US_STATE_NAMES = US_STATES;
 const STATE_BY_NAME = Object.freeze(Object.fromEntries(Object.entries(US_STATES).map(([code, name]) => [name, code])));
 const UNITED_STATES = ["united states", "united states of america", "usa", "us", "america"];
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -104,7 +105,10 @@ export function optionMatchTier(optionText, wanted) {
   const aliases = valueAliases(wanted);
   if (aliases.includes(option)) return 0;
   const polarity = wantedPolarity(wanted);
-  if (polarity) return optionPolarity(option) === polarity ? 1 : null;
+  // Every profile is a U.S. citizen: among options with the same Yes/No, one that says the candidate
+  // will need sponsorship ("Yes, but I will require sponsorship…") ranks below one that says they won't.
+  const needsSponsorship = /\b(require|requires|need|needs)\b(?:(?!\bnot\b).){0,40}\bsponsor/.test(option) && !/\b(not|no|never|without)\b(?:\s+\w+){0,3}\s+(require|need|sponsor)/.test(option);
+  if (polarity) return optionPolarity(option) === polarity ? (needsSponsorship ? 3 : 1) : null;
   if (aliases.some((alias) => alias.length >= 2 && option.startsWith(`${alias} `))) return 2;
   const number = typeof wanted === "number" ? wanted : /^\$?\s*-?\d[\d,]*(\.\d+)?\s*%?$/.test(String(wanted ?? "").trim()) ? numberOf(wanted) : null;
   if (number !== null) {

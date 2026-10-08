@@ -19,7 +19,9 @@ function nearbyText(input) {
 function directDescriptor(input) {
   const labelText = [...(input.labels || [])].map((label) => text(label.textContent)).join(" ");
   const wrappingLabel = text(input.closest?.("label")?.textContent);
-  return [input.name, input.id, input.getAttribute?.("aria-label"), input.getAttribute?.("placeholder"), input.getAttribute?.("title"), labelText, wrappingLabel].map(text).filter(Boolean).join(" ");
+  // Workable marks its unlabeled upload with data-ui="resume".
+  return [input.name, input.id, input.getAttribute?.("aria-label"), input.getAttribute?.("placeholder"), input.getAttribute?.("title"),
+    input.getAttribute?.("data-ui"), input.getAttribute?.("data-testid"), input.getAttribute?.("data-automation-id"), labelText, wrappingLabel].map(text).filter(Boolean).join(" ");
 }
 
 export function scoreResumeUploadInput(input) {
@@ -90,6 +92,27 @@ function decodeBase64(value) {
   return bytes;
 }
 
+// Some forms keep the file input hidden until "Attach resume" is chosen over "Paste resume" (JazzHR).
+// Clicking that option shows the input, so the reviewer sees the attached file. Only in-page links
+// (href="#") and plain buttons are clicked, never anything that navigates or submits.
+const REVEAL_TEXT = /^(?:attach|upload|choose|add)\b[^]{0,30}$/i;
+function safeRevealControl(element) {
+  const tag = String(element?.tagName || "").toLowerCase();
+  if (tag === "button") return String(element.getAttribute?.("type") || "").toLowerCase() === "button";
+  if (tag === "a") return /^(#.*|javascript:void\(0\);?)?$/i.test(String(element.getAttribute?.("href") ?? "#").trim());
+  return String(element?.getAttribute?.("role") || "").toLowerCase() === "button";
+}
+export function revealResumeInput(input) {
+  if (typeof input?.getClientRects !== "function" || input.getClientRects().length > 0) return false;
+  let node = input.parentElement;
+  for (let depth = 0; node && depth < 5; depth += 1, node = node.parentElement) {
+    const control = [...node.querySelectorAll("a,button,[role='button']")]
+      .find((item) => REVEAL_TEXT.test(text(item.textContent)) && !COVER_LETTER_TERMS.test(text(item.textContent)) && safeRevealControl(item));
+    if (control) { control.click(); return true; }
+  }
+  return false;
+}
+
 export function attachResumePayload(payload, root = document) {
   let bytes;
   try {
@@ -99,6 +122,7 @@ export function attachResumePayload(payload, root = document) {
     if (file.size !== Number(payload.fileSizeBytes)) return { status: "FAILED", code: "RESUME_PAYLOAD_SIZE_MISMATCH" };
     const candidates = detectResumeUploadInputs(root);
     if (!candidates.length) return { status: "UNSUPPORTED", code: "RESUME_INPUT_NOT_FOUND", message: "No standard Resume file input was found on this page." };
+    revealResumeInput(candidates[0].input);
     const result = attachResumeFile(candidates[0].input, file);
     return { ...result, confidence: Math.min(100, candidates[0].score) };
   } catch {

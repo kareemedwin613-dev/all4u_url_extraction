@@ -8,7 +8,10 @@ const configOverrides=Object.fromEntries([["projectUrl","EXTENSION_SUPABASE_URL"
 if(/^sb_secret_|service_role/i.test(String(configOverrides.publishableKey||"")))throw new Error("EXTENSION_SUPABASE_PUBLISHABLE_KEY must be a publishable key, never a secret key.");
 const shared={bundle:true,outdir:dist,format:"esm",platform:"browser",target:"chrome114",jsx:"automatic",sourcemap:false,minify:true,legalComments:"none",define:{__EXTENSION_CONFIG_OVERRIDES__:JSON.stringify(configOverrides)}};
 const builds=[
-  {...shared,entryPoints:{"background/service-worker":resolve(root,"background/service-worker.js"),"content/dashboard-bridge":resolve(root,"content/dashboard-bridge.js"),"content/resume-upload":resolve(root,"content/resume-upload.js"),"content/personal-autofill":resolve(root,"content/personal-autofill.js")}},
+  {...shared,entryPoints:{"background/service-worker":resolve(root,"background/service-worker.js")}},
+  // Content scripts share one isolated world per frame; IIFEs keep each file's minified names private
+  // so injecting the Resume and Autofill scripts into the same page cannot overwrite each other.
+  {...shared,format:"iife",entryPoints:{"content/dashboard-bridge":resolve(root,"content/dashboard-bridge.js"),"content/resume-upload":resolve(root,"content/resume-upload.js"),"content/personal-autofill":resolve(root,"content/personal-autofill.js"),"content/page-launcher":resolve(root,"content/page-launcher.js")}},
   {...shared,entryPoints:{"sidepanel/index":resolve(root,"sidepanel/main.jsx")},splitting:true,chunkNames:"chunks/[name]-[hash]"},
 ];
 if(watch){const contexts=await Promise.all(builds.map(options=>context(options)));await Promise.all(contexts.map(ctx=>ctx.watch()));console.log("Watching extension sources…");}else await Promise.all(builds.map(options=>build(options)));

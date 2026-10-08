@@ -67,7 +67,7 @@ export class UpdateApplicationExtensionSessionDto{
 }
 export class ApplicationCountQueryDto{@IsISO8601()from!:string;@IsISO8601()to!:string;}
 export class ApplicationAutofillFieldTelemetryDto{
-  @IsString()@MaxLength(100)@Matches(/^(candidate|screening|employment|education|guide)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,96}$/)fieldKey!:string;
+  @IsString()@MaxLength(100)@Matches(/^(candidate|screening|employment|education|guide|evidence)\.[A-Za-z0-9][A-Za-z0-9_.-]{0,96}$/)fieldKey!:string;
   @Type(()=>Number)@IsInt()@Min(0)@Max(99)fieldIndex!:number;
   @Type(()=>Number)@IsInt()@Min(0)@Max(100)confidence!:number;
   @IsIn(["DETECTED","VERIFIED","FAILED","SKIPPED"])outcome!:string;
