@@ -14,7 +14,7 @@ const MATCHER_ATTRIBUTES=["data-resume-jd-autofill-id","data-resume-jd-guide-aut
 // Workday (*.myworkdayjobs.com): My Experience work history, education and skills are filled by autofill/workday.js;
 // everything else on each step goes through the generic matchers.
 export class WorkdayAdapter extends GenericHtmlAdapter{
- constructor(){super({id:"workday",version:"1.0.0",label:"Workday",tier:"ATS_FAMILY"});}
+ constructor(){super({id:"workday",version:"1.1.0",label:"Workday",tier:"ATS_FAMILY"});}
  matches(url){return isWorkdayHost(url.hostname);}
  detectResumeField({root=document}={}){const candidate=workdayResumeInputs(root)[0];return candidate?{confidence:Math.min(100,candidate.score),controlType:"file"}:null;}
  attachResume({root=document,payload}={}){return attachResumePayload(payload,root,workdayResumeInputs);}

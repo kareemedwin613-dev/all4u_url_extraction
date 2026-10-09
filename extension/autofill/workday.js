@@ -229,6 +229,18 @@ async function chooseFromPrompt(root, input, wanted, { strict = false } = {}) {
   return ok;
 }
 
+// Clears the selected values of a search box that do not match the wanted one (Workday's parser often picks a wrong
+// Field of Study). A selected value is cleared the way a person does: focus it and press Delete.
+async function clearOtherSelections(input, wanted) {
+  const container = input.closest?.('[data-automation-id^="formField"], [data-uxi-widget-type], [role="group"]') || input.parentElement;
+  for (const item of [...(container?.querySelectorAll?.('[data-automation-id="selectedItem"]') || [])]) {
+    if (optionScore(item.textContent, wanted, false) >= 80) continue;
+    item.focus?.();
+    for (const key of ["Delete", "Backspace"]) item.dispatchEvent(new KeyboardEvent("keydown", { key, code: key, bubbles: true }));
+    await sleep(80);
+  }
+}
+
 const isPrompt = (input) => Boolean(input?.closest?.('[data-automation-id="multiselectInputContainer"], [data-uxi-widget-type="multiselect"]')) || /^search$/i.test(clean(input?.getAttribute?.("placeholder")));
 
 // --- Filling entries ----------------------------------------------------------------------------------------
@@ -246,29 +258,64 @@ async function fillEntry(root, entry, row, overwrite) {
   for (const leaf of ["jobTitle", "company", "location", "institution", "gpa"]) {
     const element = fields[leaf]?.element;
     if (!element || !(overwrite || empty(element))) continue;
-    await step(leaf, (value) => (leaf === "institution" && isPrompt(element) ? chooseFromPrompt(root, element, value) : typeValue(element, value)));
+    await step(leaf, async (value) => {
+      if (leaf !== "institution" || !isPrompt(element)) return typeValue(element, value);
+      if (overwrite) await clearOtherSelections(element, value);
+      return chooseFromPrompt(root, element, value);
+    });
   }
   if (fields.degree?.element && row.degree && (overwrite || /^(select one)?$/i.test(clean(fields.degree.element.textContent)))) {
     await step("degree", (value) => chooseFromListbox(root, fields.degree.element, value));
   }
-  if (fields.fieldOfStudy?.element && row.fieldOfStudy) await step("fieldOfStudy", (value) => chooseFromPrompt(root, fields.fieldOfStudy.element, value));
-  if (fields.isCurrent?.element && row.isCurrent) await step("isCurrent", () => setCheckbox(fields.isCurrent.element, true));
-  await step("startDate", (value) => fillDate(fields.startDate, value, overwrite));
-  if (!row.isCurrent) await step("endDate", (value) => fillDate(fields.endDate, value, overwrite));
-  const description = fields.description?.element;
+  if (fields.fieldOfStudy?.element && row.fieldOfStudy) await step("fieldOfStudy", async (value) => {
+    if (overwrite) await clearOtherSelections(fields.fieldOfStudy.element, value);
+    return chooseFromPrompt(root, fields.fieldOfStudy.element, value);
+  });
+  // "I currently work here" follows the Resume both ways when overwriting; the end date boxes appear or disappear with it.
+  if (fields.isCurrent?.element && (row.isCurrent || overwrite)) {
+    await step("isCurrent", (value) => setCheckbox(fields.isCurrent.element, Boolean(value)));
+    await sleep(120);
+  }
+  const current = workdayEntries(root)[entry.kind]?.find((item) => item.n === entry.n)?.fields || fields;
+  await step("startDate", (value) => fillDate(current.startDate, value, overwrite));
+  if (!row.isCurrent) await step("endDate", (value) => fillDate(current.endDate, value, overwrite));
+  const description = current.description?.element || fields.description?.element;
   if (description && (overwrite || empty(description))) await step("description", (value) => typeValue(description, value));
   return !failed;
 }
 
-// An existing entry belongs to the Resume row whose company (or school) and title it shows.
-function rowForEntry(kind, entry, rows, used) {
-  const shown = (leaf) => norm(entry.fields[leaf]?.element?.value);
-  for (const [index, row] of rows.entries()) {
-    if (used.has(index)) continue;
-    const same = (leaf) => { const a = shown(leaf), b = norm(row[leaf]); return a && b && (a === b || a.includes(b) || b.includes(a)); };
-    if (kind === "employment" ? same("company") || same("jobTitle") : same("institution")) return index;
+// Pairs each entry already on the page with a Resume row: the row whose company (or school) or title it shows, else
+// the next unused row in Resume order (Workday's parser keeps the order but often garbles names).
+export function pairWorkdayEntries(kind, entries, rows) {
+  const used = new Set(), pairs = new Map();
+  // Company (or school) first across every entry, then job title, so a title such as "Software Engineer" inside
+  // "Senior Software Engineer" never takes a row another entry names by company.
+  for (const leaf of kind === "employment" ? ["company", "jobTitle"] : ["institution"]) {
+    for (const entry of entries) {
+      if (pairs.has(entry)) continue;
+      const index = rowForEntry(entry, rows, used, leaf);
+      if (index >= 0) { used.add(index); pairs.set(entry, index); }
+    }
   }
-  return -1;
+  for (const entry of entries) {
+    if (pairs.has(entry)) continue;
+    const index = rows.findIndex((_, position) => !used.has(position));
+    if (index < 0) break;
+    used.add(index); pairs.set(entry, index);
+  }
+  return { pairs, used };
+}
+
+// The unused Resume row whose company, school or title (leaf) the entry shows: an exact match first, then one name
+// containing the other.
+function rowForEntry(entry, rows, used, leaf) {
+  const shown = norm(entry.fields[leaf]?.element?.value);
+  if (!shown) return -1;
+  const free = [...rows.entries()].filter(([index, row]) => !used.has(index) && norm(row[leaf]));
+  const exact = free.find(([, row]) => norm(row[leaf]) === shown);
+  if (exact) return exact[0];
+  const near = free.find(([, row]) => shown.includes(norm(row[leaf])) || norm(row[leaf]).includes(shown));
+  return near ? near[0] : -1;
 }
 
 export async function fillWorkdaySections(root = document, sections = {}) {
@@ -280,19 +327,16 @@ export async function fillWorkdaySections(root = document, sections = {}) {
     const existing = workdayEntries(root)[kind];
     let toAdd = [...rows.keys()];
     if (existing.length) {
-      // Fill what Workday or a person left empty in matching entries; nothing is overwritten.
-      const used = new Set();
+      // Workday's own resume parsing is not trusted: every entry paired with a Resume row is overwritten from the
+      // Resume. Entries beyond the Resume's rows are left as they are (Delete is never clicked).
+      const { pairs, used } = pairWorkdayEntries(kind, existing, rows);
       for (const entry of existing) {
-        const index = rowForEntry(kind, entry, rows, used);
-        if (index < 0) continue;
-        used.add(index);
-        const ok = await fillEntry(root, entry, rows[index], false);
+        if (!pairs.has(entry)) continue;
+        const index = pairs.get(entry);
+        const ok = await fillEntry(root, entry, rows[index], true);
         results.push(result(kind, index, ok ? "VERIFIED" : "FAILED", ok ? "FIELD_VERIFIED" : "FIELD_VERIFICATION_FAILED"));
       }
-      // Resume rows still missing are added only when every entry on the page is a Resume row, so an entry the
-      // page holds under another name is never duplicated.
-      toAdd = used.size === existing.length ? toAdd.filter((index) => !used.has(index)) : [];
-      if (!used.size) results.push(result(kind, 0, "SKIPPED", "SECTION_ALREADY_HAS_ENTRIES"));
+      toAdd = toAdd.filter((index) => !used.has(index));
     }
     for (const index of toAdd) {
       const row = rows[index];
