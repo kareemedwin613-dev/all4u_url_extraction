@@ -48,7 +48,7 @@ test("Workday: race options on Voluntary Disclosures are left for the person, ne
 
 // Experity "My Experience" (from a structure snapshot): Workday's own resume parsing has already created the job and
 // school entries, so Autofill fills the empty fields of the matching entries instead of adding new ones.
-import { detectWorkdaySections, fillWorkdaySections } from "../extension/autofill/workday.js";
+import { detectWorkdaySections, fillWorkdaySections, workdayEntries } from "../extension/autofill/workday.js";
 import { sanitizeDetectedSections, sanitizeSectionRows } from "../extension/autofill/repeatable-sections.js";
 import { repeatableSectionRows } from "../extension/autofill/autofill-context.js";
 
@@ -87,15 +87,28 @@ test("Experity My Experience: entries Workday already created reach the filler, 
   assert.deepEqual(Object.keys(rows).sort(), ["education", "employment", "skills"]);
 });
 
-test("Experity My Experience: empty fields of the matching entry are filled; nothing Workday filled is overwritten", async () => {
+test("Experity My Experience: every field Workday's parser filled is overwritten from the Resume", async () => {
   const document = myExperience();
-  const context = { employment: [{ company: "Initech", jobTitle: "Senior Software Engineer", location: "Austin, TX", experienceDetails: "Built payments.", startDate: "2021-03" }] };
+  document.getElementById("workExperience-16--location").value = "Austn";
+  document.getElementById("workExperience-16--roleDescription").value = "garbled text from the parser";
+  const context = { employment: [{ company: "Initech", jobTitle: "Staff Software Engineer", location: "Austin, TX", experienceDetails: "Built payments.", startDate: "2021-03" }] };
   const rows = sanitizeSectionRows(repeatableSectionRows(context, sanitizeDetectedSections(detectWorkdaySections(document))));
   const results = await fillWorkdaySections(document, { employment: rows.employment });
   assert.deepEqual(results.map((item) => [item.key, item.status]), [["employment.0.entry", "VERIFIED"]]);
+  assert.equal(document.getElementById("workExperience-16--jobTitle").value, "Staff Software Engineer", "the parser's title is replaced");
   assert.equal(document.getElementById("workExperience-16--location").value, "Austin, TX");
   assert.equal(document.getElementById("workExperience-16--roleDescription").value, "Built payments.");
-  assert.equal(document.getElementById("workExperience-16--jobTitle").value, "Senior Software Engineer", "Workday's value kept");
-  assert.equal(document.getElementById("workExperience-17--roleDescription").value, "", "an entry that is not on the Resume is left alone");
-  assert.equal(document.querySelectorAll("[id$='--jobTitle']").length, 2, "no entry is added while one is not a Resume row");
+  assert.equal(document.getElementById("workExperience-16--startDate-dateSectionMonth-input").value, "03");
+  assert.equal(document.getElementById("workExperience-16--startDate-dateSectionYear-input").value, "2021");
+  assert.equal(document.getElementById("workExperience-17--roleDescription").value, "", "a Workday entry beyond the Resume's rows is left alone");
+  assert.equal(document.querySelectorAll("[id$='--jobTitle']").length, 2, "nothing is deleted or duplicated");
+});
+
+test("Experity My Experience: entries whose names the parser garbled are paired in Resume order", async () => {
+  const { pairWorkdayEntries } = await import("../extension/autofill/workday.js");
+  const document = myExperience();
+  const entries = workdayEntries(document).employment;
+  const rows = [{ company: "Umbrella Corp", jobTitle: "Lead Engineer" }, { company: "Globex", jobTitle: "Software Engineer" }];
+  const { pairs } = pairWorkdayEntries("employment", entries, rows);
+  assert.deepEqual(entries.map((entry) => pairs.get(entry)), [0, 1], "Globex matches row 1 by name; the garbled first entry takes row 0");
 });
