@@ -19,12 +19,13 @@ test("dashboard downloads original bytes unchanged and keeps tailored base64 PDF
     assert.equal(String(url),data.signedUrl);assert.equal(options.credentials,"omit");assert.equal(options.headers,undefined);
     return new Response(original,{status:200,headers:{"Content-Type":"application/pdf"}});
   });
-  const result=await downloadApplicationCoverLetterPdf(client,{id:"application",apiBaseUrl:"https://api.example.com"});
-  assert.equal(result.filename,data.filename);assert.deepEqual(new Uint8Array(await blobs[0].arrayBuffer()),original);
-  assert.equal(downloads[0],data.filename);
+  const result=await downloadApplicationCoverLetterPdf(client,{id:"application",apiBaseUrl:"https://api.example.com",companyName:"Acme",candidateName:"Jane Doe"});
+  assert.equal(result.filename,"Jane Doe Cover Letter - Acme.pdf");assert.deepEqual(new Uint8Array(await blobs[0].arrayBuffer()),original);
+  assert.equal(downloads[0],"Jane Doe Cover Letter - Acme.pdf","named like the Resume download");
   for(const kind of ["TAILORED","BASE"]){
-    data={kind,filename:"Generated.pdf",mimeType:"application/pdf",contentBase64:"JVBERi0xLjQ="};
-    await downloadApplicationCoverLetterPdf(client,{id:"application",apiBaseUrl:"https://api.example.com"});
+    data={kind,filename:"Jane Doe Cover Letter - App 7.pdf",mimeType:"application/pdf",contentBase64:"JVBERi0xLjQ=",applicationNumber:7};
+    const generated=await downloadApplicationCoverLetterPdf(client,{id:"application",apiBaseUrl:"https://api.example.com"});
+    assert.equal(generated.filename,"Jane Doe Cover Letter - App 7.pdf","without a company, the Application number, as for the Resume");
     assert.equal(await blobs.at(-1).text(),"%PDF-1.4");
     assert.equal(storageRequests,1,"tailored PDF and base-text fallback do not fetch the original upload");
   }

@@ -1610,7 +1610,7 @@ export function ApplicationDetailPage({ client, apiBaseUrl, access, id, query = 
   async function downloadCoverLetter() {
     setBusy(true);
     try {
-      const result = await downloadApplicationCoverLetterPdf(client, { id, apiBaseUrl });
+      const result = await downloadApplicationCoverLetterPdf(client, { id, apiBaseUrl, companyName: job.company, candidateName: resume.candidate_name });
       setIsError(false);
       setMessage(`${result.kind === "TAILORED" ? "Tailored" : "Base"} cover letter downloaded as ${result.filename}.`);
     } catch (x) {

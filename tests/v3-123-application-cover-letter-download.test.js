@@ -53,15 +53,17 @@ test("the Application cover letter prefers the tailored letter, falls back to th
   await assert.rejects(() => download(23), /APPLICATION_RESUME_UNAVAILABLE/);
 });
 
-test("the extension downloads the rendered cover letter PDF under the generated filename", async t => {
+test("the extension names the downloaded cover letter like the Resume: candidate, Cover Letter, company", async t => {
   const client = { auth: { getSession: async () => ({ data: { session: { access_token: "jwt" } }, error: null }) } };
   const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; });
   let requested;
   globalThis.fetch = async (url, options) => {
     requested = { url: String(url), authorization: options.headers.Authorization };
-    return new Response(JSON.stringify({ data: { kind: "TAILORED", filename: "Jordan Lee Cover Letter - App 7.pdf", mimeType: "application/pdf", contentBase64: "JVBERi0xLjQ=" } }), { status: 200 });
+    return new Response(JSON.stringify({ data: { kind: "TAILORED", filename: "Jordan Lee Cover Letter - App 7.pdf", mimeType: "application/pdf", contentBase64: "JVBERi0xLjQ=", applicationNumber: 7 } }), { status: 200 });
   };
   let downloadOptions;
+  const named = await downloadApplicationCoverLetter(client, "https://api.example.com", id(21), async options => { downloadOptions = options; return 5; }, { companyName: "Acme, Inc.", candidateName: "Jordan Lee" });
+  assert.equal(named.downloadName, "Jordan Lee Cover Letter - Acme Inc.pdf", "same pattern as \"Jordan Lee Resume - Acme Inc.pdf\"");
   const result = await downloadApplicationCoverLetter(client, "https://api.example.com", id(21), async options => { downloadOptions = options; return 5; });
   assert.equal(requested.url, `https://api.example.com/api/v1/applications/${id(21)}/cover-letter`);
   assert.equal(requested.authorization, "Bearer jwt");
@@ -84,8 +86,8 @@ test("extension downloads original PDF, DOCX and TXT uploads without reconstruct
   for(const [extension,mimeType] of [["pdf","application/pdf"],["docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document"],["txt","text/plain"]]){
     const data={source:"ORIGINAL_UPLOAD",kind:"BASE",filename:`Original.${extension}`,mimeType,signedUrl:`https://project.supabase.co/storage/v1/object/sign/cover-letters/owner/original.${extension}?token=example`};
     globalThis.fetch=async()=>new Response(JSON.stringify({data}),{status:200});
-    let options;await downloadApplicationCoverLetter(client,"https://api.example.com",id(23),async value=>{options=value;return 1;});
-    assert.equal(options.url,data.signedUrl);assert.equal(options.filename,data.filename);
+    let options;await downloadApplicationCoverLetter(client,"https://api.example.com",id(23),async value=>{options=value;return 1;},{companyName:"Acme",candidateName:"Jane Doe"});
+    assert.equal(options.url,data.signedUrl);assert.equal(options.filename,`Jane Doe Cover Letter - Acme.${extension}`,"the uploaded file keeps its type, named like the Resume");
     data.signedUrl="javascript:alert(1)";
     await assert.rejects(()=>downloadApplicationCoverLetter(client,"https://api.example.com",id(23),async()=>assert.fail("must not download")),/metadata is invalid/);
   }

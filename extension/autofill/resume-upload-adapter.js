@@ -187,8 +187,9 @@ function attachDocumentPayload(payload, root, detect, label) {
   } finally { bytes?.fill(0); }
 }
 
-export function attachResumePayload(payload, root = document) {
-  return attachDocumentPayload(payload, root, detectResumeUploadInputs, "Resume");
+// detect lets an ATS adapter add its own rule for which upload is the Resume (Workday).
+export function attachResumePayload(payload, root = document, detect = detectResumeUploadInputs) {
+  return attachDocumentPayload(payload, root, detect, "Resume");
 }
 
 export function attachCoverLetterPayload(payload, root = document) {

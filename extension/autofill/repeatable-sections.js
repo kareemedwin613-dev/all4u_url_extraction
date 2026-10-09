@@ -158,6 +158,14 @@ export const WORKABLE_SECTIONS = Object.freeze({
 });
 
 const ROW_LIMITS = { company: 200, jobTitle: 200, location: 200, description: 10000, institution: 240, degree: 200, fieldOfStudy: 200 };
+// What a page reported about its repeatable sections, as passed from the page to the panel: the kind, how many
+// entries it already has, whether entries can be added, and whether existing entries get their empty fields filled
+// (Workday, whose own resume parsing creates the entries first).
+export function sanitizeDetectedSections(sections = []) {
+  return (Array.isArray(sections) ? sections : []).filter((item) => ["employment", "education", "skills"].includes(item?.kind)).slice(0, 6)
+    .map((item) => ({ kind: item.kind, existing: Math.max(0, Math.min(99, Number(item.existing) || 0)), addable: item.addable === true, fillExisting: item.fillExisting === true }));
+}
+
 // Bounded copy of the rows sent from the extension panel to the page.
 export function sanitizeSectionRows(sections = {}) {
   const date = (value) => (/^\d{4}(-\d{2})?$/.test(String(value || "")) ? String(value) : undefined);

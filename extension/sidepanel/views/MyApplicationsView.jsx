@@ -112,7 +112,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     setExtensionBusy(`${application.id}:DOWNLOAD_COVER_LETTER`);
     onStatus({ message: "Preparing cover letter…", kind: "info" });
     try {
-      const result = await downloadApplicationCoverLetter(client, backendBaseUrl, application.id);
+      const result = await downloadApplicationCoverLetter(client, backendBaseUrl, application.id, undefined, { companyName: application.company, candidateName: application.candidate_name });
       onStatus({
         message: `${result.kind === "TAILORED" ? "Tailored" : "Base"} cover letter saved to Downloads as ${result.downloadName}.`,
         kind: "success",

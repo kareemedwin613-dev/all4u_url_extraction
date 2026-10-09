@@ -13,7 +13,8 @@ const FIELD_RULES = [
   // "First & Last Name" asks for the whole name, so it outranks the Last name rule it also matches.
   { key: "candidate.fullName", autocomplete: ["name"], pattern: /\b(full|legal|preferred)\s*name\b/i, exact: /^\s*(?:your\s+)?name\s*\*?$/i, strong: /\bfirst\s*(?:&|and|\/|\+)\s*last\s*name\b/i },
   { key: "candidate.email", autocomplete: ["email"], pattern: /\be-?mail(?:\s+address)?\b/i, type: "email" },
-  { key: "candidate.phone", autocomplete: ["tel", "tel-national"], pattern: /\b(phone|telephone|mobile|cell)(?:\s+number)?\b/i, type: "tel" },
+  // "Country Phone Code", "Phone Extension" and "Phone Device Type" sit beside the number (Workday) and are not it.
+  { key: "candidate.phone", autocomplete: ["tel", "tel-national"], pattern: /\b(phone|telephone|mobile|cell)(?:\s+number)?\b/i, type: "tel", exclude: /^\s*(?:country(?:\s+phone)?\s+code|(?:phone\s+)?(?:extension|ext\b)|phone\s+device\s+type|device\s+type|dial(?:ing)?\s+code)/i },
   { key: "candidate.addressLine1", autocomplete: ["address-line1", "street-address"], pattern: /\b(address|street)(?:\s+line)?\s*(?:1|one)\b|\bstreet\s+address\b|\bhome\s+address\b/i, exact: /^\s*(?:mailing\s+)?address\s*\*?$/i },
   { key: "candidate.addressLine2", autocomplete: ["address-line2"], pattern: /\b(address|street)(?:\s+line)?\s*(?:2|two)\b|\b(apt|apartment|suite|unit)\b/i },
   { key: "candidate.city", autocomplete: ["address-level2"], pattern: /\b(city|town|municipality)\b/i },
@@ -116,6 +117,8 @@ export function scorePersonalField(element, rule) {
   if (rule.textareaOnly && tagOf(element) !== "textarea") return 0;
   const autocomplete = normalized(element.getAttribute?.("autocomplete")).split(" ").pop();
   if (rule.autocomplete.includes(autocomplete)) return Math.min(100 + (element.required ? 1 : 0), 100);
+  // A neighbouring part of the same group ("Country Phone Code") is never the field itself.
+  if (rule.exclude && rule.exclude.test(labelText(element))) return 0;
   const text = descriptor(element);
   // Long sentence-style questions belong to the guide and screening matchers.
   const sentence = sentenceLike(plainLabel(labelText(element)));

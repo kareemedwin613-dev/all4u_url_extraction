@@ -106,9 +106,12 @@ export function formatMineResumeOptionLabel(resume){return formatMineResumeLabel
 const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
 // "Acme, Inc." → "Acme Inc": punctuation becomes spaces rather than underscores in a downloaded filename.
 const filenameWords=(value)=>String(value||"").normalize("NFKC").replace(/[^A-Za-z0-9 .-]+/g," ").replace(/\s+/g," ").replace(/^[\s.-]+|[\s.-]+$/g,"").slice(0,60).trim();
-// Downloads: "<Candidate> Resume - <Company>.pdf", or "- App <n>" when the company is unknown.
-// Attachments omit both (no companyName or applicationNumber is passed).
-export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType, applicationNumber, companyName } = {}) {
+// Downloads: "<Candidate> Resume - <Company>.pdf" and "<Candidate> Cover Letter - <Company>.pdf", or "- App <n>" when
+// the company is unknown. Attachments omit both (no companyName or applicationNumber is passed).
+export function buildApplicationResumeDownloadFilename(options = {}) {
+  return buildApplicationDocumentFilename({ ...options, label: "Resume" });
+}
+export function buildApplicationDocumentFilename({ label = "Resume", candidateName, resumeName, filename, mimeType, applicationNumber, companyName } = {}) {
   const ext = mimeType === "application/pdf"
     ? ".pdf"
     : mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -117,8 +120,8 @@ export function buildApplicationResumeDownloadFilename({ candidateName, resumeNa
         ? ".txt"
         : (String(filename || "").match(/\.[^.]+$/) || [".pdf"])[0];
   const base = String(candidateName || "").trim()
-    ? `${String(candidateName).trim()} Resume`
-    : String(resumeName || "").trim() || String(filename || "Resume").replace(/\.[^.]+$/, "") || "Resume";
+    ? `${String(candidateName).trim()} ${label}`
+    : label === "Resume" ? String(resumeName || "").trim() || String(filename || "Resume").replace(/\.[^.]+$/, "") || "Resume" : label;
   const company = filenameWords(companyName);
   const suffix = company
     ? ` - ${company}`
@@ -214,7 +217,10 @@ export async function loadApplicationResumeForSession(client,baseUrl,session,sen
   return null;
 }
 // Original uploads use a private signed URL; tailored letters retain the generated PDF download.
-export async function downloadApplicationCoverLetter(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
+// The API's generated letters are named "<Candidate> Cover Letter - App <n>.pdf"; the candidate is read back from that.
+const candidateFromLetterName=(filename)=>String(filename||"").match(/^(.+?)\s+Cover Letter\b/i)?.[1]?.trim()||"";
+// Named like the Resume download: "<Candidate> Cover Letter - <Company>.<ext>".
+export async function downloadApplicationCoverLetter(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download,{companyName,candidateName}={}){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter`,{timeoutMs:30000});
   let downloadUrl;
   if(data?.source==="ORIGINAL_UPLOAD"){
@@ -225,16 +231,19 @@ export async function downloadApplicationCoverLetter(client,baseUrl,applicationI
     if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(String(data?.contentBase64||""))||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter download metadata is invalid.");
     downloadUrl=`data:application/pdf;base64,${data.contentBase64}`;
   }
-  const downloadName=safeDownloadName(data.filename||"Cover Letter.pdf");
+  const downloadName=buildApplicationDocumentFilename({label:"Cover Letter",candidateName:candidateName||candidateFromLetterName(data.filename),filename:data.filename,
+    mimeType:data.source==="ORIGINAL_UPLOAD"?data.mimeType:"application/pdf",applicationNumber:data.applicationNumber,companyName});
   const downloadId=await downloadImpl({url:downloadUrl,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_COVER_LETTER_DOWNLOAD_FAILED","Chrome could not start the cover letter download.");
   return{kind:data.kind,downloadId,downloadName};
 }
 // The Application's cover letter as a file for a cover letter upload: an original upload is read from its private
 // signed URL, a generated letter arrives as a PDF. Held in memory only for the attach.
-export async function loadApplicationCoverLetterFile(client,baseUrl,applicationId,fetchImpl=fetch){
+export async function loadApplicationCoverLetterFile(client,baseUrl,applicationId,fetchImpl=fetch,{candidateName}={}){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter`,{timeoutMs:30000});
-  const filename=safeDownloadName(data?.filename||"Cover Letter.pdf");
+  // Employers see "<Candidate> Cover Letter.<ext>", like the attached Resume: no company or internal Application number.
+  const candidate=candidateName||candidateFromLetterName(data?.filename);
+  const stem=candidate?safeDownloadName(`${filenameWords(candidate)||candidate} Cover Letter`):safeDownloadName(data?.filename||"Cover Letter").replace(/\.[^.]+$/,"");
   if(data?.source==="ORIGINAL_UPLOAD"){
     let url;try{url=new URL(data.signedUrl);}catch{/* Rejected by metadata validation below. */}
     if(data.kind!=="BASE"||!url||!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/")||!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(data.mimeType))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
@@ -244,13 +253,13 @@ export async function loadApplicationCoverLetterFile(client,baseUrl,applicationI
     if(bytes.byteLength<1||bytes.byteLength>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
     let binary="";for(let offset=0;offset<bytes.length;offset+=32768)binary+=String.fromCharCode(...bytes.subarray(offset,offset+32768));
     const ext={"application/pdf":".pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document":".docx","text/plain":".txt"}[data.mimeType];
-    return{base64:btoa(binary),filename:filename.toLowerCase().endsWith(ext)?filename:`${filename}${ext}`,mimeType:data.mimeType,fileSizeBytes:bytes.byteLength};
+    return{base64:btoa(binary),filename:`${stem}${ext}`,mimeType:data.mimeType,fileSizeBytes:bytes.byteLength};
   }
   const base64=String(data?.contentBase64||"");
   if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
   const fileSizeBytes=Math.floor(base64.length*3/4)-(base64.endsWith("==")?2:base64.endsWith("=")?1:0);
   if(fileSizeBytes<1||fileSizeBytes>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
-  return{base64,filename:/\.pdf$/i.test(filename)?filename:`${filename}.pdf`,mimeType:"application/pdf",fileSizeBytes};
+  return{base64,filename:`${stem}.pdf`,mimeType:"application/pdf",fileSizeBytes};
 }
 export async function copyApplicationCoverLetter(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text),extractText=async(buffer,mimeType)=>(await import("./cover-letter-parser.js")).extractCoverLetterText(buffer,mimeType)){
   const{kind,text}=await getApplicationCoverLetterText(client,baseUrl,applicationId,extractText);
