@@ -33,7 +33,7 @@ function failure(error:any,fallback:string):never{
         ...(q.resumeName?{p_resume_name:q.resumeName}:{}),
         p_category_id:q.categoryId||null,
         p_due_filter:dueFilter,
-        p_sort:q.sort||"updated_desc",
+        p_sort:q.sort||"applied_desc",
         p_creation_batch_id:q.creationBatchId||null,
         p_creation_mode:q.creationMode||"",
         p_screenshot_feedback:q.screenshotFeedback||"",

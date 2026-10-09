@@ -694,7 +694,6 @@ export function ApplicationsPage({
     title: "Applied Dt",
     dataIndex: "applied_at",
     width: 190,
-    sortable: false,
     render: (value) => (value ? formatDate(value) : "—"),
   };
   const screenshotColumn = {
