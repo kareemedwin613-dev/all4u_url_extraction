@@ -1,0 +1,228 @@
+-- v3.168 Desired salary on every application card in the extension.
+--
+-- The card shows the salary to ask for, as Autofill fills it: the midpoint of the JD salary range; when the JD has no
+-- range, the Application Guide's standard salary. The profile Resume's verified desired-salary answer is returned too
+-- (the fallback when the Guide has no standard). Same as v3.131 plus the salary columns.
+
+create or replace function public.list_my_applications_v20(
+  p_status text default '',
+  p_sort text default 'updated_desc',
+  p_limit integer default 100,
+  p_resume_id uuid default null,
+  p_screenshot_feedback text default ''
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_status text := upper(btrim(coalesce(p_status, '')));
+  v_sort text := lower(btrim(coalesce(p_sort, 'updated_desc')));
+  v_limit integer := least(greatest(coalesce(p_limit, 100), 1), 500);
+  v_feedback text := upper(btrim(coalesce(p_screenshot_feedback, '')));
+  v_items jsonb;
+  v_resumes jsonb;
+  v_total bigint;
+begin
+  if not (public.is_active_user(auth.uid()) and public.has_role('APPLIER', auth.uid())) then
+    raise exception 'APPLICATION_ACCESS_DENIED: Active Applier access is required.' using errcode = '42501';
+  end if;
+  if v_status <> '' and v_status not in ('ASSIGNED', 'APPLIED', 'BLOCKED') then
+    raise exception 'APPLICATION_INVALID_STATUS: Select a valid Application status.' using errcode = '22023';
+  end if;
+  if v_feedback <> '' and v_feedback not in ('HAS_FEEDBACK', 'NO_FEEDBACK') then
+    raise exception 'APPLICATION_INVALID_SCREENSHOT_FEEDBACK_FILTER: Select a valid screenshot feedback filter.' using errcode = '22023';
+  end if;
+  if v_sort not in (
+    'updated_desc', 'updated_asc', 'company_asc', 'company_desc',
+    'title_asc', 'title_desc', 'captured_asc', 'captured_desc', 'assigned_asc'
+  ) then
+    raise exception 'APPLICATION_INVALID_SORT: Select a valid sort.' using errcode = '22023';
+  end if;
+
+  with visible as (
+    select
+      a.id,
+      a.application_number,
+      a.resume_id,
+      coalesce(r.parent_resume_id, r.id) profile_resume_id,
+      a.status,
+      a.priority,
+      a.due_at,
+      a.application_url,
+      a.notes,
+      a.screenshot_feedback,
+      a.screenshot_feedback_at,
+      a.created_at,
+      a.updated_at,
+      j.company,
+      j.job_title,
+      j.source_url,
+      j.created_at captured_at,
+      coalesce(
+        (
+          select max(h.created_at)
+          from public.application_assignment_history h
+          where h.application_id = a.id
+            and h.new_assignee_id = auth.uid()
+        ),
+        a.created_at
+      ) assigned_at,
+      c.name category_name,
+      public.resume_primary_category_ids(r.id) resume_category_ids,
+      public.resume_primary_category_names(r.id) resume_category_names,
+      r.resume_name,
+      r.candidate_name,
+      r.resume_number,
+      r.resume_type,
+      r.original_filename,
+      r.mime_type,
+      profile_r.resume_name profile_resume_name,
+      profile_r.candidate_name profile_candidate_name,
+      profile_r.resume_number profile_resume_number,
+      -- Desired salary on the card: the JD range (the extension shows its midpoint), else the Application Guide's
+      -- standard, else the profile's verified desired-salary answer (when the profile lets Autofill use reviewed answers).
+      j.salary_min,
+      j.salary_max,
+      j.salary_currency,
+      j.salary_period,
+      (
+        select x.answer_value #>> '{}'
+        from public.resume_application_answers x
+        where x.resume_id = profile_r.id
+          and x.answer_key = 'desired_salary'
+          and x.active
+          and x.review_status = 'VERIFIED'
+          and coalesce((profile_r.autofill_preferences->>'allowReviewedAnswers')::boolean, false)
+        limit 1
+      ) resume_desired_salary,
+      (
+        select g.autofill_value
+        from public.application_guide_entries g
+        where g.status = 'PUBLISHED'
+          and g.autofill_mode = 'DERIVED'
+          and g.autofill_source = 'salaryExpectation'
+        order by g.sort_order
+        limit 1
+      ) standard_desired_salary,
+      (
+        select count(*)
+        from public.application_screenshots s
+        where s.application_id = a.id
+      )::integer screenshot_count
+    from public.applications a
+    join public.job_descriptions j on j.id = a.job_description_id
+    join public.resumes r on r.id = a.resume_id
+    join public.resumes profile_r on profile_r.id = coalesce(r.parent_resume_id, r.id)
+    left join public.categories c on c.id = j.category_id
+    where a.assigned_to = auth.uid()
+      and a.status in ('ASSIGNED', 'IN_PROGRESS', 'BLOCKED', 'APPLIED')
+      and (
+        v_status = ''
+        or (v_status = 'ASSIGNED' and a.status in ('ASSIGNED', 'IN_PROGRESS'))
+        or (v_status = 'APPLIED' and a.status = 'APPLIED')
+        or (v_status = 'BLOCKED' and a.status = 'BLOCKED')
+      )
+      and (
+        v_feedback = ''
+        or (v_feedback = 'HAS_FEEDBACK' and nullif(btrim(a.screenshot_feedback), '') is not null)
+        or (v_feedback = 'NO_FEEDBACK' and nullif(btrim(a.screenshot_feedback), '') is null)
+      )
+  ),
+  resume_options as (
+    select
+      profile_resume_id resume_id,
+      profile_resume_name resume_name,
+      profile_resume_number resume_number,
+      profile_candidate_name candidate_name,
+      count(*)::integer application_count
+    from visible
+    where profile_resume_id is not null
+      and nullif(btrim(profile_resume_name), '') is not null
+    group by profile_resume_id, profile_resume_name, profile_resume_number, profile_candidate_name
+    order by profile_candidate_name, profile_resume_name, profile_resume_number, profile_resume_id
+  ),
+  filtered as (
+    select *
+    from visible
+    where p_resume_id is null
+      or profile_resume_id = p_resume_id
+      or resume_id = p_resume_id
+  ),
+  counted as (
+    select count(*)::bigint total from filtered
+  ),
+  paged as (
+    select *
+    from filtered
+    order by
+      case
+        when v_sort <> 'assigned_asc' then 0
+        when status in ('ASSIGNED', 'IN_PROGRESS') then 0
+        when status = 'BLOCKED' then 1
+        else 2
+      end,
+      case when v_sort = 'assigned_asc' then assigned_at end asc,
+      case when v_sort = 'updated_desc' then updated_at end desc,
+      case when v_sort = 'updated_asc' then updated_at end asc,
+      case when v_sort = 'company_asc' then company end asc,
+      case when v_sort = 'company_desc' then company end desc,
+      case when v_sort = 'title_asc' then job_title end asc,
+      case when v_sort = 'title_desc' then job_title end desc,
+      case when v_sort = 'captured_asc' then captured_at end asc,
+      case when v_sort = 'captured_desc' then captured_at end desc,
+      id
+    limit v_limit
+  )
+  select
+    coalesce((
+      select jsonb_agg(
+        to_jsonb(paged)
+        order by
+          case
+            when v_sort <> 'assigned_asc' then 0
+            when paged.status in ('ASSIGNED', 'IN_PROGRESS') then 0
+            when paged.status = 'BLOCKED' then 1
+            else 2
+          end,
+          case when v_sort = 'assigned_asc' then paged.assigned_at end asc,
+          case when v_sort = 'updated_desc' then paged.updated_at end desc,
+          case when v_sort = 'updated_asc' then paged.updated_at end asc,
+          case when v_sort = 'company_asc' then paged.company end asc,
+          case when v_sort = 'company_desc' then paged.company end desc,
+          case when v_sort = 'title_asc' then paged.job_title end asc,
+          case when v_sort = 'title_desc' then paged.job_title end desc,
+          case when v_sort = 'captured_asc' then paged.captured_at end asc,
+          case when v_sort = 'captured_desc' then paged.captured_at end desc,
+          paged.id
+      )
+      from paged
+    ), '[]'::jsonb),
+    coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', resume_id,
+          'resumeName', resume_name,
+          'resumeNumber', resume_number,
+          'candidateName', candidate_name,
+          'applicationCount', application_count
+        )
+        order by candidate_name, resume_name, resume_number, resume_id
+      )
+      from resume_options
+    ), '[]'::jsonb),
+    coalesce((select total from counted), 0)
+  into v_items, v_resumes, v_total;
+
+  return jsonb_build_object(
+    'items', v_items,
+    'resumes', v_resumes,
+    'total', v_total,
+    'limit', v_limit
+  );
+end;
+$$;
+
+notify pgrst, 'reload schema';

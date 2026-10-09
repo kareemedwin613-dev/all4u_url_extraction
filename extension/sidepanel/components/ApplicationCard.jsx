@@ -2,6 +2,7 @@ import React from "react";
 import { Badge, Button, Card, Flex, Space, Tag, Tooltip, Typography } from "antd";
 import { CopyOutlined, DownloadOutlined, PaperClipOutlined, ThunderboltOutlined, WarningOutlined } from "@ant-design/icons";
 import { normalizeUrl } from "../../shared/normalization.js";
+import { desiredSalary } from "../desired-salary.js";
 
 const { Text } = Typography;
 
@@ -33,6 +34,7 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
   const isTailored = application.resume_type === "TAILORED";
   const extensionEligible = Boolean(jobUrl && application.resume_id && !["APPLIED","SCREENING","INTERVIEW_SCHEDULED","OFFER_RECEIVED","REJECTED","WITHDRAWN","CLOSED","CANCELLED"].includes(application.status));
   const actionTitle = actionsEnabled ? undefined : "Actions are available on the first application.";
+  const salary = desiredSalary(application);
   return (
     <Card
       size="small"
@@ -95,6 +97,17 @@ export function ApplicationCard({ application, onUpdateStatus, onExtensionAction
           Captured {application.captured_at ? new Date(application.captured_at).toLocaleDateString() : "—"}
         </Text>
       </div>
+      {salary && (
+        <div className="application-desired-salary">
+          <Tooltip title={salary.detail}>
+            <span>
+              <Text style={{ fontSize: 12 }}>Desired salary: </Text>
+              <Text strong style={{ fontSize: 12 }} copyable={{ text: salary.amount, tooltips: ["Copy amount", "Copied"] }}>{salary.text}</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}> · {salary.source}</Text>
+            </span>
+          </Tooltip>
+        </div>
+      )}
       <Space style={{ marginTop: 8 }} wrap>
         {jobUrl && (
           <a href={jobUrl} target="_blank" rel="noopener noreferrer">
