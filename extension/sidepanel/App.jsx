@@ -88,9 +88,10 @@ async function attachSessionResume(sessionId) {
 }
 
 // The Application's cover letter file into the page's cover letter upload. Never throws: the outcome is reported.
-async function attachSessionCoverLetter(client, baseUrl, sessionData) {
+async function attachSessionCoverLetter(client, baseUrl, sessionData, candidateName = "") {
   try {
-    const file = await loadApplicationCoverLetterFile(client, baseUrl, sessionData.applicationId);
+    // The employer sees "<Candidate> Cover Letter.<ext>", like the attached Resume.
+    const file = await loadApplicationCoverLetterFile(client, baseUrl, sessionData.applicationId, undefined, { candidateName });
     const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_COVER_LETTER, payload: { sessionId: sessionData.id, file } });
     if (!response?.ok) return { status: "FAILED", code: response?.error?.code || "COVER_LETTER_ATTACHMENT_FAILED", message: response?.error?.message || "The cover letter could not be attached." };
     return response.data;
@@ -437,7 +438,9 @@ export function App() {
       let coverLetterAttachment = null;
       if (prepared.data.coverLetterUpload && !reviewRequired) {
         tabProgress(id, 3, steps, "Attaching cover letter");
-        coverLetterAttachment = await attachSessionCoverLetter(client, backendBaseUrl, sessionData);
+        const values = autofillValues(autofillContext);
+        const candidateName = values["candidate.fullName"] || [values["candidate.firstName"], values["candidate.lastName"]].filter(Boolean).join(" ");
+        coverLetterAttachment = await attachSessionCoverLetter(client, backendBaseUrl, sessionData, candidateName);
       }
       let autofillFields = (prepared.data.fields || []).map((field) => aiMatched.has(field.fieldId) ? { ...field, aiMatched: true } : field);
       let unresolvedAutofillQuestions = prepared.data.unresolved || [];

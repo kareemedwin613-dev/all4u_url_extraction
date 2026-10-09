@@ -32,19 +32,30 @@ export async function downloadCoverLetterPdf(client,{id,apiBaseUrl}){
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/resumes/${encodeURIComponent(id)}/cover-letter/pdf`,timeoutMs:30000});
   return saveBase64Pdf(payload.data);
 }
+// Named like the extension's Resume download: "<Candidate> Cover Letter - <Company>.<ext>", or "- App <n>" when the
+// company is unknown. The API's generated letters are named "<Candidate> Cover Letter - App <n>.pdf".
+const filenameWords=(value)=>String(value||"").normalize("NFKC").replace(/[^A-Za-z0-9 .-]+/g," ").replace(/\s+/g," ").replace(/^[\s.-]+|[\s.-]+$/g,"").slice(0,60).trim();
+const COVER_LETTER_EXTENSIONS={"application/pdf":".pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document":".docx","text/plain":".txt"};
+export function coverLetterDownloadName({candidateName,companyName,applicationNumber,mimeType,filename}={}){
+  const candidate=filenameWords(candidateName)||filenameWords(String(filename||"").match(/^(.+?)\s+Cover Letter\b/i)?.[1]);
+  const company=filenameWords(companyName),number=Number(applicationNumber);
+  const suffix=company?` - ${company}`:Number.isSafeInteger(number)&&number>0?` - App ${number}`:"";
+  return`${candidate?`${candidate} Cover Letter`:"Cover Letter"}${suffix}${COVER_LETTER_EXTENSIONS[mimeType]||".pdf"}`;
+}
 // Original uploads are downloaded unchanged; tailored PDFs retain their existing rendering path.
-export async function downloadApplicationCoverLetterPdf(client,{id,apiBaseUrl}){
+export async function downloadApplicationCoverLetterPdf(client,{id,apiBaseUrl,companyName,candidateName}){
   if(!id)throw{code:"VALIDATION_ERROR",message:"The Application reference is invalid."};
   const{payload}=await authenticatedApiRequest(client,{baseUrl:apiBaseUrl,path:`/api/v1/applications/${encodeURIComponent(id)}/cover-letter`,timeoutMs:30000});
   const data=payload.data;
+  const filename=coverLetterDownloadName({candidateName,companyName,applicationNumber:data.applicationNumber,mimeType:data.source==="ORIGINAL_UPLOAD"?data.mimeType:"application/pdf",filename:data.filename});
   if(data.source==="ORIGINAL_UPLOAD"){
     const url=new URL(data.signedUrl);
     if(!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/"))throw new Error("The original cover letter download URL is invalid.");
     const response=await fetch(url,{credentials:"omit",signal:AbortSignal.timeout(30000)});
     if(!response.ok)throw new Error("The original cover letter could not be downloaded. Please try again.");
-    return{filename:saveBlob(await response.blob(),data.filename),kind:data.kind};
+    return{filename:saveBlob(await response.blob(),filename),kind:data.kind};
   }
-  return {filename:saveBase64Pdf(data),kind:data.kind};
+  return {filename:saveBase64Pdf({...data,filename}),kind:data.kind};
 }
 function saveBase64Pdf({filename,mimeType,contentBase64}){
   const bytes=Uint8Array.from(atob(contentBase64),character=>character.charCodeAt(0));

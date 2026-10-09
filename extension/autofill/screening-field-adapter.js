@@ -14,7 +14,7 @@ const KEY_TYPES = Object.freeze({
   gender_identity: "TEXT", race_ethnicity: "TEXT", veteran_status: "TEXT",
 });
 const CONTROL_TYPES = new Set(["text", "search", "number", "date", "radio"]);
-const PROHIBITED_QUESTION = /\b(race|racial|ethnicity|ethnic|gender|sex|sexual|pronouns?|religion|religious|disability|disabled|medical|veteran|military|criminal|conviction|arrest|felony|misdemeanor|marital|pregnan\w*|genetic|transgender|lgbtq?\w*|orientation|accommodation|age|age range|date of birth|birth\s?date|how old)\b/i;
+const PROHIBITED_QUESTION = /\b(race|racial|ethnicity|ethnic|gender|sex|sexual|pronouns?|religion|religious|disability|disabled|medical|veteran|military|criminal|conviction|arrest|felony|misdemeanor|marital|pregnan\w*|genetic|transgender|lgbtq?\w*|orientation|accommodation|age|age range|date of birth|birth\s?date|how old|races|hispanic|latin[oax])\b/i;
 const LEGAL_OR_ATTESTATION = /\b(certif(?:y|ication)|attest|declare|under penalty|terms and conditions|arbitration|background check|drug (?:test|screen)|restrictive covenant|non[- ]?compete|non[- ]?solicit|conflict of interest|government official|export control|itar|security clearance|public trust)\b/i;
 const LONG_FORM = /\b(cover letter|why (?:do|would|are)|explain|describe|additional information|anything else|essay|statement)\b/i;
 

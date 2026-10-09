@@ -80,3 +80,16 @@ test("the cover letter file is loaded for attaching: a generated PDF as is, an o
   data.signedUrl = "https://evil.example.com/storage/v1/object/sign/other/x.docx";
   await assert.rejects(() => loadApplicationCoverLetterFile(client, "https://api.example.com", applicationId, async () => assert.fail("must not fetch")), /metadata is invalid/);
 });
+
+test("the attached cover letter is named like the attached Resume: candidate and Cover Letter, nothing internal", async (t) => {
+  const { loadApplicationCoverLetterFile } = await import("../extension/services/application-service.js");
+  const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; });
+  const client = { auth: { getSession: async () => ({ data: { session: { access_token: "jwt" } } }) } };
+  const data = { source: "ORIGINAL_UPLOAD", kind: "BASE", filename: "jane_cl_final_v3.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    signedUrl: "https://project.supabase.co/storage/v1/object/sign/cover-letters/owner/x.docx?token=t", applicationNumber: 7 };
+  globalThis.fetch = async () => new Response(JSON.stringify({ data }), { status: 200 });
+  const file = await loadApplicationCoverLetterFile(client, "https://api.example.com", "00000000-0000-4000-8000-000000000021", async () => new Response("hi"), { candidateName: "Jane Doe" });
+  assert.equal(file.filename, "Jane Doe Cover Letter.docx");
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: { kind: "TAILORED", filename: "Jane Doe Cover Letter - App 7.pdf", mimeType: "application/pdf", contentBase64: "JVBERi0xLjQ=" } }), { status: 200 });
+  assert.equal((await loadApplicationCoverLetterFile(client, "https://api.example.com", "00000000-0000-4000-8000-000000000021")).filename, "Jane Doe Cover Letter.pdf", "the internal Application number is dropped");
+});
