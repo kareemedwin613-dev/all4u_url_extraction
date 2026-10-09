@@ -24,7 +24,7 @@ export class ApplicationListQueryDto{
   @IsOptional()@IsUUID("4")secondaryReviewerId?:string;
   @IsOptional()@IsISO8601()appliedFrom?:string;
   @IsOptional()@IsISO8601()appliedTo?:string;
-  @IsOptional()@IsIn(["updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","number_asc","number_desc","priority_asc","priority_desc","due_asc","due_desc","captured_asc","captured_desc","category_asc","category_desc","assignee_asc","assignee_desc","batch_asc","batch_desc"])sort="updated_desc";
+  @IsOptional()@IsIn(["applied_desc","applied_asc","updated_desc","updated_asc","company_asc","company_desc","title_asc","title_desc","number_asc","number_desc","priority_asc","priority_desc","due_asc","due_desc","captured_asc","captured_desc","category_asc","category_desc","assignee_asc","assignee_desc","batch_asc","batch_desc"])sort="applied_desc";
   @IsOptional()@Type(()=>Number)@IsInt()@Min(1)page=1;
   @IsOptional()@Type(()=>Number)@IsInt()@IsIn([25,50,100,500,1000,5000])pageSize=25;
 }

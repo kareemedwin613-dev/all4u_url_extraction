@@ -183,6 +183,9 @@ test("Application list truncates only Company and Job Title with ellipsis", asyn
   assert.match(source, /categoryTagColor\(categories/);
   assert.match(source, /applicationsScrollX = manager \? 3216 : 2700/);
   assert.match(source, /title: "Applied Dt"/);
+  const appliedColumn = source.slice(source.indexOf("const appliedColumn ="), source.indexOf("const screenshotColumn ="));
+  assert.match(appliedColumn, /dataIndex: "applied_at"/);
+  assert.doesNotMatch(appliedColumn, /sortable:\s*false/);
   assert.match(source, /WarningOutlined/);
   assert.match(source, /screenshot_feedback/);
   assert.match(source, /Feedback/);
