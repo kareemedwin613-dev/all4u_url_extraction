@@ -7,7 +7,8 @@ function detectAutofillFields(payload) {
   const selected=selectJobSiteAdapter(location.href);
   const applicationAnswers=Object.freeze((payload?.applicationAnswers||[]).map(answer=>Object.freeze({...answer,questionPatterns:Object.freeze([...(answer.questionPatterns||[])])})));
   const guideEntries=Object.freeze((payload?.guideEntries||[]).map(entry=>Object.freeze({...entry,patterns:Object.freeze([...(entry.patterns||[])])})));
-  const context=Object.freeze({root:document,availableKeys:Object.freeze([...(payload?.availableKeys||[])]),applicationAnswers,guideEntries});
+  const personalWordings=Object.freeze(Object.fromEntries(Object.entries(payload?.personalWordings&&typeof payload.personalWordings==="object"?payload.personalWordings:{}).map(([key,list])=>[key,Object.freeze([...(Array.isArray(list)?list:[])])])));
+  const context=Object.freeze({root:document,availableKeys:Object.freeze([...(payload?.availableKeys||[])]),applicationAnswers,guideEntries,personalWordings});
   const result=selected.adapter.detectFields(context);
   // Whether the page has a cover letter upload, so the panel fetches the cover letter file only when it can be attached.
   const coverLetterUpload=(selected.adapter.detectCoverLetterField?.({root:document})?.confidence??-1)>=70;

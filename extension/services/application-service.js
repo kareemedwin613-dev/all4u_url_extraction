@@ -369,7 +369,7 @@ export async function recognizeAutofillQuestions(client,baseUrl,sessionId,unreso
   const asked=(unresolved||[]).filter(item=>item?.reason==="NO_MATCHING_ANSWER"&&typeof item.question==="string"&&item.question.trim().length>=2).slice(0,30)
     .map(item=>({question:item.question.slice(0,300),controlType:item.controlType,options:(Array.isArray(item.options)?item.options:[]).slice(0,25).map(option=>String(option).slice(0,120))}));
   if(!asked.length)return null;
-  try{const data=await call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-ai/recognize`,{method:"POST",body:{questions:asked}});return{asked,results:Array.isArray(data?.results)?data.results:[],ai:data?.ai||""};}
+  try{const data=await call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-ai/recognize`,{method:"POST",body:{questions:asked}});return{asked,results:Array.isArray(data?.results)?data.results:[],ai:data?.ai||"",aiLevel:["OFF","MATCH","DRAFT"].includes(data?.aiLevel)?data.aiLevel:null};}
   catch{return null;}
 }
 

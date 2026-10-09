@@ -56,7 +56,7 @@ test("the side panel drafts only open-ended questions and never in recovered or 
   const app = read("../extension/sidepanel/App.jsx");
   assert.match(app, /if \(item\.controlType === "textarea"\) return !\["SAME_FOR_EVERYONE", "NOT_A_QUESTION"\]\.includes\(kind\);/);
   assert.match(app, /return item\.controlType === "input" && kind === "ESSAY";/);
-  assert.match(app, /const draftable = \(recovered \|\| reviewRequired\) \? \[\] :/);
+  assert.match(app, /const draftable = \(recovered \|\| reviewRequired \|\| !mayDraft\) \? \[\] :/);
   assert.match(app, /value: field\.draftValue \?\? autofillValue\(autofillContext, field\)/);
   const worker = read("../extension/background/service-worker.js");
   assert.match(worker, /if\(\/\^draft\\\.\[A-Za-z0-9_-\]\{1,60\}\$\/\.test\(item\.key\)&&typeof item\.value==="string"&&item\.value\.length<=6000\)/);

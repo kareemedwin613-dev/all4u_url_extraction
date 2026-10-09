@@ -6,7 +6,7 @@ import { RequireRoles } from "../auth/require-roles.decorator.js";
 import { RolesGuard } from "../auth/roles.guard.js";
 import type { ApiRequest } from "../common/types/request.js";
 import { DtoValidationPipe } from "../common/validation/dto-validation.pipe.js";
-import { DraftAutofillAnswersDto, RecognizeAutofillQuestionsDto, SaveAutofillAiSettingsDto, TestAutofillAiModelDto } from "./autofill-ai.dto.js";
+import { DraftAutofillAnswersDto, RecognizeAutofillQuestionsDto, SaveAutofillAiSettingsDto, SetAutofillAiAccessDto, TestAutofillAiModelDto } from "./autofill-ai.dto.js";
 import { AutofillAiService } from "./autofill-ai.service.js";
 
 @ApiTags("Extension sessions")
@@ -53,6 +53,23 @@ export class AutofillAiUsageController {
   async usage(@Req() request: ApiRequest, @Query("from") from?: string, @Query("to") to?: string) {
     const instant = (value?: string) => value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : null;
     return { data: await this.service.usage(request.user!, instant(from), instant(to)), requestId: request.requestId };
+  }
+
+  @Get("appliers")
+  @ApiOperation({ summary: "Each person's AI Autofill access (Off, Match, Draft) and their AI usage in the period" })
+  async appliers(@Req() request: ApiRequest, @Query("from") from?: string, @Query("to") to?: string) {
+    const instant = (value?: string) => value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : null;
+    return { data: await this.service.appliers(request.user!, instant(from), instant(to)), requestId: request.requestId };
+  }
+
+  @Put("appliers/:userId")
+  @ApiOperation({ summary: "Give one person AI Autofill access: OFF, MATCH (match questions) or DRAFT (also draft answers)" })
+  async setAccess(
+    @Req() request: ApiRequest,
+    @Param("userId", new ParseUUIDPipe()) userId: string,
+    @Body(new DtoValidationPipe(SetAutofillAiAccessDto)) body: SetAutofillAiAccessDto,
+  ) {
+    return { data: await this.service.setAccess(request.user!, userId, body.level), requestId: request.requestId };
   }
 
   @Get("settings")

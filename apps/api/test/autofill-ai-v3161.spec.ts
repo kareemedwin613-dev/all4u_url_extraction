@@ -13,7 +13,7 @@ Object.assign(process.env, {
 });
 const { resetEnvironmentForTests } = await import("../src/config/environment.js");
 const { AutofillAiService, resolveSettings } = await import("../src/autofill-ai/autofill-ai.service.js");
-const { RecognizeAutofillQuestionsDto, SaveAutofillAiSettingsDto } = await import("../src/autofill-ai/autofill-ai.dto.js");
+const { RecognizeAutofillQuestionsDto, SaveAutofillAiSettingsDto, SetAutofillAiAccessDto } = await import("../src/autofill-ai/autofill-ai.dto.js");
 const { costMicroUsd } = await import("../src/autofill-ai/model-catalog.js");
 
 const user = { id: "10000000-0000-4000-8000-000000000001", token: "jwt", email: "a@example.com" } as any;
@@ -29,12 +29,12 @@ function modelResponse(url: string, model: any, usage = { input: 1000, cached: 0
     : { status: "completed", usage: { input_tokens: usage.input, output_tokens: usage.output, input_tokens_details: { cached_tokens: usage.cached } }, output: [{ type: "message", content: [{ type: "output_text", text }] }] };
 }
 
-function harness({ hits = [] as any[], monthCostMicroUsd = 0, model = { results: [] as any[] }, status = 200, settings = null as any, usage = undefined as any, rpcData = {} as Record<string, any> } = {}) {
+function harness({ hits = [] as any[], monthCostMicroUsd = 0, aiLevel = "DRAFT" as string | undefined, model = { results: [] as any[] } as any, status = 200, settings = null as any, usage = undefined as any, rpcData = {} as Record<string, any> } = {}) {
   const calls: any = { rpc: [], model: [], save: [] };
   const supabase = { forUser: (token: string) => ({ rpc: async (name: string, args: any) => {
     calls.rpc.push({ token, name, args });
     if (name in rpcData) return rpcData[name];
-    return { data: { hits, settings, targets: [{ key: guide, question: "Are you legally authorized to work in the US?", wordings: ["authorized to work"] }], monthCostMicroUsd }, error: null };
+    return { data: { hits, settings, aiLevel, targets: [{ key: guide, question: "Are you legally authorized to work in the US?", wordings: ["authorized to work"] }], monthCostMicroUsd }, error: null };
   } }) } as any;
   const fetchImpl = (async (url: string, init: any) => {
     calls.model.push({ url, body: JSON.parse(init.body), auth: init.headers.Authorization });
@@ -233,7 +233,7 @@ test("v3.164 drafts open-ended answers with the drafting model from the session'
   env({ AUTOFILL_AI_ENABLED: "true", SUPABASE_SECRET_KEY: "server-secret-test-key-0000000", XAI_API_KEY: "xai-test-key-00000000000000000" });
   const context = { data: {
     resume: { summary: "Engineer. Email jane@x.com, call 555-111-2222, https://linkedin.com/in/jane", skills: "Java, AWS", experience: [{ jobTitle: "Senior Engineer", company: "Initech", details: "Led payments." }], education: [] },
-    job: { company: "Acme", title: "Senior Engineer", description: "Payments platform." }, settings: xaiSettings, monthCostMicroUsd: 0,
+    job: { company: "Acme", title: "Senior Engineer", description: "Payments platform." }, settings: xaiSettings, monthCostMicroUsd: 0, aiLevel: "DRAFT",
   }, error: null };
   const answers = { answers: [
     { index: 0, answer: "I want to build Acme's payments platform because I led payments at Initech.\nI love it.", skip: false },
@@ -260,10 +260,64 @@ test("v3.164 drafts open-ended answers with the drafting model from the session'
 });
 
 test("v3.164 drafting respects the off switch and the monthly cap", async () => {
-  const base = { resume: {}, job: {}, monthCostMicroUsd: 0 };
+  const base = { resume: {}, job: {}, monthCostMicroUsd: 0, aiLevel: "DRAFT" };
   let h = harness({ rpcData: { get_autofill_draft_context_v3164: { data: { ...base, settings: { ...xaiSettings, enabled: false } }, error: null } } });
   assert.equal((await h.service.draft(user, session, { questions: [{ question: "Why us?", controlType: "textarea" }] } as any)).ai, "DISABLED");
   h = harness({ rpcData: { get_autofill_draft_context_v3164: { data: { ...base, settings: xaiSettings, monthCostMicroUsd: 50_000_000 }, error: null } } });
   assert.equal((await h.service.draft(user, session, { questions: [{ question: "Why us?", controlType: "textarea" }] } as any)).ai, "CAP_REACHED");
   assert.equal(h.calls.model.length, 0);
+});
+
+test("v3.165 AI is off for a person until an Admin gives access; learned wordings still answer", async () => {
+  env({ AUTOFILL_AI_ENABLED: "true", AUTOFILL_AI_PROVIDER: "openai", SUPABASE_SECRET_KEY: "server-secret-test-key-0000000" });
+  for (const level of ["OFF", null]) {
+    const { calls, service } = harness({ aiLevel: level as any, hits: [{ index: 0, targetKey: guide, confidence: 93 }] });
+    const out = await service.recognize(user, session, ask("Known one", "Brand new wording?"));
+    assert.equal(out.ai, "NOT_PERMITTED", `level ${level ?? "missing (database before v3.165)"} means off`);
+    assert.equal(out.aiLevel, "OFF");
+    assert.deepEqual(out.results[0], { index: 0, targetKey: guide, source: "LEARNED", kind: null }, "a learned wording is a lookup, not a model call");
+    assert.equal(calls.model.length, 0);
+    assert.equal(calls.save.length, 0);
+  }
+});
+
+test("v3.165 MATCH asks the model to match questions but never drafts; DRAFT does both", async () => {
+  env({ AUTOFILL_AI_ENABLED: "true", AUTOFILL_AI_PROVIDER: "openai", SUPABASE_SECRET_KEY: "server-secret-test-key-0000000" });
+  const matched = harness({ aiLevel: "MATCH", model: { results: [{ index: 0, target: guide, confidence: 95 }] } });
+  const out = await matched.service.recognize(user, session, ask("Can you work here lawfully?"));
+  assert.equal(out.ai, "USED");
+  assert.equal(out.aiLevel, "MATCH");
+  const context = (aiLevel: string) => ({ data: { resume: {}, job: {}, settings: xaiSettings, monthCostMicroUsd: 0, aiLevel }, error: null });
+  const matchOnly = harness({ rpcData: { get_autofill_draft_context_v3164: context("MATCH") } });
+  const drafted = await matchOnly.service.draft(user, session, { questions: [{ question: "Why us?", controlType: "textarea" }] } as any);
+  assert.equal(drafted.ai, "NOT_PERMITTED");
+  assert.equal(matchOnly.calls.model.length, 0);
+  const off = harness({ rpcData: { get_autofill_draft_context_v3164: context("OFF") } });
+  assert.equal((await off.service.draft(user, session, { questions: [{ question: "Why us?", controlType: "textarea" }] } as any)).ai, "NOT_PERMITTED");
+});
+
+test("v3.165 Admins list each person's access and usage and change one person's level", async () => {
+  const report = { appliers: [{ userId: user.id, name: "Jane", level: "MATCH", aiRuns: 4, costMicroUsd: 1200 }] };
+  const { calls, service } = harness({ rpcData: {
+    autofill_ai_applier_report_v3165: { data: report, error: null },
+    set_autofill_ai_access_v3165: { data: { userId: user.id, level: "DRAFT" }, error: null },
+  } });
+  assert.deepEqual(await service.appliers(user, "2026-10-01T04:00:00.000Z", null), report);
+  assert.deepEqual(calls.rpc.at(-1), { token: "jwt", name: "autofill_ai_applier_report_v3165", args: { p_from: "2026-10-01T04:00:00.000Z", p_to: null } });
+  await service.setAccess(user, user.id, "DRAFT");
+  assert.deepEqual(calls.rpc.at(-1), { token: "jwt", name: "set_autofill_ai_access_v3165", args: { p_user_id: user.id, p_level: "DRAFT" } }, "runs as the Admin; the database checks the role");
+  assert.deepEqual(await validate(plainToInstance(SetAutofillAiAccessDto, { level: "MATCH" })), []);
+  assert.ok((await validate(plainToInstance(SetAutofillAiAccessDto, { level: "ALL" }))).length > 0);
+  const refused = { forUser: () => ({ rpc: async () => ({ data: null, error: { code: "42501", message: "FORBIDDEN: Only an Admin can change AI access." } }) }) } as any;
+  await assert.rejects(new AutofillAiService(refused).setAccess(user, user.id, "DRAFT"), (error: any) => error.getStatus?.() === 403 || error.status === 403);
+});
+
+test("v3.166 the model may match a question to a contact field, which is used and remembered", async () => {
+  env({ AUTOFILL_AI_ENABLED: "true", AUTOFILL_AI_PROVIDER: "openai", SUPABASE_SECRET_KEY: "server-secret-test-key-0000000" });
+  const { calls, service } = harness({ model: { results: [{ index: 0, target: "field.linkedInUrl", confidence: 96 }, { index: 1, target: "field.salary", confidence: 99 }] } });
+  const out = await service.recognize(user, session, ask("Where can we see your professional networking page?", "Made-up field"));
+  const targets = JSON.parse(calls.model[0].body.input).targets.map((target: any) => target.key);
+  assert.ok(targets.includes("field.linkedInUrl") && targets.includes("field.phone"));
+  assert.deepEqual(out.results.map((item: any) => item.targetKey), ["field.linkedInUrl", null], "unknown fields are never used");
+  assert.deepEqual(calls.save[0].args.p_items.map((item: any) => item.targetKey), ["field.linkedInUrl"]);
 });

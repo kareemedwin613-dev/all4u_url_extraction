@@ -3540,6 +3540,7 @@ export function App({ client, apiBaseUrl }) {
         apiBaseUrl={apiBaseUrl}
         id={route.id}
         query={route.query}
+        isAdmin={hasCapability(access, CAPABILITIES.USER_ADMIN)}
       />
     );
   else

@@ -80,7 +80,12 @@ function labelText(element) {
 // "What is your preferred name?" asks for the same thing as "Preferred name": a short question of that form is
 // read as its plain label, so it is not mistaken for a sentence-style screening question.
 const ASK_PREFIX = /^\s*(?:what\s+is|what's|please\s+(?:enter|provide)|enter|provide)\s+your\s+/i;
+// "LinkedIn Profile: Please provide the URL to your professional profile" names the field before the colon and
+// gives an instruction after it. Only an instruction counts, never a question ("Location: are you open to relocating?").
+const LABEL_THEN_INSTRUCTION = /^\s*([^:?]{2,40}?)\s*:\s*(?:please\s+|kindly\s+)?(?:provide|enter|include|add|paste|share|type|insert|list|give|e\.g\.|for\s+example|optional|required)\b/i;
 function plainLabel(text) {
+  const headed = String(text || "").match(LABEL_THEN_INSTRUCTION);
+  if (headed && clean(headed[1]).split(" ").length <= 4) return clean(headed[1]);
   const stripped = clean(String(text || "").replace(ASK_PREFIX, "").replace(/[?*:\s]+$/, ""));
   return stripped !== clean(text) && stripped && stripped.split(" ").length <= 4 ? stripped : clean(text);
 }
@@ -157,8 +162,23 @@ function indexStructured(entries) {
   }
 }
 
+// Employer wordings learned for contact fields (from AI recognition or an Admin's correction), compared without
+// case, punctuation or a trailing "*".
+const wordingKey = (value) => clean(String(value ?? "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " "));
+function learnedKey(element, wordings) {
+  const label = wordingKey(labelText(element));
+  if (!label) return null;
+  for (const [key, list] of Object.entries(wordings || {})) {
+    for (const wording of Array.isArray(list) ? list : []) {
+      const wanted = wordingKey(wording);
+      if (wanted && (wanted === label || (wanted.split(" ").length >= 3 && (label.includes(wanted) || (label.split(" ").length >= 3 && wanted.includes(label)))))) return key;
+    }
+  }
+  return null;
+}
+
 // Every plausible (element, key) pair before arbitration; one best key per element.
-export function personalFieldCandidates(root = document, availableKeys = FIELD_RULES.map((rule) => rule.key)) {
+export function personalFieldCandidates(root = document, availableKeys = FIELD_RULES.map((rule) => rule.key), learnedWordings = {}) {
   const allowedKeys = new Set(availableKeys), candidates = [], structured = [];
   for (const element of root.querySelectorAll("input,select,textarea")) {
     if (!allowed(element)) continue;
@@ -171,6 +191,10 @@ export function personalFieldCandidates(root = document, availableKeys = FIELD_R
       // Inside an employment or education entry only the autocomplete attribute can claim a contact field.
       const confidence = section.kind && !rule.autocomplete.includes(normalized(element.getAttribute?.("autocomplete")).split(" ").pop()) ? 0 : scorePersonalField(element, rule);
       if (confidence >= 70) matches.push({ key: rule.key, confidence });
+    }
+    const learned = section.kind ? null : learnedKey(element, learnedWordings);
+    if (learned && allowedKeys.has(learned) && !matches.some((match) => match.key === learned && match.confidence >= 95)) {
+      matches.splice(0, matches.length, ...matches.filter((match) => match.key !== learned), { key: learned, confidence: 95 });
     }
     matches.sort((a, b) => b.confidence - a.confidence);
     const best = matches[0] || null;

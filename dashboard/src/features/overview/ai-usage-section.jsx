@@ -7,6 +7,7 @@ import { formatOverviewDate } from "./overview-date.js";
 import { OverviewChartCard, OverviewKpiCard, OverviewKpiGrid, OverviewSection } from "./overview-ui.jsx";
 import { formatUsd, summarizeAiUsage } from "./ai-usage.js";
 import { AiSettingsModal } from "./ai-settings-modal.jsx";
+import { AiApplierAccessCard } from "./ai-applier-access.jsx";
 
 const { Text } = Typography;
 const STATUS = { ON: { color: "green", label: "On" }, OFF: { color: "default", label: "Off" }, NO_KEY: { color: "orange", label: "On, but the provider key is missing" } };
@@ -30,6 +31,7 @@ export function AiUsageSection({ client, apiBaseUrl, dateRange, dateLabel, overv
       {error ? <Alert type="warning" showIcon message="AI usage is not available yet" description={error} style={{ marginBottom: 16 }} />
         : !summary ? <Spin style={{ display: "block", margin: "16px 0" }} />
         : <AiUsageBody summary={summary} />}
+      <AiApplierAccessCard client={client} apiBaseUrl={apiBaseUrl} dateRange={dateRange} dateLabel={dateLabel} refresh={overviewRefresh + saved} globallyOn={!summary || summary.status !== "OFF"} />
       <AiSettingsModal client={client} apiBaseUrl={apiBaseUrl} open={configuring} onClose={() => setConfiguring(false)} onSaved={() => setSaved((value) => value + 1)} />
     </OverviewSection>
   );

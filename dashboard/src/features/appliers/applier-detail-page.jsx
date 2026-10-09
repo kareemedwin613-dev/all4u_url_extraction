@@ -38,6 +38,7 @@ import {
   formatActivityLogDetail,
 } from "../../services/activity-log-ui.js";
 import { loadApplierActivity, loadApplierDetail } from "./applier-detail-service.js";
+import { ApplierAiCard } from "../overview/ai-applier-access.jsx";
 
 const { Text, Title } = Typography;
 
@@ -55,7 +56,7 @@ function profileLabel(row) {
   return `${name}${candidate}${number}`;
 }
 
-export function ApplierDetailPage({ client, apiBaseUrl, id, query = "" }) {
+export function ApplierDetailPage({ client, apiBaseUrl, id, query = "", isAdmin = false }) {
   const period = useMemo(() => periodFromFilterQuery(query), [query]);
   const setPeriod = value => navigate(filterHref(`#/appliers/${id}`, new URLSearchParams({ window: value.window, from: value.from, to: value.to }).toString()));
   const [payload, setPayload] = useState(null);
@@ -352,6 +353,9 @@ export function ApplierDetailPage({ client, apiBaseUrl, id, query = "" }) {
             <Text type="secondary">No Resume profiles are assigned yet.</Text>
           )}
         </Card>
+
+        {/* AI access and usage are Admin-only. */}
+        {isAdmin ? <ApplierAiCard client={client} apiBaseUrl={apiBaseUrl} userId={id} dateRange={range} dateLabel={period.label} /> : null}
       </div>
 
       <Card

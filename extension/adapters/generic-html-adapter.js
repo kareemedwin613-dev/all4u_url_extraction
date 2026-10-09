@@ -31,8 +31,8 @@ export class GenericHtmlAdapter extends BaseAtsAdapter{
  constructor(options={}){super({id:"generic-html",version:"2.1.0",label:"Generic HTML",tier:"GENERIC",...options});}
  matches(){return true;}
  detectResumeField({root=document}={}){const candidate=detectResumeUploadInputs(root)[0];return candidate?{confidence:Math.min(100,candidate.score),controlType:"file"}:null;}
- detectFields({root=document,availableKeys=[],applicationAnswers=[],guideEntries=[]}={}){
-  const winners=arbitrateAutofillCandidates({personal:personalFieldCandidates(root,availableKeys),screening:screeningFieldCandidates(root,applicationAnswers),guide:guideFieldCandidates(root,guideEntries),evidence:evidenceFieldCandidates(root)});
+ detectFields({root=document,availableKeys=[],applicationAnswers=[],guideEntries=[],personalWordings={}}={}){
+  const winners=arbitrateAutofillCandidates({personal:personalFieldCandidates(root,availableKeys,personalWordings),screening:screeningFieldCandidates(root,applicationAnswers),guide:guideFieldCandidates(root,guideEntries),evidence:evidenceFieldCandidates(root)});
   const stamp=Date.now().toString(36),fields=[],never=[],claimed=new Set();let sequence=0;
   for(const winner of winners){
    const fieldId=`${winner.kind}_${stamp}_${sequence++}`;

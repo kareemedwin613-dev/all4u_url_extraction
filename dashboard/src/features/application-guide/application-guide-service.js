@@ -19,3 +19,7 @@ export const listLearnedAutofillWordings = (client, baseUrl) =>
 
 export const removeLearnedAutofillWording = (client, baseUrl, id) =>
   api(client, baseUrl, `/api/v1/application-guide/learned-wordings/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+// An Admin's correction: what a learned wording really asks for. The AI never overwrites it.
+export const correctLearnedAutofillWording = (client, baseUrl, id, body) =>
+  api(client, baseUrl, `/api/v1/application-guide/learned-wordings/${encodeURIComponent(id)}`, { method: "PUT", body });

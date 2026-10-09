@@ -412,7 +412,7 @@ export function App() {
       }
       updateJob(id, { phase: "scanning", loadedResume, attachment, autofillContext });
       tabProgress(id, 3, steps, "Reading the form");
-      const scan = (definitions) => chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: definitions.applicationAnswers, guideEntries: definitions.guideEntries } });
+      const scan = (definitions) => chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: definitions.applicationAnswers, guideEntries: definitions.guideEntries, personalWordings: definitions.personalWordings || {} } });
       let prepared = await scan({ applicationAnswers: screeningDefinitions(autofillContext), guideEntries: guideDefinitions(autofillContext) });
       if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
       // Questions the rules could not answer: known wordings come from the shared table, new ones from the model.
@@ -444,7 +444,9 @@ export function App() {
       // Open-ended questions (an essay, or a text box that is not a standard-answer question) get an AI draft from the
       // Resume and job description, filled for a person to review. Drafts are skipped in recovered and review-first sessions.
       const kinds = draftKinds(recognized);
-      const draftable = (recovered || reviewRequired) ? [] : unresolvedAutofillQuestions.filter((item) => item.ref && !placeholderOnly(item.question) && !contactQuestion(item.question)
+      // Drafting needs the DRAFT access an Admin gives each person; when recognition already said otherwise, no request is made.
+      const mayDraft = !recognized?.aiLevel || recognized.aiLevel === "DRAFT";
+      const draftable = (recovered || reviewRequired || !mayDraft) ? [] : unresolvedAutofillQuestions.filter((item) => item.ref && !placeholderOnly(item.question) && !contactQuestion(item.question)
         && (item.openEnded || (item.reason === "NO_MATCHING_ANSWER" && shouldDraft(item, kinds.get(draftKey(item.question))))));
       if (draftable.length) {
         tabProgress(id, 3, steps, "Drafting answers");

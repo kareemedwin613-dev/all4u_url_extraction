@@ -22,6 +22,11 @@ export class SaveAutofillAiSettingsDto {
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(10000) monthlyCapUsd!: number;
 }
 
+// An Admin's choice for one person: Off, Match questions, or Match and draft answers.
+export class SetAutofillAiAccessDto {
+  @IsIn(["OFF", "MATCH", "DRAFT"]) level!: "OFF" | "MATCH" | "DRAFT";
+}
+
 export class TestAutofillAiModelDto {
   @IsIn(["openai", "xai"]) provider!: "openai" | "xai";
   @IsString() @Matches(/^[a-z0-9][a-z0-9.-]{1,60}$/) model!: string;

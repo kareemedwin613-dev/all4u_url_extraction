@@ -55,3 +55,16 @@ test("v3.157 sets gender only through the Resume gender RPC with allowed values"
   await service.updateGender(user, "00000000-0000-4000-8000-000000000003", "FEMALE");
   assert.deepEqual(calls[0], { token: "jwt", name: "update_resume_gender_v3157", args: { p_resume_id: "00000000-0000-4000-8000-000000000003", p_gender: "FEMALE" } });
 });
+
+test("v3.166 an Admin corrects a learned wording through their own session; bad targets never reach the database", async () => {
+  const { CorrectLearnedWordingDto } = await import("../src/application-guide/application-guide.dto.js");
+  const calls: any[] = [], service = new ApplicationGuideService(supabase(calls, { id: "w1", targetKey: "field.linkedInUrl", answerKind: null }));
+  await service.correctLearnedWording(user, "00000000-0000-4000-8000-000000000009", { targetKey: "field.linkedInUrl" });
+  assert.deepEqual(calls[0], { token: "jwt", name: "correct_autofill_learned_wording_v3166", args: { p_id: "00000000-0000-4000-8000-000000000009", p_target_key: "field.linkedInUrl", p_answer_kind: null } });
+  for (const body of [{ targetKey: "field.linkedInUrl" }, { targetKey: "none", answerKind: "ESSAY" }, { targetKey: "guide.00000000-0000-4000-8000-000000000001" }]) {
+    assert.deepEqual(await validate(plainToInstance(CorrectLearnedWordingDto, body)), [], JSON.stringify(body));
+  }
+  for (const body of [{ targetKey: "candidate.linkedInUrl" }, { targetKey: "none", answerKind: "ANYTHING" }, { targetKey: "field.linked in" }]) {
+    assert.ok((await validate(plainToInstance(CorrectLearnedWordingDto, body))).length > 0, JSON.stringify(body));
+  }
+});

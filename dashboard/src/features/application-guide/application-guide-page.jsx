@@ -3,8 +3,8 @@ import { Alert, App as AntApp, Button, Card, Checkbox, Collapse, Empty, Input, L
 import { ROLE_CODES } from "../../access/role-codes.js";
 import { PageHeading } from "../../components/ui.jsx";
 import { formatDate } from "../../shared/formatters.js";
-import { GUIDE_AUTOFILL_MODES, GUIDE_AUTOFILL_SOURCES, LEARNED_KINDS, filterLearnedWordings, guideAutofillLabel, guideEntryFromLearned, guideEntryIsUpdated, guideEntryMatches, sortGuideEntries } from "./application-guide.js";
-import { deleteApplicationGuide, listApplicationGuide, listLearnedAutofillWordings, removeLearnedAutofillWording, saveApplicationGuide } from "./application-guide-service.js";
+import { GUIDE_AUTOFILL_MODES, GUIDE_AUTOFILL_SOURCES, LEARNED_KINDS, correctionBody, correctionOptions, correctionValue, filterLearnedWordings, guideAutofillLabel, guideEntryFromLearned, guideEntryIsUpdated, guideEntryMatches, learnedTargetLabel, sortGuideEntries } from "./application-guide.js";
+import { correctLearnedAutofillWording, deleteApplicationGuide, listApplicationGuide, listLearnedAutofillWordings, removeLearnedAutofillWording, saveApplicationGuide } from "./application-guide-service.js";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -31,23 +31,15 @@ function autofillBody(editor) {
   };
 }
 
-const ANSWER_LABELS = {
-  authorized_to_work: "Authorized to work", requires_sponsorship: "Requires sponsorship", willing_to_relocate: "Willing to relocate",
-  available_start_date: "Start date", desired_salary: "Desired salary", years_of_experience: "Years of experience",
-  remote_work_preference: "Remote preference", gender_identity: "Gender", race_ethnicity: "Race / ethnicity", veteran_status: "Veteran status",
-};
 function learnedTarget(item) {
-  if (item.targetKey === "none") {
-    const kind = LEARNED_KINDS[item.answerKind];
-    return <Tag color={kind?.color}>{kind?.label || "No standard answer"}</Tag>;
-  }
-  if (String(item.targetKey).startsWith("answer.")) return <Tag color="blue">Resume answer: {ANSWER_LABELS[item.targetKey.slice(7)] || item.targetKey.slice(7)}</Tag>;
-  return <Tag color="purple">Guide: {item.targetQuestion || "entry"}</Tag>;
+  const key = String(item.targetKey);
+  const color = key === "none" ? LEARNED_KINDS[item.answerKind]?.color : key.startsWith("answer.") ? "blue" : key.startsWith("field.") ? "cyan" : "purple";
+  return <Tag color={color}>{learnedTargetLabel(item)}</Tag>;
 }
 
 // What AI recognition learned. Each wording is reused for every Applier; removing one makes the AI decide again.
 // Questions every candidate answers the same way can get a standard answer here, which Autofill then fills.
-function LearnedWordings({ data, onRemove, onAddAnswer }) {
+function LearnedWordings({ data, onRemove, onAddAnswer, onCorrect }) {
   const [filter, setFilter] = useState("ALL");
   const items = data?.items || [], month = data?.month || {}, needs = Number(data?.needsStandardAnswer) || 0;
   const shown = filterLearnedWordings(items, filter);
@@ -68,11 +60,12 @@ function LearnedWordings({ data, onRemove, onAddAnswer }) {
           renderItem={(item) => (
             <List.Item actions={[
               item.targetKey === "none" ? <Button key="add" type="link" onClick={() => onAddAnswer(item)} style={item.answerKind === "SAME_FOR_EVERYONE" ? { fontWeight: 600 } : undefined}>Add standard answer</Button> : null,
+              <Button key="correct" type="link" onClick={() => onCorrect(item)}>Correct</Button>,
               <Button key="remove" type="link" danger onClick={() => onRemove(item)}>Remove</Button>,
             ].filter(Boolean)}>
               <List.Item.Meta
                 title={item.question}
-                description={<span>{learnedTarget(item)}<Text type="secondary">{item.confidence}% sure · learned {formatDate(item.createdAt)} · used on {item.daysUsed} day{item.daysUsed === 1 ? "" : "s"}</Text></span>}
+                description={<span>{learnedTarget(item)}{item.correctedAt ? <Tag color="green">Corrected{item.correctedByName ? ` by ${item.correctedByName}` : ""}</Tag> : null}<Text type="secondary">{item.correctedAt ? `corrected ${formatDate(item.correctedAt)}` : `${item.confidence}% sure · learned ${formatDate(item.createdAt)}`} · used on {item.daysUsed} day{item.daysUsed === 1 ? "" : "s"}</Text></span>}
               />
             </List.Item>
           )}
@@ -124,6 +117,7 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
   const [editor, setEditor] = useState(null);
   const [saving, setSaving] = useState(false);
   const [learned, setLearned] = useState(null);
+  const [correcting, setCorrecting] = useState(null);
 
   const loadLearned = useCallback(() => {
     if (!isAdmin) return Promise.resolve();
@@ -145,6 +139,20 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
         } catch (removeError) { message.error(removeError?.message || "The learned wording could not be removed."); }
       },
     });
+  }
+
+  async function saveCorrection() {
+    const { item, value } = correcting || {};
+    if (!item || !value) return;
+    try {
+      const body = correctionBody(value);
+      await correctLearnedAutofillWording(client, apiBaseUrl, item.id, body);
+      const targetQuestion = body.targetKey.startsWith("guide.") ? entries.find((entry) => `guide.${entry.id}` === body.targetKey)?.question || null : null;
+      setLearned((current) => current ? { ...current, items: current.items.map((row) => row.id === item.id
+        ? { ...row, targetKey: body.targetKey, answerKind: body.answerKind || null, targetQuestion, confidence: 100, correctedAt: new Date().toISOString(), correctedByName: null } : row) } : current);
+      setCorrecting(null);
+      message.success("Corrected. Autofill uses it from the next page, for every applier.");
+    } catch (correctError) { message.error(correctError?.message || "The learned wording could not be corrected."); }
   }
 
   const load = useCallback(() => {
@@ -283,7 +291,16 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
         />
       </div>
       {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
-      {isAdmin && learned ? <LearnedWordings data={learned} onRemove={removeLearned} onAddAnswer={(item) => setEditor(guideEntryFromLearned(item, EMPTY_ENTRY))} /> : null}
+      {isAdmin && learned ? <LearnedWordings data={learned} onRemove={removeLearned} onAddAnswer={(item) => setEditor(guideEntryFromLearned(item, EMPTY_ENTRY))} onCorrect={(item) => setCorrecting({ item, value: correctionValue(item) })} /> : null}
+      <Modal open={Boolean(correcting)} title="Correct what this question asks for" okText="Save correction" okButtonProps={{ disabled: !correcting?.value }}
+        onOk={saveCorrection} onCancel={() => setCorrecting(null)} destroyOnHidden>
+        <Paragraph strong>{correcting?.item?.question}</Paragraph>
+        <Select showSearch optionFilterProp="label" style={{ width: "100%" }} placeholder="What should Autofill do with it?" value={correcting?.value}
+          options={correctionOptions(entries)} onChange={(value) => setCorrecting((current) => ({ ...current, value }))} />
+        <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+          A contact field fills the box from the Resume (LinkedIn URL, phone, …). A standard answer fills the guide's answer. The AI never changes a corrected wording; Remove lets it decide again.
+        </Paragraph>
+      </Modal>
       {loading ? <Spin /> : null}
       {!loading && !visible.length ? (
         <Empty description={entries.length ? "No questions match this search." : "No published questions yet."} />

@@ -110,7 +110,10 @@ export function addRecognizedWordings(guideEntries,applicationAnswers,recognized
     if(typeof result?.targetKey!=="string"||!question)continue;
     wordings.set(result.targetKey,[...(wordings.get(result.targetKey)||[]),question]);
   }
+  // Contact fields ("field.linkedInUrl") are matched by the contact-field rules, keyed by candidate.<field>.
+  const personalWordings=Object.fromEntries([...wordings].filter(([key])=>/^field\.[A-Za-z0-9]{2,40}$/.test(key)).map(([key,list])=>[`candidate.${key.slice(6)}`,list.slice(0,5)]));
   return{
+    personalWordings,
     guideEntries:(guideEntries||[]).map(entry=>wordings.has(`guide.${entry.id}`)?{...entry,patterns:[...wordings.get(`guide.${entry.id}`),...(entry.patterns||[])]}:entry),
     applicationAnswers:(applicationAnswers||[]).map(answer=>wordings.has(`answer.${answer.answerKey}`)?{...answer,questionPatterns:[...wordings.get(`answer.${answer.answerKey}`),...(answer.questionPatterns||[])]}:answer),
     count:[...wordings.values()].reduce((total,list)=>total+list.length,0),

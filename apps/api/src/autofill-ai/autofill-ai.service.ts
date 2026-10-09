@@ -28,6 +28,27 @@ export const ANSWER_TARGETS: RecognizerTarget[] = [
   { key: "answer.veteran_status", question: "Voluntary self-identification: veteran status" },
 ];
 
+// Contact fields Autofill fills from the Resume, for boxes whose label its rules did not recognise ("LinkedIn
+// Profile: Please provide the URL to your professional profile"). Values are never sent.
+export const FIELD_TARGETS: RecognizerTarget[] = [
+  { key: "field.firstName", question: "Contact field: the candidate's first name" },
+  { key: "field.middleName", question: "Contact field: the candidate's middle name" },
+  { key: "field.lastName", question: "Contact field: the candidate's last name" },
+  { key: "field.fullName", question: "Contact field: the candidate's full name" },
+  { key: "field.email", question: "Contact field: the candidate's email address" },
+  { key: "field.phone", question: "Contact field: the candidate's phone number" },
+  { key: "field.addressLine1", question: "Contact field: the candidate's street address" },
+  { key: "field.city", question: "Contact field: the city the candidate lives in" },
+  { key: "field.state", question: "Contact field: the state the candidate lives in" },
+  { key: "field.postalCode", question: "Contact field: the candidate's ZIP or postal code" },
+  { key: "field.country", question: "Contact field: the country the candidate lives in" },
+  { key: "field.currentLocation", question: "Contact field: where the candidate is located now (city, state)" },
+  { key: "field.linkedInUrl", question: "Contact field: the URL of the candidate's LinkedIn profile" },
+  { key: "field.githubUrl", question: "Contact field: the URL of the candidate's GitHub profile" },
+  { key: "field.portfolioUrl", question: "Contact field: the URL of the candidate's portfolio or personal website" },
+  { key: "field.currentCompany", question: "Contact field: the candidate's current employer" },
+];
+
 // Emails, links and long digit runs never leave the API, even inside employer wording.
 const scrub = (text: string) => String(text || "")
   .replace(/[\w.%+-]+@[\w.-]+\.[a-z]{2,}/gi, "[email]").replace(/https?:\/\/\S+/gi, "[link]").replace(/\d[\d ().-]{5,}\d/g, "[number]")
@@ -44,7 +65,11 @@ const NOT_A_QUESTION = [
 ];
 const PLACEHOLDER_ONLY = { test: (text: string) => !String(text || "").trim() || NOT_A_QUESTION.some((pattern) => pattern.test(text)) };
 
-export type AiState = "USED" | "NOT_NEEDED" | "DISABLED" | "NOT_CONFIGURED" | "CAP_REACHED" | "FAILED";
+export type AiState = "USED" | "NOT_NEEDED" | "DISABLED" | "NOT_PERMITTED" | "NOT_CONFIGURED" | "CAP_REACHED" | "FAILED";
+// What an Admin allowed this person: OFF (the default), MATCH (match new wordings to standard answers) or DRAFT
+// (also draft open-ended answers). Anything unknown, including a database without v3.165, is OFF.
+export type AiLevel = "OFF" | "MATCH" | "DRAFT";
+export const aiLevel = (value: unknown): AiLevel => value === "MATCH" || value === "DRAFT" ? value : "OFF";
 // kind: for a question no known answer fits, what sort of question it is (ESSAY, SAME_FOR_EVERYONE, …).
 export interface RecognizedQuestion { index: number; targetKey: string | null; source: "LEARNED" | "AI" | null; kind?: string | null }
 export interface AiSettings {
@@ -161,15 +186,28 @@ export class AutofillAiService {
     };
   }
 
+  // --- Admin: access per person ----------------------------------------------------------------------------
+
+  // Everyone who may use Autofill, with their AI level and their usage in the period.
+  async appliers(user: AuthenticatedUser, from: string | null, to: string | null) {
+    return this.rpc(user, "autofill_ai_applier_report_v3165", { p_from: from, p_to: to }, "AUTOFILL_AI_ACCESS_FAILED", "AI access could not be loaded.");
+  }
+
+  async setAccess(user: AuthenticatedUser, userId: string, level: AiLevel) {
+    return this.rpc(user, "set_autofill_ai_access_v3165", { p_user_id: userId, p_level: level }, "AUTOFILL_AI_ACCESS_FAILED", "AI access could not be changed.");
+  }
+
   // --- Applier: drafting --------------------------------------------------------------------------------
 
   // Drafts answers for open-ended questions with the Admin's drafting model, from this session's Resume and job.
-  async draft(user: AuthenticatedUser, sessionId: string, body: DraftAutofillAnswersDto): Promise<{ answers: Array<{ index: number; answer: string }>; ai: AiState }> {
+  async draft(user: AuthenticatedUser, sessionId: string, body: DraftAutofillAnswersDto): Promise<{ answers: Array<{ index: number; answer: string }>; ai: AiState; aiLevel?: AiLevel }> {
     const questions = (body.questions || []).map((item, index) => ({ index, question: scrub(item.question), controlType: item.controlType, ...(item.maxLength ? { maxLength: item.maxLength } : {}) }));
     if (!questions.length) return { answers: [], ai: "NOT_NEEDED" };
     const context = await this.rpc(user, "get_autofill_draft_context_v3164", { p_session_id: sessionId }, "AUTOFILL_AI_DRAFT_CONTEXT_FAILED", "The Resume and job could not be loaded for drafting.");
-    const settings = resolveSettings(context?.settings), apiKey = keyFor(settings.provider);
-    if (!settings.enabled) return { answers: [], ai: "DISABLED" };
+    const settings = resolveSettings(context?.settings), apiKey = keyFor(settings.provider), level = aiLevel(context?.aiLevel);
+    if (!settings.enabled) return { answers: [], ai: "DISABLED", aiLevel: level };
+    // Drafting needs the DRAFT level an Admin gives each person.
+    if (level !== "DRAFT") return { answers: [], ai: "NOT_PERMITTED", aiLevel: level };
     if (!apiKey) return { answers: [], ai: "NOT_CONFIGURED" };
     if ((Number(context?.monthCostMicroUsd) || 0) >= settings.monthlyCapUsd * 1_000_000) return { answers: [], ai: "CAP_REACHED" };
     let output;
@@ -191,25 +229,29 @@ export class AutofillAiService {
 
   // --- Applier: recognition -----------------------------------------------------------------------------
 
-  async recognize(user: AuthenticatedUser, sessionId: string, body: RecognizeAutofillQuestionsDto): Promise<{ results: RecognizedQuestion[]; ai: AiState }> {
+  // Learned wordings answer for everyone (a lookup, no model call); the model is asked only for people an Admin
+  // gave MATCH or DRAFT. aiLevel tells the extension whether to ask for drafts.
+  async recognize(user: AuthenticatedUser, sessionId: string, body: RecognizeAutofillQuestionsDto): Promise<{ results: RecognizedQuestion[]; ai: AiState; aiLevel?: AiLevel }> {
     const questions = (body.questions || []).map((item) => ({ ...item, question: scrub(item.question), options: (item.options || []).map(scrub).filter(Boolean) }));
     const results: RecognizedQuestion[] = questions.map((_, index) => ({ index, targetKey: null, source: null }));
     if (!questions.length) return { results, ai: "NOT_NEEDED" };
     const known = await this.rpc(user, "lookup_autofill_learned_wordings_v3161", { p_session_id: sessionId, p_questions: questions.map((item) => item.question) },
-      "AUTOFILL_AI_LOOKUP_FAILED", "Known question wordings could not be loaded.") as { hits: Array<{ index: number; targetKey: string }>; targets: RecognizerTarget[]; monthCostMicroUsd: number; settings: any };
+      "AUTOFILL_AI_LOOKUP_FAILED", "Known question wordings could not be loaded.") as { hits: Array<{ index: number; targetKey: string }>; targets: RecognizerTarget[]; monthCostMicroUsd: number; settings: any; aiLevel?: string };
+    const level = aiLevel(known.aiLevel);
     for (const hit of known.hits || []) {
       if (!results[hit.index]) continue;
       results[hit.index] = { index: hit.index, targetKey: hit.targetKey === "none" ? null : hit.targetKey, source: "LEARNED", kind: hit.targetKey === "none" ? (hit as any).answerKind || null : null };
     }
     const misses = results.filter((item) => item.source === null && !PLACEHOLDER_ONLY.test(questions[item.index].question)).map((item) => item.index);
-    if (!misses.length) return { results, ai: "NOT_NEEDED" };
+    if (!misses.length) return { results, ai: "NOT_NEEDED", aiLevel: level };
 
     const settings = resolveSettings(known.settings), apiKey = keyFor(settings.provider);
-    if (!settings.enabled) return { results, ai: "DISABLED" };
-    if (!apiKey) return { results, ai: "NOT_CONFIGURED" };
-    if ((Number(known.monthCostMicroUsd) || 0) >= settings.monthlyCapUsd * 1_000_000) return { results, ai: "CAP_REACHED" };
+    if (!settings.enabled) return { results, ai: "DISABLED", aiLevel: level };
+    if (level === "OFF") return { results, ai: "NOT_PERMITTED", aiLevel: level };
+    if (!apiKey) return { results, ai: "NOT_CONFIGURED", aiLevel: level };
+    if ((Number(known.monthCostMicroUsd) || 0) >= settings.monthlyCapUsd * 1_000_000) return { results, ai: "CAP_REACHED", aiLevel: level };
 
-    const targets = [...(known.targets || []), ...ANSWER_TARGETS], allowed = new Set([...targets.map((target) => target.key), "none"]);
+    const targets = [...(known.targets || []), ...ANSWER_TARGETS, ...FIELD_TARGETS], allowed = new Set([...targets.map((target) => target.key), "none"]);
     let output;
     try {
       output = await recognizeQuestions({
@@ -218,7 +260,7 @@ export class AutofillAiService {
       });
     } catch (error: any) {
       logger.warn("Autofill question recognition failed", { code: error?.code || "MODEL_ERROR", provider: settings.provider });
-      return { results, ai: "FAILED" };
+      return { results, ai: "FAILED", aiLevel: level };
     }
     const toSave: Array<{ question: string; targetKey: string; confidence: number; answerKind: string | null }> = [];
     for (const item of output.results) {
@@ -232,6 +274,6 @@ export class AutofillAiService {
     const usage = { questions: misses.length, inputTokens: output.inputTokens, outputTokens: output.outputTokens,
       costMicroUsd: costMicroUsd(settings.provider, settings.recognitionModel, output.inputTokens, output.cachedTokens, output.outputTokens) };
     await this.save(user, sessionId, settings.recognitionModel, toSave, usage).catch(() => logger.warn("Learned Autofill wordings were not saved", { code: "SAVE_FAILED" }));
-    return { results, ai: "USED" };
+    return { results, ai: "USED", aiLevel: level };
   }
 }
