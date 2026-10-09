@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, App as AntApp, Button, Card, Checkbox, Collapse, Empty, Input, List, Modal, Select, Spin, Tag, Typography } from "antd";
+import { Alert, App as AntApp, Button, Card, Checkbox, Collapse, Empty, Input, List, Modal, Segmented, Select, Spin, Tag, Typography } from "antd";
 import { ROLE_CODES } from "../../access/role-codes.js";
 import { PageHeading } from "../../components/ui.jsx";
 import { formatDate } from "../../shared/formatters.js";
-import { GUIDE_AUTOFILL_MODES, GUIDE_AUTOFILL_SOURCES, guideAutofillLabel, guideEntryIsUpdated, guideEntryMatches, sortGuideEntries } from "./application-guide.js";
-import { deleteApplicationGuide, dismissUnresolvedAutofillQuestion, listApplicationGuide, listUnresolvedAutofillQuestions, saveApplicationGuide } from "./application-guide-service.js";
+import { GUIDE_AUTOFILL_MODES, GUIDE_AUTOFILL_SOURCES, LEARNED_KINDS, correctionBody, correctionOptions, correctionValue, filterLearnedWordings, guideAutofillLabel, guideEntryFromLearned, guideEntryIsUpdated, guideEntryMatches, learnedTargetLabel, sortGuideEntries } from "./application-guide.js";
+import { correctLearnedAutofillWording, deleteApplicationGuide, listApplicationGuide, listLearnedAutofillWordings, removeLearnedAutofillWording, saveApplicationGuide } from "./application-guide-service.js";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -31,24 +31,48 @@ function autofillBody(editor) {
   };
 }
 
-function UnresolvedQuestions({ items, onAdd, onDismiss }) {
-  if (!items.length) return null;
+function learnedTarget(item) {
+  const key = String(item.targetKey);
+  const color = key === "none" ? LEARNED_KINDS[item.answerKind]?.color : key.startsWith("answer.") ? "blue" : key.startsWith("field.") ? "cyan" : "purple";
+  return <Tag color={color}>{learnedTargetLabel(item)}</Tag>;
+}
+
+// What AI recognition learned. Each wording is reused for every Applier; removing one makes the AI decide again.
+// Questions every candidate answers the same way can get a standard answer here, which Autofill then fills.
+function LearnedWordings({ data, onRemove, onAddAnswer, onCorrect }) {
+  const [filter, setFilter] = useState("ALL");
+  const items = data?.items || [], month = data?.month || {}, needs = Number(data?.needsStandardAnswer) || 0;
+  const shown = filterLearnedWordings(items, filter);
   return (
-    <Card size="small" className="application-guide-unresolved" title={`Questions Autofill could not answer (${items.length})`} style={{ marginBottom: 16 }}>
-      <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>Employer wording seen on job pages in the last 30 days, most frequent first. Add common ones to the guide.</Text>
-      <List
-        size="small"
-        dataSource={items}
-        renderItem={(item) => (
-          <List.Item actions={[
-            <Button key="add" type="link" onClick={() => onAdd(item)}>Add to guide</Button>,
-            <Button key="dismiss" type="link" onClick={() => onDismiss(item)}>Dismiss</Button>,
-          ]}>
-            <List.Item.Meta title={item.question} description={`Seen ${item.occurrences} time${item.occurrences === 1 ? "" : "s"} · ${item.controlType}${item.lastTargetDomain ? ` · ${item.lastTargetDomain}` : ""}`} />
-          </List.Item>
-        )}
-      />
-    </Card>
+    <Collapse size="small" style={{ marginBottom: 16 }} items={[{
+      key: "learned",
+      label: <span>Learned by AI ({data?.total ?? items.length}){needs ? <Tag color="orange" style={{ marginLeft: 8 }}>{needs} need a standard answer</Tag> : null} · this month: {month.questions || 0} new question{month.questions === 1 ? "" : "s"}, ${((month.costMicroUsd || 0) / 1_000_000).toFixed(2)}</span>,
+      children: items.length ? (
+        <>
+          <Segmented size="small" style={{ marginBottom: 8 }} value={filter} onChange={setFilter} options={[
+            { value: "ALL", label: "All" }, { value: "NEEDS_ANSWER", label: `Needs a standard answer (${needs})` },
+            { value: "MATCHED", label: "Matched" }, { value: "NO_ANSWER", label: "No standard answer" },
+          ]} />
+          <List
+          size="small"
+          dataSource={shown}
+          locale={{ emptyText: "Nothing here." }}
+          renderItem={(item) => (
+            <List.Item actions={[
+              item.targetKey === "none" ? <Button key="add" type="link" onClick={() => onAddAnswer(item)} style={item.answerKind === "SAME_FOR_EVERYONE" ? { fontWeight: 600 } : undefined}>Add standard answer</Button> : null,
+              <Button key="correct" type="link" onClick={() => onCorrect(item)}>Correct</Button>,
+              <Button key="remove" type="link" danger onClick={() => onRemove(item)}>Remove</Button>,
+            ].filter(Boolean)}>
+              <List.Item.Meta
+                title={item.question}
+                description={<span>{learnedTarget(item)}{item.correctedAt ? <Tag color="green">Corrected{item.correctedByName ? ` by ${item.correctedByName}` : ""}</Tag> : null}<Text type="secondary">{item.correctedAt ? `corrected ${formatDate(item.correctedAt)}` : `${item.confidence}% sure · learned ${formatDate(item.createdAt)}`} · used on {item.daysUsed} day{item.daysUsed === 1 ? "" : "s"}</Text></span>}
+              />
+            </List.Item>
+          )}
+          />
+        </>
+      ) : <Empty description="Nothing learned yet. Wordings appear here after Autofill meets questions its rules cannot answer." />,
+    }]} />
   );
 }
 
@@ -92,16 +116,44 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
   const [openId, setOpenId] = useState("");
   const [editor, setEditor] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [unresolved, setUnresolved] = useState([]);
+  const [learned, setLearned] = useState(null);
+  const [correcting, setCorrecting] = useState(null);
 
-  const loadUnresolved = useCallback(() => {
+  const loadLearned = useCallback(() => {
     if (!isAdmin) return Promise.resolve();
-    return listUnresolvedAutofillQuestions(client, apiBaseUrl)
-      .then((rows) => setUnresolved(Array.isArray(rows) ? rows : []))
-      .catch(() => setUnresolved([]));
+    return listLearnedAutofillWordings(client, apiBaseUrl).then(setLearned).catch(() => setLearned(null));
   }, [client, apiBaseUrl, isAdmin]);
 
-  useEffect(() => { void loadUnresolved(); }, [loadUnresolved]);
+  useEffect(() => { void loadLearned(); }, [loadLearned]);
+
+  function removeLearned(item) {
+    modal.confirm({
+      title: "Remove this learned wording?",
+      content: "Autofill stops using it right away. The next time the question appears, the AI decides again.",
+      okText: "Remove", okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await removeLearnedAutofillWording(client, apiBaseUrl, item.id);
+          setLearned((current) => current ? { ...current, items: current.items.filter((row) => row.id !== item.id), total: Math.max(0, (current.total || 1) - 1) } : current);
+          message.success("Learned wording removed.");
+        } catch (removeError) { message.error(removeError?.message || "The learned wording could not be removed."); }
+      },
+    });
+  }
+
+  async function saveCorrection() {
+    const { item, value } = correcting || {};
+    if (!item || !value) return;
+    try {
+      const body = correctionBody(value);
+      await correctLearnedAutofillWording(client, apiBaseUrl, item.id, body);
+      const targetQuestion = body.targetKey.startsWith("guide.") ? entries.find((entry) => `guide.${entry.id}` === body.targetKey)?.question || null : null;
+      setLearned((current) => current ? { ...current, items: current.items.map((row) => row.id === item.id
+        ? { ...row, targetKey: body.targetKey, answerKind: body.answerKind || null, targetQuestion, confidence: 100, correctedAt: new Date().toISOString(), correctedByName: null } : row) } : current);
+      setCorrecting(null);
+      message.success("Corrected. Autofill uses it from the next page, for every applier.");
+    } catch (correctError) { message.error(correctError?.message || "The learned wording could not be corrected."); }
+  }
 
   const load = useCallback(() => {
     return listApplicationGuide(client, apiBaseUrl)
@@ -153,15 +205,6 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
     setEditor({ ...EMPTY_ENTRY, question: typeof question === "string" ? question : "" });
   }
 
-  async function dismissUnresolved(item) {
-    try {
-      await dismissUnresolvedAutofillQuestion(client, apiBaseUrl, item.id);
-      setUnresolved((current) => current.filter((row) => row.id !== item.id));
-    } catch (reason) {
-      message.error(reason?.message || "The question could not be dismissed.");
-    }
-  }
-
   function openEdit(entry, event) {
     event?.preventDefault();
     event?.stopPropagation();
@@ -183,12 +226,17 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
     if (!editor) return;
     setSaving(true);
     try {
-      const { autofillMode, autofillValue, autofillSource, autofillPatterns, autofillSensitive, ...content } = editor;
+      const { autofillMode, autofillValue, autofillSource, autofillPatterns, autofillSensitive, fromLearnedId, ...content } = editor;
       const body = { ...content, status, exampleAnswer: editor.exampleAnswer || "", autofill: autofillBody(editor) };
       if (!body.id) delete body.id;
       await saveApplicationGuide(client, apiBaseUrl, body);
       setEditor(null);
       message.success(status === "PUBLISHED" ? "Published for appliers." : "Draft saved. Appliers cannot see it yet.");
+      // Once published, the entry answers this wording itself, so the learned "no standard answer" row goes.
+      if (status === "PUBLISHED" && fromLearnedId) {
+        await removeLearnedAutofillWording(client, apiBaseUrl, fromLearnedId).catch(() => {});
+        void loadLearned();
+      }
       await load();
     } catch (reason) {
       message.error(reason?.message || "The guide entry could not be saved.");
@@ -243,7 +291,16 @@ export function ApplicationGuidePage({ client, apiBaseUrl, access }) {
         />
       </div>
       {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
-      {isAdmin ? <UnresolvedQuestions items={unresolved} onAdd={(item) => openNew(item.question)} onDismiss={dismissUnresolved} /> : null}
+      {isAdmin && learned ? <LearnedWordings data={learned} onRemove={removeLearned} onAddAnswer={(item) => setEditor(guideEntryFromLearned(item, EMPTY_ENTRY))} onCorrect={(item) => setCorrecting({ item, value: correctionValue(item) })} /> : null}
+      <Modal open={Boolean(correcting)} title="Correct what this question asks for" okText="Save correction" okButtonProps={{ disabled: !correcting?.value }}
+        onOk={saveCorrection} onCancel={() => setCorrecting(null)} destroyOnHidden>
+        <Paragraph strong>{correcting?.item?.question}</Paragraph>
+        <Select showSearch optionFilterProp="label" style={{ width: "100%" }} placeholder="What should Autofill do with it?" value={correcting?.value}
+          options={correctionOptions(entries)} onChange={(value) => setCorrecting((current) => ({ ...current, value }))} />
+        <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+          A contact field fills the box from the Resume (LinkedIn URL, phone, …). A standard answer fills the guide's answer. The AI never changes a corrected wording; Remove lets it decide again.
+        </Paragraph>
+      </Modal>
       {loading ? <Spin /> : null}
       {!loading && !visible.length ? (
         <Empty description={entries.length ? "No questions match this search." : "No published questions yet."} />

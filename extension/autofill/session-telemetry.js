@@ -22,6 +22,8 @@ export function buildAutofillTelemetry({ resumeUpdatedAt, adapter, targetDomain,
 
   for (const field of fields) {
     if (typeof field?.fieldId !== "string" || typeof field?.key !== "string") continue;
+    // Keys the telemetry API does not accept (e.g. Workday "skills.0.entry") would reject the whole report.
+    if (!/^(candidate|screening|employment|education|guide|evidence)\./.test(field.key)) continue;
     const isSelected = selected.has(field.fieldId);
     const result = resultById.get(field.fieldId);
     let outcome = "DETECTED";

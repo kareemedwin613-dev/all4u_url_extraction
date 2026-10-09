@@ -22,6 +22,7 @@ import { ExtensionPairingModule } from "./extension-pairing/extension-pairing.mo
 import { BannedCompanyModule } from "./banned-companies/banned-company.module.js";
 import { InterviewModule } from "./interviews/interview.module.js";
 import { ApplicationGuideModule } from "./application-guide/application-guide.module.js";
+import { AutofillAiModule } from "./autofill-ai/autofill-ai.module.js";
 import { ScreenshotReviewModule } from "./screenshot-review/screenshot-review.module.js";
 
 @Module({
@@ -44,6 +45,7 @@ import { ScreenshotReviewModule } from "./screenshot-review/screenshot-review.mo
     BannedCompanyModule,
     InterviewModule,
     ApplicationGuideModule,
+    AutofillAiModule,
     ScreenshotReviewModule,
   ],
   providers: [

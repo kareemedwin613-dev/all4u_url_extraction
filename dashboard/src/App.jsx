@@ -150,6 +150,10 @@ import {
 
 const lazyNamed = (loader, name) =>
   lazy(() => loader().then((module) => ({ default: module[name] })));
+const AiUsageSection = lazyNamed(
+  () => import("./features/overview/ai-usage-section.jsx"),
+  "AiUsageSection",
+);
 const ApplierProductivityPage = lazyNamed(
   () => import("./features/overview/applier-productivity-page.jsx"),
   "ApplierProductivityPage",
@@ -854,6 +858,11 @@ function BusinessDashboard({ client, apiBaseUrl, reload, access, period, dateRan
           overviewRefresh={overviewRefresh}
           onActivity={onActivity}
         />
+      ) : null}
+      {isAdmin ? (
+        <Suspense fallback={<Loading text="Loading AI usage…" />}>
+          <AiUsageSection client={client} apiBaseUrl={apiBaseUrl} dateRange={dateRange} dateLabel={period.label} overviewRefresh={overviewRefresh} />
+        </Suspense>
       ) : null}
       {showProfileWorkload ? (
         <ApplierProfileWorkloadSection
@@ -3531,6 +3540,7 @@ export function App({ client, apiBaseUrl }) {
         apiBaseUrl={apiBaseUrl}
         id={route.id}
         query={route.query}
+        isAdmin={hasCapability(access, CAPABILITIES.USER_ADMIN)}
       />
     );
   else

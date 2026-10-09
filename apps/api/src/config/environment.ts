@@ -10,9 +10,18 @@ export interface Environment {
   SUPABASE_JWT_ISSUER: string;
   SUPABASE_JWKS_URL: string;
   SUPABASE_JWT_AUDIENCE?: string;
-  // Admin key used only by the extension-pairing module to create extension sessions. Optional:
-  // without it the API runs normally and "Connect with dashboard" reports it is not configured.
+  // Admin key used only by the extension-pairing module to create extension sessions, and by the autofill-ai
+  // module to save learned question wordings. Optional: without it the API runs normally, "Connect with
+  // dashboard" reports it is not configured, and AI-recognized wordings are used but not remembered.
   SUPABASE_SECRET_KEY?: string;
+  // Autofill AI (apps/api/src/autofill-ai). Keys live only here. Admins choose on/off, provider, models and cap on
+  // the dashboard; the AUTOFILL_AI_* values below are the defaults until an Admin first saves those settings.
+  OPENAI_API_KEY?: string;
+  XAI_API_KEY?: string;
+  AUTOFILL_AI_ENABLED: boolean;
+  AUTOFILL_AI_PROVIDER: "openai" | "xai";
+  AUTOFILL_AI_MODEL?: string;
+  AUTOFILL_AI_MONTHLY_CAP_USD: number;
   RATE_LIMIT_TTL_MS: number;
   RATE_LIMIT_MAX: number;
   INGESTION_RATE_LIMIT_MAX: number;
@@ -31,6 +40,12 @@ const schema = Joi.object<Environment>({
   SUPABASE_JWKS_URL: Joi.string().uri({ scheme: ["https"] }).required(),
   SUPABASE_JWT_AUDIENCE: Joi.string().allow("").optional(),
   SUPABASE_SECRET_KEY: Joi.string().min(20).allow("").optional(),
+  OPENAI_API_KEY: Joi.string().min(20).allow("").optional(),
+  XAI_API_KEY: Joi.string().min(20).allow("").optional(),
+  AUTOFILL_AI_ENABLED: Joi.boolean().default(false),
+  AUTOFILL_AI_PROVIDER: Joi.string().valid("openai", "xai").default("xai"),
+  AUTOFILL_AI_MODEL: Joi.string().pattern(/^[a-z0-9][a-z0-9.-]{1,60}$/).allow("").optional(),
+  AUTOFILL_AI_MONTHLY_CAP_USD: Joi.number().min(0).max(10000).default(50),
   RATE_LIMIT_TTL_MS: Joi.number().integer().min(1000).default(60000),
   RATE_LIMIT_MAX: Joi.number().integer().min(1).default(60),
   INGESTION_RATE_LIMIT_MAX: Joi.number().integer().min(1).default(20),

@@ -73,7 +73,18 @@ export async function listMyApplications(client,baseUrl,{status="",resumeId="",s
     return normalizeMinePayload(await call(client,baseUrl,`/api/v1/applications/mine?${q}`),limit);
   }
 }
-export const getApplicationExtensionContext=(client,baseUrl,applicationId)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-context`);
+// The last context loaded per Application. Starting Autofill loads it in My Applications; the job that
+// follows reuses it instead of waiting for the same request again.
+const recentExtensionContexts=new Map();
+export async function getApplicationExtensionContext(client,baseUrl,applicationId){
+  const context=await call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-context`);
+  recentExtensionContexts.set(applicationId,{context,at:Date.now()});
+  return context;
+}
+export function recentApplicationExtensionContext(applicationId,maxAgeMs=120000){
+  const entry=recentExtensionContexts.get(applicationId);
+  return entry&&Date.now()-entry.at<=maxAgeMs?entry.context:null;
+}
 export const getApplicationAutofillContext=(client,baseUrl,applicationId,sessionId,resumeUpdatedAt="")=>{const query=new URLSearchParams({sessionId});if(resumeUpdatedAt)query.set("resumeUpdatedAt",resumeUpdatedAt);return call(client,baseUrl,`/api/v1/applications/${applicationId}/autofill-context?${query}`);};
 export const createApplicationExtensionSession=(client,baseUrl,applicationId,action)=>call(client,baseUrl,`/api/v1/applications/${applicationId}/extension-sessions`,{method:"POST",body:{action,extensionVersion:chrome.runtime.getManifest().version}});
 export const updateApplicationExtensionSession=(client,baseUrl,sessionId,status,errorCode)=>call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}`,{method:"PATCH",body:{status,...(errorCode?{errorCode}:{})}});
@@ -93,7 +104,11 @@ export async function updateApplicationProgress(client,_baseUrl,id,{status,appli
 }
 export function formatMineResumeOptionLabel(resume){return formatMineResumeLabel(resume);}
 const safeDownloadName=(value)=>String(value||"resume").normalize("NFKC").replace(/[^A-Za-z0-9._ -]+/g,"_").replace(/^\.+/,"").trim().slice(-180)||"resume";
-export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType, applicationNumber } = {}) {
+// "Acme, Inc." → "Acme Inc": punctuation becomes spaces rather than underscores in a downloaded filename.
+const filenameWords=(value)=>String(value||"").normalize("NFKC").replace(/[^A-Za-z0-9 .-]+/g," ").replace(/\s+/g," ").replace(/^[\s.-]+|[\s.-]+$/g,"").slice(0,60).trim();
+// Downloads: "<Candidate> Resume - <Company>.pdf", or "- App <n>" when the company is unknown.
+// Attachments omit both (no companyName or applicationNumber is passed).
+export function buildApplicationResumeDownloadFilename({ candidateName, resumeName, filename, mimeType, applicationNumber, companyName } = {}) {
   const ext = mimeType === "application/pdf"
     ? ".pdf"
     : mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -104,10 +119,11 @@ export function buildApplicationResumeDownloadFilename({ candidateName, resumeNa
   const base = String(candidateName || "").trim()
     ? `${String(candidateName).trim()} Resume`
     : String(resumeName || "").trim() || String(filename || "Resume").replace(/\.[^.]+$/, "") || "Resume";
-  const appSuffix = Number.isSafeInteger(Number(applicationNumber)) && Number(applicationNumber) > 0
-    ? ` - App ${Number(applicationNumber)}`
-    : "";
-  return safeDownloadName(`${base}${appSuffix}${ext}`);
+  const company = filenameWords(companyName);
+  const suffix = company
+    ? ` - ${company}`
+    : Number.isSafeInteger(Number(applicationNumber)) && Number(applicationNumber) > 0 ? ` - App ${Number(applicationNumber)}` : "";
+  return safeDownloadName(`${base}${suffix}${ext}`);
 }
 const RESUME_DOWNLOAD_MIMES=new Set(["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"]),RESUME_SIGNED_URL_ATTEMPTS=3,RESUME_SIGNED_URL_RETRY_BASE_MS=400;
 async function createResumeSignedUrl(client,bucket,path){
@@ -143,8 +159,8 @@ async function applicationResumeDownloadViaRpc(client,applicationId){
   };
 }
 // Resolves the Resume currently attached to the Application (the TAILORED child once materialized)
-// with a short-lived signed URL. Shared by Download Resume and in-page attachment so both deliver
-// the same file under the same candidate-facing filename.
+// with a short-lived signed URL. Shared by Download Resume and in-page attachment so both deliver the
+// same file; downloads keep the Application number, attachments are named "<Candidate> Resume.pdf".
 export async function getApplicationResumeAccess(client,baseUrl,applicationId){
   const requestedAt=Date.now();
   let data;
@@ -164,13 +180,24 @@ export async function getApplicationResumeAccess(client,baseUrl,applicationId){
     mimeType:data?.mimeType||data?.mime_type,
     applicationNumber:data?.applicationNumber||data?.application_number,
   });
+  // Employers see the attached file: "<Candidate name> Resume.pdf", without the internal Application number.
+  const attachName=buildApplicationResumeDownloadFilename({
+    candidateName:data?.candidateName||data?.candidate_name,
+    resumeName:data?.resumeName||data?.resume_name,
+    filename:data?.filename,
+    mimeType:data?.mimeType||data?.mime_type,
+  });
   // Expiry is measured from before the request so the extension never trusts a URL longer than Storage does.
-  return{...data,signedUrl:url.toString(),downloadName,expiresAt:new Date(requestedAt+expiresInSeconds*1000).toISOString()};
+  return{...data,signedUrl:url.toString(),downloadName,attachName,expiresAt:new Date(requestedAt+expiresInSeconds*1000).toISOString()};
 }
-export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download){
-  const data=await getApplicationResumeAccess(client,baseUrl,applicationId),{downloadName}=data;
+export async function downloadApplicationResume(client,baseUrl,applicationId,downloadImpl=chrome.downloads.download,{companyName}={}){
+  const data=await getApplicationResumeAccess(client,baseUrl,applicationId);
+  const downloadName=buildApplicationResumeDownloadFilename({
+    candidateName:data?.candidateName||data?.candidate_name,resumeName:data?.resumeName||data?.resume_name,filename:data?.filename,
+    mimeType:data?.mimeType||data?.mime_type,applicationNumber:data?.applicationNumber||data?.application_number,companyName,
+  });
   // Avoid Chrome's Save As dialog: with a large Downloads folder it can take
-  // 10–30s to open. The generated filename already includes candidate + App ID.
+  // 10–30s to open. The name is "<Candidate> Resume - <Company>"; Chrome numbers any duplicate.
   const downloadId=await downloadImpl({url:data.signedUrl,filename:downloadName,saveAs:false,conflictAction:"uniquify"});
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_RESUME_DOWNLOAD_FAILED","Chrome could not start the Resume download.");
   return{...data,downloadId,downloadName};
@@ -180,7 +207,7 @@ export async function downloadApplicationResume(client,baseUrl,applicationId,dow
 export async function loadApplicationResumeForSession(client,baseUrl,session,sendMessage=(message)=>chrome.runtime.sendMessage(message)){
   for(let attempt=0;attempt<2;attempt+=1){
     const access=await getApplicationResumeAccess(client,baseUrl,session.applicationId);
-    const loaded=await sendMessage({type:MESSAGE_TYPES.LOAD_APPLICATION_RESUME,payload:{sessionId:session.id,applicationId:session.applicationId,access:{signedUrl:access.signedUrl,expiresAt:access.expiresAt,filename:access.downloadName,mimeType:access.mimeType,fileSizeBytes:access.fileSizeBytes}}});
+    const loaded=await sendMessage({type:MESSAGE_TYPES.LOAD_APPLICATION_RESUME,payload:{sessionId:session.id,applicationId:session.applicationId,access:{signedUrl:access.signedUrl,expiresAt:access.expiresAt,filename:access.attachName||access.downloadName,mimeType:access.mimeType,fileSizeBytes:access.fileSizeBytes}}});
     if(loaded?.ok)return loaded.data;
     if(loaded?.error?.code!=="RESUME_ACCESS_EXPIRED"||attempt===1)throw new AppError(loaded?.error?.code||"RESUME_LOAD_FAILED",loaded?.error?.message||"The private Resume could not be loaded.");
   }
@@ -203,7 +230,36 @@ export async function downloadApplicationCoverLetter(client,baseUrl,applicationI
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_COVER_LETTER_DOWNLOAD_FAILED","Chrome could not start the cover letter download.");
   return{kind:data.kind,downloadId,downloadName};
 }
+// The Application's cover letter as a file for a cover letter upload: an original upload is read from its private
+// signed URL, a generated letter arrives as a PDF. Held in memory only for the attach.
+export async function loadApplicationCoverLetterFile(client,baseUrl,applicationId,fetchImpl=fetch){
+  const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter`,{timeoutMs:30000});
+  const filename=safeDownloadName(data?.filename||"Cover Letter.pdf");
+  if(data?.source==="ORIGINAL_UPLOAD"){
+    let url;try{url=new URL(data.signedUrl);}catch{/* Rejected by metadata validation below. */}
+    if(data.kind!=="BASE"||!url||!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/")||!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(data.mimeType))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
+    const response=await fetchImpl(url.toString(),{credentials:"omit",signal:AbortSignal.timeout(30000)});
+    if(!response.ok)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter file could not be read.");
+    const bytes=new Uint8Array(await response.arrayBuffer());
+    if(bytes.byteLength<1||bytes.byteLength>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
+    let binary="";for(let offset=0;offset<bytes.length;offset+=32768)binary+=String.fromCharCode(...bytes.subarray(offset,offset+32768));
+    const ext={"application/pdf":".pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document":".docx","text/plain":".txt"}[data.mimeType];
+    return{base64:btoa(binary),filename:filename.toLowerCase().endsWith(ext)?filename:`${filename}${ext}`,mimeType:data.mimeType,fileSizeBytes:bytes.byteLength};
+  }
+  const base64=String(data?.contentBase64||"");
+  if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
+  const fileSizeBytes=Math.floor(base64.length*3/4)-(base64.endsWith("==")?2:base64.endsWith("=")?1:0);
+  if(fileSizeBytes<1||fileSizeBytes>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
+  return{base64,filename:/\.pdf$/i.test(filename)?filename:`${filename}.pdf`,mimeType:"application/pdf",fileSizeBytes};
+}
 export async function copyApplicationCoverLetter(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text),extractText=async(buffer,mimeType)=>(await import("./cover-letter-parser.js")).extractCoverLetterText(buffer,mimeType)){
+  const{kind,text}=await getApplicationCoverLetterText(client,baseUrl,applicationId,extractText);
+  try{await writeText(text);}catch{throw new AppError("COVER_LETTER_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Cover Letter again.");}
+  return{kind};
+}
+// The Application's cover letter (tailored, or the base letter) as plain text. Used by Copy Cover Letter
+// and by Autofill for a "Cover letter" text box.
+export async function getApplicationCoverLetterText(client,baseUrl,applicationId,extractText=async(buffer,mimeType)=>(await import("./cover-letter-parser.js")).extractCoverLetterText(buffer,mimeType)){
   const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter/text`,{timeoutMs:30000});
   if(!["BASE","TAILORED"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter text metadata is invalid.");
   let text=data.text;
@@ -219,8 +275,7 @@ export async function copyApplicationCoverLetter(client,baseUrl,applicationId,wr
   if(typeof text!=="string"||!text.trim())throw new AppError("COVER_LETTER_NO_READABLE_TEXT","This cover letter has no readable text to copy.");
   const plainText=text.replace(/\r\n?/g,"\n").replace(/\0/g,"").trim();
   if(!plainText)throw new AppError("COVER_LETTER_NO_READABLE_TEXT","This cover letter has no readable text to copy.");
-  try{await writeText(plainText);}catch{throw new AppError("COVER_LETTER_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Cover Letter again.");}
-  return{kind:data.kind};
+  return{kind:data.kind,text:plainText};
 }
 export async function prepareApplicationQaPrompt(client,baseUrl,applicationId){
   const context=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/qa-context`,{timeoutMs:30000});
@@ -285,4 +340,45 @@ export async function openApplicationScreenshot(client,_baseUrl,_applicationId,s
   const{data,error}=await client.storage.from(screenshot.storage_bucket||"application-screenshots").createSignedUrl(screenshot.storage_path,90);
   if(error||!data?.signedUrl)throw databaseError(error,"APPLICATION_SCREENSHOT_OPEN_FAILED","The private screenshot could not be opened.");
   const a=document.createElement("a");a.href=data.signedUrl;a.download=screenshot.original_filename||"application-screenshot";a.target="_blank";a.rel="noopener";a.click();
+}
+
+// Starts a Resume attachment or Autofill for one Application, the same way from an Application card and from the
+// job page's Autofill button. `targetTabId` pins the tab the button was pressed in.
+export async function startApplicationExtensionAction(client,baseUrl,applicationId,action,{targetTabId}={}){
+  const context=await getApplicationExtensionContext(client,baseUrl,applicationId);
+  if(action==="AUTOFILL"&&!context?.candidate?.profileAvailable)throw new AppError("PROFILE_REVIEW_REQUIRED","Verify this Resume's Autofill Metadata in the dashboard before using Autofill.");
+  if(action==="AUTOFILL"&&!context?.permissions?.canAutofill)throw new AppError("APPLICATION_AUTOFILL_UNAVAILABLE","This Application needs an active Resume and a valid HTTP(S) job URL before Autofill can start.");
+  if(action==="LOAD_RESUME"&&!context?.permissions?.canLoadResume)throw new AppError("APPLICATION_RESUME_UNAVAILABLE","The Resume connected to this Application is not active.");
+  let extensionSession;
+  try{
+    extensionSession=await createApplicationExtensionSession(client,baseUrl,applicationId,action);
+    const result=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.HANDOFF_APPLICATION_SESSION,payload:{...extensionSession,...(Number.isInteger(targetTabId)?{targetTabId}:{})}});
+    if(!result?.ok)throw new AppError(String(result?.error?.code||"HANDOFF_FAILED"),result?.error?.message||"The Application could not be activated.");
+    // Not awaited: the job in the tab starts right away; status writes for a session stay in order on the server.
+    updateApplicationExtensionSession(client,baseUrl,extensionSession.id,"RECEIVED").catch(()=>{});
+    return{context,session:extensionSession,handoff:result.data};
+  }catch(error){
+    if(extensionSession?.id)await updateApplicationExtensionSession(client,baseUrl,extensionSession.id,"FAILED","HANDOFF_FAILED").catch(()=>{});
+    throw error;
+  }
+}
+
+// Asks the API which known answer each unanswered question wants: learned wordings first, then the model.
+// Sends employer wording and option labels only. Resolves to null when nothing needs asking or the call fails.
+export async function recognizeAutofillQuestions(client,baseUrl,sessionId,unresolved=[]){
+  const asked=(unresolved||[]).filter(item=>item?.reason==="NO_MATCHING_ANSWER"&&typeof item.question==="string"&&item.question.trim().length>=2).slice(0,30)
+    .map(item=>({question:item.question.slice(0,300),controlType:item.controlType,options:(Array.isArray(item.options)?item.options:[]).slice(0,25).map(option=>String(option).slice(0,120))}));
+  if(!asked.length)return null;
+  try{const data=await call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-ai/recognize`,{method:"POST",body:{questions:asked}});return{asked,results:Array.isArray(data?.results)?data.results:[],ai:data?.ai||"",aiLevel:["OFF","MATCH","DRAFT"].includes(data?.aiLevel)?data.aiLevel:null};}
+  catch{return null;}
+}
+
+// Asks the API to draft answers to open-ended questions from this Application's Resume and job description.
+// Sends the question wording, field type and length limit only. Resolves to null when the call fails.
+export async function draftAutofillAnswers(client,baseUrl,sessionId,questions=[]){
+  const asked=(questions||[]).filter(item=>typeof item?.question==="string"&&item.question.trim().length>=2&&["input","textarea"].includes(item.controlType)).slice(0,8)
+    .map(item=>({question:item.question.slice(0,300),controlType:item.controlType,...(Number.isInteger(item.maxLength)&&item.maxLength>0?{maxLength:Math.min(item.maxLength,20000)}:{})}));
+  if(!asked.length)return null;
+  try{const data=await call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-ai/draft`,{method:"POST",body:{questions:asked},timeoutMs:40000});return{asked,answers:Array.isArray(data?.answers)?data.answers:[],ai:data?.ai||""};}
+  catch{return null;}
 }

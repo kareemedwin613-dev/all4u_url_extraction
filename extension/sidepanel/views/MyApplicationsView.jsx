@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Card, Empty, Select, Space, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { copyApplicationCoverLetter, prepareApplicationQaPrompt, createApplicationExtensionSession, downloadApplicationCoverLetter, downloadApplicationResume, formatMineResumeOptionLabel, getApplicationExtensionContext, listMyApplications, updateApplicationExtensionSession } from "../../services/application-service.js";
+import { copyApplicationCoverLetter, prepareApplicationQaPrompt, downloadApplicationCoverLetter, downloadApplicationResume, formatMineResumeOptionLabel, listMyApplications, startApplicationExtensionAction } from "../../services/application-service.js";
 import { createPreparedCopy } from "../../services/prepared-copy.js";
-import { MESSAGE_TYPES } from "../../shared/messages.js";
+import { PANEL_APPLICATIONS_KEY, panelApplicationItems } from "../../shared/page-applications.js";
 import { APPLIER_STATUS_FILTER_OPTIONS } from "../../shared/applier-application-statuses.js";
 import { ApplicationCard } from "../components/ApplicationCard.jsx";
 import { ApplicationStatusModal } from "../components/ApplicationStatusModal.jsx";
@@ -34,24 +34,22 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
   async function startExtensionAction(application, action) {
     const key=`${application.id}:${action}`;
     setExtensionBusy(key);
-    let extensionSession;
     try {
-      const context=await getApplicationExtensionContext(client,backendBaseUrl,application.id);
-      if(action==="AUTOFILL"&&!context?.candidate?.profileAvailable)throw Object.assign(new Error("Verify this Resume's Autofill Metadata in the dashboard before using Autofill."),{code:"PROFILE_REVIEW_REQUIRED"});
-      if(action==="AUTOFILL"&&!context?.permissions?.canAutofill)throw Object.assign(new Error("This Application needs an active Resume and a valid HTTP(S) job URL before Autofill can start."),{code:"APPLICATION_AUTOFILL_UNAVAILABLE"});
-      if(action==="LOAD_RESUME"&&!context?.permissions?.canLoadResume)throw Object.assign(new Error("The Resume connected to this Application is not active."),{code:"APPLICATION_RESUME_UNAVAILABLE"});
-      extensionSession=await createApplicationExtensionSession(client,backendBaseUrl,application.id,action);
-      const result=await chrome.runtime.sendMessage({type:MESSAGE_TYPES.HANDOFF_APPLICATION_SESSION,payload:extensionSession});
-      if(!result?.ok)throw Object.assign(new Error(result?.error?.message||"The Application could not be activated."),{code:result?.error?.code});
-      await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"RECEIVED");
-      const targetHost=result.data?.targetUrl?new URL(result.data.targetUrl).hostname:"";
+      // Profile review (PROFILE_REVIEW_REQUIRED) and Resume checks run inside the shared start.
+      const { handoff }=await startApplicationExtensionAction(client,backendBaseUrl,application.id,action);
+      const targetHost=handoff?.targetUrl?new URL(handoff.targetUrl).hostname:"";
       const actionLabel=action==="LOAD_RESUME"?"Resume attachment":"Autofill";
-      onStatus({message:result.data?.usedCurrentTab?`${actionLabel} is running on the current tab${targetHost?` (${targetHost})`:""}.`:`${actionLabel} context is active.`,kind:"info"});
+      onStatus({message:handoff?.usedCurrentTab?`${actionLabel} started on this tab${targetHost?` (${targetHost})`:""}. You can switch to another job tab and start it too.`:`${actionLabel} context is active.`,kind:"info"});
     } catch(error) {
-      if(extensionSession?.id)await updateApplicationExtensionSession(client,backendBaseUrl,extensionSession.id,"FAILED","HANDOFF_FAILED").catch(()=>{});
       onError(error);
     } finally { setExtensionBusy(""); }
   }
+
+  // Job pages offer these Applications in their on-page Autofill button.
+  useEffect(() => {
+    if (!items) return;
+    chrome.storage.session.set({ [PANEL_APPLICATIONS_KEY]: { updatedAt: Date.now(), items: panelApplicationItems(items) } }).catch(() => {});
+  }, [items]);
 
   async function reload({ nextStatus = status, nextResumeId = resumeFilter, nextScreenshotFeedback = screenshotFeedback } = {}) {
     try {
@@ -101,7 +99,7 @@ export function MyApplicationsView({ client, backendBaseUrl, onStatus, onError }
     setExtensionBusy(key);
     onStatus({ message: "Preparing Resume download…", kind: "info" });
     try {
-      const result = await downloadApplicationResume(client, backendBaseUrl, application.id);
+      const result = await downloadApplicationResume(client, backendBaseUrl, application.id, undefined, { companyName: application.company });
       onStatus({
         message: `${result.resumeType === "TAILORED" ? "Tailored" : "Original"} Resume #${result.resumeNumber} saved to Downloads as ${result.downloadName||result.filename}.`,
         kind: "success",

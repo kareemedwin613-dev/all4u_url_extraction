@@ -1,4 +1,5 @@
 import { isUnitedStates, usStateCode } from "./option-matching.js";
+import { evidenceAnswer } from "./resume-evidence.js";
 
 const screeningKey = (answerKey) => `screening.${answerKey}`;
 
@@ -40,6 +41,42 @@ export function autofillValues(context){
   return values;
 }
 
+// Resume entries to add on forms that collect jobs and schools behind an "Add" button. Only for
+// sections the page reported as empty and addable, so existing entries are never duplicated.
+export function repeatableSectionRows(context,detected=[]){
+  // Workday also fills the empty fields of entries already on the page (fillExisting).
+  const wanted=new Set((detected||[]).filter(item=>item?.addable&&(!item.existing||item.fillExisting)).map(item=>item.kind)),rows={};
+  if(wanted.has("employment"))rows.employment=(context?.employment||context?.employmentHistory||[]).slice(0,10).map(row=>({company:row.company,jobTitle:row.jobTitle,location:row.location,description:row.experienceDetails,startDate:dateText(row.startDate),endDate:row.isCurrent?"":dateText(row.endDate),isCurrent:Boolean(row.isCurrent)}));
+  if(wanted.has("education"))rows.education=(context?.education||[]).slice(0,10).map(row=>({institution:row.institution,degree:row.degree,fieldOfStudy:row.fieldOfStudy,startDate:dateText(row.startDate),endDate:dateText(row.endDate)}));
+  if(wanted.has("skills"))rows.skills=splitSkills(context?.skills);
+  return rows;
+}
+
+// The Resume's skills text ("Java, Spring Boot; AWS • Kafka") as a short list of distinct skills.
+export function splitSkills(value,limit=25){
+  const seen=new Set(),skills=[];
+  for(const part of String(value||"").split(/[,;\n\r•|]+|\s+[–-]\s+/)){
+    // "Languages: Java" → "Java": a short group heading before a colon is dropped.
+    const skill=String(part).replace(/^[\s*·-]+/,"").replace(/^[^:]{1,30}:\s*/,"").replace(/\s+/g," ").trim().slice(0,60),key=skill.toLowerCase();
+    // "Languages:" style group headings are not skills.
+    if(skill.length<2||seen.has(key)||/:$/.test(skill))continue;
+    seen.add(key);skills.push(skill);
+    if(skills.length>=limit)break;
+  }
+  return skills;
+}
+
+const SECTION_LABELS={employment:"Experience",education:"Education",skills:"Skills"};
+// Result rows the side panel shows for each entry the page added.
+export function sectionResultFields(results=[],rows={}){
+  return(results||[]).filter(result=>/^(employment|education|skills)\.\d+\.entry$/.test(String(result?.key||""))).map(result=>{
+    const [kind,index]=result.key.split("."),row=rows[kind]?.[Number(index)]||{};
+    if(kind==="skills")return{fieldId:result.fieldId,key:result.key,label:`Skills (${(rows.skills||[]).length} from the Resume)`,confidence:100,readiness:"READY",controlType:"section",inputType:""};
+    const name=kind==="employment"?[row.jobTitle,row.company].filter(Boolean).join(" at "):[row.degree,row.institution].filter(Boolean).join(", ");
+    return{fieldId:result.fieldId,key:result.key,label:`${SECTION_LABELS[kind]} ${Number(index)+1}${name?`: ${name}`:""}`,confidence:100,readiness:"READY",controlType:"section",inputType:""};
+  });
+}
+
 // Total years from the job history, counting overlapping roles once.
 export function totalYearsOfExperience(employment=[],now=new Date()){
   const current=now.getUTCFullYear()*12+now.getUTCMonth();
@@ -63,6 +100,25 @@ export function salaryExpectation(job,fallback,inputType=""){
 
 const GENDER_LABELS={MALE:"Male",FEMALE:"Female",NON_BINARY:"Non-binary"},PRONOUNS={MALE:"He/Him",FEMALE:"She/Her",NON_BINARY:"They/Them"};
 const isoDay=(date)=>date.toISOString().slice(0,10);
+
+// Questions AI recognition matched to a known answer become extra wordings of that Guide entry or Resume answer,
+// for this page only. The normal matchers then claim the fields, so every existing safety rule still applies.
+export function addRecognizedWordings(guideEntries,applicationAnswers,recognized){
+  const wordings=new Map();
+  for(const result of recognized?.results||[]){
+    const question=recognized?.asked?.[result?.index]?.question;
+    if(typeof result?.targetKey!=="string"||!question)continue;
+    wordings.set(result.targetKey,[...(wordings.get(result.targetKey)||[]),question]);
+  }
+  // Contact fields ("field.linkedInUrl") are matched by the contact-field rules, keyed by candidate.<field>.
+  const personalWordings=Object.fromEntries([...wordings].filter(([key])=>/^field\.[A-Za-z0-9]{2,40}$/.test(key)).map(([key,list])=>[`candidate.${key.slice(6)}`,list.slice(0,5)]));
+  return{
+    personalWordings,
+    guideEntries:(guideEntries||[]).map(entry=>wordings.has(`guide.${entry.id}`)?{...entry,patterns:[...wordings.get(`guide.${entry.id}`),...(entry.patterns||[])]}:entry),
+    applicationAnswers:(applicationAnswers||[]).map(answer=>wordings.has(`answer.${answer.answerKey}`)?{...answer,questionPatterns:[...wordings.get(`answer.${answer.answerKey}`),...(answer.questionPatterns||[])]}:answer),
+    count:[...wordings.values()].reduce((total,list)=>total+list.length,0),
+  };
+}
 
 export function guideDefinitions(context){
   return(Array.isArray(context?.guideEntries)?context.guideEntries:[]).map(entry=>({id:entry.id,question:entry.question,patterns:entry.patterns||[],mode:entry.mode,source:entry.source||null,sensitive:Boolean(entry.sensitive)}));
@@ -104,6 +160,7 @@ export function screeningDefinitions(context) {
 
 export function autofillValue(context, field) {
   if (String(field?.key||"").startsWith("guide.")) return guideValue(context, field);
+  if (String(field?.key||"").startsWith("evidence.")) return evidenceAnswer(context, field?.label || "");
   if (/^(candidate|employment|education)\./.test(String(field?.key||""))) return autofillValues(context)[field.key]??"";
   if(field?.answerKey==="desired_salary"){
     const midpoint=salaryMidpoint(context?.job);
@@ -115,6 +172,7 @@ export function autofillValue(context, field) {
 
 export function autofillValueSource(context,field){
   if(String(field?.key||"").startsWith("guide."))return"Application Guide";
+  if(String(field?.key||"").startsWith("evidence."))return"Resume skills and experience";
   if(field?.answerKey==="desired_salary"&&salaryMidpoint(context?.job))return"JD salary midpoint";
   return String(field?.key||"").startsWith("screening.")?"Verified Answer Library":String(field?.key||"").startsWith("candidate.")?"Verified Resume metadata":"Structured Resume";
 }

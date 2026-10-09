@@ -2,7 +2,7 @@ import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { AuthenticatedUser } from "@resume-jd/contracts";
 import { ApiException } from "../common/errors/api.exception.js";
 import { SupabaseService } from "../supabase/supabase.service.js";
-import type { SaveApplicationGuideDto } from "./application-guide.dto.js";
+import type { CorrectLearnedWordingDto, SaveApplicationGuideDto } from "./application-guide.dto.js";
 
 function fail(error: any, message: string): never {
   const raw = String(error?.message || "");
@@ -61,6 +61,24 @@ export class ApplicationGuideService {
   async dismissUnresolvedQuestion(user: AuthenticatedUser, id: string) {
     const { data, error } = await this.supabase.forUser(user.token).rpc("dismiss_autofill_unresolved_question_v3157", { p_id: id });
     if (error) fail(error, "The question could not be dismissed.");
+    return data;
+  }
+
+  async learnedWordings(user: AuthenticatedUser) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("list_autofill_learned_wordings_v3161", { p_limit: 200 });
+    if (error) fail(error, "Learned Autofill wordings could not be loaded.");
+    return data || { items: [], total: 0, month: { requests: 0, questions: 0, costMicroUsd: 0 } };
+  }
+
+  async correctLearnedWording(user: AuthenticatedUser, id: string, body: CorrectLearnedWordingDto) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("correct_autofill_learned_wording_v3166", { p_id: id, p_target_key: body.targetKey, p_answer_kind: body.answerKind ?? null });
+    if (error) fail(error, "The learned wording could not be corrected.");
+    return data;
+  }
+
+  async removeLearnedWording(user: AuthenticatedUser, id: string) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("delete_autofill_learned_wording_v3161", { p_id: id });
+    if (error) fail(error, "The learned wording could not be removed.");
     return data;
   }
 

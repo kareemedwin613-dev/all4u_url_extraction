@@ -41,10 +41,11 @@ test("worker probes every frame, checks the chosen frame's site access, and fill
   assert.match(autofill, /globalThis\.__resumeJdAutofillProbe =/);
   assert.match(worker, /if\(!await originAllowed\(frame\.result\.origin\)\)return fail\("SITE_ACCESS_DENIED"/);
   assert.match(worker, /frame\.frameId!==0&&!await originAllowed\(result\.origin\)/);
-  // Detect stores the chosen frame for this session only; fill sends to that frameId.
-  assert.match(worker, /chrome\.storage\.session\.set\(\{\[FRAME_KEY\]:\{sessionId:active\.id,frameId:frame\.frameId\}\}\)/);
-  assert.match(worker, /stored\?\.sessionId===active\.id&&Number\.isInteger\(stored\.frameId\)\?stored\.frameId:0/);
+  // Detect stores the chosen frame on that session (several tabs can run at once); fill sends to that frameId.
+  assert.match(worker, /saveSession\(\{\.\.\.active,frameId:frame\.frameId\}\)/);
+  assert.match(worker, /Number\.isInteger\(active\.frameId\)\?active\.frameId:0/);
   assert.match(worker, /FILL_PERSONAL_AUTOFILL_FIELDS[^;]*\{frameId\}\)/);
-  assert.match(worker, /remove\(\[SESSION_KEY,FRAME_KEY\]\)/);
+  assert.match(worker, /removeSessions\(item=>!id\|\|item\.id===id\)/, "reset clears one session or all");
+  assert.match(worker, /chrome\.tabs\.onRemoved\.addListener\(\(tabId\)=>\{removeSessions\(item=>item\.targetTabId===tabId\)/, "closing a tab ends its session");
   assert.doesNotMatch(worker + upload + autofill, /\.submit\(|requestSubmit\(/);
 });

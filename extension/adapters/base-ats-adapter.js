@@ -4,6 +4,8 @@ export class BaseAtsAdapter{
   detectResumeField(){return null;}
   detectFields(){return{fields:[],unresolved:[]};}
   attachResume(){return{status:"UNSUPPORTED",code:"RESUME_INPUT_NOT_FOUND"};}
+  detectCoverLetterField(){return null;}
+  attachCoverLetter(){return{status:"UNSUPPORTED",code:"COVER_LETTER_INPUT_NOT_FOUND"};}
   fillFields(){return[];}
   async fillField(field,value,context){return(await this.fillFields({...context,fields:[{...field,value}]}))[0]||{fieldId:field?.fieldId,status:"FAILED",code:"FIELD_FILL_FAILED"};}
   verifyField(_field,_value,result){return result?.status==="VERIFIED"||result?.status==="ATTACHED";}

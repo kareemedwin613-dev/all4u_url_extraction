@@ -5,7 +5,7 @@ import { environment } from "../config/environment.js";
 
 export interface ExtensionSession { accessToken: string; refreshToken: string; expiresAt: number | null; userId: string; }
 
-// The only use of the Supabase admin key in the API. It creates a one-time sign-in link for a
+// One of two uses of the Supabase admin key in the API (the other saves learned Autofill wordings). It creates a one-time sign-in link for a
 // user that redeem_extension_pairing_v124 has already verified, and immediately exchanges it
 // for a new session that belongs to the extension. The link is never sent or shown to anyone.
 @Injectable()

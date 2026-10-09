@@ -68,3 +68,37 @@ test("buildApplicationResumeDownloadFilename includes Application number when pr
     "Jane Doe Resume.pdf",
   );
 });
+
+test("attached Resumes are named '<Candidate> Resume' without the Application number; downloads keep it", async () => {
+  const { loadApplicationResumeForSession } = await import("../extension/services/application-service.js");
+  const client = {
+    rpc: async () => ({ data: { bucket: "resumes", path: "a/b.pdf", filename: "upload.pdf", resumeNumber: 7, resumeType: "TAILORED", mimeType: "application/pdf", fileSizeBytes: 1200, candidateName: "Jane Doe", applicationNumber: 482 }, error: null }),
+    storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: "https://storage.example.com/signed" }, error: null }) }) },
+  };
+  let sent;
+  await loadApplicationResumeForSession(client, "", { id: "session", applicationId: "application" }, async (message) => { sent = message; return { ok: true, data: { ready: true } }; });
+  assert.equal(sent.payload.access.filename, "Jane Doe Resume.pdf");
+  assert.equal(buildApplicationResumeDownloadFilename({ candidateName: "Jane Doe", mimeType: "application/pdf", applicationNumber: 482 }), "Jane Doe Resume - App 482.pdf");
+});
+
+test("downloads are named '<Candidate> Resume - <Company>', falling back to the Application number", async () => {
+  const name = (companyName) => buildApplicationResumeDownloadFilename({ candidateName: "Jane Doe", mimeType: "application/pdf", applicationNumber: 482, companyName });
+  assert.equal(name("Elite Technology"), "Jane Doe Resume - Elite Technology.pdf");
+  assert.equal(name("Acme, Inc."), "Jane Doe Resume - Acme Inc.pdf");
+  assert.equal(name("AT&T"), "Jane Doe Resume - AT T.pdf");
+  assert.equal(name("  "), "Jane Doe Resume - App 482.pdf", "no company recorded");
+  const { downloadApplicationResume } = await import("../extension/services/application-service.js");
+  const client = {
+    rpc: async () => ({ data: { bucket: "resumes", path: "a/b.pdf", filename: "upload.pdf", resumeNumber: 7, resumeType: "TAILORED", mimeType: "application/pdf", fileSizeBytes: 1200, candidateName: "Jane Doe", applicationNumber: 482 }, error: null }),
+    storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: "https://storage.example.com/signed" }, error: null }) }) },
+  };
+  let options;
+  const result = await downloadApplicationResume(client, "", "application", async (value) => { options = value; return 3; }, { companyName: "Elite Technology" });
+  assert.equal(options.filename, "Jane Doe Resume - Elite Technology.pdf");
+  assert.equal(result.downloadName, "Jane Doe Resume - Elite Technology.pdf");
+  assert.equal(options.conflictAction, "uniquify", "a second download for the same company gets Chrome's (1) suffix");
+});
+
+test("My Applications passes the Application's company to Download Resume", () => {
+  assert.match(read("../extension/sidepanel/views/MyApplicationsView.jsx"), /downloadApplicationResume\(client, backendBaseUrl, application\.id, undefined, \{ companyName: application\.company \}\)/);
+});
