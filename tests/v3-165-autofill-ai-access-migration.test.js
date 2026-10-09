@@ -34,3 +34,11 @@ test("the side panel does not ask for drafts when the person's access is not DRA
   assert.match(app, /const mayDraft = !recognized\?\.aiLevel \|\| recognized\.aiLevel === "DRAFT";/);
   assert.match(app, /const draftable = \(recovered \|\| reviewRequired \|\| !mayDraft\) \? \[\] :/);
 });
+
+test("v3.167 lists everyone who can run Autofill: roles read directly, never has_role() for another person", () => {
+  const fix = readFileSync(new URL("../supabase/migrations/202610091200_v3_167_fix_ai_access_applier_list.sql", import.meta.url), "utf8");
+  const code = fix.replace(/--[^\n]*/g, "");
+  assert.doesNotMatch(code, /has_role\('APPLIER', p\.id\)/, "has_role() is true only for the signed-in person");
+  assert.match(code, /r\.code in \('APPLIER', 'APPLYING_MANAGER', 'ADMIN'\)/);
+  assert.match(code, /public\.has_role\('ADMIN', auth\.uid\(\)\)/, "still Admin-only");
+});
