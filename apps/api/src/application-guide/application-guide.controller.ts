@@ -38,6 +38,20 @@ export class ApplicationGuideController {
     return { data: await this.guide.dismissUnresolvedQuestion(request.user!, id), requestId: request.requestId };
   }
 
+  @Get("learned-wordings")
+  @RequireRoles("ADMIN")
+  @ApiOperation({ summary: "List question wordings the AI matched to Autofill answers, and this month's AI spend" })
+  async learnedWordings(@Req() request: ApiRequest) {
+    return { data: await this.guide.learnedWordings(request.user!), requestId: request.requestId };
+  }
+
+  @Delete("learned-wordings/:id")
+  @RequireRoles("ADMIN")
+  @ApiOperation({ summary: "Remove a learned wording so the AI decides it again next time" })
+  async removeLearnedWording(@Req() request: ApiRequest, @Param("id", new ParseUUIDPipe({ version: "4" })) id: string) {
+    return { data: await this.guide.removeLearnedWording(request.user!, id), requestId: request.requestId };
+  }
+
   @Post()
   @RequireRoles("ADMIN")
   @ApiOperation({ summary: "Create or update an Application Guide entry" })

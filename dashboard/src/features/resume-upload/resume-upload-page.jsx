@@ -25,6 +25,7 @@ import {
 } from "./resume-upload-service.js";
 import { ExperienceEditor } from "./experience-editor.jsx";
 import { CertificationEditor, EducationEditor } from "./education-editor.jsx";
+import { educationFromText, withStructuredEducation } from "../../shared/legacy-education-parser.js";
 import { resolveSubcategoryId } from "./resume-structure.js";
 import { TabbedSections } from "../../components/ui.jsx";
 import { skillsFromResumeSection } from "../../../../extension/shared/skill-detection.js";
@@ -110,7 +111,8 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
         primary = categories.bySlug.get(parsed.categorySlug),
         subcategory = categories.bySlug.get(parsed.subcategorySlug),
         extracted=parsed.structuredContent,
-        structuredContent={...extracted,education_legacy_text:Array.isArray(extracted.education)?extracted.education_legacy_text||"":extracted.education||"",education:Array.isArray(extracted.education)?extracted.education:[],certifications:Array.isArray(extracted.certifications)?extracted.certifications:[]};
+        // Education is saved as entries (parsed from the text when the reader only found text), so Autofill can fill it.
+        structuredContent={...withStructuredEducation(extracted),certifications:Array.isArray(extracted.certifications)?extracted.certifications:[]};
       setDraft({
         candidateName: parsed.candidateName,
         candidateFirstName: parsed.candidateFirstName,
@@ -547,6 +549,18 @@ export function AdminResumeUploadPage({ client, apiBaseUrl, access, categories }
                           autoSize={{ minRows: 5, maxRows: 12 }}
                         />
                       </label>
+                      {draft.structuredContent.education_legacy_text?.trim() ? (() => {
+                        // Autofill fills School / Degree / Field of Study from the entries below, not from this text.
+                        const { education, warnings } = educationFromText(draft.structuredContent.education_legacy_text);
+                        return (
+                          <div style={{ marginBottom: 8 }}>
+                            <Button size="small" disabled={!education.length} onClick={() => setSection("education", education)}>
+                              {draft.structuredContent.education.length ? "Replace education entries with this text" : "Fill education from this text"}
+                            </Button>
+                            {warnings.length ? <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 4 }}>Check: {warnings.join(" · ")}</Typography.Text> : null}
+                          </div>
+                        );
+                      })() : null}
                       <EducationEditor items={draft.structuredContent.education} onChange={(value)=>setSection("education",value)}/>
                       <CertificationEditor items={draft.structuredContent.certifications} onChange={(value)=>setSection("certifications",value)}/>
                       <label>

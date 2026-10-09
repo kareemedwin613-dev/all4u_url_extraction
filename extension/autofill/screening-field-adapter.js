@@ -1,4 +1,4 @@
-import { containerQuestion, isUserFacing, linkedLabels } from "./form-context.js";
+import { choiceGroup, containerQuestion, inConsentBanner, isUserFacing, linkedLabels, notAQuestion } from "./form-context.js";
 const FIELD_ATTRIBUTE = "data-resume-jd-screening-autofill-id";
 const SAFE_KEYS = new Set([
   "authorized_to_work", "requires_sponsorship", "willing_to_relocate", "available_start_date",
@@ -14,7 +14,7 @@ const KEY_TYPES = Object.freeze({
   gender_identity: "TEXT", race_ethnicity: "TEXT", veteran_status: "TEXT",
 });
 const CONTROL_TYPES = new Set(["text", "search", "number", "date", "radio"]);
-const PROHIBITED_QUESTION = /\b(race|racial|ethnicity|ethnic|gender|sex|sexual|pronouns?|religion|religious|disability|disabled|medical|veteran|military|criminal|conviction|arrest|felony|misdemeanor|marital|pregnan\w*|genetic|transgender|lgbtq?\w*|orientation|accommodation)\b/i;
+const PROHIBITED_QUESTION = /\b(race|racial|ethnicity|ethnic|gender|sex|sexual|pronouns?|religion|religious|disability|disabled|medical|veteran|military|criminal|conviction|arrest|felony|misdemeanor|marital|pregnan\w*|genetic|transgender|lgbtq?\w*|orientation|accommodation|age|age range|date of birth|birth\s?date|how old)\b/i;
 const LEGAL_OR_ATTESTATION = /\b(certif(?:y|ication)|attest|declare|under penalty|terms and conditions|arbitration|background check|drug (?:test|screen)|restrictive covenant|non[- ]?compete|non[- ]?solicit|conflict of interest|government official|export control|itar|security clearance|public trust)\b/i;
 const LONG_FORM = /\b(cover letter|why (?:do|would|are)|explain|describe|additional information|anything else|essay|statement)\b/i;
 
@@ -52,7 +52,11 @@ function labelText(element) {
   const wrapperPrompt = clean(fieldWrapper?.querySelector?.("label,legend,[class*='label'],[class*='Label']")?.textContent);
   const labelledBy = clean(element.getAttribute?.("aria-labelledby"));
   const referenced = labelledBy.split(" ").filter(Boolean).map((id) => clean(element.ownerDocument?.getElementById?.(id)?.textContent));
-  return [...labels, legend, previous, parentLabel, prompt, wrapperPrompt, ...referenced].filter(Boolean).join(" ");
+  // A field with its own <label for> or aria-labelledby is not given a neighbour's label from a shared container
+  // (on a flat form the container's first label belongs to another field).
+  if (labels.length || referenced.some(Boolean)) return [...new Set([...labels, legend, ...referenced].filter(Boolean))].join(" ");
+  // The same label is often reachable several ways (previous sibling, wrapper); keep each text once.
+  return [...new Set([legend, previous, parentLabel, prompt, wrapperPrompt].filter(Boolean))].join(" ");
 }
 
 function isCombobox(element) {
@@ -102,6 +106,13 @@ export function sanitizeScreeningAnswers(answers = [], { includeValues = false }
 
 export function questionBlocked(text) {
   return PROHIBITED_QUESTION.test(text) || LEGAL_OR_ATTESTATION.test(text) || LONG_FORM.test(text);
+}
+
+// An open-ended question in the candidate's own words ("Why do you want to work here?", "Describe a project"):
+// never filled from a stored answer, but an AI draft for a person to review is allowed. Sensitive and legal
+// questions never are; a cover letter comes from the Application's own letter; "anything else" boxes stay optional.
+export function openEndedQuestion(text) {
+  return LONG_FORM.test(text) && !PROHIBITED_QUESTION.test(text) && !LEGAL_OR_ATTESTATION.test(text) && !/\b(cover letter|anything else|additional information)\b/i.test(text);
 }
 
 function answerQuestionBlocked(text,answer){
@@ -156,7 +167,7 @@ export function screeningFieldCandidates(root = document, rawAnswers = []) {
       const confidence = matchAnswer(text, answer);
       if (confidence < 90) continue;
       const type = String(element.type || "").toLowerCase();
-      const elements = type === "radio" && element.name ? all.filter((item) => String(item.type || "").toLowerCase() === "radio" && item.name === element.name) : [element];
+      const elements = type === "radio" ? choiceGroup(element, all) : [element];
       candidates.push({
         element, elements, answer, confidence, key: screeningKey(answer.answerKey),
         label: labelText(element) || clean(element.name || element.id),
@@ -193,7 +204,7 @@ export function detectScreeningFields(root = document, rawAnswers = []) {
   });
 }
 
-const CLAIMED_ATTRIBUTES = [FIELD_ATTRIBUTE, "data-resume-jd-autofill-id", "data-resume-jd-guide-autofill-id", "data-resume-jd-missing-value"];
+const CLAIMED_ATTRIBUTES = [FIELD_ATTRIBUTE, "data-resume-jd-autofill-id", "data-resume-jd-guide-autofill-id", "data-resume-jd-missing-value", "data-resume-jd-section"];
 // Unclaimed questions include text areas and checkboxes so Admins see long-form and consent prompts too.
 function unresolvedControls(root) {
   return [...root.querySelectorAll("input,select,textarea")].filter((element) => {
@@ -203,18 +214,35 @@ function unresolvedControls(root) {
   });
 }
 
+export const UNRESOLVED_REF_ATTRIBUTE="data-resume-jd-unresolved-ref";
 export function detectUnresolvedQuestions(root=document,rawAnswers=[]){
-  const answers=sanitizeScreeningAnswers(rawAnswers),seen=new Set(),result=[];
-  for(const element of unresolvedControls(root)){
+  const answers=sanitizeScreeningAnswers(rawAnswers),seen=new Set(),result=[],stamp=Date.now().toString(36);
+  const controls=unresolvedControls(root);
+  for(const element of controls){
     if(CLAIMED_ATTRIBUTES.some(name=>element.hasAttribute?.(name)))continue;
-    const type=String(element.type||"text").toLowerCase(),groupKey=(type==="radio"||type==="checkbox")&&element.name?`${type}:${element.name}`:null;
-    if(groupKey&&seen.has(groupKey))continue;if(groupKey)seen.add(groupKey);
+    // Cookie and consent banners are not part of the application.
+    if(inConsentBanner(element))continue;
+    const type=String(element.type||"text").toLowerCase();
     // A group's question, not its first option; unlinked labels are read from the field's container.
-    const group=groupKey?unresolvedControls(root).filter(item=>String(item.type||"").toLowerCase()===type&&item.name===element.name):[element];
-    const question=(groupKey?containerQuestion(element,group):"")||labelText(element)||containerQuestion(element,group)||clean(element.getAttribute?.("aria-label")||element.getAttribute?.("placeholder")||element.name||element.id);
-    if(!question||question.length<2)continue;
+    const choiceItems=choiceGroup(element,controls),groupKey=choiceItems.length>1||((type==="radio"||type==="checkbox")&&element.name)?choiceItems[0]:null;
+    if(groupKey&&seen.has(groupKey))continue;if(groupKey)seen.add(groupKey);
+    const group=groupKey?choiceItems:[element];
+    // A field name or id ("q9", "field-8") is never a question: without visible wording there is nothing to report.
+    const question=(groupKey?containerQuestion(element,group):"")||labelText(element)||containerQuestion(element,group)||clean(element.getAttribute?.("aria-label")||element.getAttribute?.("placeholder"));
+    // Only option words, a placeholder or a generic control label: the real question was not found.
+    if(!question||question.length<2||notAQuestion(question))continue;
     const blocked=questionBlocked(question),suggestions=blocked?[]:answers.map(answer=>({answerKey:answer.answerKey,score:matchAnswer(question,answer)})).filter(item=>item.score>=45).sort((a,b)=>b.score-a.score).slice(0,3);
-    result.push({question:question.slice(0,300),normalizedQuestion:normalize(question).slice(0,300),controlType:type==="radio"||type==="checkbox"?type:isCombobox(element)?"combobox":String(element.tagName||"input").toLowerCase(),reason:blocked?"REVIEW_REQUIRED":"NO_MATCHING_ANSWER",suggestions});
+    // Option labels tell AI recognition what kind of answer the form expects; they are employer text, not answers.
+    const options=(String(element.tagName||"").toLowerCase()==="select"?[...(element.options||[])].map(option=>clean(option.textContent)).filter(text=>text&&!/^(select|choose|please select|--)/i.test(text))
+      :groupKey?group.map(item=>clean(linkedLabels(item).map(label=>label.textContent).join(" "))||clean(item.closest?.("label")?.textContent)||clean(item.value)):[]).filter(Boolean).slice(0,25).map(text=>text.slice(0,120));
+    const controlType=type==="radio"||type==="checkbox"?type:isCombobox(element)?"combobox":String(element.tagName||"input").toLowerCase();
+    // Text boxes a drafted answer could go into carry a reference and their length limit.
+    let ref,maxLength;const openEnded=blocked&&openEndedQuestion(question);
+    if((!blocked||openEnded)&&(controlType==="textarea"||(controlType==="input"&&["text","search",""].includes(type)))){
+      ref="u"+stamp+"_"+result.length;element.setAttribute?.(UNRESOLVED_REF_ATTRIBUTE,ref);
+      const limit=Number(element.maxLength)>0?Number(element.maxLength):Number(element.getAttribute?.("maxlength"));maxLength=limit>0?limit:undefined;
+    }
+    result.push({question:question.slice(0,300),normalizedQuestion:normalize(question).slice(0,300),controlType,reason:blocked?"REVIEW_REQUIRED":"NO_MATCHING_ANSWER",suggestions,options,...(ref?{ref}:{}),...(maxLength?{maxLength}:{}),...(openEnded&&ref?{openEnded:true}:{})});
   }
   return result.slice(0,50);
 }

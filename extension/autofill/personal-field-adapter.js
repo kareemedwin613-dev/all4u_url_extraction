@@ -1,5 +1,5 @@
 import { findBestOption, monthAliases, valueAliases } from "./option-matching.js";
-import { containerQuestion, formSection, isUserFacing, linkedLabels, sentenceLike } from "./form-context.js";
+import { containerQuestion, formSection, isUserFacing, linkedLabels, notAQuestion, sentenceLike } from "./form-context.js";
 
 const FIELD_ATTRIBUTE = "data-resume-jd-autofill-id";
 const SUPPORTED_TYPES = new Set(["", "text", "email", "tel", "url", "search", "month", "date", "number", "checkbox"]);
@@ -39,7 +39,8 @@ const STRUCTURED_RULES = {
   isCurrent: { section: "employment", pattern: /\b(i\s+(?:still\s+)?(?:currently\s+)?work\s+here|currently\s+work(?:ing)?\s+here|current(?:ly)?\s+(?:employed|role|position|job|employer)|present\s+(?:role|position|job))\b|^\s*(?:current|present)\s*$/i, checkboxOnly: true },
   institution: { section: "education", pattern: /\b(school|institution|university|college)\b/i },
   degree: { section: "education", pattern: /\bdegree\b/i },
-  fieldOfStudy: { section: "education", pattern: /\b(field|discipline|major)(\s+of\s+study)?\b/i },
+  // Not a bare "field": many forms give inputs ids like "field-8" (Rippling).
+  fieldOfStudy: { section: "education", pattern: /\b(field\s+of\s+study|area\s+of\s+study|discipline|major)\b/i },
   gpa: { section: "education", pattern: /\b(gpa|grade\s+point)\b/i },
   location: { section: "shared", pattern: /\b(location|city)\b/i },
   startMonth: { section: "shared", pattern: /\b(start|from)\s*(date\s*)?month\b/i, score: 92 },
@@ -62,15 +63,26 @@ function labelText(element) {
   const labels = linkedLabels(element).map((label) => clean(label.textContent));
   const wrapping = clean(element.closest?.("label")?.textContent);
   const legend = clean(element.closest?.("fieldset")?.querySelector?.("legend")?.textContent);
-  const previous = clean(element.previousElementSibling?.textContent);
+  // A neighbouring dropdown is not a label or prompt: its text is a list of options (ADP's phone country picker).
+  const sibling = element.previousElementSibling;
+  const previous = sibling && !/^(select|option)$/i.test(sibling.tagName) && !sibling.querySelector?.("select,option") ? clean(sibling.textContent) : "";
   const parentLabel = clean(element.parentElement?.querySelector?.("label")?.textContent);
-  const parentPrompt = clean(element.parentElement?.querySelector?.("[data-ui='label'],[class*='label'],[class*='Label']")?.textContent);
+  const promptElement = element.parentElement?.querySelector?.("[data-ui='label'],[class*='label'],[class*='Label']");
+  const parentPrompt = promptElement && !/^(select|option)$/i.test(promptElement.tagName) && !promptElement.querySelector?.("select,option") ? clean(promptElement.textContent) : "";
   const labelledBy = clean(element.getAttribute?.("aria-labelledby"));
   const labelledText = labelledBy.split(" ").filter(Boolean).map((id) => clean(element.ownerDocument?.getElementById?.(id)?.textContent)).filter(Boolean);
   // The same label is often reached several ways; repeating it would make a short label look like a sentence.
   const found = [...new Set([...labels, wrapping, legend, previous, parentLabel, parentPrompt, ...labelledText].filter(Boolean))].join(" ");
   // An unlinked label in the field's own container (Ashby).
   return found || containerQuestion(element);
+}
+
+// "What is your preferred name?" asks for the same thing as "Preferred name": a short question of that form is
+// read as its plain label, so it is not mistaken for a sentence-style screening question.
+const ASK_PREFIX = /^\s*(?:what\s+is|what's|please\s+(?:enter|provide)|enter|provide)\s+your\s+/i;
+function plainLabel(text) {
+  const stripped = clean(String(text || "").replace(ASK_PREFIX, "").replace(/[?*:\s]+$/, ""));
+  return stripped !== clean(text) && stripped && stripped.split(" ").length <= 4 ? stripped : clean(text);
 }
 
 function descriptorParts(element) {
@@ -101,9 +113,10 @@ export function scorePersonalField(element, rule) {
   if (rule.autocomplete.includes(autocomplete)) return Math.min(100 + (element.required ? 1 : 0), 100);
   const text = descriptor(element);
   // Long sentence-style questions belong to the guide and screening matchers.
-  const matched = !sentenceLike(labelText(element)) && (rule.pattern.test(text) || (rule.exact && descriptorParts(element).some((part) => rule.exact.test(part))));
+  const sentence = sentenceLike(plainLabel(labelText(element)));
+  const matched = !sentence && (rule.pattern.test(text) || (rule.exact && descriptorParts(element).some((part) => rule.exact.test(part))));
   let score = matched ? 90 : 0;
-  if (rule.strong && !sentenceLike(labelText(element)) && rule.strong.test(text)) score = 95;
+  if (rule.strong && !sentence && rule.strong.test(text)) score = 95;
   if (rule.type && inputType(element) === rule.type) score = Math.max(score, text ? 92 : 82);
   if (rule.key.endsWith("Url") && inputType(element) === "url" && rule.pattern.test(text)) score += 3;
   if (element.required) score += 1;
@@ -162,7 +175,8 @@ export function personalFieldCandidates(root = document, availableKeys = FIELD_R
     matches.sort((a, b) => b.confidence - a.confidence);
     const best = matches[0] || null;
     const leaf = bestStructuredLeaf(element);
-    if (leaf && (!best || leaf.score >= best.confidence)) {
+    // Outside a detected job or school entry, an equally strong contact match wins.
+    if (leaf && (!best || leaf.score > best.confidence || (leaf.score === best.confidence && section.kind))) {
       const rule = STRUCTURED_RULES[leaf.leaf];
       const kind = rule.section === "shared" ? section.kind : section.kind && section.kind !== rule.section ? null : rule.section;
       if (kind) { structured.push({ element, leaf: leaf.leaf, kind, section, confidence: leaf.score }); continue; }
@@ -184,6 +198,16 @@ export function personalFieldCandidates(root = document, availableKeys = FIELD_R
 }
 
 export function tagPersonalField(element, fieldId) { element.setAttribute(FIELD_ATTRIBUTE, fieldId); }
+
+// Placeholders, option words, generic control labels and cookie-banner items are not questions (form-context.js).
+export const placeholderOnly = (label) => notAQuestion(label);
+
+// A plain contact label ("First name", "Email", "Phone number"). Filling these is the contact rules' job;
+// they are never sent to AI recognition (a second "First name" is often a reference's, not the candidate's).
+export function contactQuestion(label) {
+  const text = plainLabel(label);
+  return Boolean(text) && !sentenceLike(text) && FIELD_RULES.some((rule) => !rule.textareaOnly && (rule.pattern.test(text) || Boolean(rule.exact?.test(text))));
+}
 
 export function personalFieldResult(candidate, fieldId) {
   return {
@@ -251,11 +275,17 @@ function setNativeValue(element, value, key) {
     if (!option) return false;
     element.value = option.value;
   } else {
+    // Some text boxes (ADP Workforce Now) keep a value only if it arrives while they have focus; leaving them
+    // without having entered restores their saved, empty value.
+    try { element.focus?.({ preventScroll: true }); } catch {}
     const prototype = tag === "textarea" ? globalThis.HTMLTextAreaElement?.prototype : globalThis.HTMLInputElement?.prototype;
     const setter = prototype && Object.getOwnPropertyDescriptor(prototype, "value")?.set;
     if (setter) setter.call(element, value); else element.value = value;
   }
-  for (const type of ["input", "change", "blur"]) element.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+  for (const type of ["input", "change"]) element.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+  // A real blur when the box has focus; in a background tab (no focus) the event is sent instead.
+  if (element.ownerDocument?.activeElement === element && typeof element.blur === "function") element.blur();
+  else element.dispatchEvent(new Event("blur", { bubbles: true, composed: true }));
   return true;
 }
 
@@ -272,7 +302,9 @@ function verified(element, value, key) {
     if (actualDigits === expectedDigits) return true;
     // ATS forms commonly keep the 1–3 digit country calling code in an
     // adjacent selector and expose only the national number in the tel input.
-    return actualDigits.length >= 7 && expectedDigits.endsWith(actualDigits) && expectedDigits.length - actualDigits.length <= 3;
+    if (actualDigits.length >= 7 && expectedDigits.endsWith(actualDigits) && expectedDigits.length - actualDigits.length <= 3) return true;
+    // Others (ADP) reformat the number and add the calling code in the box itself: "5125550142" → "+1 512 555 0142".
+    return expectedDigits.length >= 7 && actualDigits.endsWith(expectedDigits) && actualDigits.length - expectedDigits.length <= 3;
   }
   return false;
 }

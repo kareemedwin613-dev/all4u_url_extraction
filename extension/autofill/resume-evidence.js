@@ -53,7 +53,7 @@ function termFound(corpus, term) {
 // "with CI/CD, automated testing, observability, and monitoring" → ["ci/cd", "automated testing", ...].
 export function questionTerms(question) {
   const text = String(question || "").split("?")[0];
-  const match = text.match(/\b(?:experience|familiar(?:ity)?|proficien(?:t|cy)|knowledge|expertise|worked|work)\s+(?:\w+\s+){0,3}?(?:with|in|using|of|on)\s+(.+)$/i)
+  const match = text.match(/\b(?:experience|familiar(?:ity)?|proficien(?:t|cy)|knowledge|expertise|skilled|skills?|worked|work)\s+(?:\w+\s+){0,3}?(?:with|in|using|of|on)\s+(.+)$/i)
     || text.match(/\b(?:designing|building|delivering|developing|maintaining|operating)\s+(.+)$/i);
   if (!match) return { terms: [], any: false };
   let list = match[1].replace(/\([^)]*\)/g, " ");

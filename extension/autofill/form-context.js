@@ -101,15 +101,51 @@ export function containerQuestion(element, group = [element]) {
   const optionLabels = new Set(group.flatMap((control) => linkedLabels(control)));
   const controlIds = new Set(group.map((control) => control.id).filter(Boolean));
   const isOptionLabel = (label) => optionLabels.has(label) || controlIds.has(label.getAttribute?.("for") || "");
+  // Option wording ("Yes, Strong C# skills") is never the question, even when the page styles it like a label.
+  const optionTexts = new Set(group.map((control) => clean(control.closest?.("label")?.textContent || linkedLabels(control).map((label) => label.textContent).join(" "))).filter(Boolean));
+  const insideOption = (candidate) => { const label = candidate.closest?.("label"); return Boolean(label && (isOptionLabel(label) || label.querySelector?.("input,select,textarea"))); };
   let node = element?.parentElement;
   for (let depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
     const controls = [...(node.querySelectorAll?.("input,select,textarea") || [])].filter((control) => String(control.type || "").toLowerCase() !== "hidden");
     if (controls.some((control) => !own.has(control))) return "";
-    const label = [...(node.querySelectorAll?.("label,legend,[role='heading']") || [])]
-      .find((candidate) => !isOptionLabel(candidate) && !candidate.querySelector?.("input,select,textarea") && clean(candidate.textContent));
+    // Real <label>/<legend>/headings, and label-styled blocks such as Lever's <div class="application-label">.
+    const label = [...(node.querySelectorAll?.("label,legend,[role='heading'],[class*='label'],[class*='Label']") || [])]
+      .find((candidate) => !isOptionLabel(candidate) && !insideOption(candidate) && !candidate.querySelector?.("input,select,textarea")
+        && clean(candidate.textContent) && !optionTexts.has(clean(candidate.textContent)));
     if (label) return clean(label.textContent).slice(0, 600);
+    // No label element at all (Gem: <span>First name *</span> before the field's wrapper): the text just before
+    // the branch holding the control, when that text holds no control and is not an option.
+    const branch = [...(node.children || [])].find((child) => child === element || child.contains?.(element));
+    for (let sibling = branch?.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+      if (sibling.querySelector?.("input,select,textarea") || insideOption(sibling)) break;
+      const text = clean(sibling.textContent);
+      if (/\p{L}/u.test(text) && !optionTexts.has(text)) return text.slice(0, 600);
+    }
   }
   return "";
+}
+
+// The radios and checkboxes that answer one question: those sharing its name. Radios without a name (Gem's React
+// form) are the radios in the smallest container holding two or more and nothing else; checkboxes without a name
+// stay single, since separate consent boxes often sit side by side.
+export function choiceGroup(element, all) {
+  const type = String(element?.type || "").toLowerCase();
+  if (!["radio", "checkbox"].includes(type)) return [element];
+  const sameType = (item) => String(item.type || "").toLowerCase() === type;
+  if (element.name) {
+    const named = all.filter((item) => sameType(item) && item.name === element.name);
+    return named.length ? named : [element];
+  }
+  if (type !== "radio") return [element];
+  for (let node = element.parentElement, depth = 0; node && depth < 6; node = node.parentElement, depth += 1) {
+    const controls = [...(node.querySelectorAll?.("input,select,textarea") || [])].filter((control) => String(control.type || "").toLowerCase() !== "hidden");
+    if (controls.some((control) => !sameType(control) || control.name)) break;
+    if (controls.length > 1) {
+      const group = all.filter((item) => controls.includes(item));
+      return group.includes(element) ? group : [element];
+    }
+  }
+  return [element];
 }
 
 export function wordCount(value) { return clean(value).split(" ").filter(Boolean).length; }
@@ -119,4 +155,27 @@ export function wordCount(value) { return clean(value).split(" ").filter(Boolean
 export function sentenceLike(value) {
   const text = clean(value);
   return wordCount(text) > 8 || (/\?/.test(text) && wordCount(text) > 4);
+}
+
+// Text that is not a question an applicant answers: a control's placeholder ("Select", "Search"), a generic
+// control label ("checkbox label"), only option words ("Yes", "No Yes", "I agree"), or a cookie-banner item.
+// Such text means the real question was not found; it is never sent to AI recognition or remembered.
+const PLACEHOLDER_TEXT = /^\s*(?:select(?:\s+one)?|search|choose|type\s+to\s+search|please\s+select|select\s+an?\s+option|--+)\s*(?:\.{3}|…)?\s*\*?\s*$/i;
+const GENERIC_CONTROL_TEXT = /^\s*(?:checkbox|radio|toggle|switch|option|label|checkbox\s+label|radio\s+label|input|field|text|value|answer|response)\s*\*?\s*$/i;
+const OPTION_WORDS_ONLY = /^\s*(?:(?:yes|no|true|false|n\/?a|none|other|maybe|i\s+agree|agree|disagree|accept|decline|ok|okay)[\s,/|*.-]*)+$/i;
+const COOKIE_TEXT = /\bcookies?\b/i;
+
+export function notAQuestion(text) {
+  const value = clean(text);
+  return !value || PLACEHOLDER_TEXT.test(value) || GENERIC_CONTROL_TEXT.test(value) || OPTION_WORDS_ONLY.test(value) || COOKIE_TEXT.test(value);
+}
+
+// Cookie and consent managers (OneTrust, Cookiebot, generic banners) are not part of the application form.
+const CONSENT_CONTAINER = /onetrust|cookiebot|cookie|consent[-_]?(?:banner|manager|sdk|dialog)|\bcmp[-_]|gdpr/i;
+export function inConsentBanner(element) {
+  for (let node = element?.parentElement, depth = 0; node && depth < 12; node = node.parentElement, depth += 1) {
+    const marks = `${node.id || ""} ${typeof node.className === "string" ? node.className : ""} ${node.getAttribute?.("aria-label") || ""}`;
+    if (CONSENT_CONTAINER.test(marks)) return true;
+  }
+  return false;
 }

@@ -66,8 +66,9 @@ test("side panel attaches the Resume in one click and before Autofill field dete
   assert.doesNotMatch(app, /accessToken: session\.access_token|signedUrl/);
   const autofill = app.slice(app.indexOf("// Everything the page needs is requested at once"));
   assert.ok(autofill.indexOf("attachSessionResume(") > -1 && autofill.indexOf("attachSessionResume(") < autofill.indexOf("PREPARE_PERSONAL_AUTOFILL"), "Resume is attached before fields are detected");
-  // Review-required Resumes and recovered sessions are loaded but not re-uploaded automatically.
-  assert.match(app, /if \(!attachment && !recovered && !reviewRequired\) \{\s*tabProgress\(id, 2, steps, "Attaching resume"\);\s*try \{\s*attachment = await attachSessionResume/);
+  // Review-required Resumes and recovered sessions are loaded but not re-uploaded automatically; an earlier
+  // attempt that did not attach is retried (the page leaves a file it already shows alone).
+  assert.match(app, /if \(attachment\?\.status !== "ATTACHED" && !recovered && !reviewRequired\) \{\s*tabProgress\(id, 2, steps, "Attaching resume"\);\s*try \{\s*attachment = await attachSessionResume/);
   assert.match(app, /attachmentsRef\.current\.get\(id\)/);
   assert.doesNotMatch(app, /\.submit\(|requestSubmit\(/);
 });

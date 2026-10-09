@@ -43,11 +43,13 @@ import { ResumesView } from "./views/ResumesView.jsx";
 import { QueueView } from "./views/QueueView.jsx";
 import { JobReviewView } from "./views/JobReviewView.jsx";
 import { MyJobDescriptionsView } from "./views/MyJobDescriptionsView.jsx";
-import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationCoverLetterText,getApplicationExtensionContext, listMyApplications, loadApplicationResumeForSession, recentApplicationExtensionContext, startApplicationExtensionAction, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, recordAutofillUnresolvedQuestions, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
+import { getApplicationAutofillContext, getApplicationAutofillRecovery, getApplicationCoverLetterText,getApplicationExtensionContext, loadApplicationCoverLetterFile, listMyApplications, loadApplicationResumeForSession, recentApplicationExtensionContext, startApplicationExtensionAction, recordApplicationAutofillTelemetry, recordApplicationResumeAttachment, recordAutofillUnresolvedQuestions, recognizeAutofillQuestions, draftAutofillAnswers, updateApplicationAutofillRecovery, updateApplicationExtensionSession } from "../services/application-service.js";
+import { documentParts } from "./document-outcomes.js";
 import { MESSAGE_TYPES } from "../shared/messages.js";
 import { AutofillPreview } from "./components/AutofillPreview.jsx";
 import { AutofillJobsList } from "./components/AutofillJobsList.jsx";
-import { autofillValue, autofillValues, guideDefinitions, repeatableSectionRows, screeningDefinitions, sectionResultFields, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
+import { contactQuestion, placeholderOnly } from "../autofill/personal-field-adapter.js";
+import { addRecognizedWordings, autofillValue, autofillValues, guideDefinitions, repeatableSectionRows, screeningDefinitions, sectionResultFields, selectedScreeningAnswersUnchanged } from "../autofill/autofill-context.js";
 import { buildAutofillTelemetry, mapAutofillRecovery, mergeAutofillResults } from "../autofill/session-telemetry.js";
 import { clearSidepanelView, loadSidepanelView, saveSidepanelView } from "./ui-state.js";
 
@@ -85,6 +87,19 @@ async function attachSessionResume(sessionId) {
   return response.data;
 }
 
+// The Application's cover letter file into the page's cover letter upload. Never throws: the outcome is reported.
+async function attachSessionCoverLetter(client, baseUrl, sessionData) {
+  try {
+    const file = await loadApplicationCoverLetterFile(client, baseUrl, sessionData.applicationId);
+    const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.ATTACH_COVER_LETTER, payload: { sessionId: sessionData.id, file } });
+    if (!response?.ok) return { status: "FAILED", code: response?.error?.code || "COVER_LETTER_ATTACHMENT_FAILED", message: response?.error?.message || "The cover letter could not be attached." };
+    return response.data;
+  } catch (error) {
+    if (/COVER_LETTER_NOT_FOUND$/.test(String(error?.code || ""))) return { status: "UNSUPPORTED", code: "COVER_LETTER_NOT_FOUND", message: "This Application has no cover letter to attach." };
+    return { status: "FAILED", code: "COVER_LETTER_ATTACHMENT_FAILED", message: `The cover letter was not attached: ${error?.message || "unknown error"}` };
+  }
+}
+
 const SAFE_CODE = /^[A-Z][A-Z0-9_]{0,79}$/;
 const SAFE_HOST = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
 function hostOf(url) { try { return new URL(url).hostname.toLowerCase(); } catch { return ""; } }
@@ -117,6 +132,22 @@ function withCoverLetter(context, text) {
 
 function failedAttachment(error) {
   return { status: "FAILED", code: SAFE_CODE.test(String(error?.code || "")) ? error.code : "RESUME_ATTACHMENT_FAILED", message: `The Resume was not attached: ${error?.message || "unknown error"}` };
+}
+
+// What AI recognition said each question without a standard answer is (ESSAY, DEPENDS_ON_PROFILE, …), by wording.
+const draftKey = (question) => String(question || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function draftKinds(recognized) {
+  const kinds = new Map();
+  for (const result of recognized?.results || []) {
+    const question = recognized?.asked?.[result?.index]?.question;
+    if (question && result?.kind) kinds.set(draftKey(question), String(result.kind).toUpperCase());
+  }
+  return kinds;
+}
+// A text box is drafted unless it needs a standard answer or is a statement; a one-line input only when it is an essay.
+function shouldDraft(item, kind) {
+  if (item.controlType === "textarea") return !["SAME_FOR_EVERYONE", "NOT_A_QUESTION"].includes(kind);
+  return item.controlType === "input" && kind === "ESSAY";
 }
 
 function applicationSessionBanner({ session, context, loadedResume, attachment }) {
@@ -297,11 +328,12 @@ export function App() {
   const tabProgress = useCallback((id, step, steps, label) => tabStatus(id, "WORKING", label, "", { step, steps }), [tabStatus]);
 
   // "12 filled · 2 failed · 3 for you to answer · 1 waiting for this tab"
-  const finishSummary = useCallback((id, { results = [], unresolved = [], deferred = [], company = "" }) => {
+  const finishSummary = useCallback((id, { results = [], unresolved = [], deferred = [], company = "", documents = {} }) => {
     const verified = results.filter((result) => result.status === "VERIFIED").length;
     const failed = results.filter((result) => result.status === "FAILED" && !deferred.includes(result.fieldId)).length;
-    const parts = [`${verified} filled`, failed ? `${failed} failed` : "", unresolved.length ? `${unresolved.length} for you to answer` : "", deferred.length ? `${deferred.length} waiting for this tab` : ""].filter(Boolean);
-    const attention = failed > 0 || deferred.length > 0;
+    const files = documentParts(documents);
+    const parts = [`${verified} filled`, failed ? `${failed} failed` : "", unresolved.length ? `${unresolved.length} for you to answer` : "", deferred.length ? `${deferred.length} waiting for this tab` : "", ...files.parts].filter(Boolean);
+    const attention = failed > 0 || deferred.length > 0 || files.attention;
     tabStatus(id, attention ? "ATTENTION" : "DONE", attention ? "Autofill needs your attention" : "Autofill finished", `${parts.join(" · ")}. Review the page before submitting.`);
     return { summary: parts.join(" · "), attention, verified };
   }, [tabStatus]);
@@ -369,7 +401,7 @@ export function App() {
         recordResumeAttachment(client, backendBaseUrl, sessionData, attachment);
       } else if (resumeResult?.value) {
         loadedResume = resumeResult.value;
-        if (!attachment && !recovered && !reviewRequired) {
+        if (attachment?.status !== "ATTACHED" && !recovered && !reviewRequired) {
           tabProgress(id, 2, steps, "Attaching resume");
           try {
             attachment = await attachSessionResume(id);
@@ -380,10 +412,52 @@ export function App() {
       }
       updateJob(id, { phase: "scanning", loadedResume, attachment, autofillContext });
       tabProgress(id, 3, steps, "Reading the form");
-      const prepared = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: screeningDefinitions(autofillContext), guideEntries: guideDefinitions(autofillContext) } });
+      const scan = (definitions) => chrome.runtime.sendMessage({ type: MESSAGE_TYPES.PREPARE_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, availableKeys: Object.keys(autofillValues(autofillContext)), applicationAnswers: definitions.applicationAnswers, guideEntries: definitions.guideEntries } });
+      let prepared = await scan({ applicationAnswers: screeningDefinitions(autofillContext), guideEntries: guideDefinitions(autofillContext) });
       if (!prepared?.ok) throw Object.assign(new Error(prepared?.error?.message || "The job page could not be inspected for Autofill."), { code: prepared?.error?.code });
-      let autofillFields = prepared.data.fields || [];
-      const unresolvedAutofillQuestions = prepared.data.unresolved || [];
+      // Questions the rules could not answer: known wordings come from the shared table, new ones from the model.
+      // Matches become extra wordings for this page and the page is scanned again, so the usual matchers fill them.
+      let aiMatched = new Set(), recognized = null;
+      // Placeholders ("Select") and plain contact labels ("First name") are never sent: they are not questions the AI should answer.
+      const askable = (prepared.data.unresolved || []).filter((item) => item.reason === "NO_MATCHING_ANSWER" && !placeholderOnly(item.question) && !contactQuestion(item.question));
+      if (!recovered && askable.length) {
+        tabProgress(id, 3, steps, "Recognizing questions");
+        recognized = await recognizeAutofillQuestions(client, backendBaseUrl, id, askable);
+        const extended = addRecognizedWordings(guideDefinitions(autofillContext), screeningDefinitions(autofillContext), recognized);
+        if (extended.count) {
+          const before = new Set((prepared.data.fields || []).map((field) => `${field.key}|${field.label}`));
+          const again = await scan(extended);
+          if (again?.ok) {
+            prepared = again;
+            aiMatched = new Set((again.data.fields || []).filter((field) => !before.has(`${field.key}|${field.label}`)).map((field) => field.fieldId));
+          }
+        }
+      }
+      // A cover letter upload on the page gets the Application's cover letter file (never the Resume).
+      let coverLetterAttachment = null;
+      if (prepared.data.coverLetterUpload && !reviewRequired) {
+        tabProgress(id, 3, steps, "Attaching cover letter");
+        coverLetterAttachment = await attachSessionCoverLetter(client, backendBaseUrl, sessionData);
+      }
+      let autofillFields = (prepared.data.fields || []).map((field) => aiMatched.has(field.fieldId) ? { ...field, aiMatched: true } : field);
+      let unresolvedAutofillQuestions = prepared.data.unresolved || [];
+      // Open-ended questions (an essay, or a text box that is not a standard-answer question) get an AI draft from the
+      // Resume and job description, filled for a person to review. Drafts are skipped in recovered and review-first sessions.
+      const kinds = draftKinds(recognized);
+      const draftable = (recovered || reviewRequired) ? [] : unresolvedAutofillQuestions.filter((item) => item.ref && !placeholderOnly(item.question) && !contactQuestion(item.question)
+        && (item.openEnded || (item.reason === "NO_MATCHING_ANSWER" && shouldDraft(item, kinds.get(draftKey(item.question))))));
+      if (draftable.length) {
+        tabProgress(id, 3, steps, "Drafting answers");
+        const drafted = await draftAutofillAnswers(client, backendBaseUrl, id, draftable);
+        const draftFields = (drafted?.answers || []).map((item) => ({ item: draftable.filter((question) => ["input", "textarea"].includes(question.controlType)).slice(0, 8)[item.index], answer: item.answer }))
+          .filter(({ item, answer }) => item?.ref && answer)
+          .map(({ item, answer }) => ({ fieldId: `draft_${item.ref}`, key: `draft.${item.ref}`, label: item.question, confidence: 100, readiness: "READY", controlType: item.controlType, inputType: "", aiDraft: true, draftValue: answer }));
+        if (draftFields.length) {
+          autofillFields = [...autofillFields, ...draftFields];
+          const draftedQuestions = new Set(draftFields.map((field) => field.label));
+          unresolvedAutofillQuestions = unresolvedAutofillQuestions.filter((item) => !draftedQuestions.has(item.question));
+        }
+      }
       const autofillAdapter = prepared.data.adapter || null, autofillTargetDomain = prepared.data.targetDomain || "", autofillTargetOrigin = prepared.data.targetOrigin || sessionData.targetOrigin || "";
       let selectedAutofillFieldIds = autofillFields.map((field) => field.fieldId);
       recordAutofillUnresolvedQuestions(client, backendBaseUrl, id, { targetDomain: autofillTargetDomain, adapterId: autofillAdapter?.id, unresolved: unresolvedAutofillQuestions }).catch(() => {});
@@ -397,7 +471,7 @@ export function App() {
         updateJob(id, { phase: "filling" });
         tabProgress(id, 4, steps, "Filling fields");
         write(() => updateApplicationAutofillRecovery(client, backendBaseUrl, id, { ...recoveryPayload, stepIdentifier: "FILLING" }));
-        const fields = autofillFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: autofillValue(autofillContext, field) }));
+        const fields = autofillFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: field.draftValue ?? autofillValue(autofillContext, field) }));
         const filled = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: sessionData.applicationId, adapterId: autofillAdapter?.id || "", fields, sections: sectionRows } });
         if (!filled?.ok) throw Object.assign(new Error(filled?.error?.message || "The detected fields could not be filled."), { code: filled?.error?.code });
         autofillResults = filled.data.results || [];
@@ -408,7 +482,7 @@ export function App() {
         const verified = autofillResults.filter((result) => result.status === "VERIFIED").length, complete = verified === autofillResults.length;
         write(() => updateApplicationAutofillRecovery(client, backendBaseUrl, id, { ...recoveryPayload, stepIdentifier: complete ? "FILLED" : "PARTIAL" }));
         if (complete) write(() => updateApplicationExtensionSession(client, backendBaseUrl, id, "COMPLETED"));
-        outcome = finishSummary(id, { results: autofillResults, unresolved: unresolvedAutofillQuestions, deferred: deferredFieldIds, company });
+        outcome = finishSummary(id, { results: autofillResults, unresolved: unresolvedAutofillQuestions, deferred: deferredFieldIds, company, documents: { resume: attachment, coverLetter: coverLetterAttachment } });
         setStatus({ message: `${company ? `${company}: ` : ""}${outcome.summary}. Review the page before submitting.`, kind: outcome.attention ? "warning" : "success" });
       } else if (recovered) {
         tabStatus(id, "ATTENTION", "Autofill session recovered", "Retry only the fields that still need work.");
@@ -417,7 +491,7 @@ export function App() {
         tabStatus(id, "ATTENTION", "Review before filling", "This Resume requires a preview click before Autofill fills fields.");
         setStatus({ message: "Review is required by this Resume's Autofill preferences. Inspect the detected fields, then choose Fill selected fields.", kind: "warning" });
       } else {
-        finishSummary(id, { results: [], unresolved: unresolvedAutofillQuestions, company });
+        finishSummary(id, { results: [], unresolved: unresolvedAutofillQuestions, company, documents: { resume: attachment, coverLetter: coverLetterAttachment } });
       }
       const telemetry = buildAutofillTelemetry({ resumeUpdatedAt: autofillContext.resumeUpdatedAt, adapter: autofillAdapter, targetDomain: autofillTargetDomain, fields: autofillFields, selectedFieldIds: selectedAutofillFieldIds, results: autofillResults, unresolved: unresolvedAutofillQuestions });
       write(() => recordApplicationAutofillTelemetry(client, backendBaseUrl, id, telemetry));
@@ -580,7 +654,7 @@ export function App() {
       const selectedFields = active.autofillFields.filter((field) => selected.has(field.fieldId)&&!completed.has(field.fieldId)&&field.controlType!=="section");
       if(!selectedFields.length){finishSummary(id,{results:active.autofillResults||[],unresolved:active.unresolvedAutofillQuestions||[]});updateJob(id,{busy:false,phase:"done"});return;}
       if (!selectedScreeningAnswersUnchanged(active.autofillContext, current, selectedFields)) throw Object.assign(new Error("An approved screening answer changed after this preview. Start Autofill again."), { code: "AUTOFILL_CONTEXT_STALE" });
-      const fields = selectedFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: Object.hasOwn(active.autofillOverrides||{},field.fieldId)?active.autofillOverrides[field.fieldId]:autofillValue(current, field) }));
+      const fields = selectedFields.map((field) => ({ fieldId: field.fieldId, key: field.key, answerKey: field.answerKey, answerType: field.answerType, value: Object.hasOwn(active.autofillOverrides||{},field.fieldId)?active.autofillOverrides[field.fieldId]:field.draftValue ?? autofillValue(current, field) }));
       const recoveryPayload={targetOrigin:active.autofillTargetOrigin||new URL(active.session.targetUrl).origin,resumeUpdatedAt:current.resumeUpdatedAt,adapterId:active.autofillAdapter?.id,adapterVersion:active.autofillAdapter?.version};
       backgroundWrite(id, () => updateApplicationAutofillRecovery(client,backendBaseUrl,id,{...recoveryPayload,stepIdentifier:"FILLING"}));
       const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.FILL_PERSONAL_AUTOFILL, payload: { sessionId: id, applicationId: active.session.applicationId, adapterId:active.autofillAdapter?.id||"", fields } });

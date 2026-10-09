@@ -56,10 +56,10 @@ export function AutofillPreview({ active, busy, onValueChange, onFill, onRescan 
       {!fields.length ? <Text type="secondary">No supported personal, contact, or approved screening fields were found on this page.</Text> : (
         <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           {fields.map((field) => {
-            const result = resultById.get(field.fieldId),baseValue=autofillValue(active.autofillContext, field),value=Object.hasOwn(active.autofillOverrides||{},field.fieldId)?active.autofillOverrides[field.fieldId]:baseValue,displayValue = displayAutofillValue(value);
+            const result = resultById.get(field.fieldId),baseValue=field.draftValue ?? autofillValue(active.autofillContext, field),value=Object.hasOwn(active.autofillOverrides||{},field.fieldId)?active.autofillOverrides[field.fieldId]:baseValue,displayValue = displayAutofillValue(value);
             return <Flex key={field.fieldId} gap={8} align="start">
               <div style={{ minWidth: 0, flex: 1 }}>
-                <Flex justify="space-between" gap={8}><Text strong>{LABELS[field.key] || field.label}</Text><Tag color={field.readiness === "READY" ? "green" : "gold"}>{field.confidence}%</Tag></Flex>
+                <Flex justify="space-between" gap={8}><Text strong>{LABELS[field.key] || field.label}</Text>{field.aiMatched && <Tag color="purple">AI-matched</Tag>}{field.aiDraft && <Tag color="magenta">AI draft: review</Tag>}<Tag color={field.readiness === "READY" ? "green" : "gold"}>{field.confidence}%</Tag></Flex>
                 {String(field.key).startsWith("screening.")&&result?.status!=="VERIFIED"?<ScreeningEditor field={field} value={value} onChange={next=>onValueChange(field.fieldId,next)}/>:<Text ellipsis={{ tooltip: displayValue }} style={{ display: "block" }}>{displayValue}</Text>}
                 <Text type="secondary" style={{display:"block",fontSize:11}}>Source: {autofillValueSource(active.autofillContext,field)}</Text>
                 {result && <Text type={result.status === "VERIFIED" ? "success" : "danger"}>{result.status === "VERIFIED" ? "Filled and verified" : RESULT_MESSAGES[result.code] || result.code.replaceAll("_", " ")}</Text>}

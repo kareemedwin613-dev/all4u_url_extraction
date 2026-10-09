@@ -36,9 +36,16 @@ export function jobPageKey(url) {
   if (!/^https?:$/.test(parsed.protocol)) return null;
   const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
   let path = parsed.pathname.replace(/\/+$/, "").toLowerCase();
+  try { path = decodeURIComponent(path); } catch { /* keep as is */ }
   while (APPLY_SUFFIX.test(path)) path = path.replace(APPLY_SUFFIX, "");
   const params = new Map([...parsed.searchParams].map(([key, value]) => [key.toLowerCase(), value]));
-  const jobId = JOB_ID_PARAMS.map((key) => params.get(key)).find(Boolean) || "";
+  let jobId = JOB_ID_PARAMS.map((key) => params.get(key)).find(Boolean) || "";
+  // Workday: every step of an application (/apply/autofillWithResume, /apply/applyManually, …) and the posting
+  // share the requisition id at the end of the job slug ("Sr-Software-Engineer_JR104545").
+  if (/(?:^|\.)(?:myworkdayjobs|myworkdaysite)\.com$/.test(host)) {
+    path = path.replace(/\/apply(?:\/.*)?$/, "");
+    jobId = jobId || (path.match(/\/job\/(?:[^/]+\/)*[^/]*_([a-z]{0,6}-?\d[\w-]*)$/i)?.[1] || "");
+  }
   return { host, path, segments: path.split("/").filter(Boolean), jobId };
 }
 

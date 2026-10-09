@@ -9,7 +9,9 @@ function detectAutofillFields(payload) {
   const guideEntries=Object.freeze((payload?.guideEntries||[]).map(entry=>Object.freeze({...entry,patterns:Object.freeze([...(entry.patterns||[])])})));
   const context=Object.freeze({root:document,availableKeys:Object.freeze([...(payload?.availableKeys||[])]),applicationAnswers,guideEntries});
   const result=selected.adapter.detectFields(context);
-  return {status:"DETECTED",...result,origin:location.origin,adapter:adapterSummary(selected)};
+  // Whether the page has a cover letter upload, so the panel fetches the cover letter file only when it can be attached.
+  const coverLetterUpload=(selected.adapter.detectCoverLetterField?.({root:document})?.confidence??-1)>=70;
+  return {status:"DETECTED",...result,coverLetterUpload,origin:location.origin,adapter:adapterSummary(selected)};
 }
 
 if (!globalThis.__resumeJdPersonalAutofillInstalled) {

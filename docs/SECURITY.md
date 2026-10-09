@@ -7,3 +7,5 @@ Every private table enables RLS and restricts rows to `auth.uid()`. Queue polici
 Job-page scripts receive no Supabase configuration, token, resume, or database record. Extraction runs only after a user action. Arbitrary website access is optional; Supabase access is limited to standard `*.supabase.co` projects. Runtime code is locally bundled, and untrusted text is rendered through text nodes.
 
 Do not log or share session tokens, full resumes, full JDs, private object paths, client error payloads, or browser storage exports. A publishable/anon key is expected in a public client; RLS must remain enabled. If a privileged key is exposed, rotate it immediately and inspect project logs.
+
+AI provider calls run only in the isolated workers and in the API's `autofill-ai` module, which matches employer question wording to known Autofill answers. That module sends question wording and option labels, never candidate, Resume or JD data, and only the API's server key may save what it learns. `npm run security:check` enforces this boundary. See [AI question recognition](autofill/v2.3-ai-question-recognition.md).

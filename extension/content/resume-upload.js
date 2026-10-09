@@ -9,10 +9,16 @@ if (!globalThis.__resumeJdUploadBridgeInstalled) {
   // Resume input (e.g. a Greenhouse application embedded as an iframe on a company careers page).
   globalThis.__resumeJdResumeUploadProbe = () => {
     const selected = selectJobSiteAdapter(location.href), candidate = selected.adapter.detectResumeField({ root: document });
-    return { origin: location.origin, confidence: candidate?.confidence ?? -1, adapter: adapterSummary(selected) };
+    const coverLetter = selected.adapter.detectCoverLetterField?.({ root: document });
+    return { origin: location.origin, confidence: candidate?.confidence ?? -1, coverLetterConfidence: coverLetter?.confidence ?? -1, adapter: adapterSummary(selected) };
   };
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender?.id !== chrome.runtime.id || message?.type !== MESSAGE_TYPES.ATTACH_RESUME_TO_PAGE) return false;
+    if (sender?.id !== chrome.runtime.id) return false;
+    if (message?.type === MESSAGE_TYPES.ATTACH_COVER_LETTER_TO_PAGE) {
+      Promise.resolve().then(()=>{const selected=selectJobSiteAdapter(location.href),result=selected.adapter.attachCoverLetter?.({root:document,payload:message.payload})||{status:"UNSUPPORTED",code:"COVER_LETTER_INPUT_NOT_FOUND"};return{...result,adapter:adapterSummary(selected)};}).then(sendResponse).catch(() => sendResponse({ status: "FAILED", code: "COVER_LETTER_ATTACHMENT_FAILED" }));
+      return true;
+    }
+    if (message?.type !== MESSAGE_TYPES.ATTACH_RESUME_TO_PAGE) return false;
     Promise.resolve().then(()=>{const selected=selectJobSiteAdapter(location.href),result=selected.adapter.attachResume({root:document,payload:message.payload});return{...result,adapter:adapterSummary(selected)};}).then(sendResponse).catch(() => sendResponse({ status: "FAILED", code: "RESUME_ATTACHMENT_FAILED" }));
     return true;
   });

@@ -170,5 +170,6 @@ export function sanitizeSectionRows(sections = {}) {
   return {
     employment: (Array.isArray(sections?.employment) ? sections.employment : []).slice(0, 10).map((item) => row(item, ["company", "jobTitle", "location", "description", "startDate", "endDate", "isCurrent"])),
     education: (Array.isArray(sections?.education) ? sections.education : []).slice(0, 10).map((item) => row(item, ["institution", "degree", "fieldOfStudy", "startDate", "endDate"])),
+    skills: (Array.isArray(sections?.skills) ? sections.skills : []).filter((item) => typeof item === "string").map((item) => item.trim().slice(0, 60)).filter((item) => item.length >= 2).slice(0, 25),
   };
 }

@@ -1,7 +1,7 @@
 // Fills questions the published Application Guide answers. Rules only: the guide question and its extra
 // wordings are matched against each control's visible question, and the answer comes from the guide or
 // from the verified Resume. NEVER entries are claimed so no other matcher fills them.
-import { containerQuestion, formSection, isUserFacing, linkedLabels, questionText } from "./form-context.js";
+import { choiceGroup, containerQuestion, formSection, isUserFacing, linkedLabels, questionText } from "./form-context.js";
 import { US_STATE_NAMES, findBestOption, normalizeOptionText, optionPolarity, usStateCode } from "./option-matching.js";
 import { questionBlocked, skillSpecificExperience } from "./screening-field-adapter.js";
 
@@ -81,9 +81,7 @@ function controlQuestion(element, grouped, group = [element]) {
 }
 
 function groupOf(element, all) {
-  if (!isChoice(element) || !element.name) return [element];
-  const group = all.filter((item) => typeOf(item) === typeOf(element) && item.name === element.name);
-  return group.length ? group : [element];
+  return choiceGroup(element, all);
 }
 
 export function guideFieldCandidates(root = document, rawEntries = []) {
@@ -117,12 +115,12 @@ export function guideFieldCandidates(root = document, rawEntries = []) {
 }
 
 // Yes/No questions about the candidate's own experience, answered from the Resume by resume-evidence.js.
-const EXPERIENCE_QUESTION = /^(?:do|does|have|has|are|can|would)\s+you\b[^?]*\b(experience|years?|familiar|proficien\w*|knowledge|expertise|worked with|hands[- ]on)\b/i;
+const EXPERIENCE_QUESTION = /^(?:do|does|have|has|are|can|would)\s+you\b[^?]*\b(experience|years?|familiar|proficien\w*|knowledge|expertise|skilled|worked with|hands[- ]on)\b/i;
 
 function offersYesAndNo(element, elements) {
   const texts = tagOf(element) === "select"
     ? [...(element.options || [])].map((option) => option.textContent)
-    : typeOf(element) === "radio" ? elements.flatMap((item) => optionLabel(item)) : null;
+    : typeOf(element) === "radio" || typeOf(element) === "checkbox" ? elements.flatMap((item) => optionLabel(item)) : null;
   if (!texts) return true; // A search dropdown's options appear only once it is opened.
   const polarities = new Set(texts.map(optionPolarity));
   return polarities.has("yes") && polarities.has("no");
@@ -131,16 +129,18 @@ function offersYesAndNo(element, elements) {
 export function evidenceFieldCandidates(root = document) {
   const all = [...root.querySelectorAll("input,select,textarea")].filter(usable), seen = new Set(), candidates = [];
   for (const element of all) {
-    const choice = tagOf(element) === "select" || typeOf(element) === "radio" || isCombobox(element);
+    const choice = tagOf(element) === "select" || typeOf(element) === "radio" || typeOf(element) === "checkbox" || isCombobox(element);
     if (!choice) continue;
     const elements = groupOf(element, all);
+    // A checkbox pair used as a Yes/No answer (Lever: "Yes, Strong C# skills" / "No"); never a single consent box.
+    if (typeOf(element) === "checkbox" && elements.length !== 2) continue;
     if (seen.has(elements[0])) continue;
     seen.add(elements[0]);
-    const question = controlQuestion(element, typeOf(element) === "radio", elements);
+    const question = controlQuestion(element, typeOf(element) === "radio" || typeOf(element) === "checkbox", elements);
     if (!EXPERIENCE_QUESTION.test(question.replace(/^[*\s]+/, "")) || questionBlocked(question) || !offersYesAndNo(element, elements)) continue;
     candidates.push({
       element, elements, confidence: 85, key: `evidence.${candidates.length}`, label: question.slice(0, 300),
-      controlType: typeOf(element) === "radio" ? "radio" : isCombobox(element) ? "combobox" : tagOf(element), inputType: typeOf(element),
+      controlType: typeOf(element) === "radio" || typeOf(element) === "checkbox" ? typeOf(element) : isCombobox(element) ? "combobox" : tagOf(element), inputType: typeOf(element),
     });
   }
   return candidates.slice(0, 40);

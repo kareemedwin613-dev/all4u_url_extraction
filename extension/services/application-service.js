@@ -230,6 +230,28 @@ export async function downloadApplicationCoverLetter(client,baseUrl,applicationI
   if(!Number.isInteger(downloadId))throw new AppError("APPLICATION_COVER_LETTER_DOWNLOAD_FAILED","Chrome could not start the cover letter download.");
   return{kind:data.kind,downloadId,downloadName};
 }
+// The Application's cover letter as a file for a cover letter upload: an original upload is read from its private
+// signed URL, a generated letter arrives as a PDF. Held in memory only for the attach.
+export async function loadApplicationCoverLetterFile(client,baseUrl,applicationId,fetchImpl=fetch){
+  const data=await call(client,baseUrl,`/api/v1/applications/${encodeURIComponent(applicationId)}/cover-letter`,{timeoutMs:30000});
+  const filename=safeDownloadName(data?.filename||"Cover Letter.pdf");
+  if(data?.source==="ORIGINAL_UPLOAD"){
+    let url;try{url=new URL(data.signedUrl);}catch{/* Rejected by metadata validation below. */}
+    if(data.kind!=="BASE"||!url||!["https:","http:"].includes(url.protocol)||!url.pathname.startsWith("/storage/v1/object/sign/cover-letters/")||!["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","text/plain"].includes(data.mimeType))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
+    const response=await fetchImpl(url.toString(),{credentials:"omit",signal:AbortSignal.timeout(30000)});
+    if(!response.ok)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter file could not be read.");
+    const bytes=new Uint8Array(await response.arrayBuffer());
+    if(bytes.byteLength<1||bytes.byteLength>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
+    let binary="";for(let offset=0;offset<bytes.length;offset+=32768)binary+=String.fromCharCode(...bytes.subarray(offset,offset+32768));
+    const ext={"application/pdf":".pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document":".docx","text/plain":".txt"}[data.mimeType];
+    return{base64:btoa(binary),filename:filename.toLowerCase().endsWith(ext)?filename:`${filename}${ext}`,mimeType:data.mimeType,fileSizeBytes:bytes.byteLength};
+  }
+  const base64=String(data?.contentBase64||"");
+  if(data?.mimeType!=="application/pdf"||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)||!["TAILORED","BASE"].includes(data?.kind))throw new AppError("APPLICATION_COVER_LETTER_METADATA_INVALID","The cover letter file metadata is invalid.");
+  const fileSizeBytes=Math.floor(base64.length*3/4)-(base64.endsWith("==")?2:base64.endsWith("=")?1:0);
+  if(fileSizeBytes<1||fileSizeBytes>5242880)throw new AppError("COVER_LETTER_READ_FAILED","The cover letter exceeds the supported file size.");
+  return{base64,filename:/\.pdf$/i.test(filename)?filename:`${filename}.pdf`,mimeType:"application/pdf",fileSizeBytes};
+}
 export async function copyApplicationCoverLetter(client,baseUrl,applicationId,writeText=text=>navigator.clipboard.writeText(text),extractText=async(buffer,mimeType)=>(await import("./cover-letter-parser.js")).extractCoverLetterText(buffer,mimeType)){
   const{kind,text}=await getApplicationCoverLetterText(client,baseUrl,applicationId,extractText);
   try{await writeText(text);}catch{throw new AppError("COVER_LETTER_COPY_FAILED","Clipboard access failed. Keep the extension panel focused, then click Copy Cover Letter again.");}
@@ -339,4 +361,24 @@ export async function startApplicationExtensionAction(client,baseUrl,application
     if(extensionSession?.id)await updateApplicationExtensionSession(client,baseUrl,extensionSession.id,"FAILED","HANDOFF_FAILED").catch(()=>{});
     throw error;
   }
+}
+
+// Asks the API which known answer each unanswered question wants: learned wordings first, then the model.
+// Sends employer wording and option labels only. Resolves to null when nothing needs asking or the call fails.
+export async function recognizeAutofillQuestions(client,baseUrl,sessionId,unresolved=[]){
+  const asked=(unresolved||[]).filter(item=>item?.reason==="NO_MATCHING_ANSWER"&&typeof item.question==="string"&&item.question.trim().length>=2).slice(0,30)
+    .map(item=>({question:item.question.slice(0,300),controlType:item.controlType,options:(Array.isArray(item.options)?item.options:[]).slice(0,25).map(option=>String(option).slice(0,120))}));
+  if(!asked.length)return null;
+  try{const data=await call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-ai/recognize`,{method:"POST",body:{questions:asked}});return{asked,results:Array.isArray(data?.results)?data.results:[],ai:data?.ai||""};}
+  catch{return null;}
+}
+
+// Asks the API to draft answers to open-ended questions from this Application's Resume and job description.
+// Sends the question wording, field type and length limit only. Resolves to null when the call fails.
+export async function draftAutofillAnswers(client,baseUrl,sessionId,questions=[]){
+  const asked=(questions||[]).filter(item=>typeof item?.question==="string"&&item.question.trim().length>=2&&["input","textarea"].includes(item.controlType)).slice(0,8)
+    .map(item=>({question:item.question.slice(0,300),controlType:item.controlType,...(Number.isInteger(item.maxLength)&&item.maxLength>0?{maxLength:Math.min(item.maxLength,20000)}:{})}));
+  if(!asked.length)return null;
+  try{const data=await call(client,baseUrl,`/api/v1/extension-sessions/${sessionId}/autofill-ai/draft`,{method:"POST",body:{questions:asked},timeoutMs:40000});return{asked,answers:Array.isArray(data?.answers)?data.answers:[],ai:data?.ai||""};}
+  catch{return null;}
 }

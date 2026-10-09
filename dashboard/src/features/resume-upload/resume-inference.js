@@ -1,3 +1,4 @@
+import { withStructuredEducation } from "../../shared/legacy-education-parser.js";
 import {suggestControlledCategory,suggestSeniority} from "../../../../extension/shared/categories.js";
 import {detectIndustryDomain} from "../../../../extension/shared/industry-domain.js";
 import {skillsFromResumeSection} from "../../../../extension/shared/skill-detection.js";
@@ -33,7 +34,7 @@ const domainLabel=slug=>slug?slug.split("-").map(titleCase).join(" "):"";
 
 export function inferResumeInformation(text,filename="resume.pdf"){
   const resumeText=clean(text),candidateName=candidateNameFromResume(resumeText,filename),resumeName=candidateName?candidateName+" Resume":String(filename).replace(/\.pdf$/i,"").replace(/[_-]+/g," ").trim();
-  const category=suggestControlledCategory(resumeName,resumeText),industry=detectIndustryDomain("",resumeText),contact=candidateContactFromResume(resumeText),extracted=normalizeStructuredResumeV2(parseResumeSections(resumeText)),structuredContent={...extracted,education_legacy_text:Array.isArray(extracted.education)?extracted.education_legacy_text||"":extracted.education||"",education:Array.isArray(extracted.education)?extracted.education:[],certifications:Array.isArray(extracted.certifications)?extracted.certifications:[]};
+  const category=suggestControlledCategory(resumeName,resumeText),industry=detectIndustryDomain("",resumeText),contact=candidateContactFromResume(resumeText),extracted=normalizeStructuredResumeV2(parseResumeSections(resumeText)),structuredContent={...withStructuredEducation(extracted),certifications:Array.isArray(extracted.certifications)?extracted.certifications:[]};
   return {
     candidateName,...candidateNameParts(candidateName),resumeName,...contact,
     categorySlug:category.categorySlug||"",subcategorySlug:category.subcategorySlug||"",

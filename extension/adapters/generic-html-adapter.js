@@ -1,7 +1,8 @@
 import{PERSONAL_AUTOFILL_KEYS,PERSONAL_FIELD_ATTRIBUTE,fillPersonalFields,personalFieldCandidates,personalFieldResult,tagPersonalField}from"../autofill/personal-field-adapter.js";
+import{fillDraftFields}from"../autofill/draft-fill.js";
 import{detectUnresolvedQuestions,fillScreeningFields,screeningFieldCandidates,screeningFieldResult,tagScreeningField}from"../autofill/screening-field-adapter.js";
 import{GUIDE_FIELD_ATTRIBUTE,evidenceFieldCandidates,fillGuideFields,guideFieldCandidates,guideFieldResult,selectComboboxValue,tagGuideField}from"../autofill/guide-field-adapter.js";
-import{attachResumePayload,detectResumeUploadInputs}from"../autofill/resume-upload-adapter.js";
+import{attachCoverLetterPayload,attachResumePayload,detectCoverLetterUploadInputs,detectResumeUploadInputs}from"../autofill/resume-upload-adapter.js";
 import{BaseAtsAdapter}from"./base-ats-adapter.js";
 
 const PERSONAL_KEY=/^(candidate|employment|education)\./,ANSWER_KEY=/^(guide|evidence)\./;
@@ -55,6 +56,8 @@ export class GenericHtmlAdapter extends BaseAtsAdapter{
   return{fields,unresolved:[...missing,...never,...detectUnresolvedQuestions(root,applicationAnswers)].slice(0,50)};
  }
  attachResume({root=document,payload}={}){return attachResumePayload(payload,root);}
+ detectCoverLetterField({root=document}={}){const candidate=detectCoverLetterUploadInputs(root)[0];return candidate?{confidence:Math.min(100,candidate.score),controlType:"file"}:null;}
+ attachCoverLetter({root=document,payload}={}){return attachCoverLetterPayload(payload,root);}
  async fillFields({root=document,fields=[]}={}){
   const personalRequests=fields.filter(field=>PERSONAL_KEY.test(String(field?.key||""))),element=field=>root.querySelector?.(`[${PERSONAL_FIELD_ATTRIBUTE}="${field.fieldId}"]`);
   // Search dropdowns (react-select "Country") are chosen from their list, never typed into.
@@ -66,7 +69,9 @@ export class GenericHtmlAdapter extends BaseAtsAdapter{
   }
   const screening=await fillScreeningFields(fields.filter(field=>String(field?.key||"").startsWith("screening.")),root);
   const answers=await fillGuideFields(fields.filter(field=>ANSWER_KEY.test(String(field?.key||""))),root);
-  return[...personal,...screening,...answers];
+  // AI-drafted answers for open-ended questions, into the boxes the scan referenced.
+  const drafts=fillDraftFields(fields.filter(field=>String(field?.key||"").startsWith("draft.")),root);
+  return[...personal,...screening,...answers,...drafts];
  }
 }
 

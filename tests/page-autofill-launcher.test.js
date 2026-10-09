@@ -67,3 +67,16 @@ test("only the button's own top-frame script may list or start, and the panel st
   assert.match(view, /PANEL_APPLICATIONS_KEY\]: \{ updatedAt: Date\.now\(\), items: panelApplicationItems\(items\) \}/);
   assert.match(service, /PROFILE_REVIEW_REQUIRED/);
 });
+
+test("Workday: every application step matches its posting by requisition id, within the same employer site", () => {
+  const posting = "https://chghealthcare.wd1.myworkdayjobs.com/en-US/External/job/Salt-Lake-City-UT/Sr-Software-Engineer_JR104545";
+  for (const step of [
+    "https://chghealthcare.wd1.myworkdayjobs.com/en-US/external/job/Salt-Lake-City%2C-UT/Sr-Software-Engineer_JR104545/apply/autofillWithResume",
+    "https://chghealthcare.wd1.myworkdayjobs.com/en-US/External/job/Salt-Lake-City-UT/Sr-Software-Engineer_JR104545/apply/applyManually?source=LinkedIn",
+    "https://chghealthcare.wd1.myworkdayjobs.com/External/job/Salt-Lake-City-UT/Sr-Software-Engineer_JR104545/apply",
+  ]) assert.ok(sameJobPage(step, posting), step);
+  assert.ok(!sameJobPage("https://chghealthcare.wd1.myworkdayjobs.com/en-US/External/job/Salt-Lake-City-UT/Sr-Software-Engineer_JR104544/apply", posting), "another requisition");
+  assert.ok(!sameJobPage("https://other.wd1.myworkdayjobs.com/en-US/External/job/X/Sr-Software-Engineer_JR104545/apply", posting), "another employer");
+  assert.equal(jobPageKey("https://experity.wd108.myworkdayjobs.com/en-US/Experity_Careers/job/Illinois-Remote/Senior-Software-Engineer--PACS----Full-Time---Remote_JR100368").jobId, "jr100368");
+  assert.equal(jobPageKey("https://evolent.wd1.myworkdayjobs.com/en-US/External/job/Sr-Software-Engineer_JR-916725?source=Linkedin").jobId, "jr-916725");
+});

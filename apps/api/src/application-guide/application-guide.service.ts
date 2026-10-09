@@ -64,6 +64,18 @@ export class ApplicationGuideService {
     return data;
   }
 
+  async learnedWordings(user: AuthenticatedUser) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("list_autofill_learned_wordings_v3161", { p_limit: 200 });
+    if (error) fail(error, "Learned Autofill wordings could not be loaded.");
+    return data || { items: [], total: 0, month: { requests: 0, questions: 0, costMicroUsd: 0 } };
+  }
+
+  async removeLearnedWording(user: AuthenticatedUser, id: string) {
+    const { data, error } = await this.supabase.forUser(user.token).rpc("delete_autofill_learned_wording_v3161", { p_id: id });
+    if (error) fail(error, "The learned wording could not be removed.");
+    return data;
+  }
+
   async remove(user: AuthenticatedUser, id: string) {
     const { data, error } = await this.supabase.forUser(user.token).rpc("delete_application_guide_v3149", { p_id: id });
     if (error) fail(error, "The guide entry could not be removed.");
